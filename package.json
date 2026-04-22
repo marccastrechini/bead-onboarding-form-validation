@@ -1,0 +1,31 @@
+{
+  "name": "bead-onboarding-form-validation",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "playwright test",
+    "test:smoke": "playwright test tests/signer-smoke.spec.ts --project=chromium",
+    "test:discovery": "playwright test tests/signer-discovery.spec.ts --project=chromium",
+    "test:destructive": "powershell -NoProfile -Command \"$env:DESTRUCTIVE_VALIDATION='1'; npx playwright test tests/signer-discovery.spec.ts --project=chromium; Remove-Item Env:DESTRUCTIVE_VALIDATION\"",
+    "report:open": "playwright show-report artifacts/playwright-html-report",
+    "summary:open": "powershell -NoProfile -Command \"Get-Content artifacts/latest-validation-summary.md\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/marccastrechini/bead-onboarding-form-validation.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/marccastrechini/bead-onboarding-form-validation/issues"
+  },
+  "homepage": "https://github.com/marccastrechini/bead-onboarding-form-validation#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@types/node": "^25.6.0",
+    "dotenv": "^17.4.2"
+  }
+}
