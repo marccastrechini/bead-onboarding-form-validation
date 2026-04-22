@@ -2,7 +2,32 @@
  * Shared helpers for the DocuSign signer tests.
  */
 
-import { expect, type Page, type FrameLocator, type Locator } from '@playwright/test';
+import { expect, type Page, type Frame, type FrameLocator, type Locator } from '@playwright/test';
+
+/**
+ * A "frame host" covers both FrameLocator (iframe-embedded forms) and Page
+ * (main-page-embedded forms, which is how modern DocuSign renders signing tabs).
+ * Both Page and FrameLocator expose identical locator-composition methods so
+ * downstream helpers work unchanged against either surface.
+ */
+export type FrameHost = Pick<Page, 'locator' | 'getByLabel' | 'getByRole' | 'getByText' | 'getByTestId'>;
+
+/** Per-frame metadata gathered during signing-frame discovery. */
+export type FrameDiagnostic = {
+  name: string;
+  url: string;
+  iframeId: string;
+  iframeTitle: string;
+  hasBusinessDetails: boolean;
+  excluded: boolean;
+};
+
+/**
+ * Iframe id / name patterns that are known UI-chrome frames, not the signing
+ * document.  Frames whose id OR name matches this pattern are excluded from
+ * all scoring passes.
+ */
+const EXCLUDE_FRAME_RE = /comment|sidebar|auxiliary|notification|chat|toolbar|header|footer|panel/i;
 
 export function hasSignerUrl(): boolean {
   return Boolean(process.env.DOCUSIGN_SIGNING_URL?.trim());
@@ -24,77 +49,175 @@ export function getSignerUrl(): string {
 }
 
 /**
- * Resolve the DocuSign signing iframe at runtime.
+ * Resolve the DocuSign signing iframe (or main page) at runtime.
  *
  * Strategy:
- *   1. Enumerate every iframe in the page.
- *   2. Score each by name/id/title/src match against known DocuSign patterns
- *      (ids `tacticframe`, `ds-signing-iframe`, `signing-frame`, titles
- *      containing "DocuSign", src containing "docusign") PLUS the number of
- *      form controls inside the frame (read via same-origin contentDocument
- *      when available – same-origin DocuSign iframes expose this).
- *   3. Pick the highest-scoring frame and return a FrameLocator with an
- *      exact-attribute CSS match (not the fuzzy :is() pattern).
- *   4. If scoring fails, fall back to the broad :is() pattern and record a
- *      diagnostic so the run surfaces the fallback in the report.
+ *   Enumerate every Playwright frame including the main page.  Score each
+ *   candidate using Playwright's CDP-based ARIA-aware APIs which work
+ *   cross-origin AND handle non-standard input types and custom role
+ *   elements (e.g. <div role="textbox">) that CSS type-selectors miss:
  *
- * This runtime detection is materially more resilient than a single hard-
- * coded id because it adapts to whichever signing-frame id DocuSign returns
- * for this account / template.
+ *     textboxCount × 5  – getByRole('textbox').count() in that frame
+ *     comboboxCount × 2 – getByRole('combobox').count() in that frame
+ *     + 100  – (non-main only) frame URL contains "signing" or "docusign"
+ *     + 80   – (non-main only) iframe element id/title/name matches keyword
+ *     + 150  – DocuSign accessibility link visible ("Press enter to use…")
+ *     + 200  – "1. Business Details" heading visible (fill-mode only)
+ *
+ *   The highest-scoring candidate wins and is returned directly as a
+ *   FrameHost (Page, Frame, or FrameLocator – all satisfy the interface).
+ *   Frames whose id/name match EXCLUDE_FRAME_RE are skipped.
+ *
+ *   FRAGILE :is() fallback used only when the loop exhausts its timeout.
  */
 export async function resolveSigningFrame(
   page: Page,
   timeoutMs = 20_000,
-): Promise<{ frame: FrameLocator; diagnostic: string }> {
+): Promise<{ frame: FrameHost; diagnostic: string; frameDiagnostics: FrameDiagnostic[] }> {
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    const chosen = await page.evaluate(() => {
-      const all = Array.from(document.querySelectorAll('iframe'));
-      type Info = { id: string; title: string; name: string; src: string; score: number };
-      const infos: Info[] = all.map((f) => {
-        const id = f.id || '';
-        const title = f.getAttribute('title') || '';
-        const name = f.getAttribute('name') || '';
-        const src = f.getAttribute('src') || '';
-        const sig = `${id} ${title} ${name} ${src}`;
-        let score = 0;
-        if (/signing|tacticframe|docusign/i.test(sig)) score += 100;
+    const frameDiagnostics: FrameDiagnostic[] = [];
 
-        let inner: Document | null = null;
+    type ScoredCandidate = {
+      host: FrameHost;
+      isMain: boolean;
+      iframeId: string;
+      iframeTitle: string;
+      name: string;
+      url: string;
+      score: number;
+      textboxCount: number;
+    };
+    const scored: ScoredCandidate[] = [];
+
+    // Build candidate list: all sub-frames first, then main page as a
+    // fallback candidate (scored without URL/attribute bonuses).
+    type FrameCandidate = {
+      host: FrameHost;
+      isMain: boolean;
+      name: string;
+      url: string;
+      frame: Frame | null;
+    };
+    const subFrames: Frame[] = page.frames().filter(f => f !== page.mainFrame());
+    const allCandidates: FrameCandidate[] = [
+      ...subFrames.map(f => ({ host: f as unknown as FrameHost, isMain: false, name: f.name(), url: f.url(), frame: f })),
+      { host: page as unknown as FrameHost, isMain: true, name: '(main)', url: page.url(), frame: null },
+    ];
+
+    for (const cand of allCandidates) {
+      let iframeId = '';
+      let iframeTitle = '';
+
+      if (!cand.isMain) {
         try {
-          inner = f.contentDocument;
+          if (cand.frame) {
+            const el = await cand.frame.frameElement();
+            iframeId = (await el.getAttribute('id')) ?? '';
+            iframeTitle = (await el.getAttribute('title')) ?? '';
+          }
         } catch {
-          inner = null;
+          /* detached – skip */
         }
-        if (inner) {
-          score += inner.querySelectorAll('input, textarea, select, button').length;
-        }
-        return { id, title, name, src, score };
-      });
 
-      infos.sort((a, b) => b.score - a.score);
-      return infos[0] ?? null;
-    });
+        const excluded =
+          EXCLUDE_FRAME_RE.test(iframeId) || EXCLUDE_FRAME_RE.test(cand.name);
 
-    if (chosen && chosen.score > 0) {
-      let selector = 'iframe';
-      if (chosen.id) selector = `iframe[id="${escapeAttr(chosen.id)}"]`;
-      else if (chosen.title) selector = `iframe[title="${escapeAttr(chosen.title)}"]`;
-      else if (chosen.name) selector = `iframe[name="${escapeAttr(chosen.name)}"]`;
+        frameDiagnostics.push({
+          name: cand.name,
+          url: cand.url.slice(0, 120),
+          iframeId,
+          iframeTitle,
+          hasBusinessDetails: false,
+          excluded,
+        });
+
+        if (excluded) continue;
+      }
+
+      // ARIA-aware role counting with includeHidden:true so that DocuSign's
+      // disabled/CSS-hidden form fields (shown in review mode as read-only
+      // overlays but kept in the DOM with visibility:hidden) are still counted.
+      const textboxCount = await cand.host.getByRole('textbox', { includeHidden: true }).count().catch(() => 0);
+      const comboboxCount = await cand.host.getByRole('combobox', { includeHidden: true }).count().catch(() => 0);
+
+      // Diagnostic: log every candidate (first iteration only to avoid noise).
+      if (Date.now() - (deadline - timeoutMs) < 1_500) {
+        console.log(
+          `[frame-scan] ${cand.isMain ? 'MAIN' : 'sub'} name="${cand.name}" ` +
+          `textboxes=${textboxCount} comboboxes=${comboboxCount} url=${cand.url.slice(0, 100)}`,
+        );
+      }
+
+      const hasSigningLink = await cand.host
+        .getByText('Press enter to use the screen reader')
+        .first()
+        .isVisible({ timeout: 300 })
+        .catch(() => false);
+
+      const hasBusinessDetails = await cand.host
+        .getByText('1. Business Details')
+        .first()
+        .isVisible({ timeout: 200 })
+        .catch(() => false);
+
+      if (!cand.isMain) {
+        // Update the last pushed frameDiagnostic with the content signals.
+        const last = frameDiagnostics[frameDiagnostics.length - 1];
+        if (last) last.hasBusinessDetails = hasBusinessDetails;
+      }
+
+      let score = 0;
+      if (!cand.isMain) {
+        if (/signing|docusign/i.test(cand.url)) score += 100;
+        if (/signing|tacticframe|docusign/i.test(`${iframeId} ${iframeTitle} ${cand.name}`)) score += 80;
+        if (hasSigningLink) score += 150;
+        if (hasBusinessDetails) score += 200;
+      }
+      score += textboxCount * 5;
+      score += comboboxCount * 2;
+
+      if (score > 0) {
+        scored.push({
+          host: cand.host,
+          isMain: cand.isMain,
+          iframeId,
+          iframeTitle,
+          name: cand.name,
+          url: cand.url,
+          score,
+          textboxCount,
+        });
+      }
+    }
+
+    scored.sort((a, b) => b.score - a.score);
+
+    if (scored.length > 0) {
+      const best = scored[0];
+      const tag = best.isMain
+        ? 'main page'
+        : `iframe id="${best.iframeId}" name="${best.name}"`;
       return {
-        frame: page.frameLocator(selector),
-        diagnostic: `iframe auto-detected: ${selector} (score=${chosen.score})`,
+        frame: best.host,
+        diagnostic:
+          `signing frame resolved – ${tag}` +
+          ` (score=${best.score}, textboxes=${best.textboxCount})`,
+        frameDiagnostics,
       };
     }
+
     await page.waitForTimeout(500);
   }
 
+  // FRAGILE fallback – inspect the signing iframe in DevTools to harden.
   const fallback =
     'iframe:is([id*="signing"], [id*="tactic"], [title*="DocuSign"], [title*="Signing"], [name*="signing"], [src*="docusign"])';
   return {
-    frame: page.frameLocator(fallback),
-    diagnostic: `FRAGILE fallback iframe selector in use: ${fallback}`,
+    frame: page.frameLocator(fallback) as unknown as FrameHost,
+    diagnostic: `FRAGILE fallback iframe selector in use – inspect in DevTools: ${fallback}`,
+    frameDiagnostics: [],
   };
 }
 
@@ -154,25 +277,59 @@ export async function clickStartIfPresent(page: Page, timeout = 8_000): Promise<
  * Full "open the signer session" flow.  Returns the resolved FrameLocator
  * plus diagnostics so the discovery spec can surface them in the report.
  */
-export async function openSigner(page: Page): Promise<{ frame: FrameLocator; diagnostics: string[] }> {
+export async function openSigner(page: Page): Promise<{ frame: FrameHost; diagnostics: string[] }> {
   const diagnostics: string[] = [];
 
   await page.goto(getSignerUrl(), { waitUntil: 'domcontentloaded' });
 
-  const startStrategy = await clickStartIfPresent(page);
+  // Fast-fail: DocuSign redirects expired or already-used signing URLs to
+  // Error.aspx.  Detect this early so the test fails with a clear message
+  // rather than timing out after 20s of frame scanning.
+  const landingUrl = page.url();
+  if (/Error\.aspx/i.test(landingUrl)) {
+    throw new Error(
+      'DocuSign signing URL is expired or already consumed.\n' +
+      `Error page: ${landingUrl}\n` +
+      'Generate a new signing URL and update DOCUSIGN_SIGNING_URL in .env.',
+    );
+  }
+  diagnostics.push(`landed on: ${landingUrl.slice(0, 120)}`);
+
+  // Use a short per-strategy timeout (3s) so strategies that don't match fail
+  // fast instead of wasting 8s × 3 = 24s of the test budget.
+  const startStrategy = await clickStartIfPresent(page, 3_000);
   diagnostics.push(`start-button strategy: ${startStrategy}`);
 
-  const { frame, diagnostic } = await resolveSigningFrame(page);
+  // Clicking Start triggers a page navigation to the signing page (Sign.aspx).
+  // Wait for that page to reach domcontentloaded before scanning for iframes.
+  if (startStrategy !== 'none') {
+    try {
+      await page.waitForLoadState('domcontentloaded', { timeout: 20_000 });
+      diagnostics.push('post-start navigation settled');
+    } catch {
+      diagnostics.push('post-start navigation wait timed out (proceeding)');
+    }
+  }
+
+  const { frame, diagnostic, frameDiagnostics } = await resolveSigningFrame(page);
   diagnostics.push(diagnostic);
 
-  // Prefer a real form-control readiness check over template-specific heading
-  // text. The live signer DOM can expose the onboarding fields without
-  // rendering a literal "1. Business Details" heading in the accessibility
-  // tree, which made the previous readiness gate fail on valid sessions.
+  // Emit one diagnostic line per discovered frame so the HTML report shows
+  // the full frame inventory for debugging.
+  for (const fd of frameDiagnostics) {
+    const flag = fd.excluded ? ' [EXCLUDED]' : fd.hasBusinessDetails ? ' [MATCH]' : '';
+    diagnostics.push(
+      `frame-scan: id="${fd.iframeId}" name="${fd.name}" title="${fd.iframeTitle}" url="${fd.url}"${flag}`,
+    );
+  }
+
+  // Readiness gate: wait for at least one enabled (not disabled) form control
+  // to be visible.  We use a CSS selector here because enabled controls ARE
+  // visible in the signing form regardless of the mode (fill vs review).
   await expect(
-    frame.locator('input:not([type="hidden"]), textarea, select').first(),
+    frame.locator('input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled])').first(),
   ).toBeVisible({ timeout: 20_000 });
-  diagnostics.push('signer-form readiness: first input/textarea/select is visible');
+  diagnostics.push('signer-form readiness: first enabled input/select/textarea is visible');
 
   return { frame, diagnostics };
 }

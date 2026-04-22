@@ -10,6 +10,9 @@ dotenv.config({ path: path.resolve(__dirname, '.env') });
  */
 export default defineConfig({
   testDir: './tests',
+  /* DocuSign signing sessions involve a redirect chain, page load, iframe
+   * load, and content render – 30s is too tight.  90s covers slow networks. */
+  timeout: 90_000,
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code. */

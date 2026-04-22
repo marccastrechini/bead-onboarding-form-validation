@@ -6,8 +6,9 @@
  * fills – so it is safe to run against a live signing URL.
  */
 
-import type { FrameLocator, Locator } from '@playwright/test';
+import type { Locator } from '@playwright/test';
 import { inferFieldType, type FieldTypeDefinition } from './validation-rules';
+import type { FrameHost } from './signer-helpers';
 
 export type FieldKind = 'textbox' | 'textarea' | 'combobox' | 'checkbox' | 'radio' | 'upload';
 
@@ -56,7 +57,7 @@ async function safeAttr(loc: Locator, name: string): Promise<string | null> {
   }
 }
 
-async function describedByText(loc: Locator, frame: FrameLocator): Promise<string | null> {
+async function describedByText(loc: Locator, frame: FrameHost): Promise<string | null> {
   const ids = await safeAttr(loc, 'aria-describedby');
   if (!ids) return null;
   const parts: string[] = [];
@@ -159,7 +160,7 @@ async function describe(
   loc: Locator,
   kind: FieldKind,
   index: number,
-  frame: FrameLocator,
+  frame: FrameHost,
 ): Promise<DiscoveredField> {
   const [
     ariaLabel,
@@ -244,7 +245,7 @@ async function describe(
  * pathological DocuSign layout from producing a 500-field sweep.
  */
 export async function discoverFields(
-  frame: FrameLocator,
+  frame: FrameHost,
   maxPerKind = 60,
 ): Promise<DiscoveredField[]> {
   const fields: DiscoveredField[] = [];

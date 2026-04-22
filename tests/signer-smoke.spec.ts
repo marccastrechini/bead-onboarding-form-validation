@@ -9,8 +9,8 @@
  * Never commit a real signer URL – they are single-use tokens.
  */
 
-import { test, expect, type FrameLocator, type Locator } from '@playwright/test';
-import { hasSignerUrl, openSigner } from '../fixtures/signer-helpers';
+import { test, expect, type Locator } from '@playwright/test';
+import { hasSignerUrl, openSigner, type FrameHost } from '../fixtures/signer-helpers';
 
 // Candidate labels for the first Business Details field, in order of
 // likelihood.  Each is tried in turn; the first visible match wins.  This
@@ -24,7 +24,7 @@ const BUSINESS_NAME_LABEL_CANDIDATES = [
   /^dba\b/i,
 ];
 
-async function resolveFirstBusinessField(frame: FrameLocator): Promise<{ locator: Locator; strategy: string }> {
+async function resolveFirstBusinessField(frame: FrameHost): Promise<{ locator: Locator; strategy: string }> {
   for (const re of BUSINESS_NAME_LABEL_CANDIDATES) {
     const cand = frame.getByLabel(re).first();
     if (await cand.isVisible().catch(() => false)) {
