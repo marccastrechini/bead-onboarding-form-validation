@@ -26,10 +26,21 @@ export function buildResendUrl(cfg: Pick<BeadConfig, 'baseUrl' | 'resendPath' | 
   return `${base}${joiner}${pathWithId}`;
 }
 
+export function normalizeResendMethod(method: string): string {
+  const normalized = method.trim().toUpperCase();
+  if (!normalized) {
+    throw new Error('BEAD_ONBOARDING_RESEND_METHOD must not be empty');
+  }
+  if (!['POST', 'PUT', 'PATCH'].includes(normalized)) {
+    throw new Error(`Unsupported BEAD_ONBOARDING_RESEND_METHOD: ${normalized}`);
+  }
+  return normalized;
+}
+
 export async function triggerResend(cfg: BeadConfig = loadBeadConfig()): Promise<ResendResult> {
   const url = buildResendUrl(cfg);
+  const method = normalizeResendMethod(cfg.resendMethod);
   const triggeredAt = new Date();
-  const method = cfg.resendMethod;
 
   const headers: Record<string, string> = {
     'Accept': 'application/json',

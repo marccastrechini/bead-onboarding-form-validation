@@ -5,7 +5,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { buildResendUrl } from '../lib/bead-client';
+import { buildResendUrl, normalizeResendMethod } from '../lib/bead-client';
 import { buildSearchQuery, messageTargetsAddress, selectFreshestMessage } from '../lib/gmail-client';
 import {
   findDirectDocusignUrls,
@@ -40,6 +40,18 @@ test.describe('bead-client: buildResendUrl', () => {
       applicationId: 'a/b c',
     });
     expect(url).toBe('https://api.example.com/v1/onboarding/a%2Fb%20c/resend');
+  });
+
+  test('normalizes supported resend methods', () => {
+    expect(normalizeResendMethod(' put ')).toBe('PUT');
+    expect(normalizeResendMethod('post')).toBe('POST');
+    expect(normalizeResendMethod('PATCH')).toBe('PATCH');
+  });
+
+  test('rejects unsupported resend methods', () => {
+    expect(() => normalizeResendMethod('DELETE')).toThrow(
+      'Unsupported BEAD_ONBOARDING_RESEND_METHOD: DELETE',
+    );
   });
 });
 

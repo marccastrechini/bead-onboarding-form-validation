@@ -55,8 +55,8 @@ function optionalHttpMethod(name: string, fallback: string): string {
 
 export type BeadConfig = {
   baseUrl: string;
-  resendPath: string;
   resendMethod: string;
+  resendPath: string;
   authHeaderName: string;
   authHeaderValue: string;
   applicationId: string;
