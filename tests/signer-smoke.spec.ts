@@ -40,7 +40,7 @@ test.describe('Bead Onboarding – Signer Smoke', () => {
   test('signing experience loads and Business Details is visible and editable', async ({ page }, testInfo) => {
     test.skip(!hasSignerUrl(), 'DOCUSIGN_SIGNING_URL is not set; skipping live signer smoke in safe mode.');
 
-    const { frame, diagnostics } = await openSigner(page);
+    const { frame, diagnostics } = await openSigner(page, testInfo);
     for (const d of diagnostics) testInfo.annotations.push({ type: 'diagnostic', description: d });
 
     const { locator, strategy } = await resolveFirstBusinessField(frame);

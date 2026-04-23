@@ -50,7 +50,7 @@ test.describe('Bead Onboarding – Field Discovery Sweep', () => {
       test.skip(true, preflight);
     }
 
-    const { frame, diagnostics } = await openSigner(page);
+    const { frame, diagnostics } = await openSigner(page, testInfo);
     for (const d of diagnostics) {
       report.noteFragileSelector(d);
       testInfo.annotations.push({ type: 'diagnostic', description: d });

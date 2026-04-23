@@ -2,7 +2,7 @@
  * Shared helpers for the DocuSign signer tests.
  */
 
-import { expect, type Page, type Frame, type FrameLocator, type Locator } from '@playwright/test';
+import { expect, test, type Page, type Frame, type FrameLocator, type Locator, type TestInfo } from '@playwright/test';
 
 /**
  * A "frame host" covers both FrameLocator (iframe-embedded forms) and Page
@@ -28,6 +28,125 @@ export type FrameDiagnostic = {
  * all scoring passes.
  */
 const EXCLUDE_FRAME_RE = /comment|sidebar|auxiliary|notification|chat|toolbar|header|footer|panel/i;
+
+type SignerGuardStage = 'after-goto' | 'after-start-click' | 'before-frame-resolution';
+
+type ExpiredSignerLinkEvidence = {
+  stage: SignerGuardStage;
+  currentUrl: string;
+  urlMatched: boolean;
+  expiredTextVisible: boolean;
+  sendNewLinkVisible: boolean;
+  logInVisible: boolean;
+};
+
+function redactUrl(rawUrl: string): string {
+  try {
+    const parsed = new URL(rawUrl);
+    const search = parsed.search ? '?[redacted]' : '';
+    const hash = parsed.hash ? '#[redacted]' : '';
+    return `${parsed.origin}${parsed.pathname}${search}${hash}`;
+  } catch {
+    return rawUrl;
+  }
+}
+
+async function isQuicklyVisible(locator: Locator, timeout = 500): Promise<boolean> {
+  return locator.first().isVisible({ timeout }).catch(() => false);
+}
+
+async function hasNamedAction(page: Page, name: RegExp): Promise<boolean> {
+  if (await isQuicklyVisible(page.getByRole('button', { name }), 400)) return true;
+  if (await isQuicklyVisible(page.getByRole('link', { name }), 400)) return true;
+  return false;
+}
+
+async function detectExpiredSignerLink(
+  page: Page,
+  stage: SignerGuardStage,
+): Promise<ExpiredSignerLinkEvidence | null> {
+  const currentUrl = page.url();
+  const urlMatched = /\/Signing\/Error\.aspx/i.test(currentUrl);
+  const expiredTextVisible = await isQuicklyVisible(
+    page.getByText(/This link from your email has expired/i),
+    500,
+  );
+  const sendNewLinkVisible = await hasNamedAction(page, /^Send New Link$/i);
+  const logInVisible = await hasNamedAction(page, /^Log In$/i);
+
+  if (!urlMatched && !expiredTextVisible && !(sendNewLinkVisible && logInVisible)) {
+    return null;
+  }
+
+  return {
+    stage,
+    currentUrl,
+    urlMatched,
+    expiredTextVisible,
+    sendNewLinkVisible,
+    logInVisible,
+  };
+}
+
+async function blockExpiredSignerRun(
+  page: Page,
+  testInfo: TestInfo | undefined,
+  evidence: ExpiredSignerLinkEvidence,
+): Promise<never> {
+  const reason = 'DocuSign signing URL is expired or already consumed.';
+  const context = {
+    blocked: true,
+    blockedReason: 'expired_or_consumed_signer_link',
+    stage: evidence.stage,
+    safeMode: process.env.DESTRUCTIVE_VALIDATION !== '1',
+    currentUrl: redactUrl(evidence.currentUrl),
+    signals: {
+      urlMatched: evidence.urlMatched,
+      expiredTextVisible: evidence.expiredTextVisible,
+      sendNewLinkVisible: evidence.sendNewLinkVisible,
+      logInVisible: evidence.logInVisible,
+    },
+    observedAt: new Date().toISOString(),
+  };
+  const description = `${reason} Blocked in ${evidence.stage}. Refresh DOCUSIGN_SIGNING_URL in .env.`;
+
+  if (testInfo) {
+    testInfo.annotations.push({ type: 'blocked', description });
+
+    const screenshot = await page.screenshot({ fullPage: true }).catch(() => null);
+    if (screenshot) {
+      await testInfo.attach(`expired-link-${evidence.stage}.png`, {
+        body: screenshot,
+        contentType: 'image/png',
+      });
+    }
+
+    await testInfo.attach(`expired-link-${evidence.stage}.json`, {
+      body: Buffer.from(JSON.stringify(context, null, 2)),
+      contentType: 'application/json',
+    });
+
+    test.skip(true, description);
+  }
+
+  throw new Error(
+    `${reason}\n` +
+      `Blocked in ${evidence.stage}.\n` +
+      `Current page: ${context.currentUrl}\n` +
+      'Refresh DOCUSIGN_SIGNING_URL in .env.',
+  );
+}
+
+async function guardSignerSession(
+  page: Page,
+  testInfo: TestInfo | undefined,
+  stage: SignerGuardStage,
+): Promise<void> {
+  const evidence = await detectExpiredSignerLink(page, stage);
+  if (evidence) {
+    await blockExpiredSignerRun(page, testInfo, evidence);
+  }
+}
 
 export function hasSignerUrl(): boolean {
   return Boolean(process.env.DOCUSIGN_SIGNING_URL?.trim());
@@ -126,7 +245,7 @@ export async function resolveSigningFrame(
 
         frameDiagnostics.push({
           name: cand.name,
-          url: cand.url.slice(0, 120),
+          url: redactUrl(cand.url),
           iframeId,
           iframeTitle,
           hasBusinessDetails: false,
@@ -146,7 +265,7 @@ export async function resolveSigningFrame(
       if (Date.now() - (deadline - timeoutMs) < 1_500) {
         console.log(
           `[frame-scan] ${cand.isMain ? 'MAIN' : 'sub'} name="${cand.name}" ` +
-          `textboxes=${textboxCount} comboboxes=${comboboxCount} url=${cand.url.slice(0, 100)}`,
+          `textboxes=${textboxCount} comboboxes=${comboboxCount} url=${redactUrl(cand.url)}`,
         );
       }
 
@@ -289,26 +408,20 @@ export async function clickStartIfPresent(page: Page, timeout = 8_000): Promise<
 }
 
 /**
- * Full "open the signer session" flow.  Returns the resolved FrameLocator
- * plus diagnostics so the discovery spec can surface them in the report.
+ * Full "open the signer session" flow.  Returns the resolved FrameHost plus
+ * diagnostics so the specs can surface them in the report.
  */
-export async function openSigner(page: Page): Promise<{ frame: FrameHost; diagnostics: string[] }> {
+export async function openSigner(
+  page: Page,
+  testInfo?: TestInfo,
+): Promise<{ frame: FrameHost; diagnostics: string[] }> {
   const diagnostics: string[] = [];
 
   await page.goto(getSignerUrl(), { waitUntil: 'domcontentloaded' });
+  await guardSignerSession(page, testInfo, 'after-goto');
 
-  // Fast-fail: DocuSign redirects expired or already-used signing URLs to
-  // Error.aspx.  Detect this early so the test fails with a clear message
-  // rather than timing out after 20s of frame scanning.
   const landingUrl = page.url();
-  if (/Error\.aspx/i.test(landingUrl)) {
-    throw new Error(
-      'DocuSign signing URL is expired or already consumed.\n' +
-      `Error page: ${landingUrl}\n` +
-      'Generate a new signing URL and update DOCUSIGN_SIGNING_URL in .env.',
-    );
-  }
-  diagnostics.push(`landed on: ${landingUrl.slice(0, 120)}`);
+  diagnostics.push(`landed on: ${redactUrl(landingUrl)}`);
 
   // The initial disclosure/start surface can render a few seconds after the
   // auth redirect settles, so poll for one safe entry control before falling
@@ -325,7 +438,11 @@ export async function openSigner(page: Page): Promise<{ frame: FrameHost; diagno
     } catch {
       diagnostics.push('post-start navigation wait timed out (proceeding)');
     }
+
+    await guardSignerSession(page, testInfo, 'after-start-click');
   }
+
+  await guardSignerSession(page, testInfo, 'before-frame-resolution');
 
   const { frame, diagnostic, frameDiagnostics } = await resolveSigningFrame(page);
   diagnostics.push(diagnostic);
