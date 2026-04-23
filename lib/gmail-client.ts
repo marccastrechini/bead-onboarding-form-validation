@@ -17,6 +17,13 @@ import { loadGmailConfig, type GmailConfig } from './config';
 
 const SCOPES = ['https://www.googleapis.com/auth/gmail.readonly'];
 
+function formatSearchValue(value: string): string {
+  const trimmed = value.trim();
+  return /[\s:()"]/.test(trimmed)
+    ? `"${trimmed.replace(/(["\\])/g, '\\$1')}"`
+    : trimmed;
+}
+
 type InstalledCreds = {
   installed?: { client_id: string; client_secret: string; redirect_uris: string[] };
   web?: { client_id: string; client_secret: string; redirect_uris: string[] };
@@ -71,14 +78,42 @@ export function buildSearchQuery(
   afterEpochSec: number,
 ): string {
   const parts: string[] = [];
-  parts.push(`to:${cfg.address}`);
-  if (cfg.queryFrom) parts.push(`from:${cfg.queryFrom}`);
-  if (cfg.querySubjectContains) parts.push(`subject:(${cfg.querySubjectContains})`);
+  if (cfg.queryFrom) parts.push(`from:${formatSearchValue(cfg.queryFrom)}`);
+  if (cfg.querySubjectContains) parts.push(`subject:${formatSearchValue(cfg.querySubjectContains)}`);
   // Use after: with a 30s skew to tolerate clock drift.
   const skewed = Math.max(0, afterEpochSec - 30);
   parts.push(`after:${skewed}`);
   parts.push('newer_than:1d');
   return parts.join(' ');
+}
+
+function normalizeMailboxAddress(value: string): string {
+  const trimmed = value.trim().toLowerCase();
+  const at = trimmed.indexOf('@');
+  if (at <= 0) return trimmed;
+  const local = trimmed.slice(0, at).split('+')[0];
+  const domain = trimmed.slice(at + 1);
+  return `${local}@${domain}`;
+}
+
+export function messageTargetsAddress(
+  headers: HeaderLike[] | undefined,
+  configuredAddress: string,
+): boolean {
+  const expected = normalizeMailboxAddress(configuredAddress);
+  if (!expected) return true;
+
+  const recipients = [getHeader(headers, 'to'), getHeader(headers, 'delivered-to')]
+    .flatMap((value) => value.split(','))
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  if (recipients.length === 0) return true;
+
+  return recipients.some((recipient) => {
+    const match = recipient.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+    return match ? normalizeMailboxAddress(match[0]) === expected : false;
+  });
 }
 
 type HeaderLike = gmail_v1.Schema$MessagePartHeader;
@@ -149,11 +184,17 @@ export async function pollForSigningEmail(
       // Fetch metadata to get internalDate; then pick the freshest.
       const metas = await Promise.all(
         ids.map((m) =>
-          gmail.users.messages.get({ userId: 'me', id: m.id!, format: 'metadata' })
+          gmail.users.messages.get({
+            userId: 'me',
+            id: m.id!,
+            format: 'metadata',
+            metadataHeaders: ['To', 'Delivered-To', 'Subject', 'From'],
+          })
             .then((r) => r.data),
         ),
       );
-      const pick = selectFreshestMessage(metas, afterEpochMs);
+      const matching = metas.filter((msg) => messageTargetsAddress(msg.payload?.headers, cfg.address));
+      const pick = selectFreshestMessage(matching, afterEpochMs);
       if (pick) {
         const full = await gmail.users.messages.get({ userId: 'me', id: pick.id, format: 'full' });
         return {

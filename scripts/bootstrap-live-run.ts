@@ -1,7 +1,7 @@
 /**
  * Live end-to-end bootstrap orchestrator (SAFE MODE).
  *
- *   1. POST the Bead resend/resubmit onboarding endpoint for the configured
+ *   1. Call the configured Bead resend/resubmit onboarding endpoint for the configured
  *      applicationId.
  *   2. Poll Gmail for the resulting DocuSign invitation email.
  *   3. Extract a fresh signing URL from the email body.
@@ -25,8 +25,9 @@ type ExitReason = { code: number; reason: string };
 
 async function runNpmScript(script: string, extraEnv: NodeJS.ProcessEnv): Promise<number> {
   const isWin = process.platform === 'win32';
-  const cmd = isWin ? 'npm.cmd' : 'npm';
-  const child = spawn(cmd, ['run', script], {
+  const cmd = isWin ? (process.env.ComSpec || 'cmd.exe') : 'npm';
+  const args = isWin ? ['/d', '/s', '/c', 'npm', 'run', script] : ['run', script];
+  const child = spawn(cmd, args, {
     stdio: 'inherit',
     env: { ...process.env, ...extraEnv },
     shell: false,
@@ -44,7 +45,7 @@ async function main(): Promise<ExitReason> {
   // 1) Trigger resend
   const resend = await triggerResend(bead);
   // eslint-disable-next-line no-console
-  console.log(`[bootstrap] resend OK (status=${resend.status}) at ${resend.triggeredAt.toISOString()}`);
+  console.log(`[bootstrap] resend OK (method=${resend.method}, status=${resend.status}) at ${resend.triggeredAt.toISOString()}`);
 
   // 2) Poll Gmail
   let msg;

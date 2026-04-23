@@ -23,14 +23,43 @@ export type ExtractResult = {
   sanitized: string;
 };
 
+function scoreDirectDocusignUrl(candidate: string): number {
+  try {
+    const url = new URL(candidate);
+    const host = url.hostname.toLowerCase();
+    const path = url.pathname.toLowerCase();
+    const params = url.searchParams;
+
+    const isSupportLike =
+      host === 'support.docusign.com' ||
+      host.startsWith('support.') ||
+      path.startsWith('/s/articles/') ||
+      /\/(support|help|blog|learn|faq)\b/.test(path);
+
+    const hasSigningPath =
+      /\/signing\//.test(path) ||
+      /emailstart|startinsession|begin|review|recipient/i.test(path);
+
+    const hasTokenParam = ['t', 'ti', 'token'].some((key) => params.has(key));
+
+    let score = 0;
+    if (hasSigningPath) score += 5;
+    if (hasTokenParam) score += 4;
+    if (/docusign\.(?:net|com)$/.test(host)) score += 1;
+    if (isSupportLike) score -= 6;
+    return score;
+  } catch {
+    return Number.NEGATIVE_INFINITY;
+  }
+}
+
 export function findDirectDocusignUrls(body: string): string[] {
   const matches = body.match(DOCUSIGN_DIRECT_RE) ?? [];
-  // De-duplicate while preserving order; filter to URLs that look like
-  // a signing entry point (contain "Signing" or a token param).  Fall
-  // back to all matches if the filter is too strict.
   const unique = Array.from(new Set(matches));
-  const signingLike = unique.filter((u) => /signing|t=|ti=/i.test(u));
-  return signingLike.length > 0 ? signingLike : unique;
+  return unique
+    .map((url, index) => ({ url, index, score: scoreDirectDocusignUrl(url) }))
+    .sort((left, right) => right.score - left.score || left.index - right.index)
+    .map((entry) => entry.url);
 }
 
 export function findCandidateRedirectUrls(body: string): string[] {
@@ -72,9 +101,7 @@ export async function resolveRedirectToDocusign(
 export async function extractSigningUrl(body: string): Promise<ExtractResult | null> {
   const direct = findDirectDocusignUrls(body);
   if (direct.length > 0) {
-    // Freshest == last occurrence in body (signing emails typically put
-    // the primary CTA near the end after the preheader preview).
-    const url = direct[direct.length - 1];
+    const url = direct[0];
     return { url, via: 'direct', sanitized: redactUrl(url) };
   }
 

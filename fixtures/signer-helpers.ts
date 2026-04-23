@@ -407,6 +407,90 @@ export async function clickStartIfPresent(page: Page, timeout = 8_000): Promise<
   return 'none';
 }
 
+async function handleDisclosureIfPresent(
+  page: Page,
+  phase: 'after-goto' | 'after-start-click',
+  timeout = 10_000,
+): Promise<string[]> {
+  const diagnostics: string[] = [];
+  const prefix = `disclosure ${phase}`;
+  const heading = page.getByText(/Electronic Record and Signature Disclosure/i).first();
+  const disclosureText = page.getByText(/I agree to use electronic records and signatures/i).first();
+  const consentCheckbox = page
+    .getByRole('checkbox', { name: /I agree to use electronic records and signatures/i })
+    .first();
+  const continueButton = page.getByRole('button', { name: /^Continue$/i }).first();
+
+  const detected =
+    await isQuicklyVisible(heading, 750) ||
+    await isQuicklyVisible(disclosureText, 750);
+
+  diagnostics.push(`${prefix} detected: ${detected ? 'yes' : 'no'}`);
+  if (!detected) return diagnostics;
+
+  let checkboxChecked = false;
+  let continueClicked = false;
+  const deadline = Date.now() + timeout;
+
+  while (Date.now() < deadline) {
+    if (!checkboxChecked && await isQuicklyVisible(consentCheckbox, 250)) {
+      const alreadyChecked = await consentCheckbox.isChecked().catch(() => false);
+      if (!alreadyChecked) {
+        await consentCheckbox.check({ timeout: 2_000, force: true });
+      }
+      checkboxChecked = true;
+      diagnostics.push(`${prefix} checkbox checked: yes`);
+    }
+
+    if (await isQuicklyVisible(continueButton, 250)) {
+      const enabled = await continueButton.isEnabled().catch(() => false);
+      if (enabled) {
+        await continueButton.click({ timeout: 2_000 });
+        continueClicked = true;
+        diagnostics.push(`${prefix} Continue clicked: yes`);
+        break;
+      }
+    }
+
+    await page.waitForTimeout(250);
+  }
+
+  if (!checkboxChecked) {
+    diagnostics.push(`${prefix} checkbox checked: no`);
+  }
+  if (!continueClicked) {
+    diagnostics.push(`${prefix} Continue clicked: no`);
+    return diagnostics;
+  }
+
+  try {
+    await page.waitForLoadState('domcontentloaded', { timeout: 15_000 });
+  } catch {
+    /* continue below – modal dismissal can settle without navigation */
+  }
+
+  let settled = false;
+  try {
+    await continueButton.waitFor({ state: 'hidden', timeout: 10_000 });
+    settled = true;
+  } catch {
+    try {
+      await heading.waitFor({ state: 'hidden', timeout: 2_000 });
+      settled = true;
+    } catch {
+      /* fall through to diagnostic */
+    }
+  }
+
+  diagnostics.push(
+    settled
+      ? `${prefix} post-continue surface settled`
+      : `${prefix} post-continue settle wait timed out (proceeding)`,
+  );
+
+  return diagnostics;
+}
+
 /**
  * Full "open the signer session" flow.  Returns the resolved FrameHost plus
  * diagnostics so the specs can surface them in the report.
@@ -422,6 +506,8 @@ export async function openSigner(
 
   const landingUrl = page.url();
   diagnostics.push(`landed on: ${redactUrl(landingUrl)}`);
+
+  diagnostics.push(...await handleDisclosureIfPresent(page, 'after-goto'));
 
   // The initial disclosure/start surface can render a few seconds after the
   // auth redirect settles, so poll for one safe entry control before falling
@@ -441,6 +527,8 @@ export async function openSigner(
 
     await guardSignerSession(page, testInfo, 'after-start-click');
   }
+
+  diagnostics.push(...await handleDisclosureIfPresent(page, 'after-start-click'));
 
   await guardSignerSession(page, testInfo, 'before-frame-resolution');
 

@@ -14,6 +14,7 @@ export type ResendResult = {
   triggeredAt: Date;
   /** Unix seconds – convenient for Gmail `after:` query. */
   triggeredAtEpochSec: number;
+  method: string;
   status: number;
   url: string;
 };
@@ -28,6 +29,7 @@ export function buildResendUrl(cfg: Pick<BeadConfig, 'baseUrl' | 'resendPath' | 
 export async function triggerResend(cfg: BeadConfig = loadBeadConfig()): Promise<ResendResult> {
   const url = buildResendUrl(cfg);
   const triggeredAt = new Date();
+  const method = cfg.resendMethod;
 
   const headers: Record<string, string> = {
     'Accept': 'application/json',
@@ -36,10 +38,10 @@ export async function triggerResend(cfg: BeadConfig = loadBeadConfig()): Promise
   };
 
   // eslint-disable-next-line no-console
-  console.log(`[bead] POST ${redactUrl(url)} (auth header: ${cfg.authHeaderName})`);
+  console.log(`[bead] ${method} ${redactUrl(url)} (auth header: ${cfg.authHeaderName})`);
 
   const res = await fetch(url, {
-    method: 'POST',
+    method,
     headers,
     body: JSON.stringify({ applicationId: cfg.applicationId }),
   });
@@ -56,6 +58,7 @@ export async function triggerResend(cfg: BeadConfig = loadBeadConfig()): Promise
   return {
     triggeredAt,
     triggeredAtEpochSec: Math.floor(triggeredAt.getTime() / 1000),
+    method,
     status: res.status,
     url,
   };

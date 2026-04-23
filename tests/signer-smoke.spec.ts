@@ -24,16 +24,48 @@ const BUSINESS_NAME_LABEL_CANDIDATES = [
   /^dba\b/i,
 ];
 
+const EDITABLE_FIELD_FALLBACK_SELECTORS = [
+  'input:not([disabled]):not([type="hidden"]):not([type="checkbox"]):not([type="radio"])',
+  'textarea:not([disabled])',
+  'select:not([disabled])',
+];
+
+async function firstVisibleEditable(locator: Locator, maxScan = 20): Promise<Locator | null> {
+  const count = Math.min(await locator.count().catch(() => 0), maxScan);
+  for (let i = 0; i < count; i++) {
+    const candidate = locator.nth(i);
+    if (
+      await candidate.isVisible().catch(() => false) &&
+      await candidate.isEditable().catch(() => false)
+    ) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
 async function resolveFirstBusinessField(frame: FrameHost): Promise<{ locator: Locator; strategy: string }> {
   for (const re of BUSINESS_NAME_LABEL_CANDIDATES) {
     const cand = frame.getByLabel(re).first();
-    if (await cand.isVisible().catch(() => false)) {
+    if (
+      await cand.isVisible().catch(() => false) &&
+      await cand.isEditable().catch(() => false)
+    ) {
       return { locator: cand, strategy: `getByLabel(${re})` };
     }
   }
-  // FRAGILE: fallback – first textbox in the frame.  Promote to
-  // getByLabel('<confirmed-label>') once the real label is known.
-  return { locator: frame.getByRole('textbox').first(), strategy: 'getByRole(textbox).first() [FRAGILE]' };
+
+  for (const selector of EDITABLE_FIELD_FALLBACK_SELECTORS) {
+    const candidate = await firstVisibleEditable(frame.locator(selector));
+    if (candidate) {
+      return { locator: candidate, strategy: `locator(${selector}) first visible editable [FRAGILE]` };
+    }
+  }
+
+  return {
+    locator: frame.locator('input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled])').first(),
+    strategy: 'locator(first enabled native control) [FRAGILE]',
+  };
 }
 
 test.describe('Bead Onboarding – Signer Smoke', () => {
@@ -48,7 +80,8 @@ test.describe('Bead Onboarding – Signer Smoke', () => {
 
     await expect(locator).toBeVisible();
     await expect(locator).toBeEditable();
-    await locator.focus();
+    await locator.scrollIntoViewIfNeeded();
+    await locator.click();
     await expect(locator).toBeFocused();
   });
 

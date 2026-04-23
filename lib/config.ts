@@ -44,9 +44,19 @@ function optionalNumber(name: string, fallback: number): number {
   return n;
 }
 
+function optionalHttpMethod(name: string, fallback: string): string {
+  const v = process.env[name];
+  const method = (v && v.trim() ? v : fallback).trim().toUpperCase();
+  if (!/^[A-Z]+$/.test(method)) {
+    throw new Error(`Env var ${name} must be a valid HTTP method token`);
+  }
+  return method;
+}
+
 export type BeadConfig = {
   baseUrl: string;
   resendPath: string;
+  resendMethod: string;
   authHeaderName: string;
   authHeaderValue: string;
   applicationId: string;
@@ -67,6 +77,7 @@ export function loadBeadConfig(): BeadConfig {
   return {
     baseUrl: required('BEAD_API_BASE_URL').replace(/\/+$/, ''),
     resendPath: required('BEAD_ONBOARDING_RESEND_PATH'),
+    resendMethod: optionalHttpMethod('BEAD_ONBOARDING_RESEND_METHOD', 'POST'),
     authHeaderName: required('BEAD_AUTH_HEADER_NAME'),
     authHeaderValue: required('BEAD_AUTH_HEADER_VALUE'),
     applicationId: required('BEAD_APPLICATION_ID'),
