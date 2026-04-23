@@ -267,9 +267,24 @@ export async function clickStartIfPresent(page: Page, timeout = 8_000): Promise<
     },
   ];
 
-  for (const s of strategies) {
-    if (await clickIfPresent(s.locator.first(), timeout)) return s.label;
+  const deadline = Date.now() + timeout;
+
+  while (Date.now() < deadline) {
+    for (const s of strategies) {
+      const candidate = s.locator.first();
+      try {
+        if (await candidate.isVisible({ timeout: 250 })) {
+          await candidate.click({ timeout: 1_000 });
+          return s.label;
+        }
+      } catch {
+        // Keep polling until the overall timeout expires.
+      }
+    }
+
+    await page.waitForTimeout(250);
   }
+
   return 'none';
 }
 
@@ -295,9 +310,10 @@ export async function openSigner(page: Page): Promise<{ frame: FrameHost; diagno
   }
   diagnostics.push(`landed on: ${landingUrl.slice(0, 120)}`);
 
-  // Use a short per-strategy timeout (3s) so strategies that don't match fail
-  // fast instead of wasting 8s × 3 = 24s of the test budget.
-  const startStrategy = await clickStartIfPresent(page, 3_000);
+  // The initial disclosure/start surface can render a few seconds after the
+  // auth redirect settles, so poll for one safe entry control before falling
+  // through to frame discovery.
+  const startStrategy = await clickStartIfPresent(page, 10_000);
   diagnostics.push(`start-button strategy: ${startStrategy}`);
 
   // Clicking Start triggers a page navigation to the signing page (Sign.aspx).
