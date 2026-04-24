@@ -12,7 +12,9 @@
     "bootstrap:gmail-auth": "tsx scripts/gmail-auth.ts",
     "bootstrap:live": "tsx scripts/bootstrap-live-run.ts",
     "report:open": "playwright show-report artifacts/playwright-html-report",
-    "summary:open": "powershell -NoProfile -Command \"Get-Content artifacts/latest-validation-summary.md\""
+    "summary:open": "powershell -NoProfile -Command \"Get-Content artifacts/latest-validation-summary.md\"",
+    "align:sample": "tsx scripts/align-sample.ts",
+    "align:sample:open": "powershell -NoProfile -Command \"Get-Content artifacts/sample-field-alignment.md\""
   },
   "repository": {
     "type": "git",

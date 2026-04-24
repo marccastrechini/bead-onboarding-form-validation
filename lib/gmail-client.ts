@@ -160,6 +160,25 @@ export function selectFreshestMessage(
   return best;
 }
 
+export function selectMailboxMessage(
+  messages: gmail_v1.Schema$Message[],
+  configuredAddress: string,
+  afterEpochMs: number,
+): { id: string; internalDateMs: number } | null {
+  const matching = messages.filter((msg) =>
+    messageTargetsAddress(msg.payload?.headers, configuredAddress),
+  );
+
+  if (matching.length > 0) {
+    return selectFreshestMessage(matching, afterEpochMs);
+  }
+
+  // Some tenants deliver to aliases/forwarded addresses that differ from the
+  // configured mailbox, but the Gmail query already scopes to the authenticated
+  // inbox plus sender/subject/time. In that case prefer the freshest result.
+  return selectFreshestMessage(messages, afterEpochMs);
+}
+
 export async function pollForSigningEmail(
   cfg: GmailConfig = loadGmailConfig(),
   afterEpochSec: number = Math.floor(Date.now() / 1000),
@@ -193,8 +212,7 @@ export async function pollForSigningEmail(
             .then((r) => r.data),
         ),
       );
-      const matching = metas.filter((msg) => messageTargetsAddress(msg.payload?.headers, cfg.address));
-      const pick = selectFreshestMessage(matching, afterEpochMs);
+      const pick = selectMailboxMessage(metas, cfg.address, afterEpochMs);
       if (pick) {
         const full = await gmail.users.messages.get({ userId: 'me', id: pick.id, format: 'full' });
         return {

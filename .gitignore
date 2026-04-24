@@ -10,3 +10,5 @@ artifacts/
 *.log
 .env
 .secrets/
+
+samples/private/

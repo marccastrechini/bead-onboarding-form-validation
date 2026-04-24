@@ -20,6 +20,7 @@ import {
   type DiscoveredField,
 } from '../fixtures/field-discovery';
 import { ReportBuilder, type CheckResult, type CheckStatus } from '../fixtures/validation-report';
+import { loadEnrichmentIndex } from '../lib/enrichment-loader';
 import type { ValidationCase } from '../fixtures/validation-rules';
 
 const ARTIFACTS_DIR = path.resolve(__dirname, '..', 'artifacts');
@@ -30,6 +31,10 @@ test.describe('Bead Onboarding – Field Discovery Sweep', () => {
     test.slow();
 
     const report = new ReportBuilder(DESTRUCTIVE);
+    // Opt-in: when BEAD_SAMPLE_ENRICHMENT=1 and the bundle exists, merge
+    // the offline crosswalk so the quick field index surfaces real names.
+    // Silent no-op otherwise.
+    report.attachEnrichment(loadEnrichmentIndex());
     for (const f of FRAGILE_NOTES) report.noteFragileSelector(f);
 
     if (!hasSignerUrl()) {
@@ -55,6 +60,7 @@ test.describe('Bead Onboarding – Field Discovery Sweep', () => {
       report.noteFragileSelector(d);
       testInfo.annotations.push({ type: 'diagnostic', description: d });
     }
+    report.absorbSignerDiagnostics(diagnostics);
 
     const fields = await discoverFields(frame);
     expect(
@@ -68,28 +74,39 @@ test.describe('Bead Onboarding – Field Discovery Sweep', () => {
 
     for (const field of fields) {
       const checks: CheckResult[] = [];
+      const isMerchantInput = field.controlCategory === 'merchant_input';
 
       // Non-destructive checks always run
       checks.push(...(await runStaticChecks(field)));
 
-      // Destructive case-matrix execution
-      if (DESTRUCTIVE && field.visible && field.editable) {
-        checks.push(...(await runCaseMatrix(field, testInfo)));
-      } else if (field.inferredType.cases.length > 0) {
-        checks.push({
-          case: `case-matrix:${field.inferredType.type}`,
-          status: 'skipped',
-          detail: DESTRUCTIVE
-            ? 'field not visible/editable'
-            : 'set DESTRUCTIVE_VALIDATION=1 to run',
-        });
-      }
+      // Destructive case-matrix + manual_review bookkeeping only applies to
+      // merchant inputs.  DocuSign signature/date-signed/read-only/chrome
+      // controls are not validation targets and must not inflate findings.
+      if (isMerchantInput) {
+        if (DESTRUCTIVE && field.visible && field.editable) {
+          checks.push(...(await runCaseMatrix(field, testInfo)));
+        } else if (field.inferredType.cases.length > 0) {
+          checks.push({
+            case: `case-matrix:${field.inferredType.type}`,
+            status: 'skipped',
+            detail: DESTRUCTIVE
+              ? 'field not visible/editable'
+              : 'set DESTRUCTIVE_VALIDATION=1 to run',
+          });
+        }
 
-      if (field.inferredType.classification === 'manual_review') {
+        if (field.inferredType.classification === 'manual_review') {
+          checks.push({
+            case: `classification:${field.inferredType.type}`,
+            status: 'manual_review',
+            detail: field.inferredType.description,
+          });
+        }
+      } else {
         checks.push({
-          case: `classification:${field.inferredType.type}`,
-          status: 'manual_review',
-          detail: field.inferredType.description,
+          case: `non-merchant:${field.controlCategory}`,
+          status: 'skipped',
+          detail: `excluded from merchant validation (inferred ${field.inferredType.type})`,
         });
       }
 

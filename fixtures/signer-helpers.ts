@@ -55,6 +55,19 @@ async function isQuicklyVisible(locator: Locator, timeout = 500): Promise<boolea
   return locator.first().isVisible({ timeout }).catch(() => false);
 }
 
+async function firstVisibleLocator(
+  locators: Locator[],
+  timeout = 400,
+): Promise<Locator | null> {
+  for (const locator of locators) {
+    const candidate = locator.first();
+    if (await candidate.isVisible({ timeout }).catch(() => false)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
 async function hasNamedAction(page: Page, name: RegExp): Promise<boolean> {
   if (await isQuicklyVisible(page.getByRole('button', { name }), 400)) return true;
   if (await isQuicklyVisible(page.getByRole('link', { name }), 400)) return true;
@@ -407,6 +420,49 @@ export async function clickStartIfPresent(page: Page, timeout = 8_000): Promise<
   return 'none';
 }
 
+async function signerSurfaceVisible(page: Page): Promise<boolean> {
+  const nativeControlSelector =
+    'input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled])';
+
+  if (await page.locator(nativeControlSelector).first().isVisible({ timeout: 400 }).catch(() => false)) {
+    return true;
+  }
+
+  for (const frame of page.frames().filter((candidate) => candidate !== page.mainFrame())) {
+    if (await frame.locator(nativeControlSelector).first().isVisible({ timeout: 400 }).catch(() => false)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+async function waitForSignerSurfaceAfterDisclosure(
+  page: Page,
+  phase: 'after-goto' | 'after-start-click',
+  timeout = 15_000,
+): Promise<boolean> {
+  const deadline = Date.now() + timeout;
+
+  while (Date.now() < deadline) {
+    if (await signerSurfaceVisible(page)) {
+      return true;
+    }
+
+    if (phase === 'after-goto' && (await firstVisibleLocator([
+      page.getByRole('button', { name: /^(start|start\s*signing|continue|begin|go|get\s*started|next)$/i }),
+      page.getByRole('link', { name: /^(start|start\s*signing|continue|begin|go|get\s*started|next)$/i }),
+      page.locator('[data-qa*="start" i], [data-testid*="start" i], [aria-label*="start" i]'),
+    ], 250))) {
+      return true;
+    }
+
+    await page.waitForTimeout(250);
+  }
+
+  return false;
+}
+
 async function handleDisclosureIfPresent(
   page: Page,
   phase: 'after-goto' | 'after-start-click',
@@ -414,16 +470,35 @@ async function handleDisclosureIfPresent(
 ): Promise<string[]> {
   const diagnostics: string[] = [];
   const prefix = `disclosure ${phase}`;
-  const heading = page.getByText(/Electronic Record and Signature Disclosure/i).first();
-  const disclosureText = page.getByText(/I agree to use electronic records and signatures/i).first();
-  const consentCheckbox = page
-    .getByRole('checkbox', { name: /I agree to use electronic records and signatures/i })
+  // Use phrasing that only appears on a real blocking consent modal, not in
+  // the standard DocuSign footer "View Electronic Record and Signature
+  // Disclosure" link that is present on every signing page.
+  const heading = page
+    .getByText(
+      /Please read the Electronic Record and Signature Disclosure|Consent to Electronic Records and Signatures|Please review and consent/i,
+    )
     .first();
-  const continueButton = page.getByRole('button', { name: /^Continue$/i }).first();
+  const disclosureText = page
+    .getByText(/I agree to use electronic records and signatures/i)
+    .first();
+  const consentCheckboxCandidates = [
+    page.getByRole('checkbox', { name: /electronic records|electronic signatures|i agree to use/i }),
+    page.getByLabel(/electronic records|electronic signatures|i agree to use/i),
+  ];
+  const continueButtonCandidates = [
+    page.getByRole('button', { name: /^Continue$/i }),
+    page.locator('[data-qa="continue-button"], [data-testid="continue-button"]'),
+  ];
 
-  const detected =
-    await isQuicklyVisible(heading, 750) ||
-    await isQuicklyVisible(disclosureText, 750);
+  // Only treat as "detected" when there is both a disclosure indicator AND
+  // an actionable control (checkbox or Continue button).  The footer link
+  // alone does not count.
+  const headingVisible =
+    (await isQuicklyVisible(heading, 500)) || (await isQuicklyVisible(disclosureText, 500));
+  const actionableVisible =
+    (await firstVisibleLocator(consentCheckboxCandidates, 400)) !== null ||
+    (await firstVisibleLocator(continueButtonCandidates, 400)) !== null;
+  const detected = headingVisible && actionableVisible;
 
   diagnostics.push(`${prefix} detected: ${detected ? 'yes' : 'no'}`);
   if (!detected) return diagnostics;
@@ -433,16 +508,20 @@ async function handleDisclosureIfPresent(
   const deadline = Date.now() + timeout;
 
   while (Date.now() < deadline) {
-    if (!checkboxChecked && await isQuicklyVisible(consentCheckbox, 250)) {
-      const alreadyChecked = await consentCheckbox.isChecked().catch(() => false);
+    if (!checkboxChecked) {
+      const consentCheckbox = await firstVisibleLocator(consentCheckboxCandidates, 250);
+      const alreadyChecked = await consentCheckbox?.isChecked().catch(() => false);
       if (!alreadyChecked) {
-        await consentCheckbox.check({ timeout: 2_000, force: true });
+        await consentCheckbox?.check({ timeout: 2_000, force: true });
       }
-      checkboxChecked = true;
-      diagnostics.push(`${prefix} checkbox checked: yes`);
+      if (consentCheckbox) {
+        checkboxChecked = true;
+        diagnostics.push(`${prefix} checkbox checked: yes`);
+      }
     }
 
-    if (await isQuicklyVisible(continueButton, 250)) {
+    const continueButton = await firstVisibleLocator(continueButtonCandidates, 250);
+    if (continueButton) {
       const enabled = await continueButton.isEnabled().catch(() => false);
       if (enabled) {
         await continueButton.click({ timeout: 2_000 });
@@ -460,7 +539,10 @@ async function handleDisclosureIfPresent(
   }
   if (!continueClicked) {
     diagnostics.push(`${prefix} Continue clicked: no`);
-    return diagnostics;
+    throw new Error(
+      `Disclosure detected but Continue was not clicked during ${phase}. ` +
+      `Current page: ${redactUrl(page.url())}`,
+    );
   }
 
   try {
@@ -471,7 +553,8 @@ async function handleDisclosureIfPresent(
 
   let settled = false;
   try {
-    await continueButton.waitFor({ state: 'hidden', timeout: 10_000 });
+    const currentContinue = await firstVisibleLocator(continueButtonCandidates, 250);
+    await currentContinue?.waitFor({ state: 'hidden', timeout: 10_000 });
     settled = true;
   } catch {
     try {
@@ -488,6 +571,28 @@ async function handleDisclosureIfPresent(
       : `${prefix} post-continue settle wait timed out (proceeding)`,
   );
 
+  const stillDetected =
+    await isQuicklyVisible(heading, 500) ||
+    await isQuicklyVisible(disclosureText, 500);
+  const formReady = !stillDetected && await waitForSignerSurfaceAfterDisclosure(page, phase);
+  diagnostics.push(`${prefix} form ready after disclosure: ${formReady ? 'yes' : 'no'}`);
+
+  if (stillDetected) {
+    throw new Error(
+      `Disclosure still blocking after ${phase}. ` +
+      `checkbox checked=${checkboxChecked ? 'yes' : 'no'}; ` +
+      `Continue clicked=${continueClicked ? 'yes' : 'no'}; ` +
+      `Current page: ${redactUrl(page.url())}`,
+    );
+  }
+
+  if (!formReady && phase === 'after-start-click') {
+    throw new Error(
+      `Signer form did not become ready after disclosure during ${phase}. ` +
+      `Current page: ${redactUrl(page.url())}`,
+    );
+  }
+
   return diagnostics;
 }
 
@@ -501,7 +606,15 @@ export async function openSigner(
 ): Promise<{ frame: FrameHost; diagnostics: string[] }> {
   const diagnostics: string[] = [];
 
-  await page.goto(getSignerUrl(), { waitUntil: 'domcontentloaded' });
+  // Avoid page.goto(rawSignerUrl) so Playwright's HTML report does not echo
+  // the one-time DocuSign URL into autogenerated step text.
+  await page.goto('about:blank', { waitUntil: 'domcontentloaded' });
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60_000 }),
+    page.evaluate((targetUrl) => {
+      window.location.replace(targetUrl);
+    }, getSignerUrl()),
+  ]);
   await guardSignerSession(page, testInfo, 'after-goto');
 
   const landingUrl = page.url();

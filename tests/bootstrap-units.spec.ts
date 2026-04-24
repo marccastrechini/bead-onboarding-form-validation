@@ -6,7 +6,7 @@
 
 import { test, expect } from '@playwright/test';
 import { buildResendUrl, normalizeResendMethod } from '../lib/bead-client';
-import { buildSearchQuery, messageTargetsAddress, selectFreshestMessage } from '../lib/gmail-client';
+import { buildSearchQuery, messageTargetsAddress, selectFreshestMessage, selectMailboxMessage } from '../lib/gmail-client';
 import {
   findDirectDocusignUrls,
   findCandidateRedirectUrls,
@@ -93,6 +93,48 @@ test.describe('gmail-client: selectFreshestMessage', () => {
   test('returns null when no candidates qualify', () => {
     const pick = selectFreshestMessage([{ id: 'a', internalDate: '500' }], 1000);
     expect(pick).toBeNull();
+  });
+});
+
+test.describe('gmail-client: selectMailboxMessage', () => {
+  test('prefers recipient-header matches when available', () => {
+    const pick = selectMailboxMessage(
+      [
+        {
+          id: 'a',
+          internalDate: '1500',
+          payload: { headers: [{ name: 'To', value: 'someone@example.com' }] },
+        },
+        {
+          id: 'b',
+          internalDate: '1400',
+          payload: { headers: [{ name: 'To', value: 'marc@bead.xyz' }] },
+        },
+      ],
+      'marc@bead.xyz',
+      1000,
+    );
+    expect(pick).toEqual({ id: 'b', internalDateMs: 1400 });
+  });
+
+  test('falls back to freshest queried message when recipient headers use an alias', () => {
+    const pick = selectMailboxMessage(
+      [
+        {
+          id: 'a',
+          internalDate: '1500',
+          payload: { headers: [{ name: 'To', value: 'marc@bead.xyz' }] },
+        },
+        {
+          id: 'b',
+          internalDate: '2500',
+          payload: { headers: [{ name: 'To', value: 'marc@alias.example' }] },
+        },
+      ],
+      'marc@castro9.com',
+      1000,
+    );
+    expect(pick).toEqual({ id: 'b', internalDateMs: 2500 });
   });
 });
 
