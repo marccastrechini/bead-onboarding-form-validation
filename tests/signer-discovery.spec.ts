@@ -20,7 +20,7 @@ import {
   type DiscoveredField,
 } from '../fixtures/field-discovery';
 import { ReportBuilder, type CheckResult, type CheckStatus } from '../fixtures/validation-report';
-import { loadEnrichmentIndex } from '../lib/enrichment-loader';
+import { loadEnrichment } from '../lib/enrichment-loader';
 import type { ValidationCase } from '../fixtures/validation-rules';
 
 const ARTIFACTS_DIR = path.resolve(__dirname, '..', 'artifacts');
@@ -34,8 +34,19 @@ test.describe('Bead Onboarding – Field Discovery Sweep', () => {
     // Opt-in: when BEAD_SAMPLE_ENRICHMENT=1 and the bundle exists, merge
     // the offline crosswalk so the quick field index surfaces real names.
     // Silent no-op otherwise.
-    report.attachEnrichment(loadEnrichmentIndex());
+    const enrichment = loadEnrichment();
+    report.attachEnrichment(enrichment.index, {
+      requested: enrichment.requested,
+      bundlePath: enrichment.bundlePath,
+      unavailableReason:
+        enrichment.unavailableReason === 'disabled' ? null : enrichment.unavailableReason,
+    });
     for (const f of FRAGILE_NOTES) report.noteFragileSelector(f);
+    if (enrichment.requested && !enrichment.index) {
+      report.noteFragileSelector(
+        `sample enrichment requested but unavailable: ${enrichment.unavailableReason} (${enrichment.bundlePath})`,
+      );
+    }
 
     if (!hasSignerUrl()) {
       const preflight = 'Preflight: DOCUSIGN_SIGNING_URL is not set; skipped live signer discovery in safe mode.';

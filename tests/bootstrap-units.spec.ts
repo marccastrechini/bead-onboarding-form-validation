@@ -5,8 +5,13 @@
  */
 
 import { test, expect } from '@playwright/test';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { buildResendUrl, normalizeResendMethod } from '../lib/bead-client';
+import { ReportBuilder } from '../fixtures/validation-report';
 import { buildSearchQuery, messageTargetsAddress, selectFreshestMessage, selectMailboxMessage } from '../lib/gmail-client';
+import { loadEnrichment } from '../lib/enrichment-loader';
 import {
   findDirectDocusignUrls,
   findCandidateRedirectUrls,
@@ -232,5 +237,53 @@ test.describe('url-sanitize: redactUrl', () => {
 
   test('handles unparseable input', () => {
     expect(redactUrl('not a url')).toBe('[unparseable-url]');
+  });
+});
+
+test.describe('sample enrichment status', () => {
+  test('loadEnrichment reports missing bundle when requested', () => {
+    const bundlePath = path.join(os.tmpdir(), `missing-enrichment-${Date.now()}.json`);
+    const result = loadEnrichment({ enabled: true, bundlePath });
+
+    expect(result.requested).toBe(true);
+    expect(result.bundlePath).toBe(path.resolve(bundlePath));
+    expect(result.index).toBeNull();
+    expect(result.unavailableReason).toBe('missing');
+  });
+
+  test('report artifacts show requested-but-unavailable enrichment', () => {
+    const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bead-report-'));
+    try {
+      const report = new ReportBuilder(false);
+      report.attachEnrichment(null, {
+        requested: true,
+        bundlePath: 'C:/tmp/sample-field-enrichment.json',
+        unavailableReason: 'missing',
+      });
+
+      const { jsonPath, mdPath } = report.writeArtifacts(outDir);
+      const json = JSON.parse(fs.readFileSync(jsonPath, 'utf8')) as {
+        enrichmentSummary: {
+          requested: boolean;
+          enabled: boolean;
+          bundlePath: string | null;
+          unavailableReason: string | null;
+        };
+      };
+      const md = fs.readFileSync(mdPath, 'utf8');
+
+      expect(json.enrichmentSummary).toMatchObject({
+        requested: true,
+        enabled: false,
+        bundlePath: 'C:/tmp/sample-field-enrichment.json',
+        unavailableReason: 'missing',
+      });
+      expect(md).toContain('## Sample-field enrichment');
+      expect(md).toContain('| Requested | yes |');
+      expect(md).toContain('| Bundle loaded | no |');
+      expect(md).toContain('| Unavailable reason | missing |');
+    } finally {
+      fs.rmSync(outDir, { recursive: true, force: true });
+    }
   });
 });

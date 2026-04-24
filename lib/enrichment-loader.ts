@@ -45,51 +45,113 @@ export interface EnrichmentIndex {
   recordCount: number;
 }
 
+export type EnrichmentUnavailableReason =
+  | 'disabled'
+  | 'missing'
+  | 'unreadable'
+  | 'invalid-json'
+  | 'invalid-schema'
+  | 'empty-index';
+
+export interface EnrichmentLoadResult {
+  requested: boolean;
+  bundlePath: string;
+  index: EnrichmentIndex | null;
+  unavailableReason: EnrichmentUnavailableReason | null;
+}
+
 const SUPPORTED_SCHEMA_VERSION = 1;
 
-/**
- * Attempt to load the enrichment bundle.  Returns `null` when the feature
- * is disabled, the file is missing, or the payload is invalid.  Never
- * throws — enrichment is always a best-effort enhancement.
- */
-export function loadEnrichmentIndex(opts?: {
-  /** Override the env gate (primarily for tests). */
-  enabled?: boolean;
-  /** Override the bundle path (primarily for tests). */
-  bundlePath?: string;
-}): EnrichmentIndex | null {
-  const enabled =
-    typeof opts?.enabled === 'boolean'
-      ? opts.enabled
-      : process.env.BEAD_SAMPLE_ENRICHMENT === '1';
-  if (!enabled) return null;
+function isEnabled(opts?: { enabled?: boolean }): boolean {
+  return typeof opts?.enabled === 'boolean'
+    ? opts.enabled
+    : process.env.BEAD_SAMPLE_ENRICHMENT === '1';
+}
 
-  const bundlePath = path.resolve(
+function resolveBundlePath(opts?: { bundlePath?: string }): string {
+  return path.resolve(
     opts?.bundlePath ??
       process.env.BEAD_SAMPLE_ENRICHMENT_PATH ??
       'artifacts/sample-field-enrichment.json',
   );
+}
 
-  if (!fs.existsSync(bundlePath)) return null;
+export function loadEnrichment(opts?: {
+  /** Override the env gate (primarily for tests). */
+  enabled?: boolean;
+  /** Override the bundle path (primarily for tests). */
+  bundlePath?: string;
+}): EnrichmentLoadResult {
+  const requested = isEnabled(opts);
+  const bundlePath = resolveBundlePath(opts);
+
+  if (!requested) {
+    return {
+      requested: false,
+      bundlePath,
+      index: null,
+      unavailableReason: 'disabled',
+    };
+  }
+
+  if (!fs.existsSync(bundlePath)) {
+    return {
+      requested: true,
+      bundlePath,
+      index: null,
+      unavailableReason: 'missing',
+    };
+  }
 
   let raw: string;
   try {
     raw = fs.readFileSync(bundlePath, 'utf8');
   } catch {
-    return null;
+    return {
+      requested: true,
+      bundlePath,
+      index: null,
+      unavailableReason: 'unreadable',
+    };
   }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch {
-    return null;
+    return {
+      requested: true,
+      bundlePath,
+      index: null,
+      unavailableReason: 'invalid-json',
+    };
   }
 
-  if (!parsed || typeof parsed !== 'object') return null;
+  if (!parsed || typeof parsed !== 'object') {
+    return {
+      requested: true,
+      bundlePath,
+      index: null,
+      unavailableReason: 'invalid-schema',
+    };
+  }
   const bundle = parsed as Partial<EnrichmentBundle>;
-  if (bundle.schemaVersion !== SUPPORTED_SCHEMA_VERSION) return null;
-  if (!Array.isArray(bundle.records)) return null;
+  if (bundle.schemaVersion !== SUPPORTED_SCHEMA_VERSION) {
+    return {
+      requested: true,
+      bundlePath,
+      index: null,
+      unavailableReason: 'invalid-schema',
+    };
+  }
+  if (!Array.isArray(bundle.records)) {
+    return {
+      requested: true,
+      bundlePath,
+      index: null,
+      unavailableReason: 'invalid-schema',
+    };
+  }
 
   const byGuid = new Map<string, EnrichmentRecord>();
   const byFingerprint = new Map<string, EnrichmentRecord>();
@@ -111,14 +173,40 @@ export function loadEnrichmentIndex(opts?: {
     }
   }
 
-  if (byGuid.size === 0 && byFingerprint.size === 0) return null;
+  if (byGuid.size === 0 && byFingerprint.size === 0) {
+    return {
+      requested: true,
+      bundlePath,
+      index: null,
+      unavailableReason: 'empty-index',
+    };
+  }
 
   return {
-    byGuid,
-    byFingerprint,
+    requested: true,
     bundlePath,
-    recordCount: Array.isArray(bundle.records) ? bundle.records.length : 0,
+    index: {
+      byGuid,
+      byFingerprint,
+      bundlePath,
+      recordCount: Array.isArray(bundle.records) ? bundle.records.length : 0,
+    },
+    unavailableReason: null,
   };
+}
+
+/**
+ * Attempt to load the enrichment bundle.  Returns `null` when the feature
+ * is disabled, the file is missing, or the payload is invalid.  Never
+ * throws — enrichment is always a best-effort enhancement.
+ */
+export function loadEnrichmentIndex(opts?: {
+  /** Override the env gate (primarily for tests). */
+  enabled?: boolean;
+  /** Override the bundle path (primarily for tests). */
+  bundlePath?: string;
+}): EnrichmentIndex | null {
+  return loadEnrichment(opts).index;
 }
 
 /**

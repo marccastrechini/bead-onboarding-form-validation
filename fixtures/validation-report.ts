@@ -18,7 +18,11 @@ import type {
 } from './field-discovery';
 import { sectionPriorityRank } from './field-discovery';
 import type { FieldType, RuleClassification } from './validation-rules';
-import type { EnrichmentIndex, EnrichmentMatch } from '../lib/enrichment-loader';
+import type {
+  EnrichmentIndex,
+  EnrichmentMatch,
+  EnrichmentUnavailableReason,
+} from '../lib/enrichment-loader';
 import { matchField } from '../lib/enrichment-loader';
 
 export type CheckStatus = 'pass' | 'fail' | 'warning' | 'manual_review' | 'skipped';
@@ -131,11 +135,15 @@ export interface DiscoveryDiagnostics {
 }
 
 export interface EnrichmentSummary {
+  /** True when enrichment was explicitly requested for this run. */
+  requested: boolean;
   /** True when the bundle was loaded for this run. */
   enabled: boolean;
   /** Resolved path of the bundle that was loaded (for reviewer audit).
-   *  `null` when enrichment was disabled or the file was missing. */
+   *  `null` only when no bundle path applies. */
   bundlePath: string | null;
+  /** Reason the bundle was unavailable when requested. */
+  unavailableReason: EnrichmentUnavailableReason | null;
   /** Count of records the loaded bundle exposed. */
   bundleRecordCount: number;
   /** Discovered fields considered for enrichment (merchant-facing only). */
@@ -218,8 +226,10 @@ export class ReportBuilder {
   private enrichmentIndex: EnrichmentIndex | null = null;
   private enrichmentApplied = false;
   private enrichmentSummary: EnrichmentSummary = {
+    requested: false,
     enabled: false,
     bundlePath: null,
+    unavailableReason: null,
     bundleRecordCount: 0,
     fieldsConsidered: 0,
     matchesByGuid: 0,
@@ -294,11 +304,20 @@ export class ReportBuilder {
    * Must be called BEFORE `build()` / `writeArtifacts()` so the applied
    * annotations flow into the quick field index and metrics.
    */
-  attachEnrichment(index: EnrichmentIndex | null): void {
+  attachEnrichment(
+    index: EnrichmentIndex | null,
+    opts?: {
+      requested?: boolean;
+      bundlePath?: string | null;
+      unavailableReason?: EnrichmentUnavailableReason | null;
+    },
+  ): void {
     this.enrichmentIndex = index;
     this.enrichmentSummary = {
+      requested: opts?.requested ?? index !== null,
       enabled: index !== null,
-      bundlePath: index?.bundlePath ?? null,
+      bundlePath: index?.bundlePath ?? opts?.bundlePath ?? null,
+      unavailableReason: index ? null : opts?.unavailableReason ?? null,
       bundleRecordCount: index?.recordCount ?? 0,
       fieldsConsidered: 0,
       matchesByGuid: 0,
@@ -1044,16 +1063,27 @@ function renderMarkdown(r: ValidationReport): string {
   L.push(`| Skipped | ${r.totals.skipped} |`);
   L.push('');
 
-  if (r.enrichmentSummary.enabled) {
+  if (r.enrichmentSummary.requested || r.enrichmentSummary.enabled) {
     L.push('## Sample-field enrichment');
     L.push('');
-    L.push(
-      '_Offline enrichment bundle was merged into this report.  GUID matches are the strongest signal; positional matches are a template-shape fallback._',
-    );
+    if (r.enrichmentSummary.enabled) {
+      L.push(
+        '_Offline enrichment bundle was merged into this report.  GUID matches are the strongest signal; positional matches are a template-shape fallback._',
+      );
+    } else {
+      L.push(
+        '_Sample-field enrichment was requested for this run, but no usable local bundle was loaded. The report below reflects baseline live discovery only._',
+      );
+    }
     L.push('');
     L.push('| Signal | Value |');
     L.push('|---|---|');
+    L.push(`| Requested | ${r.enrichmentSummary.requested ? 'yes' : 'no'} |`);
+    L.push(`| Bundle loaded | ${r.enrichmentSummary.enabled ? 'yes' : 'no'} |`);
     L.push(`| Bundle path | \`${r.enrichmentSummary.bundlePath ?? '—'}\` |`);
+    if (r.enrichmentSummary.unavailableReason) {
+      L.push(`| Unavailable reason | ${r.enrichmentSummary.unavailableReason} |`);
+    }
     L.push(`| Records in bundle | ${r.enrichmentSummary.bundleRecordCount} |`);
     L.push(`| Fields considered | ${r.enrichmentSummary.fieldsConsidered} |`);
     L.push(`| Matches by GUID | ${r.enrichmentSummary.matchesByGuid} |`);
