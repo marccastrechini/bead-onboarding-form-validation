@@ -21,6 +21,7 @@ import {
   assertInteractiveValidationGuards,
   buildInteractiveValidationPlan,
   extractFieldLocalValidationDiagnostics,
+  resolveInteractiveTargetConcepts,
   skippedConceptToResult,
   type InteractiveValidationResultsFile,
 } from '../fixtures/interactive-validation';
@@ -503,6 +504,38 @@ test.describe('field validation scorecard', () => {
     expect(email.bestPracticeValidations.find((row) => row.id === 'missing-at-rejected')!.status).toBe('failed');
     expect(email.bestPracticeValidations.find((row) => row.id === 'valid-email-accepted')!.status).toBe('not_run');
   });
+
+  test('interactive merge does not treat mapping suspects as clean failures', () => {
+    const report = mockValidationReport([
+      mockField({
+        index: 1,
+        resolvedLabel: 'Business Email',
+        label: 'Business Email',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'email',
+        inferredClassification: 'inferred_best_practice',
+      }),
+    ]);
+    const scorecard = buildValidationScorecard(report, mockInteractiveResults({
+      concept: 'email',
+      conceptDisplayName: 'Email',
+      fieldLabel: 'Business Email',
+      validationId: 'missing-at-rejected',
+      caseName: 'missing-at',
+      testName: 'missing @ rejected',
+      status: 'skipped',
+      outcome: 'tool_mapping_suspect',
+      evidence: 'target signature suggests phone instead of Email',
+    }));
+
+    const email = scorecard.conceptScores.find((score) => score.key === 'email')!;
+    const skipped = email.bestPracticeValidations.find((row) => row.id === 'missing-at-rejected')!;
+
+    expect(email.failedValidationCount).toBe(0);
+    expect(email.skippedValidationCount).toBe(1);
+    expect(skipped.status).toBe('skipped');
+  });
 });
 
 test.describe('interactive validation safety', () => {
@@ -536,8 +569,10 @@ test.describe('interactive validation safety', () => {
   test('observer filters generic DocuSign attachment noise from wrapper text', () => {
     const diagnostics = extractFieldLocalValidationDiagnostics([
       {
-        source: 'field-wrapper-error',
+        source: 'same-tab-wrapper',
         text: 'Required | AttachmentRequired | Attachment | SignerAttachmentOptional',
+        associatedWithSameElement: true,
+        associatedWithSameTabGuid: true,
       },
     ], {
       ariaInvalid: 'false',
@@ -557,10 +592,13 @@ test.describe('interactive validation safety', () => {
   test('observer keeps field-local validation text while dropping generic chrome noise', () => {
     const diagnostics = extractFieldLocalValidationDiagnostics([
       {
-        source: 'field-wrapper-error',
+        source: 'same-tab-wrapper',
         text: 'Merchant Category Code must be exactly 4 digits | Required | AttachmentRequired | Attachment | SignerAttachmentOptional',
+        associatedWithSameElement: true,
+        associatedWithSameTabGuid: true,
       },
     ], {
+      concept: 'merchant_category_code',
       ariaInvalid: 'true',
       inputValue: 'ABCD',
       observedValue: 'ABCD',
@@ -569,6 +607,36 @@ test.describe('interactive validation safety', () => {
     expect(diagnostics.fieldLocalTexts).toContain('Merchant Category Code must be exactly 4 digits');
     expect(diagnostics.docusignLocalTexts).toContain('Merchant Category Code must be exactly 4 digits');
     expect(diagnostics.fieldLocalTexts).not.toContain('AttachmentRequired');
+  });
+
+  test('observer marks cross-type evidence as ownership suspect', () => {
+    const diagnostics = extractFieldLocalValidationDiagnostics([
+      {
+        source: 'same-tab-wrapper',
+        text: 'Field must be an email.',
+        associatedWithSameElement: true,
+        associatedWithSameTabGuid: true,
+      },
+    ], {
+      concept: 'phone',
+      ariaInvalid: 'true',
+      inputValue: '+15551234567',
+      observedValue: '+15551234567',
+    });
+
+    expect(diagnostics.fieldLocalTexts).toEqual([]);
+    expect(diagnostics.ownershipSuspectTexts).toContain('Field must be an email.');
+  });
+
+  test('INTERACTIVE_CONCEPTS filters the interactive target set', () => {
+    expect(resolveInteractiveTargetConcepts({
+      INTERACTIVE_CONCEPTS: 'email,phone,bank_name,date_of_birth',
+    } as NodeJS.ProcessEnv)).toEqual([
+      'email',
+      'phone',
+      'bank_name',
+      'date_of_birth',
+    ]);
   });
 
   test('date matrix uses YYYY/MM/DD as valid input and observes MM/DD/YYYY separately', () => {
@@ -659,7 +727,7 @@ function mockField(overrides: Partial<FieldRecord> = {}): FieldRecord {
 
 function mockInteractiveResults(
   result: Pick<InteractiveValidationResultsFile['results'][number],
-    'concept' | 'conceptDisplayName' | 'fieldLabel' | 'validationId' | 'caseName' | 'testName' | 'status' | 'evidence'>,
+    'concept' | 'conceptDisplayName' | 'fieldLabel' | 'validationId' | 'caseName' | 'testName' | 'status' | 'outcome' | 'evidence'>,
 ): InteractiveValidationResultsFile {
   return {
     schemaVersion: 1,
@@ -678,6 +746,14 @@ function mockInteractiveResults(
       manual_review: result.status === 'manual_review' ? 1 : 0,
       skipped: result.status === 'skipped' ? 1 : 0,
     },
+    outcomes: {
+      passed: result.outcome === 'passed' ? 1 : 0,
+      product_failure: result.outcome === 'product_failure' ? 1 : 0,
+      tool_mapping_suspect: result.outcome === 'tool_mapping_suspect' ? 1 : 0,
+      error_ownership_suspect: result.outcome === 'error_ownership_suspect' ? 1 : 0,
+      observer_ambiguous: result.outcome === 'observer_ambiguous' ? 1 : 0,
+      mapping_not_confident: result.outcome === 'mapping_not_confident' ? 1 : 0,
+    },
     targetConcepts: ['email'],
     skippedConcepts: [],
     results: [{
@@ -693,15 +769,24 @@ function mockInteractiveResults(
       inputValue: 'qa.signerexample.com',
       expectedBehavior: 'An address without @ is rejected.',
       severity: 'critical',
+      reasonCode: result.outcome === 'passed' ? 'none' : result.outcome === 'product_failure' ? 'product_failure' : 'target_mapping_not_trusted',
       observation: {
         ariaInvalid: null,
         validationMessage: null,
         nearbyErrorText: null,
         docusignValidationText: [],
+        invalidIndicators: [],
+        ignoredDiagnostics: [],
+        ownershipSuspectText: [],
+        evidenceItems: [],
         observedValue: 'qa.signerexample.com',
         normalizedOrReformatted: false,
         inputPrevented: false,
       },
+      targetDiagnostics: null,
+      interpretation: result.outcome === 'tool_mapping_suspect'
+        ? 'Target mapping was not trusted enough to classify this as a product failure.'
+        : 'Synthetic test result.',
       recommendation: 'Block this value or show a validation error on blur.',
       cleanupStrategy: 'restore_original_value_then_blur',
       safetyNotes: ['Uses disposable test input values.'],

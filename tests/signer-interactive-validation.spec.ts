@@ -37,8 +37,8 @@ test.describe('Bead Onboarding - Interactive Field Validation', () => {
     );
 
     if (!hasSignerUrl()) {
-      const { jsonPath, mdPath } = flush();
-      await attachArtifacts(testInfo, jsonPath, mdPath);
+      const artifacts = flush();
+      await attachArtifacts(testInfo, artifacts);
       test.skip(true, 'DOCUSIGN_SIGNING_URL is not set; provide a fresh disposable envelope URL.');
     }
 
@@ -69,8 +69,8 @@ test.describe('Bead Onboarding - Interactive Field Validation', () => {
         flush();
       }
 
-      const { jsonPath, mdPath } = flush();
-      await attachArtifacts(testInfo, jsonPath, mdPath);
+      const artifacts = flush();
+      await attachArtifacts(testInfo, artifacts);
     } catch (error) {
       flush();
       throw error;
@@ -78,13 +78,29 @@ test.describe('Bead Onboarding - Interactive Field Validation', () => {
   });
 });
 
-async function attachArtifacts(testInfo: { attach: (name: string, options: { path: string; contentType: string }) => Promise<void> }, jsonPath: string, mdPath: string): Promise<void> {
+async function attachArtifacts(
+  testInfo: { attach: (name: string, options: { path: string; contentType: string }) => Promise<void> },
+  paths: {
+    jsonPath: string;
+    mdPath: string;
+    targetDiagnosticsJsonPath: string;
+    targetDiagnosticsMdPath: string;
+  },
+): Promise<void> {
   await testInfo.attach('interactive-validation-results.json', {
-    path: jsonPath,
+    path: paths.jsonPath,
     contentType: 'application/json',
   });
   await testInfo.attach('interactive-validation-results.md', {
-    path: mdPath,
+    path: paths.mdPath,
+    contentType: 'text/markdown',
+  });
+  await testInfo.attach('interactive-target-diagnostics.json', {
+    path: paths.targetDiagnosticsJsonPath,
+    contentType: 'application/json',
+  });
+  await testInfo.attach('interactive-target-diagnostics.md', {
+    path: paths.targetDiagnosticsMdPath,
     contentType: 'text/markdown',
   });
 }

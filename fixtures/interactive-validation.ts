@@ -8,12 +8,14 @@ import {
   type ValidationExpectationSeverity,
 } from './field-concepts';
 import type { DiscoveredField } from './field-discovery';
-import type { ValidationReport } from './validation-report';
+import type { FieldRecord, ValidationReport } from './validation-report';
 import { buildValidationScorecard, type ScorecardFieldMatch } from './validation-scorecard';
 import type { FrameHost } from './signer-helpers';
 
 export const INTERACTIVE_RESULTS_JSON = 'latest-interactive-validation-results.json';
 export const INTERACTIVE_RESULTS_MD = 'latest-interactive-validation-results.md';
+export const INTERACTIVE_TARGET_DIAGNOSTICS_JSON = 'latest-interactive-target-diagnostics.json';
+export const INTERACTIVE_TARGET_DIAGNOSTICS_MD = 'latest-interactive-target-diagnostics.md';
 
 export const INTERACTIVE_TARGET_CONCEPTS = [
   'date_of_birth',
@@ -32,12 +34,27 @@ export const INTERACTIVE_TARGET_CONCEPTS = [
 
 export type InteractiveTargetConcept = typeof INTERACTIVE_TARGET_CONCEPTS[number];
 export type InteractiveResultStatus = 'passed' | 'failed' | 'warning' | 'manual_review' | 'skipped';
+export type InteractiveResultOutcome =
+  | 'passed'
+  | 'product_failure'
+  | 'tool_mapping_suspect'
+  | 'error_ownership_suspect'
+  | 'observer_ambiguous'
+  | 'mapping_not_confident';
 export type InteractiveExpectedBehavior =
   | 'accept'
   | 'reject'
   | 'reject_or_warn'
   | 'reject_or_manual_review'
   | 'observe';
+export type InteractiveReasonCode =
+  | 'none'
+  | 'target_mapping_not_trusted'
+  | 'error_ownership_suspect'
+  | 'observer_ambiguous'
+  | 'product_failure'
+  | 'interaction_error';
+export type InteractiveTargetConfidence = 'trusted' | 'tool_mapping_suspect' | 'mapping_not_confident';
 
 export interface InteractiveGuardState {
   INTERACTIVE_VALIDATION: boolean;
@@ -61,12 +78,33 @@ export interface InteractiveLocatorStrategy {
   fallback: 'skip-if-field-does-not-resolve-visible-editable-merchant-input';
 }
 
+export interface InteractiveTargetProfile {
+  intendedFieldDisplayName: string;
+  intendedBusinessSection: string | null;
+  intendedSectionName: string | null;
+  inferredType: string;
+  labelSource: string;
+  labelConfidence: string;
+  mappingConfidence: string;
+  tabGuid: string | null;
+  docusignTabType: string | null;
+  pageIndex: number | null;
+  ordinalOnPage: number | null;
+  coordinates: {
+    left: number | null;
+    top: number | null;
+    width: number | null;
+    height: number | null;
+  };
+}
+
 export interface InteractiveValidationCase {
   id: string;
   concept: FieldConceptKey;
   conceptDisplayName: string;
   fieldLabel: string;
   targetField: InteractiveLocatorStrategy;
+  targetProfile: InteractiveTargetProfile;
   validationId: string;
   caseName: string;
   testName: string;
@@ -104,6 +142,8 @@ export interface InteractiveObservation {
   docusignValidationText: string[];
   invalidIndicators: string[];
   ignoredDiagnostics: string[];
+  ownershipSuspectText: string[];
+  evidenceItems: InteractiveEvidenceItem[];
   observedValue: string | null;
   normalizedOrReformatted: boolean;
   inputPrevented: boolean;
@@ -112,19 +152,118 @@ export interface InteractiveObservation {
 export type ValidationCandidateSource =
   | 'aria-errormessage'
   | 'aria-describedby'
-  | 'control-error'
-  | 'field-wrapper-error'
-  | 'field-wrapper-inline';
+  | 'direct-field-container'
+  | 'same-tab-wrapper';
+
+export type InteractiveEvidenceSource =
+  | ValidationCandidateSource
+  | 'aria-invalid'
+  | 'native-validation-message'
+  | 'invalid-indicator';
+
+export interface InteractiveEvidenceItem {
+  source: InteractiveEvidenceSource;
+  text: string;
+  associatedWithSameElement: boolean;
+  associatedWithSameTabGuid: boolean | null;
+  otherFieldTypeHints: string[];
+  classification: 'field-local' | 'ignored' | 'other-field-type-suspect';
+}
 
 export interface RawValidationCandidate {
   source: ValidationCandidateSource;
   text: string;
+  associatedWithSameElement: boolean;
+  associatedWithSameTabGuid: boolean | null;
 }
 
 export interface FieldLocalValidationDiagnostics {
   fieldLocalTexts: string[];
   docusignLocalTexts: string[];
   ignoredTexts: string[];
+  ownershipSuspectTexts: string[];
+  evidenceItems: InteractiveEvidenceItem[];
+}
+
+export interface InteractiveElementSignature {
+  id: string | null;
+  name: string | null;
+  ariaLabel: string | null;
+  title: string | null;
+  role: string | null;
+  tagName: string | null;
+  type: string | null;
+  inputMode: string | null;
+  autocomplete: string | null;
+  placeholder: string | null;
+  docusignTabType: string | null;
+}
+
+export interface InteractiveTargetDiagnostics {
+  intendedFieldDisplayName: string;
+  intendedBusinessSection: string | null;
+  intendedSectionName: string | null;
+  inferredType: string;
+  labelSource: string;
+  labelConfidence: string;
+  mappingConfidence: string;
+  tabGuid: string | null;
+  docusignTabType: string | null;
+  pageIndex: number | null;
+  ordinalOnPage: number | null;
+  coordinates: {
+    left: number | null;
+    top: number | null;
+    width: number | null;
+    height: number | null;
+  };
+  locatorStrategy: string;
+  actualElement: InteractiveElementSignature;
+  actualFieldSignature: string;
+  targetConfidence: InteractiveTargetConfidence;
+  targetConfidenceReason: string;
+  mappingFlags: string[];
+  actualValueBeforeTest: string | null;
+  attemptedValue: string;
+  actualValueAfterFill: string | null;
+  actualValueAfterBlur: string | null;
+  restoredValue: string | null;
+  restoreSucceeded: boolean | null;
+}
+
+export interface InteractiveTargetDiagnosticsFile {
+  schemaVersion: 1;
+  runStartedAt: string;
+  runFinishedAt: string;
+  summary: {
+    total: number;
+    trusted: number;
+    tool_mapping_suspect: number;
+    mapping_not_confident: number;
+    error_ownership_suspect: number;
+    product_failure: number;
+    observer_ambiguous: number;
+    passed: number;
+    skipped: number;
+    manual_review: number;
+  };
+  rows: Array<{
+    concept: FieldConceptKey;
+    conceptDisplayName: string;
+    testName: string;
+    intendedField: string;
+    actualFieldSignature: string;
+    targetConfidence: InteractiveTargetConfidence;
+    valueBefore: string | null;
+    attemptedValue: string | null;
+    valueAfter: string | null;
+    restore: string | null;
+    restoreSucceeded: boolean | null;
+    errorEvidence: string;
+    status: InteractiveResultStatus;
+    outcome: InteractiveResultOutcome;
+    interpretation: string;
+  }>;
 }
 
 export interface InteractiveValidationResult {
@@ -139,8 +278,12 @@ export interface InteractiveValidationResult {
   expectedBehavior: string;
   severity: ValidationExpectationSeverity;
   status: InteractiveResultStatus;
+  outcome: InteractiveResultOutcome;
+  reasonCode: InteractiveReasonCode;
   observation: InteractiveObservation | null;
+  targetDiagnostics: InteractiveTargetDiagnostics | null;
   evidence: string;
+  interpretation: string;
   recommendation: string;
   cleanupStrategy: string;
   safetyNotes: string[];
@@ -164,6 +307,7 @@ export interface InteractiveValidationResultsFile {
     manual_review: number;
     skipped: number;
   };
+  outcomes: Record<InteractiveResultOutcome, number>;
   targetConcepts: FieldConceptKey[];
   skippedConcepts: InteractiveSkippedConcept[];
   results: InteractiveValidationResult[];
@@ -174,8 +318,44 @@ const LONG_DESCRIPTION = `This is a disposable validation test description. ${'A
 const GENERIC_DOCUSIGN_TEXT_RE =
   /attachmentrequired|signerattachment|attachmentoptional|attachmentrequired|select to load content for this page|this link will open in a new window|hide note|show note|view electronic record|press enter to use the screen reader|page\s+\d+\s+of\s+\d+/i;
 const AMBIGUOUS_REQUIRED_RE = /^required$/i;
-const INVALID_INDICATOR_RE = /(^|\b)(invalid|error|has-error|is-invalid|field-error|input-error|validation-error|ds-error)(\b|$)/i;
 const FIELD_LOCAL_MESSAGE_RE = /(invalid|must\b|format\b|enter\b|between\b|too\s+(short|long)|minimum|max(imum)?|whole number|email|phone|zip|postal|naics|merchant category|date of birth|date)/i;
+const STRONG_LABEL_SOURCES = new Set([
+  'aria-label',
+  'aria-labelledby',
+  'label-for',
+  'wrapping-label',
+  'title',
+  'placeholder',
+  'enrichment-guid',
+]);
+const SECTION_TOKENS: Record<string, string[]> = {
+  'Business Details': ['business', 'merchant', 'company', 'entity', 'registration'],
+  'Contact': ['contact', 'email', 'phone'],
+  'Stakeholder': ['stakeholder', 'owner', 'principal', 'beneficial'],
+  'Address': ['address', 'postal', 'zip', 'location'],
+  'Banking': ['bank', 'banking', 'deposit', 'account', 'routing'],
+};
+const SIGNATURE_FAMILY_PATTERNS: Array<{ family: string; pattern: RegExp }> = [
+  { family: 'email', pattern: /\b(e-?mail|email address|@)\b/i },
+  { family: 'phone', pattern: /\b(phone|telephone|e\.164|phone number|tel)\b|\+1\d{6,}/i },
+  { family: 'date', pattern: /\b(date of birth|dob|yyyy\/mm\/dd|mm\/dd\/yyyy|enter date|birth date|date)\b/i },
+  { family: 'bank', pattern: /\b(bank|routing|account number|account type|deposit)\b/i },
+  { family: 'name', pattern: /\b(name|business name|registered name|dba)\b/i },
+];
+const PRIMARY_FAMILY_BY_CONCEPT: Partial<Record<FieldConceptKey, string>> = {
+  email: 'email',
+  phone: 'phone',
+  bank_name: 'bank',
+  date_of_birth: 'date',
+  registration_date: 'date',
+  business_name: 'name',
+  dba_name: 'name',
+};
+const BLOCKED_SIGNATURE_FAMILIES: Partial<Record<FieldConceptKey, string[]>> = {
+  bank_name: ['phone', 'email', 'date'],
+  phone: ['email', 'bank', 'date', 'name'],
+  email: ['phone', 'bank', 'date', 'name'],
+};
 
 const TEXT_FIELD_MATRIX: MatrixCaseDefinition[] = [
   {
@@ -534,6 +714,25 @@ export function getInteractiveGuardState(env: NodeJS.ProcessEnv = process.env): 
   };
 }
 
+export function resolveInteractiveTargetConcepts(env: NodeJS.ProcessEnv = process.env): InteractiveTargetConcept[] {
+  const raw = env.INTERACTIVE_CONCEPTS?.trim();
+  if (!raw) return [...INTERACTIVE_TARGET_CONCEPTS];
+
+  const requested = raw
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const allowed = new Set(INTERACTIVE_TARGET_CONCEPTS);
+  const invalid = requested.filter((value): value is string => !allowed.has(value as InteractiveTargetConcept));
+  if (invalid.length > 0) {
+    throw new Error(
+      `Invalid INTERACTIVE_CONCEPTS value(s): ${invalid.join(', ')}. Allowed concepts: ${INTERACTIVE_TARGET_CONCEPTS.join(', ')}.`,
+    );
+  }
+
+  return Array.from(new Set(requested)) as InteractiveTargetConcept[];
+}
+
 export function assertInteractiveValidationGuards(env: NodeJS.ProcessEnv = process.env): void {
   const state = getInteractiveGuardState(env);
   const missing = Object.entries(state)
@@ -549,13 +748,17 @@ export function assertInteractiveValidationGuards(env: NodeJS.ProcessEnv = proce
   }
 }
 
-export function buildInteractiveValidationPlan(report: ValidationReport): InteractiveValidationPlan {
+export function buildInteractiveValidationPlan(
+  report: ValidationReport,
+  env: NodeJS.ProcessEnv = process.env,
+): InteractiveValidationPlan {
   const scorecard = buildValidationScorecard(report);
   const scoreByConcept = new Map(scorecard.conceptScores.map((score) => [score.key, score]));
   const cases: InteractiveValidationCase[] = [];
   const skippedConcepts: InteractiveSkippedConcept[] = [];
+  const targetConcepts = resolveInteractiveTargetConcepts(env);
 
-  for (const conceptKey of INTERACTIVE_TARGET_CONCEPTS) {
+  for (const conceptKey of targetConcepts) {
     const concept = FIELD_CONCEPT_REGISTRY[conceptKey];
     const score = scoreByConcept.get(conceptKey);
     const match = score?.mappedFields.find(isConfidentMatch);
@@ -594,7 +797,7 @@ export function buildInteractiveValidationPlan(report: ValidationReport): Intera
       const validation = concept.bestPracticeValidations.find((candidate) => candidate.id === matrixCase.validationId);
       if (!validation) continue;
 
-      cases.push(toInteractiveCase(conceptKey, concept.displayName, match, locatorStrategy, validation, matrixCase));
+      cases.push(toInteractiveCase(conceptKey, concept.displayName, match, sourceField, locatorStrategy, validation, matrixCase));
     }
   }
 
@@ -605,7 +808,7 @@ export function buildInteractiveValidationPlan(report: ValidationReport): Intera
       runStartedAt: report.runStartedAt,
       runFinishedAt: report.runFinishedAt,
     },
-    targetConcepts: [...INTERACTIVE_TARGET_CONCEPTS],
+    targetConcepts,
     cases,
     skippedConcepts,
   };
@@ -624,8 +827,12 @@ export function skippedConceptToResult(skipped: InteractiveSkippedConcept): Inte
     expectedBehavior: 'field must be confidently mapped before interactive validation',
     severity: FIELD_CONCEPT_REGISTRY[skipped.concept].missingValidationSeverity,
     status: 'skipped',
+    outcome: 'mapping_not_confident',
+    reasonCode: 'target_mapping_not_trusted',
     observation: null,
+    targetDiagnostics: null,
     evidence: skipped.reason,
+    interpretation: 'The target field mapping is not trusted enough to mutate or judge this concept.',
     recommendation: `Confirm the ${skipped.conceptDisplayName} field mapping before running this interactive case.`,
     cleanupStrategy: 'no field mutated',
     safetyNotes: ['No field was mutated for this concept.'],
@@ -636,7 +843,7 @@ export function skippedConceptToResult(skipped: InteractiveSkippedConcept): Inte
 export async function runInteractiveCase(
   testCase: InteractiveValidationCase,
   field: DiscoveredField | null,
-  frame: FrameHost,
+  _frame: FrameHost,
 ): Promise<InteractiveValidationResult> {
   if (!field || field.controlCategory !== 'merchant_input') {
     return skippedCase(testCase, 'target field was not available as a merchant input in live discovery');
@@ -648,40 +855,61 @@ export async function runInteractiveCase(
 
   const locator = field.locator;
   const originalValue = await readControlValue(locator);
+  const actualElement = await readElementSignature(field);
+  const targetDiagnostics = createTargetDiagnostics(testCase, field, actualElement, originalValue);
+  const targetVerification = verifyInteractiveTarget(testCase, field, actualElement);
+  targetDiagnostics.targetConfidence = targetVerification.confidence;
+  targetDiagnostics.targetConfidenceReason = targetVerification.reason;
+  targetDiagnostics.mappingFlags = [...targetVerification.flags];
+
   let filled = false;
+  let result: InteractiveValidationResult;
 
   try {
-    await locator.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
-    await locator.click({ timeout: 3_000 }).catch(() => undefined);
-    await locator.fill(testCase.inputValue, { timeout: 7_500 });
-    filled = true;
-    await locator.blur({ timeout: 3_000 }).catch(() => undefined);
-    await waitForClientValidation(locator);
+    if (targetVerification.confidence !== 'trusted') {
+      result = mappingGateResult(testCase, targetDiagnostics, targetVerification);
+    } else {
+      await locator.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
+      await locator.click({ timeout: 3_000 }).catch(() => undefined);
+      await locator.fill(testCase.inputValue, { timeout: 7_500 });
+      filled = true;
+      targetDiagnostics.actualValueAfterFill = sanitizeNullable(await readControlValue(locator));
+      await locator.blur({ timeout: 3_000 }).catch(() => undefined);
+      await waitForClientValidation(locator);
+      targetDiagnostics.actualValueAfterBlur = sanitizeNullable(await readControlValue(locator));
 
-    const observation = await collectObservation(field, frame, testCase.inputValue, filled);
-    const status = evaluateObservation(testCase, observation);
-    const evidence = summarizeObservation(testCase, observation);
+      const observation = await collectObservation(field, testCase.concept, testCase.inputValue, filled);
+      if (!targetDiagnostics.actualValueAfterBlur) {
+        targetDiagnostics.actualValueAfterBlur = observation.observedValue;
+      }
+      const evaluation = evaluateObservation(testCase, observation);
+      const evidence = summarizeObservation(testCase, observation, targetDiagnostics, evaluation);
 
-    return {
-      concept: testCase.concept,
-      conceptDisplayName: testCase.conceptDisplayName,
-      fieldLabel: testCase.fieldLabel,
-      targetField: testCase.targetField,
-      validationId: testCase.validationId,
-      caseName: testCase.caseName,
-      testName: testCase.testName,
-      inputValue: testCase.inputValue,
-      expectedBehavior: testCase.expectedBehavior,
-      severity: testCase.severity,
-      status,
-      observation,
-      evidence,
-      recommendation: recommendationForResult(testCase, status, observation),
-      cleanupStrategy: testCase.cleanupStrategy,
-      safetyNotes: testCase.safetyNotes,
-    };
+      result = {
+        concept: testCase.concept,
+        conceptDisplayName: testCase.conceptDisplayName,
+        fieldLabel: testCase.fieldLabel,
+        targetField: testCase.targetField,
+        validationId: testCase.validationId,
+        caseName: testCase.caseName,
+        testName: testCase.testName,
+        inputValue: testCase.inputValue,
+        expectedBehavior: testCase.expectedBehavior,
+        severity: testCase.severity,
+        status: evaluation.status,
+        outcome: evaluation.outcome,
+        reasonCode: evaluation.reasonCode,
+        observation,
+        targetDiagnostics,
+        evidence,
+        interpretation: evaluation.interpretation,
+        recommendation: recommendationForResult(testCase, evaluation, observation),
+        cleanupStrategy: testCase.cleanupStrategy,
+        safetyNotes: testCase.safetyNotes,
+      };
+    }
   } catch (error) {
-    return {
+    result = {
       concept: testCase.concept,
       conceptDisplayName: testCase.conceptDisplayName,
       fieldLabel: testCase.fieldLabel,
@@ -693,16 +921,33 @@ export async function runInteractiveCase(
       expectedBehavior: testCase.expectedBehavior,
       severity: testCase.severity,
       status: 'skipped',
+      outcome: 'observer_ambiguous',
+      reasonCode: 'interaction_error',
       observation: null,
-      evidence: oneLine(error),
+      targetDiagnostics,
+      evidence: summarizeNonObservationResult(testCase, targetDiagnostics, oneLine(error)),
+      interpretation: 'The runner could not complete this interaction cleanly enough to interpret the field behavior.',
       recommendation: 'Review the locator and field editability before interpreting this case.',
       cleanupStrategy: testCase.cleanupStrategy,
       safetyNotes: testCase.safetyNotes,
       skippedReason: oneLine(error),
     };
   } finally {
-    await restoreOriginalValue(locator, originalValue, filled);
+    const restore = await restoreOriginalValue(locator, originalValue, filled);
+    targetDiagnostics.restoredValue = sanitizeNullable(restore.restoredValue);
+    targetDiagnostics.restoreSucceeded = restore.restoreSucceeded;
   }
+
+  result.targetDiagnostics = targetDiagnostics;
+  result.evidence = result.observation
+    ? summarizeObservation(testCase, result.observation, targetDiagnostics, {
+      status: result.status,
+      outcome: result.outcome,
+      reasonCode: result.reasonCode,
+      interpretation: result.interpretation,
+    })
+    : summarizeNonObservationResult(testCase, targetDiagnostics, result.skippedReason ?? result.evidence);
+  return result;
 }
 
 export function buildInteractiveResultsFile(input: {
@@ -730,7 +975,8 @@ export function buildInteractiveResultsFile(input: {
       manual_review: results.filter((result) => result.status === 'manual_review').length,
       skipped: results.filter((result) => result.status === 'skipped').length,
     },
-    targetConcepts: [...INTERACTIVE_TARGET_CONCEPTS],
+    outcomes: countOutcomes(results),
+    targetConcepts: input.plan?.targetConcepts ?? resolveInteractiveTargetConcepts(),
     skippedConcepts: input.plan?.skippedConcepts ?? [],
     results,
   };
@@ -739,13 +985,23 @@ export function buildInteractiveResultsFile(input: {
 export function writeInteractiveResultsArtifacts(
   resultFile: InteractiveValidationResultsFile,
   outDir: string,
-): { jsonPath: string; mdPath: string } {
+): {
+  jsonPath: string;
+  mdPath: string;
+  targetDiagnosticsJsonPath: string;
+  targetDiagnosticsMdPath: string;
+} {
   fs.mkdirSync(outDir, { recursive: true });
   const jsonPath = path.join(outDir, INTERACTIVE_RESULTS_JSON);
   const mdPath = path.join(outDir, INTERACTIVE_RESULTS_MD);
+  const targetDiagnosticsJsonPath = path.join(outDir, INTERACTIVE_TARGET_DIAGNOSTICS_JSON);
+  const targetDiagnosticsMdPath = path.join(outDir, INTERACTIVE_TARGET_DIAGNOSTICS_MD);
   fs.writeFileSync(jsonPath, JSON.stringify(resultFile, null, 2), 'utf8');
   fs.writeFileSync(mdPath, renderInteractiveResultsMarkdown(resultFile), 'utf8');
-  return { jsonPath, mdPath };
+  const targetDiagnostics = buildInteractiveTargetDiagnosticsFile(resultFile);
+  fs.writeFileSync(targetDiagnosticsJsonPath, JSON.stringify(targetDiagnostics, null, 2), 'utf8');
+  fs.writeFileSync(targetDiagnosticsMdPath, renderInteractiveTargetDiagnosticsMarkdown(targetDiagnostics), 'utf8');
+  return { jsonPath, mdPath, targetDiagnosticsJsonPath, targetDiagnosticsMdPath };
 }
 
 export function renderInteractiveResultsMarkdown(resultFile: InteractiveValidationResultsFile): string {
@@ -764,6 +1020,11 @@ export function renderInteractiveResultsMarkdown(resultFile: InteractiveValidati
   lines.push(`- Warning: ${resultFile.summary.warning}`);
   lines.push(`- Manual review: ${resultFile.summary.manual_review}`);
   lines.push(`- Skipped: ${resultFile.summary.skipped}`);
+  lines.push(`- Product failures: ${resultFile.outcomes.product_failure}`);
+  lines.push(`- Tool mapping suspects: ${resultFile.outcomes.tool_mapping_suspect}`);
+  lines.push(`- Error ownership suspects: ${resultFile.outcomes.error_ownership_suspect}`);
+  lines.push(`- Observer ambiguous: ${resultFile.outcomes.observer_ambiguous}`);
+  lines.push(`- Mapping not confident: ${resultFile.outcomes.mapping_not_confident}`);
   lines.push('');
 
   if (resultFile.skippedConcepts.length) {
@@ -785,11 +1046,81 @@ export function renderInteractiveResultsMarkdown(resultFile: InteractiveValidati
     return lines.join('\n');
   }
 
-  lines.push('| Concept | Field | Test | Severity | Status | Evidence | Recommendation |');
-  lines.push('|---|---|---|---|---|---|---|');
+  lines.push('| Concept | Field | Test | Severity | Status | Outcome | Evidence | Recommendation |');
+  lines.push('|---|---|---|---|---|---|---|---|');
   for (const result of resultFile.results) {
     lines.push(
-      `| ${esc(result.conceptDisplayName)} | ${esc(result.fieldLabel ?? 'n/a')} | ${esc(result.testName)} | ${result.severity} | ${statusLabel(result.status)} | ${esc(result.evidence)} | ${esc(result.recommendation)} |`,
+      `| ${esc(result.conceptDisplayName)} | ${esc(result.fieldLabel ?? 'n/a')} | ${esc(result.testName)} | ${result.severity} | ${statusLabel(result.status)} | ${esc(result.outcome)} | ${esc(result.evidence)} | ${esc(result.recommendation)} |`,
+    );
+  }
+  lines.push('');
+  return lines.join('\n');
+}
+
+export function buildInteractiveTargetDiagnosticsFile(
+  resultFile: InteractiveValidationResultsFile,
+): InteractiveTargetDiagnosticsFile {
+  const rows = resultFile.results.map((result) => ({
+    concept: result.concept,
+    conceptDisplayName: result.conceptDisplayName,
+    testName: result.testName,
+    intendedField: result.targetDiagnostics?.intendedFieldDisplayName ?? result.fieldLabel ?? 'n/a',
+    actualFieldSignature: result.targetDiagnostics?.actualFieldSignature ?? 'n/a',
+    targetConfidence: result.targetDiagnostics?.targetConfidence ?? 'mapping_not_confident',
+    valueBefore: result.targetDiagnostics?.actualValueBeforeTest ?? null,
+    attemptedValue: result.targetDiagnostics?.attemptedValue ?? result.inputValue,
+    valueAfter: result.targetDiagnostics?.actualValueAfterBlur ?? result.observation?.observedValue ?? null,
+    restore: result.targetDiagnostics?.restoredValue ?? null,
+    restoreSucceeded: result.targetDiagnostics?.restoreSucceeded ?? null,
+    errorEvidence: formatErrorEvidence(result.observation),
+    status: result.status,
+    outcome: result.outcome,
+    interpretation: result.interpretation,
+  }));
+
+  return {
+    schemaVersion: 1,
+    runStartedAt: resultFile.runStartedAt,
+    runFinishedAt: resultFile.runFinishedAt,
+    summary: {
+      total: rows.length,
+      trusted: rows.filter((row) => row.targetConfidence === 'trusted').length,
+      tool_mapping_suspect: rows.filter((row) => row.targetConfidence === 'tool_mapping_suspect').length,
+      mapping_not_confident: rows.filter((row) => row.targetConfidence === 'mapping_not_confident').length,
+      error_ownership_suspect: rows.filter((row) => row.outcome === 'error_ownership_suspect').length,
+      product_failure: rows.filter((row) => row.outcome === 'product_failure').length,
+      observer_ambiguous: rows.filter((row) => row.outcome === 'observer_ambiguous').length,
+      passed: rows.filter((row) => row.outcome === 'passed').length,
+      skipped: rows.filter((row) => row.status === 'skipped').length,
+      manual_review: rows.filter((row) => row.status === 'manual_review').length,
+    },
+    rows,
+  };
+}
+
+export function renderInteractiveTargetDiagnosticsMarkdown(file: InteractiveTargetDiagnosticsFile): string {
+  const lines: string[] = [];
+  lines.push('# Bead Onboarding - Interactive Target Diagnostics');
+  lines.push('');
+  lines.push('## Summary');
+  lines.push('');
+  lines.push(`- Run started: ${esc(file.runStartedAt)}`);
+  lines.push(`- Run finished: ${esc(file.runFinishedAt)}`);
+  lines.push(`- Total cases: ${file.summary.total}`);
+  lines.push(`- Trusted targets: ${file.summary.trusted}`);
+  lines.push(`- Tool mapping suspects: ${file.summary.tool_mapping_suspect}`);
+  lines.push(`- Mapping not confident: ${file.summary.mapping_not_confident}`);
+  lines.push(`- Error ownership suspects: ${file.summary.error_ownership_suspect}`);
+  lines.push(`- Product failures: ${file.summary.product_failure}`);
+  lines.push(`- Observer ambiguous: ${file.summary.observer_ambiguous}`);
+  lines.push('');
+  lines.push('## Target Review');
+  lines.push('');
+  lines.push('| Concept | Test | Intended field | Actual field signature | Target confidence | Value before/after | Error evidence | Outcome | Interpretation |');
+  lines.push('|---|---|---|---|---|---|---|---|---|');
+  for (const row of file.rows) {
+    lines.push(
+      `| ${esc(row.conceptDisplayName)} | ${esc(row.testName)} | ${esc(row.intendedField)} | ${esc(row.actualFieldSignature)} | ${esc(row.targetConfidence)} | ${esc(formatValueFlow(row))} | ${esc(row.errorEvidence)} | ${esc(row.outcome)} | ${esc(row.interpretation)} |`,
     );
   }
   lines.push('');
@@ -800,6 +1131,7 @@ function toInteractiveCase(
   concept: FieldConceptKey,
   conceptDisplayName: string,
   match: ScorecardFieldMatch,
+  sourceField: FieldRecord,
   targetField: InteractiveLocatorStrategy,
   validation: BestPracticeValidation,
   matrixCase: MatrixCaseDefinition,
@@ -810,6 +1142,25 @@ function toInteractiveCase(
     conceptDisplayName,
     fieldLabel: match.displayName,
     targetField,
+    targetProfile: {
+      intendedFieldDisplayName: match.displayName,
+      intendedBusinessSection: match.businessSection,
+      intendedSectionName: sourceField.section,
+      inferredType: sourceField.inferredType,
+      labelSource: sourceField.labelSource,
+      labelConfidence: sourceField.labelConfidence,
+      mappingConfidence: match.identificationConfidence,
+      tabGuid: sourceField.tabGuid,
+      docusignTabType: sourceField.docusignTabType,
+      pageIndex: sourceField.pageIndex,
+      ordinalOnPage: sourceField.ordinalOnPage,
+      coordinates: {
+        left: sourceField.tabLeft,
+        top: sourceField.tabTop,
+        width: sourceField.tabWidth,
+        height: sourceField.tabHeight,
+      },
+    },
     validationId: validation.id,
     caseName: matrixCase.caseName,
     testName: matrixCase.testName,
@@ -843,8 +1194,12 @@ function skippedCase(testCase: InteractiveValidationCase, reason: string): Inter
     expectedBehavior: testCase.expectedBehavior,
     severity: testCase.severity,
     status: 'skipped',
+    outcome: 'mapping_not_confident',
+    reasonCode: 'target_mapping_not_trusted',
     observation: null,
+    targetDiagnostics: null,
     evidence: reason,
+    interpretation: 'The runner did not trust the target field enough to mutate it.',
     recommendation: 'Re-run after the target field is visible, editable, and confidently mapped.',
     cleanupStrategy: testCase.cleanupStrategy,
     safetyNotes: testCase.safetyNotes,
@@ -869,10 +1224,21 @@ async function readControlValue(locator: Locator): Promise<string | null> {
   }
 }
 
-async function restoreOriginalValue(locator: Locator, originalValue: string | null, attemptedFill: boolean): Promise<void> {
-  if (!attemptedFill || originalValue === null) return;
+async function restoreOriginalValue(
+  locator: Locator,
+  originalValue: string | null,
+  attemptedFill: boolean,
+): Promise<{ restoredValue: string | null; restoreSucceeded: boolean | null }> {
+  if (!attemptedFill || originalValue === null) {
+    return { restoredValue: originalValue, restoreSucceeded: null };
+  }
   await locator.fill(originalValue, { timeout: 5_000 }).catch(() => undefined);
   await locator.blur({ timeout: 2_000 }).catch(() => undefined);
+  const restoredValue = await readControlValue(locator);
+  return {
+    restoredValue,
+    restoreSucceeded: restoredValue === originalValue,
+  };
 }
 
 async function waitForClientValidation(locator: Locator): Promise<void> {
@@ -881,7 +1247,7 @@ async function waitForClientValidation(locator: Locator): Promise<void> {
 
 async function collectObservation(
   field: DiscoveredField,
-  frame: FrameHost,
+  concept: FieldConceptKey,
   inputValue: string,
   filled: boolean,
 ): Promise<InteractiveObservation> {
@@ -918,16 +1284,26 @@ async function collectObservation(
         ? element.validationMessage
         : '';
 
-    const errorCandidates: Array<{ source: ValidationCandidateSource; text: string }> = [];
+    const errorCandidates: Array<{
+      source: ValidationCandidateSource;
+      text: string;
+      associatedWithSameElement: boolean;
+      associatedWithSameTabGuid: boolean | null;
+    }> = [];
     const invalidIndicators: string[] = [];
     const seenCandidates = new Set<string>();
     const seenIndicators = new Set<string>();
-    const addCandidate = (source: ValidationCandidateSource, value: string | null | undefined) => {
+    const addCandidate = (
+      source: ValidationCandidateSource,
+      value: string | null | undefined,
+      associatedWithSameElement: boolean,
+      associatedWithSameTabGuid: boolean | null,
+    ) => {
       for (const part of splitText(value)) {
         const key = `${source}:${part}`;
         if (seenCandidates.has(key)) continue;
         seenCandidates.add(key);
-        errorCandidates.push({ source, text: part });
+        errorCandidates.push({ source, text: part, associatedWithSameElement, associatedWithSameTabGuid });
       }
     };
     const addInvalidIndicators = (source: string, node: Element | null) => {
@@ -956,7 +1332,12 @@ async function collectObservation(
       if (!ids) return;
       for (const id of ids.split(/\s+/).filter(Boolean)) {
         const node = document.getElementById(id);
-        addCandidate(attribute === 'aria-errormessage' ? 'aria-errormessage' : 'aria-describedby', node?.textContent);
+        addCandidate(
+          attribute === 'aria-errormessage' ? 'aria-errormessage' : 'aria-describedby',
+          node?.textContent,
+          true,
+          true,
+        );
         addInvalidIndicators(attribute, node);
       }
     };
@@ -979,13 +1360,23 @@ async function collectObservation(
     for (const wrapper of wrappers) {
       addInvalidIndicators(wrapper === fieldRoot ? 'field-root' : 'parent', wrapper);
       if (wrapper.matches(errorSelector)) {
-        addCandidate(wrapper === fieldRoot ? 'field-wrapper-inline' : 'control-error', wrapper.textContent);
+        addCandidate(
+          wrapper === fieldRoot ? 'same-tab-wrapper' : 'direct-field-container',
+          wrapper.textContent,
+          true,
+          true,
+        );
       }
       for (const node of Array.from(wrapper.querySelectorAll(errorSelector)).slice(0, 8)) {
         const htmlNode = node as HTMLElement;
         const style = window.getComputedStyle(htmlNode);
         if (style.visibility === 'hidden' || style.display === 'none') continue;
-        addCandidate(wrapper === fieldRoot ? 'field-wrapper-error' : 'control-error', htmlNode.textContent);
+        addCandidate(
+          wrapper === fieldRoot ? 'same-tab-wrapper' : 'direct-field-container',
+          htmlNode.textContent,
+          true,
+          true,
+        );
       }
     }
 
@@ -1002,18 +1393,43 @@ async function collectObservation(
   const normalizedOrReformatted = filled && observedValue !== null && observedValue !== inputValue;
   const inputPrevented = filled && inputValue.length > 0 && (observedValue === null || observedValue.length === 0);
   const diagnostics = extractFieldLocalValidationDiagnostics(dom.errorCandidates, {
+    concept,
     ariaInvalid: dom.ariaInvalid,
     inputValue,
     observedValue,
   });
+  const validationMessage = sanitizeNullable(dom.validationMessage);
+  const validationMessageEvidence = validationMessage
+    ? toEvidenceItem('native-validation-message', validationMessage, concept, true, field.tabGuid ? true : null)
+    : null;
+  const ariaInvalidEvidence = dom.ariaInvalid === 'true'
+    ? toEvidenceItem('aria-invalid', 'true', concept, true, field.tabGuid ? true : null)
+    : null;
+  const invalidIndicatorEvidence = dom.invalidIndicators.map((item) =>
+    toEvidenceItem('invalid-indicator', sanitizeEvidenceText(item), concept, true, field.tabGuid ? true : null),
+  );
+  const ownershipSuspectText = [
+    ...diagnostics.ownershipSuspectTexts,
+    ...(validationMessageEvidence?.classification === 'other-field-type-suspect' ? [validationMessageEvidence.text] : []),
+    ...invalidIndicatorEvidence
+      .filter((item) => item.classification === 'other-field-type-suspect')
+      .map((item) => item.text),
+  ];
 
   return {
     ariaInvalid: dom.ariaInvalid,
-    validationMessage: sanitizeNullable(dom.validationMessage),
+    validationMessage,
     nearbyErrorText: diagnostics.fieldLocalTexts.length > 0 ? diagnostics.fieldLocalTexts.join(' | ') : null,
     docusignValidationText: diagnostics.docusignLocalTexts,
     invalidIndicators: dom.invalidIndicators.map(sanitizeEvidenceText),
     ignoredDiagnostics: diagnostics.ignoredTexts,
+    ownershipSuspectText,
+    evidenceItems: [
+      ...(ariaInvalidEvidence ? [ariaInvalidEvidence] : []),
+      ...(validationMessageEvidence ? [validationMessageEvidence] : []),
+      ...invalidIndicatorEvidence,
+      ...diagnostics.evidenceItems,
+    ],
     observedValue,
     normalizedOrReformatted,
     inputPrevented,
@@ -1022,11 +1438,13 @@ async function collectObservation(
 
 export function extractFieldLocalValidationDiagnostics(
   candidates: RawValidationCandidate[],
-  context: { ariaInvalid: string | null; inputValue: string; observedValue: string | null },
+  context: { concept?: FieldConceptKey; ariaInvalid: string | null; inputValue: string; observedValue: string | null },
 ): FieldLocalValidationDiagnostics {
   const fieldLocalTexts: string[] = [];
   const docusignLocalTexts: string[] = [];
   const ignoredTexts: string[] = [];
+  const ownershipSuspectTexts: string[] = [];
+  const evidenceItems: InteractiveEvidenceItem[] = [];
   const add = (bucket: string[], value: string) => {
     if (!bucket.includes(value)) bucket.push(value);
   };
@@ -1034,13 +1452,18 @@ export function extractFieldLocalValidationDiagnostics(
   for (const candidate of candidates) {
     for (const part of splitValidationCandidateText(candidate.text)) {
       const splitCandidate: RawValidationCandidate = { ...candidate, text: part };
-      const classification = classifyValidationCandidate(splitCandidate, context);
-      if (classification === 'ignored') {
+      const evidence = classifyValidationCandidate(splitCandidate, context);
+      evidenceItems.push(evidence);
+      if (evidence.classification === 'ignored') {
         add(ignoredTexts, part);
         continue;
       }
+      if (evidence.classification === 'other-field-type-suspect') {
+        add(ownershipSuspectTexts, part);
+        continue;
+      }
       add(fieldLocalTexts, part);
-      if (candidate.source === 'field-wrapper-error' || candidate.source === 'field-wrapper-inline') {
+      if (candidate.source === 'same-tab-wrapper') {
         add(docusignLocalTexts, part);
       }
     }
@@ -1050,32 +1473,47 @@ export function extractFieldLocalValidationDiagnostics(
     fieldLocalTexts,
     docusignLocalTexts,
     ignoredTexts,
+    ownershipSuspectTexts,
+    evidenceItems,
   };
 }
 
 function classifyValidationCandidate(
   candidate: RawValidationCandidate,
-  context: { ariaInvalid: string | null; inputValue: string; observedValue: string | null },
-): 'field-local' | 'ignored' {
+  context: { concept?: FieldConceptKey; ariaInvalid: string | null; inputValue: string; observedValue: string | null },
+): InteractiveEvidenceItem {
   const value = sanitizeEvidenceText(candidate.text);
-  if (!value) return 'ignored';
+  if (!value) return { ...candidate, text: value, otherFieldTypeHints: [], classification: 'ignored' };
 
   const lower = value.toLowerCase();
   const observed = (context.observedValue ?? '').trim().toLowerCase();
   const input = context.inputValue.trim().toLowerCase();
-  if (lower === observed || lower === input) return 'ignored';
-  if (GENERIC_DOCUSIGN_TEXT_RE.test(value)) return 'ignored';
+  if (lower === observed || lower === input) {
+    return toEvidenceItem(candidate.source, value, context.concept, candidate.associatedWithSameElement, candidate.associatedWithSameTabGuid, 'ignored');
+  }
+  if (GENERIC_DOCUSIGN_TEXT_RE.test(value)) {
+    return toEvidenceItem(candidate.source, value, context.concept, candidate.associatedWithSameElement, candidate.associatedWithSameTabGuid, 'ignored');
+  }
   if (AMBIGUOUS_REQUIRED_RE.test(value)) {
     if (candidate.source === 'aria-describedby' || candidate.source === 'aria-errormessage') {
-      return context.ariaInvalid === 'true' || context.observedValue === '' ? 'field-local' : 'ignored';
+      return toEvidenceItem(
+        candidate.source,
+        value,
+        context.concept,
+        candidate.associatedWithSameElement,
+        candidate.associatedWithSameTabGuid,
+        context.ariaInvalid === 'true' || context.observedValue === '' ? undefined : 'ignored',
+      );
     }
-    return 'ignored';
+    return toEvidenceItem(candidate.source, value, context.concept, candidate.associatedWithSameElement, candidate.associatedWithSameTabGuid, 'ignored');
   }
   if (candidate.source === 'aria-describedby' || candidate.source === 'aria-errormessage') {
-    return 'field-local';
+    return toEvidenceItem(candidate.source, value, context.concept, candidate.associatedWithSameElement, candidate.associatedWithSameTabGuid);
   }
-  if (FIELD_LOCAL_MESSAGE_RE.test(value)) return 'field-local';
-  return 'ignored';
+  if (FIELD_LOCAL_MESSAGE_RE.test(value)) {
+    return toEvidenceItem(candidate.source, value, context.concept, candidate.associatedWithSameElement, candidate.associatedWithSameTabGuid);
+  }
+  return toEvidenceItem(candidate.source, value, context.concept, candidate.associatedWithSameElement, candidate.associatedWithSameTabGuid, 'ignored');
 }
 
 function splitValidationCandidateText(value: string): string[] {
@@ -1085,21 +1523,61 @@ function splitValidationCandidateText(value: string): string[] {
     .filter(Boolean);
 }
 
-function evaluateObservation(testCase: InteractiveValidationCase, observation: InteractiveObservation): InteractiveResultStatus {
+function evaluateObservation(
+  testCase: InteractiveValidationCase,
+  observation: InteractiveObservation,
+): {
+  status: InteractiveResultStatus;
+  outcome: InteractiveResultOutcome;
+  reasonCode: InteractiveReasonCode;
+  interpretation: string;
+} {
+  if (observation.ownershipSuspectText.length > 0) {
+    return {
+      status: 'manual_review',
+      outcome: 'error_ownership_suspect',
+      reasonCode: 'error_ownership_suspect',
+      interpretation: `Observed validation evidence looks more like another field type than ${testCase.conceptDisplayName}.`,
+    };
+  }
+
   const rejected = hasValidationFeedback(observation);
   const accepted = !rejected && !observation.inputPrevented;
 
   switch (testCase.expectedSignal) {
     case 'accept':
-      return accepted ? 'passed' : severityFailureStatus(testCase.severity);
+      return accepted
+        ? passedEvaluation('Expected valid input was accepted.')
+        : failureEvaluation(testCase.severity, `${testCase.conceptDisplayName} rejected a value that should have been accepted.`);
     case 'reject':
-      return rejected || observation.inputPrevented ? 'passed' : severityFailureStatus(testCase.severity);
+      return rejected || observation.inputPrevented
+        ? passedEvaluation('Expected invalid input was rejected or blocked.')
+        : failureEvaluation(testCase.severity, `${testCase.conceptDisplayName} accepted a value that should have been rejected.`);
     case 'reject_or_warn':
-      return rejected || observation.inputPrevented ? 'passed' : 'warning';
+      return rejected || observation.inputPrevented
+        ? passedEvaluation('Expected risky input was rejected or clearly flagged.')
+        : {
+          status: 'warning',
+          outcome: 'observer_ambiguous',
+          reasonCode: 'observer_ambiguous',
+          interpretation: `Observed lenient handling for ${testCase.conceptDisplayName}; review before claiming a product defect.`,
+        };
     case 'reject_or_manual_review':
-      return rejected || observation.inputPrevented ? 'passed' : 'manual_review';
+      return rejected || observation.inputPrevented
+        ? passedEvaluation('Expected ambiguous input was rejected or clearly flagged.')
+        : {
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          reasonCode: 'observer_ambiguous',
+          interpretation: `Observed ambiguous behavior for ${testCase.conceptDisplayName}; record it without overclaiming.`,
+        };
     case 'observe':
-      return 'manual_review';
+      return {
+        status: 'manual_review',
+        outcome: 'observer_ambiguous',
+        reasonCode: 'observer_ambiguous',
+        interpretation: `Recorded ${testCase.conceptDisplayName} behavior for reviewer audit without classifying it as pass/fail.`,
+      };
   }
 }
 
@@ -1117,8 +1595,19 @@ function severityFailureStatus(severity: ValidationExpectationSeverity): Interac
   return severity === 'critical' || severity === 'high' ? 'failed' : 'warning';
 }
 
-function summarizeObservation(testCase: InteractiveValidationCase, observation: InteractiveObservation): string {
+function summarizeObservation(
+  testCase: InteractiveValidationCase,
+  observation: InteractiveObservation,
+  targetDiagnostics: InteractiveTargetDiagnostics,
+  evaluation: {
+    status: InteractiveResultStatus;
+    outcome: InteractiveResultOutcome;
+    reasonCode: InteractiveReasonCode;
+    interpretation: string;
+  },
+): string {
   const parts = [
+    `targetConfidence=${targetDiagnostics.targetConfidence}`,
     `input "${sanitizeEvidenceText(testCase.inputValue)}"`,
     `observed "${observation.observedValue ?? ''}"`,
     `aria-invalid=${observation.ariaInvalid ?? 'null'}`,
@@ -1128,34 +1617,393 @@ function summarizeObservation(testCase: InteractiveValidationCase, observation: 
   if (observation.docusignValidationText.length) {
     parts.push(`visibleValidation="${observation.docusignValidationText.join(' | ')}"`);
   }
+  if (observation.ownershipSuspectText.length) {
+    parts.push(`ownershipSuspect="${observation.ownershipSuspectText.join(' | ')}"`);
+  }
   if (observation.invalidIndicators.length) {
     parts.push(`invalidIndicators="${observation.invalidIndicators.join(' | ')}"`);
   }
   if (observation.ignoredDiagnostics.length) {
     parts.push(`ignoredDiagnostics="${observation.ignoredDiagnostics.join(' | ')}"`);
   }
+  if (targetDiagnostics.actualFieldSignature) {
+    parts.push(`actualField="${targetDiagnostics.actualFieldSignature}"`);
+  }
+  if (targetDiagnostics.mappingFlags.length) {
+    parts.push(`mappingFlags="${targetDiagnostics.mappingFlags.join(' | ')}"`);
+  }
+  parts.push(`outcome=${evaluation.outcome}`);
   if (observation.normalizedOrReformatted) parts.push('value normalized/reformatted');
   if (observation.inputPrevented) parts.push('input prevented or cleared');
   return parts.join('; ');
 }
 
+function summarizeNonObservationResult(
+  testCase: InteractiveValidationCase,
+  targetDiagnostics: InteractiveTargetDiagnostics,
+  detail: string,
+): string {
+  const parts = [
+    `targetConfidence=${targetDiagnostics.targetConfidence}`,
+    `input "${sanitizeEvidenceText(testCase.inputValue)}"`,
+    `actualField="${targetDiagnostics.actualFieldSignature}"`,
+  ];
+  if (targetDiagnostics.mappingFlags.length) {
+    parts.push(`mappingFlags="${targetDiagnostics.mappingFlags.join(' | ')}"`);
+  }
+  if (detail) parts.push(detail);
+  return parts.join('; ');
+}
+
 function recommendationForResult(
   testCase: InteractiveValidationCase,
-  status: InteractiveResultStatus,
+  evaluation: {
+    status: InteractiveResultStatus;
+    outcome: InteractiveResultOutcome;
+    reasonCode: InteractiveReasonCode;
+    interpretation: string;
+  },
   observation: InteractiveObservation,
 ): string {
-  if (status === 'passed') return 'Observed behavior matched the expected validation signal.';
-  if (status === 'manual_review') {
+  if (evaluation.outcome === 'passed') return 'Observed behavior matched the expected validation signal.';
+  if (evaluation.outcome === 'tool_mapping_suspect' || evaluation.outcome === 'mapping_not_confident') {
+    return `Verify the ${testCase.conceptDisplayName} target mapping before mutating or judging this field.`;
+  }
+  if (evaluation.outcome === 'error_ownership_suspect') {
+    return `Review whether the observed validation message belongs to a different field than ${testCase.conceptDisplayName}.`;
+  }
+  if (evaluation.status === 'manual_review') {
     return `Review ${testCase.conceptDisplayName}: ${testCase.testName}; behavior was intentionally recorded without overclaiming.`;
   }
-  if (status === 'warning') {
+  if (evaluation.status === 'warning') {
     return `Review whether ${testCase.conceptDisplayName} should allow this value without a clearer validation signal.`;
   }
-  if (status === 'skipped') return 'Resolve the locator or mapping issue and rerun on a disposable envelope.';
+  if (evaluation.status === 'skipped') return 'Resolve the locator or mapping issue and rerun on a disposable envelope.';
   if (!hasValidationFeedback(observation)) {
     return `Block this value or show a validation error for ${testCase.conceptDisplayName} on blur.`;
   }
   return `Confirm the validation rule for ${testCase.conceptDisplayName}.`;
+}
+
+function mappingGateResult(
+  testCase: InteractiveValidationCase,
+  targetDiagnostics: InteractiveTargetDiagnostics,
+  verification: {
+    confidence: InteractiveTargetConfidence;
+    reason: string;
+    flags: string[];
+  },
+): InteractiveValidationResult {
+  const outcome: InteractiveResultOutcome = verification.confidence === 'tool_mapping_suspect'
+    ? 'tool_mapping_suspect'
+    : 'mapping_not_confident';
+  const interpretation = verification.confidence === 'tool_mapping_suspect'
+    ? `The resolved target for ${testCase.conceptDisplayName} looks like a different field family, so the case was not mutated.`
+    : `The resolved target for ${testCase.conceptDisplayName} is not trusted enough for a mutating check.`;
+
+  return {
+    concept: testCase.concept,
+    conceptDisplayName: testCase.conceptDisplayName,
+    fieldLabel: testCase.fieldLabel,
+    targetField: testCase.targetField,
+    validationId: testCase.validationId,
+    caseName: testCase.caseName,
+    testName: testCase.testName,
+    inputValue: testCase.inputValue,
+    expectedBehavior: testCase.expectedBehavior,
+    severity: testCase.severity,
+    status: 'skipped',
+    outcome,
+    reasonCode: 'target_mapping_not_trusted',
+    observation: null,
+    targetDiagnostics,
+    evidence: summarizeNonObservationResult(testCase, targetDiagnostics, verification.reason),
+    interpretation,
+    recommendation: `Confirm the ${testCase.conceptDisplayName} field mapping before rerunning this check.`,
+    cleanupStrategy: testCase.cleanupStrategy,
+    safetyNotes: testCase.safetyNotes,
+    skippedReason: verification.reason,
+  };
+}
+
+function createTargetDiagnostics(
+  testCase: InteractiveValidationCase,
+  field: DiscoveredField,
+  actualElement: InteractiveElementSignature,
+  originalValue: string | null,
+): InteractiveTargetDiagnostics {
+  return {
+    intendedFieldDisplayName: testCase.targetProfile.intendedFieldDisplayName,
+    intendedBusinessSection: testCase.targetProfile.intendedBusinessSection,
+    intendedSectionName: testCase.targetProfile.intendedSectionName,
+    inferredType: testCase.targetProfile.inferredType,
+    labelSource: testCase.targetProfile.labelSource,
+    labelConfidence: testCase.targetProfile.labelConfidence,
+    mappingConfidence: testCase.targetProfile.mappingConfidence,
+    tabGuid: field.tabGuid ?? testCase.targetProfile.tabGuid,
+    docusignTabType: field.docusignTabType ?? testCase.targetProfile.docusignTabType,
+    pageIndex: field.pageIndex ?? testCase.targetProfile.pageIndex,
+    ordinalOnPage: field.ordinalOnPage ?? testCase.targetProfile.ordinalOnPage,
+    coordinates: {
+      left: field.tabLeft ?? testCase.targetProfile.coordinates.left,
+      top: field.tabTop ?? testCase.targetProfile.coordinates.top,
+      width: field.tabWidth ?? testCase.targetProfile.coordinates.width,
+      height: field.tabHeight ?? testCase.targetProfile.coordinates.height,
+    },
+    locatorStrategy: formatLocatorStrategy(testCase.targetField),
+    actualElement,
+    actualFieldSignature: formatActualFieldSignature(actualElement),
+    targetConfidence: 'mapping_not_confident',
+    targetConfidenceReason: 'Target verification not yet evaluated.',
+    mappingFlags: [],
+    actualValueBeforeTest: sanitizeNullable(originalValue),
+    attemptedValue: sanitizeEvidenceText(testCase.inputValue),
+    actualValueAfterFill: null,
+    actualValueAfterBlur: null,
+    restoredValue: null,
+    restoreSucceeded: null,
+  };
+}
+
+async function readElementSignature(field: DiscoveredField): Promise<InteractiveElementSignature> {
+  return field.locator.evaluate((element) => {
+    const clean = (value: string | null | undefined): string | null => {
+      const cleaned = (value ?? '').replace(/\s+/g, ' ').trim();
+      return cleaned ? cleaned.slice(0, 300) : null;
+    };
+    const fieldRoot =
+      element.closest('.doc-tab[data-type]') ??
+      element.closest('.doc-tab') ??
+      element.closest('[data-tabtype]') ??
+      element.closest('[data-tab-type]');
+    return {
+      id: clean(element.getAttribute('id')),
+      name: clean(element.getAttribute('name')),
+      ariaLabel: clean(element.getAttribute('aria-label')),
+      title: clean(element.getAttribute('title')),
+      role: clean(element.getAttribute('role')),
+      tagName: clean(element.tagName.toLowerCase()),
+      type: clean(element.getAttribute('type')),
+      inputMode: clean(element.getAttribute('inputmode')),
+      autocomplete: clean(element.getAttribute('autocomplete')),
+      placeholder: clean(element.getAttribute('placeholder')),
+      docusignTabType: clean(
+        fieldRoot?.getAttribute('data-type') ??
+        element.getAttribute('data-type') ??
+        element.getAttribute('data-tabtype') ??
+        element.getAttribute('data-tab-type'),
+      ),
+    };
+  }, { timeout: 2_000 });
+}
+
+function verifyInteractiveTarget(
+  testCase: InteractiveValidationCase,
+  field: DiscoveredField,
+  actualElement: InteractiveElementSignature,
+): { confidence: InteractiveTargetConfidence; reason: string; flags: string[] } {
+  const flags: string[] = [];
+  const labelSource = testCase.targetProfile.labelSource;
+  const strongLabelSource = STRONG_LABEL_SOURCES.has(labelSource);
+  const isEnrichmentPositionFallback = labelSource === 'enrichment-position' || labelSource === 'enrichment-coordinate';
+  const actualFamilies = inferSignatureFamilies([
+    field.sectionName,
+    field.resolvedLabel,
+    field.ariaLabel,
+    field.title,
+    field.placeholder,
+    field.idOrNameKey,
+    field.groupName,
+    field.type,
+    field.inputMode,
+    field.autocomplete,
+    field.docusignTabType,
+    actualElement.id,
+    actualElement.name,
+    actualElement.ariaLabel,
+    actualElement.title,
+    actualElement.type,
+    actualElement.inputMode,
+    actualElement.autocomplete,
+    actualElement.placeholder,
+    actualElement.docusignTabType,
+  ]);
+  const inferredTypeName = typeof field.inferredType === 'string'
+    ? field.inferredType
+    : field.inferredType?.type ?? '';
+  const primaryFamily = PRIMARY_FAMILY_BY_CONCEPT[testCase.concept] ?? null;
+  const blockedFamilies = BLOCKED_SIGNATURE_FAMILIES[testCase.concept] ?? [];
+  const typeConsistent = primaryFamily
+    ? actualFamilies.includes(primaryFamily) || inferredTypeName.includes(primaryFamily)
+    : true;
+  const sectionConsistent = sectionLooksConsistent(testCase.targetProfile.intendedBusinessSection, field.sectionName);
+
+  if (!strongLabelSource && !isEnrichmentPositionFallback) {
+    flags.push(`label source ${labelSource} is not trusted enough for a mutating check`);
+  }
+  if (isEnrichmentPositionFallback && (!typeConsistent || !sectionConsistent)) {
+    flags.push('position/coordinate enrichment is not backed by a matching field family and section');
+  }
+  if (!strongLabelSource && testCase.targetProfile.mappingConfidence !== 'high') {
+    flags.push(`mapping confidence is ${testCase.targetProfile.mappingConfidence} without strong field-local label evidence`);
+  }
+  for (const family of blockedFamilies) {
+    if (actualFamilies.includes(family)) {
+      flags.push(`target signature suggests ${family} instead of ${testCase.conceptDisplayName}`);
+    }
+  }
+
+  if (flags.some((flag) => /suggests/.test(flag))) {
+    return {
+      confidence: 'tool_mapping_suspect',
+      reason: flags[0],
+      flags,
+    };
+  }
+  if (flags.length > 0) {
+    return {
+      confidence: 'mapping_not_confident',
+      reason: flags[0],
+      flags,
+    };
+  }
+  return {
+    confidence: 'trusted',
+    reason: 'Target label, section, and signature look consistent enough to mutate this control.',
+    flags: [],
+  };
+}
+
+function sectionLooksConsistent(intendedBusinessSection: string | null, actualSectionName: string | null): boolean {
+  if (!intendedBusinessSection || !actualSectionName) return true;
+  const tokens = SECTION_TOKENS[intendedBusinessSection] ?? [];
+  if (tokens.length === 0) return true;
+  const lower = actualSectionName.toLowerCase();
+  return tokens.some((token) => lower.includes(token));
+}
+
+function inferSignatureFamilies(values: Array<string | null>): string[] {
+  const text = values.filter(Boolean).join(' | ');
+  return Array.from(new Set(
+    SIGNATURE_FAMILY_PATTERNS
+      .filter((entry) => entry.pattern.test(text))
+      .map((entry) => entry.family),
+  ));
+}
+
+function toEvidenceItem(
+  source: InteractiveEvidenceSource,
+  text: string,
+  concept: FieldConceptKey | undefined,
+  associatedWithSameElement: boolean,
+  associatedWithSameTabGuid: boolean | null,
+  forceClassification?: InteractiveEvidenceItem['classification'],
+): InteractiveEvidenceItem {
+  const otherFieldTypeHints = inferForeignFieldHints(text, concept);
+  return {
+    source,
+    text,
+    associatedWithSameElement,
+    associatedWithSameTabGuid,
+    otherFieldTypeHints,
+    classification: forceClassification ?? (otherFieldTypeHints.length > 0 ? 'other-field-type-suspect' : 'field-local'),
+  };
+}
+
+function inferForeignFieldHints(text: string, concept: FieldConceptKey | undefined): string[] {
+  if (!concept) return [];
+  const families = inferSignatureFamilies([text]);
+  return families.filter((family) => !familyBelongsToConcept(family, concept));
+}
+
+function familyBelongsToConcept(family: string, concept: FieldConceptKey): boolean {
+  const primary = PRIMARY_FAMILY_BY_CONCEPT[concept];
+  if (primary && family === primary) return true;
+  if ((concept === 'bank_name' || concept === 'business_name' || concept === 'dba_name') && family === 'name') return true;
+  return false;
+}
+
+function formatLocatorStrategy(strategy: InteractiveLocatorStrategy): string {
+  return `${strategy.primary}#${strategy.fieldIndex} -> ${strategy.fallback}`;
+}
+
+function formatActualFieldSignature(actualElement: InteractiveElementSignature): string {
+  const parts = [
+    actualElement.id ? `id=${actualElement.id}` : null,
+    actualElement.name ? `name=${actualElement.name}` : null,
+    actualElement.ariaLabel ? `aria-label=${actualElement.ariaLabel}` : null,
+    actualElement.title ? `title=${actualElement.title}` : null,
+    actualElement.role ? `role=${actualElement.role}` : null,
+    actualElement.tagName ? `tag=${actualElement.tagName}` : null,
+    actualElement.type ? `type=${actualElement.type}` : null,
+    actualElement.inputMode ? `inputmode=${actualElement.inputMode}` : null,
+    actualElement.autocomplete ? `autocomplete=${actualElement.autocomplete}` : null,
+    actualElement.placeholder ? `placeholder=${actualElement.placeholder}` : null,
+    actualElement.docusignTabType ? `tabType=${actualElement.docusignTabType}` : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join('; ') : 'n/a';
+}
+
+function formatErrorEvidence(observation: InteractiveObservation | null): string {
+  if (!observation) return 'n/a';
+  const parts = observation.evidenceItems
+    .filter((item) => item.classification !== 'ignored')
+    .map((item) => {
+      const ownership = item.otherFieldTypeHints.length > 0 ? ` [other=${item.otherFieldTypeHints.join(',')}]` : '';
+      return `${item.source}:${item.text}${ownership}`;
+    });
+  return parts.length > 0 ? parts.join(' | ') : 'n/a';
+}
+
+function formatValueFlow(row: InteractiveTargetDiagnosticsFile['rows'][number]): string {
+  const restore = row.restoreSucceeded === null
+    ? 'restore n/a'
+    : row.restoreSucceeded
+      ? `restore "${row.restore ?? ''}" ok`
+      : `restore "${row.restore ?? ''}" failed`;
+  return `before "${row.valueBefore ?? ''}" -> after "${row.valueAfter ?? ''}"; ${restore}`;
+}
+
+function countOutcomes(results: InteractiveValidationResult[]): Record<InteractiveResultOutcome, number> {
+  return {
+    passed: results.filter((result) => result.outcome === 'passed').length,
+    product_failure: results.filter((result) => result.outcome === 'product_failure').length,
+    tool_mapping_suspect: results.filter((result) => result.outcome === 'tool_mapping_suspect').length,
+    error_ownership_suspect: results.filter((result) => result.outcome === 'error_ownership_suspect').length,
+    observer_ambiguous: results.filter((result) => result.outcome === 'observer_ambiguous').length,
+    mapping_not_confident: results.filter((result) => result.outcome === 'mapping_not_confident').length,
+  };
+}
+
+function passedEvaluation(interpretation: string): {
+  status: InteractiveResultStatus;
+  outcome: InteractiveResultOutcome;
+  reasonCode: InteractiveReasonCode;
+  interpretation: string;
+} {
+  return {
+    status: 'passed',
+    outcome: 'passed',
+    reasonCode: 'none',
+    interpretation,
+  };
+}
+
+function failureEvaluation(
+  severity: ValidationExpectationSeverity,
+  interpretation: string,
+): {
+  status: InteractiveResultStatus;
+  outcome: InteractiveResultOutcome;
+  reasonCode: InteractiveReasonCode;
+  interpretation: string;
+} {
+  return {
+    status: severityFailureStatus(severity),
+    outcome: 'product_failure',
+    reasonCode: 'product_failure',
+    interpretation,
+  };
 }
 
 function sanitizeNullable(value: string | null): string | null {
