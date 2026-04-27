@@ -32,6 +32,7 @@ export type LabelSource =
   | 'docusign-tab-type'
   | 'enrichment-guid'
   | 'enrichment-position'
+  | 'enrichment-coordinate'
   | 'none';
 
 export type LabelConfidence = 'high' | 'medium' | 'low' | 'none';
@@ -42,6 +43,7 @@ export type LabelRejectReason =
   | 'docusign-stub'
   | 'chrome-text'
   | 'equals-field-value'
+  | 'generic-docusign-tab-type'
   | 'too-short'
   | 'too-long'
   | 'pure-punctuation'
@@ -132,9 +134,14 @@ export interface DiscoveredField {
    *  parameter `p=N`, falling back to document-order page rank.  `null`
    *  when the control isn't inside a page container. */
   pageIndex: number | null;
-  /** 1-based ordinal among `.doc-tab` elements of the same `data-type`
-   *  on the same page, in document order.  `null` when not a DocuSign tab. */
+  /** 1-based document-order ordinal among `.doc-tab` elements on the same
+   *  page.  `null` when not a DocuSign tab. */
   ordinalOnPage: number | null;
+  /** Inline DocuSign tab coordinates from the enclosing `.doc-tab`, if available. */
+  tabLeft: number | null;
+  tabTop: number | null;
+  tabWidth: number | null;
+  tabHeight: number | null;
 
   visible: boolean;
   editable: boolean;
@@ -260,6 +267,10 @@ async function extractDomContext(loc: Locator): Promise<{
   currentValue: string | null;
   pageIndex: number | null;
   ordinalOnPage: number | null;
+  tabLeft: number | null;
+  tabTop: number | null;
+  tabWidth: number | null;
+  tabHeight: number | null;
 }> {
   const fallback = {
     labelledByText: null,
@@ -282,6 +293,10 @@ async function extractDomContext(loc: Locator): Promise<{
     currentValue: null,
     pageIndex: null,
     ordinalOnPage: null,
+    tabLeft: null,
+    tabTop: null,
+    tabWidth: null,
+    tabHeight: null,
   };
   try {
     return await loc.evaluate((el) => {
@@ -427,15 +442,17 @@ async function extractDomContext(loc: Locator): Promise<{
         }
       }
 
-      const closestTab = el.closest('[data-tabtype], [data-tab-type]');
+      const closestTab = el.closest('[data-tabtype], [data-tab-type], .doc-tab[data-type]');
       const dataTabType =
         el.getAttribute('data-tabtype') ||
         el.getAttribute('data-tab-type') ||
+        el.getAttribute('data-type') ||
         closestTab?.getAttribute('data-tabtype') ||
         closestTab?.getAttribute('data-tab-type') ||
+        closestTab?.getAttribute('data-type') ||
         null;
       const ownDataTabType =
-        el.getAttribute('data-tabtype') || el.getAttribute('data-tab-type') || null;
+        el.getAttribute('data-tabtype') || el.getAttribute('data-tab-type') || el.getAttribute('data-type') || null;
 
       const closestQa = el.closest('[data-qa]');
       const dataQa = el.getAttribute('data-qa') || closestQa?.getAttribute('data-qa') || null;
@@ -571,11 +588,25 @@ async function extractDomContext(loc: Locator): Promise<{
       // sample-field-enrichment bundle by positional fingerprint.
       let pageIndex: number | null = null;
       let ordinalOnPage: number | null = null;
+      let tabLeft: number | null = null;
+      let tabTop: number | null = null;
+      let tabWidth: number | null = null;
+      let tabHeight: number | null = null;
       try {
         // Locate the enclosing DocuSign tab div (data-type lives here) and
         // the enclosing page container (which owns the `img.page-image`).
         const tabDiv = (el.closest('.doc-tab[data-type]') ?? el.closest('.doc-tab')) as HTMLElement | null;
-        const tabDataType = tabDiv?.getAttribute('data-type') ?? null;
+        const px = (prop: string): number | null => {
+          const style = tabDiv?.getAttribute('style') ?? '';
+          const match = new RegExp(`${prop}\\s*:\\s*([0-9.]+)px`, 'i').exec(style);
+          if (!match) return null;
+          const n = Number(match[1]);
+          return Number.isFinite(n) ? n : null;
+        };
+        tabLeft = px('left');
+        tabTop = px('top');
+        tabWidth = px('width');
+        tabHeight = px('height');
 
         // Walk up to the nearest container that includes an `img.page-image`.
         let pageContainer: HTMLElement | null = null;
@@ -604,11 +635,9 @@ async function extractDomContext(loc: Locator): Promise<{
             if (idx >= 0) pageIndex = idx + 1;
           }
 
-          if (tabDiv && tabDataType) {
-            const sameTypeTabs = Array.from(
-              pageContainer.querySelectorAll(`.doc-tab[data-type="${tabDataType}"]`),
-            );
-            const idx = sameTypeTabs.indexOf(tabDiv);
+          if (tabDiv) {
+            const pageTabs = Array.from(pageContainer.querySelectorAll('.doc-tab'));
+            const idx = pageTabs.indexOf(tabDiv);
             if (idx >= 0) ordinalOnPage = idx + 1;
           }
         }
@@ -637,6 +666,10 @@ async function extractDomContext(loc: Locator): Promise<{
         currentValue,
         pageIndex,
         ordinalOnPage,
+        tabLeft,
+        tabTop,
+        tabWidth,
+        tabHeight,
       };
     }, { timeout: 1_500 });
   } catch {
@@ -692,6 +725,12 @@ function looksLikeChromeText(value: string): boolean {
   return CHROME_TEXT_RE.test(value);
 }
 
+function isGenericDocusignTabTypeLabel(value: string): boolean {
+  return /^(text|list|checkbox|radio|date|signhere|signerattachment|datesigned|fullname|email|formula|unknown)$/i.test(
+    value.trim(),
+  );
+}
+
 /**
  * Classify a candidate label.  Returns either { ok: true } or a rejection
  * reason.  Separated from looksLikeRealLabel so callers can collect the
@@ -735,6 +774,9 @@ function classifyLabelCandidate(
     )
   ) {
     return { ok: false, reason: 'docusign-stub' };
+  }
+  if (isGenericDocusignTabTypeLabel(v)) {
+    return { ok: false, reason: 'generic-docusign-tab-type' };
   }
   if (/^(required|optional)$/i.test(v)) return { ok: false, reason: 'docusign-stub' };
   if (
@@ -1198,6 +1240,10 @@ async function describe(
     tabGuid: tabGuidFromElementId(domCtx.elementId),
     pageIndex: domCtx.pageIndex,
     ordinalOnPage: domCtx.ordinalOnPage,
+    tabLeft: domCtx.tabLeft,
+    tabTop: domCtx.tabTop,
+    tabWidth: domCtx.tabWidth,
+    tabHeight: domCtx.tabHeight,
     visible,
     editable,
     controlCategory,

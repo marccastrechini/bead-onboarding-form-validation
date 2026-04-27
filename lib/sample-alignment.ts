@@ -777,6 +777,8 @@ export function renderAlignmentMarkdown(report: AlignmentReport): string {
 export interface EnrichmentRecord {
   tabGuid: string;
   positionalFingerprint: string; // `page:pageIndex|type|ord:ordinalOnPage`
+  tabLeft: number | null;
+  tabTop: number | null;
   jsonKeyPath: string;
   jsonFieldFamily: BusinessSection;
   jsonTypeHint: NormalizedTypeHint;
@@ -802,6 +804,8 @@ export function buildEnrichmentBundle(report: AlignmentReport): EnrichmentBundle
     records.push({
       tabGuid: r.matchedTabGuid,
       positionalFingerprint: fingerprint,
+      tabLeft: r.tabLeft,
+      tabTop: r.tabTop,
       jsonKeyPath: r.jsonKeyPath,
       jsonFieldFamily: r.jsonFieldFamily,
       jsonTypeHint: r.jsonTypeHint,

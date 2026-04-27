@@ -21,6 +21,8 @@ import * as path from 'node:path';
 export interface EnrichmentRecord {
   tabGuid: string;
   positionalFingerprint: string;
+  tabLeft?: number | null;
+  tabTop?: number | null;
   jsonKeyPath: string;
   jsonFieldFamily: string;
   jsonTypeHint: string;
@@ -41,6 +43,7 @@ export interface EnrichmentBundle {
 export interface EnrichmentIndex {
   byGuid: Map<string, EnrichmentRecord>;
   byFingerprint: Map<string, EnrichmentRecord>;
+  records: EnrichmentRecord[];
   bundlePath: string;
   recordCount: number;
 }
@@ -155,6 +158,7 @@ export function loadEnrichment(opts?: {
 
   const byGuid = new Map<string, EnrichmentRecord>();
   const byFingerprint = new Map<string, EnrichmentRecord>();
+  const records: EnrichmentRecord[] = [];
 
   for (const r of bundle.records) {
     if (!r || typeof r !== 'object') continue;
@@ -167,6 +171,7 @@ export function loadEnrichment(opts?: {
       continue;
     }
     const full = rec as EnrichmentRecord;
+    records.push(full);
     if (full.tabGuid) byGuid.set(full.tabGuid.toLowerCase(), full);
     if (full.positionalFingerprint) {
       byFingerprint.set(full.positionalFingerprint, full);
@@ -188,6 +193,7 @@ export function loadEnrichment(opts?: {
     index: {
       byGuid,
       byFingerprint,
+      records,
       bundlePath,
       recordCount: Array.isArray(bundle.records) ? bundle.records.length : 0,
     },
@@ -230,7 +236,7 @@ export function buildPositionalFingerprint(
   dataType: string | null,
   ordinalOnPage: number | null,
 ): string | null {
-  if (!pageIndex || !dataType || !ordinalOnPage) return null;
+  if (pageIndex === null || !dataType || ordinalOnPage === null) return null;
   const family = normalizeFamily(dataType);
   return `page:${pageIndex}|${family}|ord:${ordinalOnPage}`;
 }
@@ -259,7 +265,55 @@ export function normalizeFamily(raw: string | null): string {
 
 export interface EnrichmentMatch {
   record: EnrichmentRecord;
-  matchedBy: 'guid' | 'position';
+  matchedBy: 'guid' | 'position' | 'coordinate';
+}
+
+function parsePositionalFingerprint(fp: string): { pageIndex: number; family: string; ordinalOnPage: number } | null {
+  const match = /^page:(\d+)\|([^|]+)\|ord:(\d+)$/.exec(fp);
+  if (!match) return null;
+  return {
+    pageIndex: Number(match[1]),
+    family: normalizeFamily(match[2]),
+    ordinalOnPage: Number(match[3]),
+  };
+}
+
+function coordinateMatch(
+  index: EnrichmentIndex,
+  args: {
+    pageIndex: number | null;
+    dataType: string | null;
+    tabLeft?: number | null;
+    tabTop?: number | null;
+  },
+): EnrichmentRecord | null {
+  if (args.pageIndex === null || !args.dataType || args.tabLeft === null || args.tabTop === null) return null;
+  if (args.tabLeft === undefined || args.tabTop === undefined) return null;
+
+  const family = normalizeFamily(args.dataType);
+  const tolerancePx = 3;
+  const candidates = index.records
+    .map((record) => ({ record, fp: parsePositionalFingerprint(record.positionalFingerprint) }))
+    .filter(
+      (entry): entry is { record: EnrichmentRecord; fp: { pageIndex: number; family: string; ordinalOnPage: number } } =>
+        entry.fp !== null &&
+        entry.fp.pageIndex === args.pageIndex &&
+        entry.fp.family === family &&
+        typeof entry.record.tabLeft === 'number' &&
+        typeof entry.record.tabTop === 'number',
+    )
+    .map((entry) => ({
+      record: entry.record,
+      distance: Math.max(
+        Math.abs(entry.record.tabLeft! - args.tabLeft!),
+        Math.abs(entry.record.tabTop! - args.tabTop!),
+      ),
+    }))
+    .filter((entry) => entry.distance <= tolerancePx)
+    .sort((a, b) => a.distance - b.distance);
+
+  if (candidates.length !== 1) return null;
+  return candidates[0].record;
 }
 
 /**
@@ -273,6 +327,8 @@ export function matchField(
     pageIndex: number | null;
     dataType: string | null;
     ordinalOnPage: number | null;
+    tabLeft?: number | null;
+    tabTop?: number | null;
   },
 ): EnrichmentMatch | null {
   if (args.tabGuid) {
@@ -284,5 +340,7 @@ export function matchField(
     const r = index.byFingerprint.get(fp);
     if (r) return { record: r, matchedBy: 'position' };
   }
+  const coord = coordinateMatch(index, args);
+  if (coord) return { record: coord, matchedBy: 'coordinate' };
   return null;
 }

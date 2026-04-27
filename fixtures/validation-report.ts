@@ -19,11 +19,12 @@ import type {
 import { sectionPriorityRank } from './field-discovery';
 import type { FieldType, RuleClassification } from './validation-rules';
 import type {
+  EnrichmentRecord,
   EnrichmentIndex,
   EnrichmentMatch,
   EnrichmentUnavailableReason,
 } from '../lib/enrichment-loader';
-import { matchField } from '../lib/enrichment-loader';
+import { buildPositionalFingerprint, matchField, normalizeFamily } from '../lib/enrichment-loader';
 
 export type CheckStatus = 'pass' | 'fail' | 'warning' | 'manual_review' | 'skipped';
 
@@ -86,13 +87,18 @@ export interface FieldRecord {
   tabGuid: string | null;
   /** 1-based page index the tab sits on. */
   pageIndex: number | null;
-  /** 1-based ordinal among same-`data-type` tabs on that page. */
+  /** 1-based document-order ordinal among `.doc-tab` elements on that page. */
   ordinalOnPage: number | null;
+  /** Inline `.doc-tab` coordinates captured during live discovery. */
+  tabLeft: number | null;
+  tabTop: number | null;
+  tabWidth: number | null;
+  tabHeight: number | null;
 }
 
 /** Snapshot of why a field was enriched.  Preserved in the JSON report. */
 export interface FieldEnrichmentAnnotation {
-  matchedBy: 'guid' | 'position';
+  matchedBy: 'guid' | 'position' | 'coordinate';
   jsonKeyPath: string;
   suggestedDisplayName: string;
   suggestedBusinessSection: string;
@@ -152,10 +158,41 @@ export interface EnrichmentSummary {
   matchesByGuid: number;
   /** Fields matched via positional fingerprint fallback. */
   matchesByPosition: number;
+  /** Fields matched via page/type/coordinate fallback. */
+  matchesByCoordinate: number;
   /** Fields whose display name was upgraded by enrichment. */
   labelsUpgraded: number;
   /** Fields whose business section was upgraded by enrichment. */
   businessSectionsUpgraded: number;
+  /** Bundle records that did not match any live field. */
+  unmatchedRecords: number;
+  /** Reason counts for unmatched bundle records. */
+  unmatchedRecordReasons: Record<string, number>;
+}
+
+export interface LabelQualitySummary {
+  acceptedHumanLabels: number;
+  enrichmentLabels: number;
+  genericDocusignTabTypeHints: number;
+  genericDocusignTabTypeLabelsAccepted: number;
+  unresolvedFields: number;
+}
+
+export interface EnrichmentMatchedRecordDiagnostic {
+  jsonKeyPath: string;
+  matchedBy: 'guid' | 'position' | 'coordinate';
+  positionalFingerprint: string;
+}
+
+export interface EnrichmentUnmatchedRecordDiagnostic {
+  jsonKeyPath: string;
+  positionalFingerprint: string;
+  reason: string;
+}
+
+export interface EnrichmentDiagnostics {
+  matchedRecords: EnrichmentMatchedRecordDiagnostic[];
+  unmatchedRecords: EnrichmentUnmatchedRecordDiagnostic[];
 }
 
 export interface ValidationReport {
@@ -185,6 +222,8 @@ export interface ValidationReport {
     labelsLookedLikeValue: number;
     controlsWithNoAcceptedLabel: number;
   };
+  labelQualitySummary: LabelQualitySummary;
+  enrichmentDiagnostics: EnrichmentDiagnostics;
   attachmentEvidenceBreakdown: Record<AttachmentEvidence, number>;
   candidateValidations: CandidateValidation[];
   prioritizedUnknowns: Finding[];
@@ -234,8 +273,15 @@ export class ReportBuilder {
     fieldsConsidered: 0,
     matchesByGuid: 0,
     matchesByPosition: 0,
+    matchesByCoordinate: 0,
     labelsUpgraded: 0,
     businessSectionsUpgraded: 0,
+    unmatchedRecords: 0,
+    unmatchedRecordReasons: {},
+  };
+  private enrichmentDiagnostics: EnrichmentDiagnostics = {
+    matchedRecords: [],
+    unmatchedRecords: [],
   };
   private diagnostics: DiscoveryDiagnostics = {
     disclosureDetected: null,
@@ -289,6 +335,10 @@ export class ReportBuilder {
       tabGuid: f.tabGuid,
       pageIndex: f.pageIndex,
       ordinalOnPage: f.ordinalOnPage,
+      tabLeft: f.tabLeft,
+      tabTop: f.tabTop,
+      tabWidth: f.tabWidth,
+      tabHeight: f.tabHeight,
     });
   }
 
@@ -322,8 +372,15 @@ export class ReportBuilder {
       fieldsConsidered: 0,
       matchesByGuid: 0,
       matchesByPosition: 0,
+      matchesByCoordinate: 0,
       labelsUpgraded: 0,
       businessSectionsUpgraded: 0,
+      unmatchedRecords: 0,
+      unmatchedRecordReasons: {},
+    };
+    this.enrichmentDiagnostics = {
+      matchedRecords: [],
+      unmatchedRecords: [],
     };
   }
 
@@ -381,14 +438,14 @@ export class ReportBuilder {
       'preceding-text',
     ]);
 
+    const matchedRecordKeys = new Set<string>();
+    const matchedRecords: EnrichmentMatchedRecordDiagnostic[] = [];
+
     for (const f of this.fields) {
-      // Skip DocuSign chrome / signature / date-signed widgets entirely —
-      // we never want enrichment to relabel a "Sign here" tab.
-      if (
-        f.controlCategory === 'docusign_chrome' ||
-        f.controlCategory === 'signature_widget' ||
-        f.controlCategory === 'date_signed_widget'
-      ) {
+      // Only merchant inputs are valid targets for this sample-data bundle.
+      // Read-only/display/widget controls may share DocuSign tab positions,
+      // but matching them would inflate diagnostics without improving labels.
+      if (f.controlCategory !== 'merchant_input') {
         continue;
       }
 
@@ -399,10 +456,22 @@ export class ReportBuilder {
         pageIndex: f.pageIndex,
         dataType: f.docusignTabType,
         ordinalOnPage: f.ordinalOnPage,
+        tabLeft: f.tabLeft,
+        tabTop: f.tabTop,
       });
       if (!match) continue;
 
+      const recordKey = enrichmentRecordKey(match.record);
+      if (matchedRecordKeys.has(recordKey)) continue;
+      matchedRecordKeys.add(recordKey);
+      matchedRecords.push({
+        jsonKeyPath: match.record.jsonKeyPath,
+        matchedBy: match.matchedBy,
+        positionalFingerprint: match.record.positionalFingerprint,
+      });
+
       if (match.matchedBy === 'guid') this.enrichmentSummary.matchesByGuid++;
+      else if (match.matchedBy === 'coordinate') this.enrichmentSummary.matchesByCoordinate++;
       else this.enrichmentSummary.matchesByPosition++;
 
       const priorLabel = f.resolvedLabel;
@@ -417,7 +486,7 @@ export class ReportBuilder {
       if (canUpgradeLabel && match.record.suggestedDisplayName) {
         f.resolvedLabel = match.record.suggestedDisplayName;
         f.label = match.record.suggestedDisplayName;
-        f.labelSource = match.matchedBy === 'guid' ? 'enrichment-guid' : 'enrichment-position';
+        f.labelSource = enrichmentLabelSource(match.matchedBy);
         if (match.matchedBy === 'guid' && match.record.confidence === 'high') {
           f.labelConfidence = 'high';
         } else if (f.labelConfidence === 'none' || f.labelConfidence === 'low') {
@@ -439,6 +508,26 @@ export class ReportBuilder {
         appliedToLabel,
       };
     }
+
+    const unmatchedRecords = idx.records
+      .filter((record) => !matchedRecordKeys.has(enrichmentRecordKey(record)))
+      .map<EnrichmentUnmatchedRecordDiagnostic>((record) => ({
+        jsonKeyPath: record.jsonKeyPath,
+        positionalFingerprint: record.positionalFingerprint,
+        reason: diagnoseUnmatchedEnrichmentRecord(record, this.fields),
+      }));
+
+    const reasonCounts: Record<string, number> = {};
+    for (const record of unmatchedRecords) {
+      reasonCounts[record.reason] = (reasonCounts[record.reason] ?? 0) + 1;
+    }
+
+    this.enrichmentDiagnostics = {
+      matchedRecords,
+      unmatchedRecords,
+    };
+    this.enrichmentSummary.unmatchedRecords = unmatchedRecords.length;
+    this.enrichmentSummary.unmatchedRecordReasons = reasonCounts;
   }
 
   build(): ValidationReport {
@@ -593,6 +682,8 @@ export class ReportBuilder {
       'looks-like-value': 0,
       'docusign-stub': 0,
       'chrome-text': 0,
+      'equals-field-value': 0,
+      'generic-docusign-tab-type': 0,
       'too-short': 0,
       'too-long': 0,
       'pure-punctuation': 0,
@@ -609,6 +700,16 @@ export class ReportBuilder {
       }
       if (!f.resolvedLabel) controlsWithNoAcceptedLabel++;
     }
+
+    const labelQualitySummary: LabelQualitySummary = {
+      acceptedHumanLabels: this.fields.filter(
+        (f) => Boolean(f.resolvedLabel) && !f.labelSource.startsWith('enrichment-') && f.labelSource !== 'docusign-tab-type',
+      ).length,
+      enrichmentLabels: this.fields.filter((f) => f.labelSource.startsWith('enrichment-')).length,
+      genericDocusignTabTypeHints: this.fields.filter((f) => Boolean(f.docusignTabType)).length,
+      genericDocusignTabTypeLabelsAccepted: this.fields.filter((f) => f.labelSource === 'docusign-tab-type').length,
+      unresolvedFields: controlsWithNoAcceptedLabel,
+    };
 
     const attachmentEvidenceBreakdown: Record<AttachmentEvidence, number> = {
       strong: 0,
@@ -664,6 +765,8 @@ export class ReportBuilder {
         labelsLookedLikeValue,
         controlsWithNoAcceptedLabel,
       },
+      labelQualitySummary,
+      enrichmentDiagnostics: this.enrichmentDiagnostics,
       attachmentEvidenceBreakdown,
       candidateValidations,
       prioritizedUnknowns,
@@ -687,6 +790,69 @@ export class ReportBuilder {
 
     return { jsonPath, mdPath };
   }
+}
+
+function enrichmentRecordKey(record: EnrichmentRecord): string {
+  return `${record.jsonKeyPath}|${record.positionalFingerprint}`;
+}
+
+function enrichmentLabelSource(matchedBy: EnrichmentMatch['matchedBy']): LabelSource {
+  if (matchedBy === 'guid') return 'enrichment-guid';
+  if (matchedBy === 'coordinate') return 'enrichment-coordinate';
+  return 'enrichment-position';
+}
+
+function parseEnrichmentFingerprint(
+  fingerprint: string,
+): { pageIndex: number; family: string; ordinalOnPage: number } | null {
+  const match = /^page:(\d+)\|([^|]+)\|ord:(\d+)$/.exec(fingerprint);
+  if (!match) return null;
+  return {
+    pageIndex: Number(match[1]),
+    family: normalizeFamily(match[2]),
+    ordinalOnPage: Number(match[3]),
+  };
+}
+
+function liveFingerprint(f: FieldRecord): string | null {
+  return buildPositionalFingerprint(f.pageIndex, f.docusignTabType, f.ordinalOnPage);
+}
+
+function diagnoseUnmatchedEnrichmentRecord(record: EnrichmentRecord, fields: FieldRecord[]): string {
+  const guid = record.tabGuid?.toLowerCase();
+  if (guid && fields.some((f) => f.tabGuid?.toLowerCase() === guid)) {
+    return 'guid-present-but-not-applied';
+  }
+
+  const expected = parseEnrichmentFingerprint(record.positionalFingerprint);
+  if (!expected) return 'invalid-fingerprint';
+
+  const exactField = fields.find((f) => liveFingerprint(f) === record.positionalFingerprint);
+  if (exactField) return `field-excluded-${exactField.controlCategory}`;
+
+  const pageFields = fields.filter((f) => f.pageIndex === expected.pageIndex);
+  if (!pageFields.length) return 'page-number-mismatch';
+
+  const sameTypeFields = pageFields.filter((f) => normalizeFamily(f.docusignTabType) === expected.family);
+  if (!sameTypeFields.length) return 'tab-type-mismatch';
+
+  const sameOrdinalDifferentType = pageFields.some(
+    (f) => f.ordinalOnPage === expected.ordinalOnPage && normalizeFamily(f.docusignTabType) !== expected.family,
+  );
+  if (sameOrdinalDifferentType) return 'tab-type-mismatch';
+
+  const hasCoordinates = typeof record.tabLeft === 'number' && typeof record.tabTop === 'number';
+  const hasNearbyCoordinate =
+    hasCoordinates &&
+    sameTypeFields.some(
+      (f) =>
+        typeof f.tabLeft === 'number' &&
+        typeof f.tabTop === 'number' &&
+        Math.max(Math.abs(f.tabLeft - record.tabLeft!), Math.abs(f.tabTop - record.tabTop!)) <= 3,
+    );
+  if (hasNearbyCoordinate) return 'coordinate-ambiguous-or-duplicate';
+
+  return 'ordinal-drift-or-field-excluded';
 }
 
 function categorizeFinding(c: CheckResult, classification: RuleClassification): FindingCategory {
@@ -750,12 +916,22 @@ function buildCandidateValidations(fields: FieldRecord[]): CandidateValidation[]
       targetType: types[0],
       count: matches.length,
       sampleLabels: matches
-        .map((m) => m.resolvedLabel)
-        .filter((l): l is string => Boolean(l))
+        .map((m) => computeDisplayName(m))
+        .filter((label) => !isPlaceholderDisplayName(label))
         .slice(0, 5),
     });
   }
   return results;
+}
+
+function isPlaceholderDisplayName(label: string): boolean {
+  return label.startsWith('⟨') || isGenericDocusignTabTypeLabel(label);
+}
+
+function isGenericDocusignTabTypeLabel(label: string): boolean {
+  return /^(text|list|checkbox|radio|date|signhere|signerattachment|datesigned|fullname|email|formula|unknown)$/i.test(
+    label.trim(),
+  );
 }
 
 /**
@@ -792,6 +968,7 @@ function looksLikePromptLabel(s: string): boolean {
   // Prompt-shaped labels almost always contain at least one letter run and
   // typically end with a word, not a stub fragment.
   if (!/[A-Za-z]{3,}/.test(v)) return false;
+  if (isGenericDocusignTabTypeLabel(v)) return false;
   if (/signer\s*attachment|attachment\s*(required|optional)/i.test(v)) return false;
   if (/^(required|optional)\b/i.test(v)) return false;
   return true;
@@ -976,6 +1153,10 @@ function notesForField(f: FieldRecord, displayName: string): string {
   if (!f.resolvedLabel && f.idOrNameKey) {
     bits.push(`id=${truncate(f.idOrNameKey, 40)}`);
   }
+  if (f.docusignTabType && (f.labelConfidence === 'none' || f.labelConfidence === 'low' || isPlaceholderDisplayName(displayName))) {
+    bits.push(`tabType=${f.docusignTabType}`);
+  }
+  if (f.enrichment) bits.push(`matched=${f.enrichment.matchedBy}`);
   if (f.labelLooksLikeValue) bits.push('label looked like value');
   if (f.labelConfidence === 'low' || f.labelConfidence === 'none') {
     bits.push(`confidence=${f.labelConfidence}`);
@@ -1068,7 +1249,7 @@ function renderMarkdown(r: ValidationReport): string {
     L.push('');
     if (r.enrichmentSummary.enabled) {
       L.push(
-        '_Offline enrichment bundle was merged into this report.  GUID matches are the strongest signal; positional matches are a template-shape fallback._',
+        '_Offline enrichment bundle was merged into this report.  GUID matches are the strongest signal; positional and coordinate matches are template-shape fallbacks._',
       );
     } else {
       L.push(
@@ -1088,9 +1269,31 @@ function renderMarkdown(r: ValidationReport): string {
     L.push(`| Fields considered | ${r.enrichmentSummary.fieldsConsidered} |`);
     L.push(`| Matches by GUID | ${r.enrichmentSummary.matchesByGuid} |`);
     L.push(`| Matches by position | ${r.enrichmentSummary.matchesByPosition} |`);
+    L.push(`| Matches by coordinate | ${r.enrichmentSummary.matchesByCoordinate} |`);
     L.push(`| Display names upgraded | ${r.enrichmentSummary.labelsUpgraded} |`);
     L.push(`| Business sections upgraded | ${r.enrichmentSummary.businessSectionsUpgraded} |`);
+    L.push(`| Unmatched bundle records | ${r.enrichmentSummary.unmatchedRecords} |`);
+    if (Object.keys(r.enrichmentSummary.unmatchedRecordReasons).length) {
+      for (const [reason, count] of Object.entries(r.enrichmentSummary.unmatchedRecordReasons).sort(
+        (a, b) => b[1] - a[1],
+      )) {
+        L.push(`| unmatched: ${reason} | ${count} |`);
+      }
+    }
     L.push('');
+
+    if (r.enrichmentDiagnostics.unmatchedRecords.length) {
+      L.push('### Unmatched enrichment records');
+      L.push('');
+      L.push('| JSON key | Expected fingerprint | Reason |');
+      L.push('|---|---|---|');
+      for (const record of r.enrichmentDiagnostics.unmatchedRecords) {
+        L.push(
+          `| \`${esc(record.jsonKeyPath)}\` | \`${esc(record.positionalFingerprint)}\` | ${esc(record.reason)} |`,
+        );
+      }
+      L.push('');
+    }
   }
 
   if (r.quickFieldIndex.length) {
@@ -1175,6 +1378,11 @@ function renderMarkdown(r: ValidationReport): string {
   L.push(`| Candidates rejected (total) | ${r.labelExtractionSummary.labelsRejectedTotal} |`);
   L.push(`| Labels that looked like values | ${r.labelExtractionSummary.labelsLookedLikeValue} |`);
   L.push(`| Controls with no accepted label | ${r.labelExtractionSummary.controlsWithNoAcceptedLabel} |`);
+  L.push(`| Accepted human labels | ${r.labelQualitySummary.acceptedHumanLabels} |`);
+  L.push(`| Enrichment-applied labels | ${r.labelQualitySummary.enrichmentLabels} |`);
+  L.push(`| Generic DocuSign tab-type hints | ${r.labelQualitySummary.genericDocusignTabTypeHints} |`);
+  L.push(`| Generic DocuSign tab-type labels accepted | ${r.labelQualitySummary.genericDocusignTabTypeLabelsAccepted} |`);
+  L.push(`| Unresolved labels | ${r.labelQualitySummary.unresolvedFields} |`);
   for (const [reason, count] of Object.entries(r.labelExtractionSummary.labelsRejectedByReason).sort(
     (a, b) => b[1] - a[1],
   )) {
