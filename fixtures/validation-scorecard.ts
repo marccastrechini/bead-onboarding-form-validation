@@ -8,6 +8,11 @@ import {
   type ValidationExpectationSeverity,
 } from './field-concepts';
 import type { CheckResult, FieldRecord, ValidationReport } from './validation-report';
+import type {
+  InteractiveResultStatus,
+  InteractiveValidationResult,
+  InteractiveValidationResultsFile,
+} from './interactive-validation';
 
 export type IdentificationConfidence = 'none' | 'low' | 'medium' | 'high';
 
@@ -71,6 +76,8 @@ export interface FieldConceptScore {
   executedValidationCount: number;
   passedValidationCount: number;
   failedValidationCount: number;
+  warningValidationCount: number;
+  manualReviewValidationCount: number;
   skippedValidationCount: number;
   notRunValidationCount: number;
   cannotRunValidationCount: number;
@@ -101,6 +108,8 @@ export interface ValidationScorecard {
     executedValidationCount: number;
     passedValidationCount: number;
     failedValidationCount: number;
+    warningValidationCount: number;
+    manualReviewValidationCount: number;
     skippedValidationCount: number;
     notRunValidationCount: number;
     cannotRunValidationCount: number;
@@ -109,6 +118,17 @@ export interface ValidationScorecard {
     summary: string;
   };
   conceptScores: FieldConceptScore[];
+  interactiveValidation: {
+    resultsLoaded: boolean;
+    runStartedAt: string | null;
+    runFinishedAt: string | null;
+    total: number;
+    passed: number;
+    failed: number;
+    warning: number;
+    manual_review: number;
+    skipped: number;
+  };
   expectedButNotConfidentlyFound: Array<{
     key: FieldConceptKey;
     displayName: string;
@@ -139,8 +159,14 @@ const CONFIDENCE_RANK: Record<IdentificationConfidence, number> = {
   high: 3,
 };
 
-export function buildValidationScorecard(report: ValidationReport): ValidationScorecard {
-  const conceptScores = FIELD_CONCEPTS.map((concept) => scoreConcept(report, concept));
+export function buildValidationScorecard(
+  report: ValidationReport,
+  interactiveResults: InteractiveValidationResultsFile | null = null,
+): ValidationScorecard {
+  const interactiveByConcept = groupInteractiveResults(interactiveResults);
+  const conceptScores = FIELD_CONCEPTS.map((concept) =>
+    scoreConcept(report, concept, interactiveByConcept.get(concept.key) ?? []),
+  );
   const overall = buildOverall(report, conceptScores);
 
   const expectedButNotConfidentlyFound = conceptScores
@@ -162,7 +188,7 @@ export function buildValidationScorecard(report: ValidationReport): ValidationSc
         validation: row.displayName,
         status: row.status,
         evidence: row.actualChecks
-          .map((check) => `field #${check.fieldIndex} ${check.case} -> ${check.status}`)
+          .map((check) => formatCheckEvidence(check))
           .join('; '),
       })),
   );
@@ -189,6 +215,7 @@ export function buildValidationScorecard(report: ValidationReport): ValidationSc
     },
     overall,
     conceptScores,
+    interactiveValidation: summarizeInteractiveResults(interactiveResults),
     expectedButNotConfidentlyFound,
     testsActuallyExecuted,
     testsNotYetExecuted,
@@ -201,9 +228,10 @@ export function buildValidationScorecard(report: ValidationReport): ValidationSc
 export function writeScorecardArtifacts(
   report: ValidationReport,
   outDir: string,
+  interactiveResults: InteractiveValidationResultsFile | null = null,
 ): { jsonPath: string; mdPath: string; scorecard: ValidationScorecard } {
   fs.mkdirSync(outDir, { recursive: true });
-  const scorecard = buildValidationScorecard(report);
+  const scorecard = buildValidationScorecard(report, interactiveResults);
   const jsonPath = path.join(outDir, 'latest-validation-scorecard.json');
   const mdPath = path.join(outDir, 'latest-validation-scorecard.md');
   fs.writeFileSync(jsonPath, JSON.stringify(scorecard, null, 2), 'utf8');
@@ -217,10 +245,25 @@ export function generateScorecardFromSummary(
 ): { jsonPath: string; mdPath: string; scorecard: ValidationScorecard } {
   const raw = fs.readFileSync(summaryPath, 'utf8');
   const report = JSON.parse(raw) as ValidationReport;
-  return writeScorecardArtifacts(report, outDir);
+  const interactiveResults = loadInteractiveValidationResults(path.join(outDir, 'latest-interactive-validation-results.json'));
+  return writeScorecardArtifacts(report, outDir, interactiveResults);
 }
 
-function scoreConcept(report: ValidationReport, concept: FieldConceptDefinition): FieldConceptScore {
+export function loadInteractiveValidationResults(resultsPath: string): InteractiveValidationResultsFile | null {
+  if (!fs.existsSync(resultsPath)) return null;
+  const raw = fs.readFileSync(resultsPath, 'utf8');
+  const parsed = JSON.parse(raw) as InteractiveValidationResultsFile;
+  if (parsed.schemaVersion !== 1 || !Array.isArray(parsed.results)) {
+    throw new Error(`Invalid interactive validation results artifact: ${resultsPath}`);
+  }
+  return parsed;
+}
+
+function scoreConcept(
+  report: ValidationReport,
+  concept: FieldConceptDefinition,
+  interactiveResults: InteractiveValidationResult[],
+): FieldConceptScore {
   const matches = report.fields
     .map((field, fieldIndex) => matchFieldToConcept(field, concept, fieldIndex + 1))
     .filter((match): match is ScorecardFieldMatch => match !== null)
@@ -250,13 +293,15 @@ function scoreConcept(report: ValidationReport, concept: FieldConceptDefinition)
     .filter((entry) => confidentFieldIndexes.has(entry.fieldIndex));
 
   const bestPracticeValidations = concept.bestPracticeValidations.map((validation) =>
-    scoreValidation(validation, confidentFields, identifiedWithConfidence),
+    scoreValidation(validation, confidentFields, identifiedWithConfidence, interactiveResults),
   );
 
   const expectedValidationCount = bestPracticeValidations.length;
   const executedValidationCount = bestPracticeValidations.filter((row) => row.executed).length;
   const passedValidationCount = bestPracticeValidations.filter((row) => row.status === 'passed').length;
-  const failedValidationCount = bestPracticeValidations.filter((row) => row.status === 'failed' || row.status === 'warning').length;
+  const failedValidationCount = bestPracticeValidations.filter((row) => row.status === 'failed').length;
+  const warningValidationCount = bestPracticeValidations.filter((row) => row.status === 'warning').length;
+  const manualReviewValidationCount = bestPracticeValidations.filter((row) => row.status === 'manual_review').length;
   const skippedValidationCount = bestPracticeValidations.filter((row) => row.status === 'skipped').length;
   const cannotRunValidationCount = bestPracticeValidations.filter(
     (row) => row.status === 'cannot_run_not_confidently_mapped',
@@ -270,7 +315,7 @@ function scoreConcept(report: ValidationReport, concept: FieldConceptDefinition)
     identifiedWithConfidence,
     expectedValidationCount,
     executedValidationCount,
-    failedValidationCount,
+    failedValidationCount: failedValidationCount + warningValidationCount,
     validationCoveragePercent,
   });
 
@@ -287,6 +332,8 @@ function scoreConcept(report: ValidationReport, concept: FieldConceptDefinition)
     executedValidationCount,
     passedValidationCount,
     failedValidationCount,
+    warningValidationCount,
+    manualReviewValidationCount,
     skippedValidationCount,
     notRunValidationCount,
     cannotRunValidationCount,
@@ -364,6 +411,7 @@ function scoreValidation(
   validation: BestPracticeValidation,
   confidentFields: Array<{ field: FieldRecord; fieldIndex: number }>,
   identifiedWithConfidence: boolean,
+  interactiveResults: InteractiveValidationResult[],
 ): ScorecardValidationRow {
   if (!identifiedWithConfidence) {
     return {
@@ -388,6 +436,15 @@ function scoreValidation(
         detail: check.detail,
       })),
   );
+  const interactiveChecks = interactiveResults
+    .filter((result) => result.validationId === validation.id)
+    .map((result) => ({
+      fieldIndex: result.targetField?.fieldIndex ?? 0,
+      case: `interactive:${result.caseName}`,
+      status: interactiveStatusToCheckStatus(result.status),
+      detail: result.evidence,
+    }));
+  actualChecks.push(...interactiveChecks);
 
   if (actualChecks.length === 0) {
     return {
@@ -432,6 +489,62 @@ function summarizeActualCheckStatus(statuses: CheckResult['status'][]): Scorecar
   return 'passed';
 }
 
+function interactiveStatusToCheckStatus(status: InteractiveResultStatus): CheckResult['status'] {
+  switch (status) {
+    case 'passed':
+      return 'pass';
+    case 'failed':
+      return 'fail';
+    case 'warning':
+      return 'warning';
+    case 'manual_review':
+      return 'manual_review';
+    case 'skipped':
+      return 'skipped';
+  }
+}
+
+function groupInteractiveResults(
+  interactiveResults: InteractiveValidationResultsFile | null,
+): Map<FieldConceptKey, InteractiveValidationResult[]> {
+  const grouped = new Map<FieldConceptKey, InteractiveValidationResult[]>();
+  for (const result of interactiveResults?.results ?? []) {
+    const bucket = grouped.get(result.concept) ?? [];
+    bucket.push(result);
+    grouped.set(result.concept, bucket);
+  }
+  return grouped;
+}
+
+function summarizeInteractiveResults(
+  interactiveResults: InteractiveValidationResultsFile | null,
+): ValidationScorecard['interactiveValidation'] {
+  if (!interactiveResults) {
+    return {
+      resultsLoaded: false,
+      runStartedAt: null,
+      runFinishedAt: null,
+      total: 0,
+      passed: 0,
+      failed: 0,
+      warning: 0,
+      manual_review: 0,
+      skipped: 0,
+    };
+  }
+  return {
+    resultsLoaded: true,
+    runStartedAt: interactiveResults.runStartedAt,
+    runFinishedAt: interactiveResults.runFinishedAt,
+    total: interactiveResults.summary.total,
+    passed: interactiveResults.summary.passed,
+    failed: interactiveResults.summary.failed,
+    warning: interactiveResults.summary.warning,
+    manual_review: interactiveResults.summary.manual_review,
+    skipped: interactiveResults.summary.skipped,
+  };
+}
+
 function recommendationForStatus(status: ScorecardValidationStatus): string {
   switch (status) {
     case 'passed':
@@ -456,6 +569,8 @@ function buildOverall(report: ValidationReport, scores: FieldConceptScore[]): Va
   const executedValidationCount = sum(scores, (score) => score.executedValidationCount);
   const passedValidationCount = sum(scores, (score) => score.passedValidationCount);
   const failedValidationCount = sum(scores, (score) => score.failedValidationCount);
+  const warningValidationCount = sum(scores, (score) => score.warningValidationCount);
+  const manualReviewValidationCount = sum(scores, (score) => score.manualReviewValidationCount);
   const skippedValidationCount = sum(scores, (score) => score.skippedValidationCount);
   const notRunValidationCount = sum(scores, (score) => score.notRunValidationCount);
   const cannotRunValidationCount = sum(scores, (score) => score.cannotRunValidationCount);
@@ -465,7 +580,7 @@ function buildOverall(report: ValidationReport, scores: FieldConceptScore[]): Va
   const validationQualityGrade = gradeCoverage({
     expectedValidationCount,
     executedValidationCount,
-    failedValidationCount,
+    failedValidationCount: failedValidationCount + warningValidationCount,
     validationCoveragePercent,
   });
 
@@ -477,6 +592,8 @@ function buildOverall(report: ValidationReport, scores: FieldConceptScore[]): Va
     executedValidationCount,
     passedValidationCount,
     failedValidationCount,
+    warningValidationCount,
+    manualReviewValidationCount,
     skippedValidationCount,
     notRunValidationCount,
     cannotRunValidationCount,
@@ -531,8 +648,9 @@ function summarizeConcept(score: FieldConceptScore, report: ValidationReport): s
       ? 'Field was mapped, but no best-practice value validations were executed.'
       : 'Field was mapped, but source report was safe-mode discovery; best-practice value validations remain not run.';
   }
-  if (score.failedValidationCount > 0) {
-    return `${score.executedValidationCount} best-practice validations ran and ${score.failedValidationCount} need review.`;
+  const needsReviewCount = score.failedValidationCount + score.warningValidationCount + score.manualReviewValidationCount;
+  if (needsReviewCount > 0) {
+    return `${score.executedValidationCount} best-practice validations ran and ${needsReviewCount} need review.`;
   }
   return `${score.executedValidationCount} best-practice validations ran with no failures recorded.`;
 }
@@ -550,7 +668,9 @@ function recommendForConcept(score: FieldConceptScore, report: ValidationReport)
   if (!report.destructiveMode && score.identifiedWithConfidence) {
     recs.push(`Run disposable-envelope value validation for ${score.displayName}; keep safe mode as the default.`);
   }
-  const failed = score.bestPracticeValidations.filter((row) => row.status === 'failed' || row.status === 'warning');
+  const failed = score.bestPracticeValidations.filter(
+    (row) => row.status === 'failed' || row.status === 'warning' || row.status === 'manual_review',
+  );
   for (const row of failed.slice(0, 3)) {
     recs.push(`Review ${score.displayName}: ${row.displayName}.`);
   }
@@ -652,8 +772,27 @@ export function renderScorecardMarkdown(scorecard: ValidationScorecard): string 
   lines.push(`- Field concepts identified with confidence: ${scorecard.overall.fieldConceptsIdentifiedWithConfidence}`);
   lines.push(`- Overall validation coverage: ${scorecard.overall.validationCoveragePercent}%`);
   lines.push(`- Overall grade: ${scorecard.overall.validationQualityGrade}`);
+  lines.push(`- Interactive results loaded: ${scorecard.interactiveValidation.resultsLoaded ? 'yes' : 'no'}`);
   lines.push('');
   lines.push(scorecard.overall.summary);
+  lines.push('');
+
+  lines.push('## Interactive validation results');
+  lines.push('');
+  if (scorecard.interactiveValidation.resultsLoaded) {
+    lines.push('| Metric | Value |');
+    lines.push('|---|---|');
+    lines.push(`| Run started | ${scorecard.interactiveValidation.runStartedAt ?? 'n/a'} |`);
+    lines.push(`| Run finished | ${scorecard.interactiveValidation.runFinishedAt ?? 'n/a'} |`);
+    lines.push(`| Total observations | ${scorecard.interactiveValidation.total} |`);
+    lines.push(`| Passed | ${scorecard.interactiveValidation.passed} |`);
+    lines.push(`| Failed | ${scorecard.interactiveValidation.failed} |`);
+    lines.push(`| Warning | ${scorecard.interactiveValidation.warning} |`);
+    lines.push(`| Manual review | ${scorecard.interactiveValidation.manual_review} |`);
+    lines.push(`| Skipped | ${scorecard.interactiveValidation.skipped} |`);
+  } else {
+    lines.push('No interactive validation results artifact was loaded. Run the guarded disposable-envelope interactive runner to populate this section.');
+  }
   lines.push('');
 
   lines.push('## Overall validation coverage grade');
@@ -663,7 +802,9 @@ export function renderScorecardMarkdown(scorecard: ValidationScorecard): string 
   lines.push(`| Expected best-practice validations | ${scorecard.overall.expectedValidationCount} |`);
   lines.push(`| Executed best-practice checks | ${scorecard.overall.executedValidationCount} |`);
   lines.push(`| Passed | ${scorecard.overall.passedValidationCount} |`);
-  lines.push(`| Failed / warning | ${scorecard.overall.failedValidationCount} |`);
+  lines.push(`| Failed | ${scorecard.overall.failedValidationCount} |`);
+  lines.push(`| Warning | ${scorecard.overall.warningValidationCount} |`);
+  lines.push(`| Manual review | ${scorecard.overall.manualReviewValidationCount} |`);
   lines.push(`| Skipped | ${scorecard.overall.skippedValidationCount} |`);
   lines.push(`| Not run | ${scorecard.overall.notRunValidationCount} |`);
   lines.push(`| Cannot run until mapped | ${scorecard.overall.cannotRunValidationCount} |`);
@@ -673,11 +814,11 @@ export function renderScorecardMarkdown(scorecard: ValidationScorecard): string 
 
   lines.push('## Field concept coverage table');
   lines.push('');
-  lines.push('| Field concept | Section | Found field | Identified with confidence | Confidence | Expected | Executed | Passed | Failed / warning | Skipped | Not run | Cannot run | Coverage | Grade | Summary |');
-  lines.push('|---|---|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|');
+  lines.push('| Field concept | Section | Found field | Identified with confidence | Confidence | Expected | Executed | Passed | Failed | Warning | Manual review | Skipped | Not run | Cannot run | Coverage | Grade | Summary |');
+  lines.push('|---|---|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|');
   for (const score of scorecard.conceptScores) {
     lines.push(
-      `| ${esc(score.displayName)} | ${esc(score.businessSection)} | ${yesNo(score.foundField)} | ${yesNo(score.identifiedWithConfidence)} | ${score.identificationConfidence} | ${score.expectedValidationCount} | ${score.executedValidationCount} | ${score.passedValidationCount} | ${score.failedValidationCount} | ${score.skippedValidationCount} | ${score.notRunValidationCount} | ${score.cannotRunValidationCount} | ${score.validationCoveragePercent}% | ${score.validationQualityGrade} | ${esc(score.summary)} |`,
+      `| ${esc(score.displayName)} | ${esc(score.businessSection)} | ${yesNo(score.foundField)} | ${yesNo(score.identifiedWithConfidence)} | ${score.identificationConfidence} | ${score.expectedValidationCount} | ${score.executedValidationCount} | ${score.passedValidationCount} | ${score.failedValidationCount} | ${score.warningValidationCount} | ${score.manualReviewValidationCount} | ${score.skippedValidationCount} | ${score.notRunValidationCount} | ${score.cannotRunValidationCount} | ${score.validationCoveragePercent}% | ${score.validationQualityGrade} | ${esc(score.summary)} |`,
     );
   }
   lines.push('');
@@ -713,7 +854,7 @@ export function renderScorecardMarkdown(scorecard: ValidationScorecard): string 
     lines.push('|---|---|---|---|---|');
     for (const row of score.bestPracticeValidations) {
       const evidence = row.actualChecks.length
-        ? row.actualChecks.map((check) => `field #${check.fieldIndex} ${check.case}: ${check.status}`).join('; ')
+        ? row.actualChecks.map((check) => formatCheckEvidence(check)).join('; ')
         : row.recommendation;
       lines.push(
         `| ${esc(row.displayName)} | ${row.severity} | ${statusLabel(row.status)} | ${esc(row.expectedBehavior)} | ${esc(evidence)} |`,
@@ -852,6 +993,12 @@ function humanize(value: string): string {
 
 function sum<T>(items: T[], project: (item: T) => number): number {
   return items.reduce((total, item) => total + project(item), 0);
+}
+
+function formatCheckEvidence(check: { fieldIndex: number; case: string; status: CheckResult['status']; detail?: string }): string {
+  const field = check.fieldIndex > 0 ? `field #${check.fieldIndex}` : 'field n/a';
+  const detail = check.detail ? ` (${truncate(check.detail, 220)})` : '';
+  return `${field} ${check.case}: ${check.status}${detail}`;
 }
 
 function yesNo(value: boolean): string {

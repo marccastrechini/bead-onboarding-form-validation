@@ -17,6 +17,12 @@ import {
   renderScorecardMarkdown,
   writeScorecardArtifacts,
 } from '../fixtures/validation-scorecard';
+import {
+  assertInteractiveValidationGuards,
+  buildInteractiveValidationPlan,
+  skippedConceptToResult,
+  type InteractiveValidationResultsFile,
+} from '../fixtures/interactive-validation';
 import { buildSearchQuery, messageTargetsAddress, selectFreshestMessage, selectMailboxMessage } from '../lib/gmail-client';
 import { loadEnrichment } from '../lib/enrichment-loader';
 import {
@@ -433,6 +439,98 @@ test.describe('field validation scorecard', () => {
       fs.rmSync(outDir, { recursive: true, force: true });
     }
   });
+
+  test('merges observed interactive results into matching scorecard rows', () => {
+    const report = mockValidationReport([
+      mockField({
+        index: 1,
+        resolvedLabel: 'Business Email',
+        label: 'Business Email',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'email',
+        inferredClassification: 'inferred_best_practice',
+      }),
+    ]);
+    const scorecard = buildValidationScorecard(report, mockInteractiveResults({
+      concept: 'email',
+      conceptDisplayName: 'Email',
+      fieldLabel: 'Business Email',
+      validationId: 'missing-at-rejected',
+      caseName: 'missing-at',
+      testName: 'missing @ rejected',
+      status: 'failed',
+      evidence: 'input "qa.signerexample.com"; observed "qa.signerexample.com"; aria-invalid=null',
+    }));
+
+    const email = scorecard.conceptScores.find((score) => score.key === 'email')!;
+    const failed = email.bestPracticeValidations.find((row) => row.id === 'missing-at-rejected')!;
+
+    expect(scorecard.interactiveValidation.resultsLoaded).toBe(true);
+    expect(email.executedValidationCount).toBe(1);
+    expect(email.failedValidationCount).toBe(1);
+    expect(failed.status).toBe('failed');
+    expect(failed.executed).toBe(true);
+    expect(failed.actualChecks[0].case).toBe('interactive:missing-at');
+    expect(failed.actualChecks[0].detail).toContain('qa.signerexample.com');
+  });
+
+  test('interactive merge keeps not-run and failed distinct', () => {
+    const report = mockValidationReport([
+      mockField({
+        index: 1,
+        resolvedLabel: 'Business Email',
+        label: 'Business Email',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'email',
+        inferredClassification: 'inferred_best_practice',
+      }),
+    ]);
+    const scorecard = buildValidationScorecard(report, mockInteractiveResults({
+      concept: 'email',
+      conceptDisplayName: 'Email',
+      fieldLabel: 'Business Email',
+      validationId: 'missing-at-rejected',
+      caseName: 'missing-at',
+      testName: 'missing @ rejected',
+      status: 'failed',
+      evidence: 'invalid email was accepted',
+    }));
+
+    const email = scorecard.conceptScores.find((score) => score.key === 'email')!;
+    expect(email.bestPracticeValidations.find((row) => row.id === 'missing-at-rejected')!.status).toBe('failed');
+    expect(email.bestPracticeValidations.find((row) => row.id === 'valid-email-accepted')!.status).toBe('not_run');
+  });
+});
+
+test.describe('interactive validation safety', () => {
+  test('interactive guard refuses to run without INTERACTIVE_VALIDATION=1', () => {
+    expect(() => assertInteractiveValidationGuards({ DISPOSABLE_ENVELOPE: '1' } as NodeJS.ProcessEnv))
+      .toThrow(/INTERACTIVE_VALIDATION=1/);
+  });
+
+  test('disposable guard refuses to run without DISPOSABLE_ENVELOPE=1', () => {
+    expect(() => assertInteractiveValidationGuards({ INTERACTIVE_VALIDATION: '1' } as NodeJS.ProcessEnv))
+      .toThrow(/DISPOSABLE_ENVELOPE=1/);
+  });
+
+  test('unmapped target concepts are skipped, not failed', () => {
+    const plan = buildInteractiveValidationPlan(mockValidationReport([]));
+    const skippedResults = plan.skippedConcepts.map(skippedConceptToResult);
+
+    expect(plan.cases).toHaveLength(0);
+    expect(plan.skippedConcepts.length).toBeGreaterThan(0);
+    expect(skippedResults.every((result) => result.status === 'skipped')).toBe(true);
+    expect(skippedResults.some((result) => result.status === 'failed')).toBe(false);
+  });
+
+  test('interactive spec does not contain finalizing action labels', () => {
+    const specPath = path.join(__dirname, 'signer-interactive-validation.spec.ts');
+    const source = fs.readFileSync(specPath, 'utf8');
+
+    expect(source).not.toMatch(/\b(Finish|Complete|Sign|Adopt|Submit)\b/);
+  });
 });
 
 function mockField(overrides: Partial<FieldRecord> = {}): FieldRecord {
@@ -483,6 +581,58 @@ function mockField(overrides: Partial<FieldRecord> = {}): FieldRecord {
   };
   if (!Object.prototype.hasOwnProperty.call(overrides, 'label')) field.label = field.resolvedLabel;
   return field;
+}
+
+function mockInteractiveResults(
+  result: Pick<InteractiveValidationResultsFile['results'][number],
+    'concept' | 'conceptDisplayName' | 'fieldLabel' | 'validationId' | 'caseName' | 'testName' | 'status' | 'evidence'>,
+): InteractiveValidationResultsFile {
+  return {
+    schemaVersion: 1,
+    runStartedAt: '2026-04-27T00:00:00.000Z',
+    runFinishedAt: '2026-04-27T00:00:01.000Z',
+    guardState: { INTERACTIVE_VALIDATION: true, DISPOSABLE_ENVELOPE: true },
+    sourceReport: {
+      runStartedAt: '2026-04-27T00:00:00.000Z',
+      runFinishedAt: '2026-04-27T00:00:01.000Z',
+    },
+    summary: {
+      total: 1,
+      passed: result.status === 'passed' ? 1 : 0,
+      failed: result.status === 'failed' ? 1 : 0,
+      warning: result.status === 'warning' ? 1 : 0,
+      manual_review: result.status === 'manual_review' ? 1 : 0,
+      skipped: result.status === 'skipped' ? 1 : 0,
+    },
+    targetConcepts: ['email'],
+    skippedConcepts: [],
+    results: [{
+      ...result,
+      targetField: {
+        primary: 'live-discovery-field-index',
+        fieldIndex: 1,
+        displayName: result.fieldLabel ?? 'Business Email',
+        inferredType: 'email',
+        confidence: 'high',
+        fallback: 'skip-if-field-does-not-resolve-visible-editable-merchant-input',
+      },
+      inputValue: 'qa.signerexample.com',
+      expectedBehavior: 'An address without @ is rejected.',
+      severity: 'critical',
+      observation: {
+        ariaInvalid: null,
+        validationMessage: null,
+        nearbyErrorText: null,
+        docusignValidationText: [],
+        observedValue: 'qa.signerexample.com',
+        normalizedOrReformatted: false,
+        inputPrevented: false,
+      },
+      recommendation: 'Block this value or show a validation error on blur.',
+      cleanupStrategy: 'restore_original_value_then_blur',
+      safetyNotes: ['Uses disposable test input values.'],
+    }],
+  };
 }
 
 function mockValidationReport(fields: FieldRecord[]): ValidationReport {
