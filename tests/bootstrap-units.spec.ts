@@ -20,6 +20,7 @@ import {
 import {
   assertInteractiveValidationGuards,
   buildInteractiveValidationPlan,
+  extractFieldLocalValidationDiagnostics,
   skippedConceptToResult,
   type InteractiveValidationResultsFile,
 } from '../fixtures/interactive-validation';
@@ -530,6 +531,79 @@ test.describe('interactive validation safety', () => {
     const source = fs.readFileSync(specPath, 'utf8');
 
     expect(source).not.toMatch(/\b(Finish|Complete|Sign|Adopt|Submit)\b/);
+  });
+
+  test('observer filters generic DocuSign attachment noise from wrapper text', () => {
+    const diagnostics = extractFieldLocalValidationDiagnostics([
+      {
+        source: 'field-wrapper-error',
+        text: 'Required | AttachmentRequired | Attachment | SignerAttachmentOptional',
+      },
+    ], {
+      ariaInvalid: 'false',
+      inputValue: 'Test Business LLC',
+      observedValue: 'Test Business LLC',
+    });
+
+    expect(diagnostics.fieldLocalTexts).toEqual([]);
+    expect(diagnostics.ignoredTexts).toEqual(expect.arrayContaining([
+      'Required',
+      'AttachmentRequired',
+      'Attachment',
+      'SignerAttachmentOptional',
+    ]));
+  });
+
+  test('observer keeps field-local validation text while dropping generic chrome noise', () => {
+    const diagnostics = extractFieldLocalValidationDiagnostics([
+      {
+        source: 'field-wrapper-error',
+        text: 'Merchant Category Code must be exactly 4 digits | Required | AttachmentRequired | Attachment | SignerAttachmentOptional',
+      },
+    ], {
+      ariaInvalid: 'true',
+      inputValue: 'ABCD',
+      observedValue: 'ABCD',
+    });
+
+    expect(diagnostics.fieldLocalTexts).toContain('Merchant Category Code must be exactly 4 digits');
+    expect(diagnostics.docusignLocalTexts).toContain('Merchant Category Code must be exactly 4 digits');
+    expect(diagnostics.fieldLocalTexts).not.toContain('AttachmentRequired');
+  });
+
+  test('date matrix uses YYYY/MM/DD as valid input and observes MM/DD/YYYY separately', () => {
+    const plan = buildInteractiveValidationPlan(mockValidationReport([
+      mockField({
+        index: 1,
+        resolvedLabel: 'Date Of Birth',
+        label: 'Date Of Birth',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'date_of_birth',
+        inferredClassification: 'inferred_best_practice',
+      }),
+      mockField({
+        index: 2,
+        resolvedLabel: 'Registration Date',
+        label: 'Registration Date',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'formation_date',
+        inferredClassification: 'inferred_best_practice',
+      }),
+    ]));
+
+    const dobValid = plan.cases.find((entry) => entry.concept === 'date_of_birth' && entry.validationId === 'valid-adult-dob-accepted')!;
+    const dobFormat = plan.cases.find((entry) => entry.concept === 'date_of_birth' && entry.validationId === 'accepted-date-format-documented')!;
+    const registrationValid = plan.cases.find((entry) => entry.concept === 'registration_date' && entry.validationId === 'valid-date-accepted')!;
+    const registrationFormat = plan.cases.find((entry) => entry.concept === 'registration_date' && entry.validationId === 'accepted-date-format-documented')!;
+
+    expect(dobValid.inputValue).toBe('1990/01/15');
+    expect(dobFormat.inputValue).toBe('01/15/1990');
+    expect(dobFormat.expectedSignal).toBe('observe');
+    expect(registrationValid.inputValue).toBe('2020/06/15');
+    expect(registrationFormat.inputValue).toBe('06/15/2020');
+    expect(registrationFormat.expectedSignal).toBe('observe');
   });
 });
 

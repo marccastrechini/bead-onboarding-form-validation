@@ -102,9 +102,29 @@ export interface InteractiveObservation {
   validationMessage: string | null;
   nearbyErrorText: string | null;
   docusignValidationText: string[];
+  invalidIndicators: string[];
+  ignoredDiagnostics: string[];
   observedValue: string | null;
   normalizedOrReformatted: boolean;
   inputPrevented: boolean;
+}
+
+export type ValidationCandidateSource =
+  | 'aria-errormessage'
+  | 'aria-describedby'
+  | 'control-error'
+  | 'field-wrapper-error'
+  | 'field-wrapper-inline';
+
+export interface RawValidationCandidate {
+  source: ValidationCandidateSource;
+  text: string;
+}
+
+export interface FieldLocalValidationDiagnostics {
+  fieldLocalTexts: string[];
+  docusignLocalTexts: string[];
+  ignoredTexts: string[];
 }
 
 export interface InteractiveValidationResult {
@@ -151,6 +171,11 @@ export interface InteractiveValidationResultsFile {
 
 const LONG_NAME = `Validation Test ${'A'.repeat(180)}`;
 const LONG_DESCRIPTION = `This is a disposable validation test description. ${'A'.repeat(420)}`;
+const GENERIC_DOCUSIGN_TEXT_RE =
+  /attachmentrequired|signerattachment|attachmentoptional|attachmentrequired|select to load content for this page|this link will open in a new window|hide note|show note|view electronic record|press enter to use the screen reader|page\s+\d+\s+of\s+\d+/i;
+const AMBIGUOUS_REQUIRED_RE = /^required$/i;
+const INVALID_INDICATOR_RE = /(^|\b)(invalid|error|has-error|is-invalid|field-error|input-error|validation-error|ds-error)(\b|$)/i;
+const FIELD_LOCAL_MESSAGE_RE = /(invalid|must\b|format\b|enter\b|between\b|too\s+(short|long)|minimum|max(imum)?|whole number|email|phone|zip|postal|naics|merchant category|date of birth|date)/i;
 
 const TEXT_FIELD_MATRIX: MatrixCaseDefinition[] = [
   {
@@ -196,8 +221,15 @@ const MATRIX_BY_CONCEPT: Record<InteractiveTargetConcept, MatrixCaseDefinition[]
       validationId: 'valid-adult-dob-accepted',
       caseName: 'valid-adult-dob',
       testName: 'valid adult DOB accepted',
-      inputValue: '01/15/1990',
+      inputValue: '1990/01/15',
       expectedBehavior: 'accept',
+    },
+    {
+      validationId: 'accepted-date-format-documented',
+      caseName: 'valid-us-format',
+      testName: 'MM/DD/YYYY format behavior observed',
+      inputValue: '01/15/1990',
+      expectedBehavior: 'observe',
     },
     {
       validationId: 'letters-rejected',
@@ -210,21 +242,21 @@ const MATRIX_BY_CONCEPT: Record<InteractiveTargetConcept, MatrixCaseDefinition[]
       validationId: 'impossible-date-rejected',
       caseName: 'impossible-date',
       testName: 'impossible date rejected',
-      inputValue: '02/31/1990',
+      inputValue: '1990/02/31',
       expectedBehavior: 'reject',
     },
     {
       validationId: 'future-date-rejected',
       caseName: 'future-date',
       testName: 'future date rejected',
-      inputValue: '01/01/2099',
+      inputValue: '2099/01/01',
       expectedBehavior: 'reject',
     },
     {
       validationId: 'under-age-dob-rejected-or-flagged',
       caseName: 'under-age-dob',
       testName: 'under-age DOB rejected or flagged',
-      inputValue: '01/01/2012',
+      inputValue: '2012/01/01',
       expectedBehavior: 'reject_or_warn',
     },
   ],
@@ -233,8 +265,15 @@ const MATRIX_BY_CONCEPT: Record<InteractiveTargetConcept, MatrixCaseDefinition[]
       validationId: 'valid-date-accepted',
       caseName: 'valid-us',
       testName: 'valid date accepted',
-      inputValue: '06/15/2020',
+      inputValue: '2020/06/15',
       expectedBehavior: 'accept',
+    },
+    {
+      validationId: 'accepted-date-format-documented',
+      caseName: 'valid-us-format',
+      testName: 'MM/DD/YYYY format behavior observed',
+      inputValue: '06/15/2020',
+      expectedBehavior: 'observe',
     },
     {
       validationId: 'letters-rejected',
@@ -247,14 +286,14 @@ const MATRIX_BY_CONCEPT: Record<InteractiveTargetConcept, MatrixCaseDefinition[]
       validationId: 'impossible-date-rejected',
       caseName: 'impossible-date',
       testName: 'impossible date rejected',
-      inputValue: '02/31/2024',
+      inputValue: '2024/02/31',
       expectedBehavior: 'reject',
     },
     {
       validationId: 'future-date-behavior',
       caseName: 'future-date',
       testName: 'future date behavior observed',
-      inputValue: '01/01/2099',
+      inputValue: '2099/01/01',
       expectedBehavior: 'observe',
     },
   ],
@@ -619,7 +658,7 @@ export async function runInteractiveCase(
     await locator.blur({ timeout: 3_000 }).catch(() => undefined);
     await waitForClientValidation(locator);
 
-    const observation = await collectObservation(locator, frame, testCase.inputValue, filled);
+    const observation = await collectObservation(field, frame, testCase.inputValue, filled);
     const status = evaluateObservation(testCase, observation);
     const evidence = summarizeObservation(testCase, observation);
 
@@ -841,15 +880,32 @@ async function waitForClientValidation(locator: Locator): Promise<void> {
 }
 
 async function collectObservation(
-  locator: Locator,
+  field: DiscoveredField,
   frame: FrameHost,
   inputValue: string,
   filled: boolean,
 ): Promise<InteractiveObservation> {
-  const dom = await locator.evaluate((element) => {
+  const dom = await field.locator.evaluate((element) => {
     const clean = (value: string | null | undefined): string | null => {
       const cleaned = (value ?? '').replace(/\s+/g, ' ').trim();
       return cleaned ? cleaned.slice(0, 500) : null;
+    };
+    const errorSelector = [
+      '[role="alert"]',
+      '[aria-live]',
+      '[class*="error" i]',
+      '[class*="invalid" i]',
+      '[class*="validation" i]',
+      '[data-qa*="error" i]',
+      '[data-testid*="error" i]',
+    ].join(',');
+    const splitText = (value: string | null | undefined): string[] => {
+      const cleaned = clean(value);
+      if (!cleaned) return [];
+      return cleaned
+        .split(/\s+\|\s+|\r?\n|•|·/)
+        .map((part) => clean(part.replace(/^[\-\u2022\s]+/, '')))
+        .filter((part): part is string => Boolean(part));
     };
     const elementValue = (): string => {
       if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement) {
@@ -862,13 +918,37 @@ async function collectObservation(
         ? element.validationMessage
         : '';
 
-    const messages: string[] = [];
-    const seen = new Set<string>();
-    const add = (value: string | null | undefined) => {
-      const cleaned = clean(value);
-      if (!cleaned || seen.has(cleaned)) return;
-      seen.add(cleaned);
-      messages.push(cleaned);
+    const errorCandidates: Array<{ source: ValidationCandidateSource; text: string }> = [];
+    const invalidIndicators: string[] = [];
+    const seenCandidates = new Set<string>();
+    const seenIndicators = new Set<string>();
+    const addCandidate = (source: ValidationCandidateSource, value: string | null | undefined) => {
+      for (const part of splitText(value)) {
+        const key = `${source}:${part}`;
+        if (seenCandidates.has(key)) continue;
+        seenCandidates.add(key);
+        errorCandidates.push({ source, text: part });
+      }
+    };
+    const addInvalidIndicators = (source: string, node: Element | null) => {
+      if (!node) return;
+      const className = clean(node.getAttribute('class'));
+      const dataState = clean(node.getAttribute('data-state'));
+      const dataInvalid = clean(node.getAttribute('data-invalid'));
+      const ariaInvalid = clean(node.getAttribute('aria-invalid'));
+      const maybeAdd = (value: string | null) => {
+        if (!value) return;
+        const entry = `${source}:${value}`;
+        if (seenIndicators.has(entry)) return;
+        seenIndicators.add(entry);
+        invalidIndicators.push(entry);
+      };
+      if (ariaInvalid === 'true') maybeAdd('aria-invalid=true');
+      if (dataInvalid && /(true|invalid|error)/i.test(dataInvalid)) maybeAdd(`data-invalid=${dataInvalid}`);
+      if (dataState && /(invalid|error)/i.test(dataState)) maybeAdd(`data-state=${dataState}`);
+      if (className && /(invalid|error|has-error|is-invalid|validation-error|field-error)/i.test(className)) {
+        maybeAdd(`class=${className}`);
+      }
     };
 
     const collectByIds = (attribute: string) => {
@@ -876,81 +956,133 @@ async function collectObservation(
       if (!ids) return;
       for (const id of ids.split(/\s+/).filter(Boolean)) {
         const node = document.getElementById(id);
-        add(node?.textContent);
+        addCandidate(attribute === 'aria-errormessage' ? 'aria-errormessage' : 'aria-describedby', node?.textContent);
+        addInvalidIndicators(attribute, node);
       }
     };
     collectByIds('aria-errormessage');
     collectByIds('aria-describedby');
 
-    const errorSelector = [
-      '[role="alert"]',
-      '[aria-live] ',
-      '[class*="error" i]',
-      '[class*="invalid" i]',
-      '[class*="validation" i]',
-      '[data-qa*="error" i]',
-      '[data-testid*="error" i]',
-    ].join(',');
-
-    const root = element.closest('label, fieldset, [role="group"], .doc-tab, div') ?? element.parentElement;
-    if (root) {
-      for (const node of Array.from(root.querySelectorAll(errorSelector)).slice(0, 8)) {
+    const fieldRoot =
+      element.closest('.doc-tab[data-type]') ??
+      element.closest('.doc-tab') ??
+      element.closest('[data-tabtype]') ??
+      element.closest('[data-tab-type]') ??
+      element.closest('label') ??
+      element.closest('fieldset') ??
+      element.closest('[role="group"]') ??
+      element.parentElement;
+    const wrappers = [element.parentElement, fieldRoot].filter(
+      (node, index, list): node is Element => Boolean(node) && list.indexOf(node) === index,
+    );
+    addInvalidIndicators('control', element);
+    for (const wrapper of wrappers) {
+      addInvalidIndicators(wrapper === fieldRoot ? 'field-root' : 'parent', wrapper);
+      if (wrapper.matches(errorSelector)) {
+        addCandidate(wrapper === fieldRoot ? 'field-wrapper-inline' : 'control-error', wrapper.textContent);
+      }
+      for (const node of Array.from(wrapper.querySelectorAll(errorSelector)).slice(0, 8)) {
         const htmlNode = node as HTMLElement;
         const style = window.getComputedStyle(htmlNode);
         if (style.visibility === 'hidden' || style.display === 'none') continue;
-        add(htmlNode.textContent);
+        addCandidate(wrapper === fieldRoot ? 'field-wrapper-error' : 'control-error', htmlNode.textContent);
       }
-    }
-
-    const rect = (element as HTMLElement).getBoundingClientRect();
-    for (const node of Array.from(document.querySelectorAll(errorSelector)).slice(0, 80)) {
-      const htmlNode = node as HTMLElement;
-      const style = window.getComputedStyle(htmlNode);
-      if (style.visibility === 'hidden' || style.display === 'none') continue;
-      const nodeRect = htmlNode.getBoundingClientRect();
-      const horizontallyNear = nodeRect.left < rect.right + 300 && nodeRect.right > rect.left - 300;
-      const verticallyNear = nodeRect.top < rect.bottom + 140 && nodeRect.bottom > rect.top - 80;
-      if (horizontallyNear && verticallyNear) add(htmlNode.textContent);
     }
 
     return {
       ariaInvalid: element.getAttribute('aria-invalid'),
       validationMessage: clean(validationMessage),
-      nearbyErrorText: messages.join(' | ').slice(0, 700) || null,
       observedValue: elementValue(),
+      errorCandidates,
+      invalidIndicators,
     };
   }, { timeout: 3_000 });
 
-  const docusignValidationText = await visibleTextSnippets(
-    frame.locator('[role="alert"], [aria-live], [class*="error" i], [class*="validation" i], [data-qa*="error" i], [data-testid*="error" i]'),
-    5,
-  );
   const observedValue = filled ? sanitizeEvidenceText(dom.observedValue ?? '') : null;
   const normalizedOrReformatted = filled && observedValue !== null && observedValue !== inputValue;
   const inputPrevented = filled && inputValue.length > 0 && (observedValue === null || observedValue.length === 0);
+  const diagnostics = extractFieldLocalValidationDiagnostics(dom.errorCandidates, {
+    ariaInvalid: dom.ariaInvalid,
+    inputValue,
+    observedValue,
+  });
 
   return {
     ariaInvalid: dom.ariaInvalid,
     validationMessage: sanitizeNullable(dom.validationMessage),
-    nearbyErrorText: sanitizeNullable(dom.nearbyErrorText),
-    docusignValidationText: docusignValidationText.map(sanitizeEvidenceText),
+    nearbyErrorText: diagnostics.fieldLocalTexts.length > 0 ? diagnostics.fieldLocalTexts.join(' | ') : null,
+    docusignValidationText: diagnostics.docusignLocalTexts,
+    invalidIndicators: dom.invalidIndicators.map(sanitizeEvidenceText),
+    ignoredDiagnostics: diagnostics.ignoredTexts,
     observedValue,
     normalizedOrReformatted,
     inputPrevented,
   };
 }
 
-async function visibleTextSnippets(locator: Locator, limit: number): Promise<string[]> {
-  const snippets: string[] = [];
-  const count = Math.min(await locator.count().catch(() => 0), 30);
-  for (let index = 0; index < count && snippets.length < limit; index++) {
-    const candidate = locator.nth(index);
-    const visible = await candidate.isVisible({ timeout: 250 }).catch(() => false);
-    if (!visible) continue;
-    const text = (await candidate.textContent({ timeout: 500 }).catch(() => null))?.replace(/\s+/g, ' ').trim();
-    if (text && !snippets.includes(text)) snippets.push(text.slice(0, 300));
+export function extractFieldLocalValidationDiagnostics(
+  candidates: RawValidationCandidate[],
+  context: { ariaInvalid: string | null; inputValue: string; observedValue: string | null },
+): FieldLocalValidationDiagnostics {
+  const fieldLocalTexts: string[] = [];
+  const docusignLocalTexts: string[] = [];
+  const ignoredTexts: string[] = [];
+  const add = (bucket: string[], value: string) => {
+    if (!bucket.includes(value)) bucket.push(value);
+  };
+
+  for (const candidate of candidates) {
+    for (const part of splitValidationCandidateText(candidate.text)) {
+      const splitCandidate: RawValidationCandidate = { ...candidate, text: part };
+      const classification = classifyValidationCandidate(splitCandidate, context);
+      if (classification === 'ignored') {
+        add(ignoredTexts, part);
+        continue;
+      }
+      add(fieldLocalTexts, part);
+      if (candidate.source === 'field-wrapper-error' || candidate.source === 'field-wrapper-inline') {
+        add(docusignLocalTexts, part);
+      }
+    }
   }
-  return snippets;
+
+  return {
+    fieldLocalTexts,
+    docusignLocalTexts,
+    ignoredTexts,
+  };
+}
+
+function classifyValidationCandidate(
+  candidate: RawValidationCandidate,
+  context: { ariaInvalid: string | null; inputValue: string; observedValue: string | null },
+): 'field-local' | 'ignored' {
+  const value = sanitizeEvidenceText(candidate.text);
+  if (!value) return 'ignored';
+
+  const lower = value.toLowerCase();
+  const observed = (context.observedValue ?? '').trim().toLowerCase();
+  const input = context.inputValue.trim().toLowerCase();
+  if (lower === observed || lower === input) return 'ignored';
+  if (GENERIC_DOCUSIGN_TEXT_RE.test(value)) return 'ignored';
+  if (AMBIGUOUS_REQUIRED_RE.test(value)) {
+    if (candidate.source === 'aria-describedby' || candidate.source === 'aria-errormessage') {
+      return context.ariaInvalid === 'true' || context.observedValue === '' ? 'field-local' : 'ignored';
+    }
+    return 'ignored';
+  }
+  if (candidate.source === 'aria-describedby' || candidate.source === 'aria-errormessage') {
+    return 'field-local';
+  }
+  if (FIELD_LOCAL_MESSAGE_RE.test(value)) return 'field-local';
+  return 'ignored';
+}
+
+function splitValidationCandidateText(value: string): string[] {
+  return sanitizeEvidenceText(value)
+    .split(/\s+\|\s+|\r?\n|•|·/)
+    .map((part) => sanitizeEvidenceText(part.replace(/^[\-\u2022\s]+/, '')))
+    .filter(Boolean);
 }
 
 function evaluateObservation(testCase: InteractiveValidationCase, observation: InteractiveObservation): InteractiveResultStatus {
@@ -976,7 +1108,8 @@ function hasValidationFeedback(observation: InteractiveObservation): boolean {
     observation.ariaInvalid === 'true' ||
     Boolean(observation.validationMessage) ||
     Boolean(observation.nearbyErrorText) ||
-    observation.docusignValidationText.length > 0
+    observation.docusignValidationText.length > 0 ||
+    observation.invalidIndicators.length > 0
   );
 }
 
@@ -994,6 +1127,12 @@ function summarizeObservation(testCase: InteractiveValidationCase, observation: 
   if (observation.nearbyErrorText) parts.push(`nearbyError="${observation.nearbyErrorText}"`);
   if (observation.docusignValidationText.length) {
     parts.push(`visibleValidation="${observation.docusignValidationText.join(' | ')}"`);
+  }
+  if (observation.invalidIndicators.length) {
+    parts.push(`invalidIndicators="${observation.invalidIndicators.join(' | ')}"`);
+  }
+  if (observation.ignoredDiagnostics.length) {
+    parts.push(`ignoredDiagnostics="${observation.ignoredDiagnostics.join(' | ')}"`);
   }
   if (observation.normalizedOrReformatted) parts.push('value normalized/reformatted');
   if (observation.inputPrevented) parts.push('input prevented or cleared');
