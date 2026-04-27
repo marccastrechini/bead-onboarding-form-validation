@@ -34,6 +34,7 @@ import {
 } from '../lib/link-extractor';
 import {
   detectValueShape,
+  resolveMappingClaims,
   selectBestMappingCandidate,
 } from '../lib/mapping-calibration';
 import {
@@ -1030,7 +1031,7 @@ test.describe('interactive validation safety', () => {
     expect(rejected.trusted).toBe(false);
   });
 
-  test('shifted enrichment candidate is rejected when neighboring candidate has better value shape', () => {
+  test('shifted page-1 candidate is retargeted when neighboring anchor has better value shape', () => {
     const result = selectBestMappingCandidate({
       concept: 'email',
       currentCandidateId: 'current',
@@ -1081,9 +1082,354 @@ test.describe('interactive validation safety', () => {
       ],
     });
 
+    expect(result.trusted).toBe(true);
+    expect(result.selectedCandidateId).toBe('neighbor');
+    expect(result.decisionReason).toBe('trusted_by_anchor_and_value_shape');
+    expect(result.shiftReason).toBe('shifted_contact_block_candidate');
+  });
+
+  test('Website URL-shaped candidate anchors the page-1 contact block', () => {
+    const result = selectBestMappingCandidate({
+      concept: 'website',
+      currentCandidateId: null,
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.businessWebsite',
+        businessSection: 'Contact',
+        pageIndex: 1,
+        ordinalOnPage: 55,
+        tabLeft: 35.2,
+        tabTop: 766.08,
+        docusignFieldFamily: 'Text',
+      },
+      candidates: [
+        {
+          id: '21',
+          resolvedLabel: 'Business Email',
+          labelSource: 'enrichment-position',
+          labelConfidence: 'medium',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 56,
+          tabLeft: 599.04,
+          tabTop: 712.32,
+          currentValue: 'Cedar Landscaping Charlotte',
+        },
+        {
+          id: '22',
+          resolvedLabel: 'Business Phone',
+          labelSource: 'enrichment-position',
+          labelConfidence: 'medium',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 57,
+          tabLeft: 35.2,
+          tabTop: 766.08,
+          currentValue: 'https://example.com',
+        },
+        {
+          id: '23',
+          resolvedLabel: 'Bank Name',
+          labelSource: 'enrichment-position',
+          labelConfidence: 'medium',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 58,
+          tabLeft: 410.88,
+          tabTop: 766.08,
+          currentValue: 'hello@example.com',
+        },
+      ],
+    });
+
+    expect(result.trusted).toBe(true);
+    expect(result.selectedCandidateId).toBe('22');
+  });
+
+  test('Email rejects URL-shaped candidate and prefers email-shaped neighbor', () => {
+    const result = selectBestMappingCandidate({
+      concept: 'email',
+      currentCandidateId: '22',
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.businessEmail',
+        businessSection: 'Contact',
+        pageIndex: 1,
+        ordinalOnPage: 56,
+        tabLeft: 410.88,
+        tabTop: 766.08,
+        docusignFieldFamily: 'Text',
+      },
+      candidates: [
+        {
+          id: '22',
+          resolvedLabel: 'Business Phone',
+          labelSource: 'enrichment-position',
+          labelConfidence: 'medium',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 57,
+          tabLeft: 35.2,
+          tabTop: 766.08,
+          currentValue: 'https://example.com',
+        },
+        {
+          id: '23',
+          resolvedLabel: 'Bank Name',
+          labelSource: 'enrichment-position',
+          labelConfidence: 'medium',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 58,
+          tabLeft: 410.88,
+          tabTop: 766.08,
+          currentValue: 'hello@example.com',
+        },
+        {
+          id: '24',
+          resolvedLabel: null,
+          labelSource: 'none',
+          labelConfidence: 'none',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 59,
+          tabLeft: 663.04,
+          tabTop: 766.08,
+          currentValue: '+15551234567',
+        },
+      ],
+    });
+
+    expect(result.trusted).toBe(true);
+    expect(result.selectedCandidateId).toBe('23');
+  });
+
+  test('Phone rejects email-shaped candidate and prefers phone-shaped neighbor', () => {
+    const result = selectBestMappingCandidate({
+      concept: 'phone',
+      currentCandidateId: '23',
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.businessPhone',
+        businessSection: 'Contact',
+        pageIndex: 1,
+        ordinalOnPage: 57,
+        tabLeft: 663.04,
+        tabTop: 766.08,
+        docusignFieldFamily: 'Text',
+      },
+      candidates: [
+        {
+          id: '23',
+          resolvedLabel: 'Bank Name',
+          labelSource: 'enrichment-position',
+          labelConfidence: 'medium',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 58,
+          tabLeft: 410.88,
+          tabTop: 766.08,
+          currentValue: 'hello@example.com',
+        },
+        {
+          id: '24',
+          resolvedLabel: null,
+          labelSource: 'none',
+          labelConfidence: 'none',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 59,
+          tabLeft: 663.04,
+          tabTop: 766.08,
+          currentValue: '+15551234567',
+        },
+        {
+          id: '29',
+          resolvedLabel: null,
+          labelSource: 'none',
+          labelConfidence: 'none',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 60,
+          tabLeft: 35.2,
+          tabTop: 874.88,
+          currentValue: 'Bank of Example',
+        },
+      ],
+    });
+
+    expect(result.trusted).toBe(true);
+    expect(result.selectedCandidateId).toBe('24');
+  });
+
+  test('Bank Name rejects phone-shaped candidate and prefers nearby text/name-like banking candidate', () => {
+    const result = selectBestMappingCandidate({
+      concept: 'bank_name',
+      currentCandidateId: '24',
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.bankName',
+        businessSection: 'Banking',
+        pageIndex: 1,
+        ordinalOnPage: 58,
+        tabLeft: 35.2,
+        tabTop: 874.88,
+        docusignFieldFamily: 'Text',
+      },
+      candidates: [
+        {
+          id: '24',
+          resolvedLabel: null,
+          labelSource: 'none',
+          labelConfidence: 'none',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 59,
+          tabLeft: 663.04,
+          tabTop: 766.08,
+          currentValue: '+15551234567',
+        },
+        {
+          id: '29',
+          resolvedLabel: null,
+          labelSource: 'none',
+          labelConfidence: 'none',
+          businessSection: 'Banking',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 60,
+          tabLeft: 35.2,
+          tabTop: 874.88,
+          currentValue: 'Bank of Example',
+        },
+        {
+          id: '30',
+          resolvedLabel: null,
+          labelSource: 'none',
+          labelConfidence: 'none',
+          businessSection: 'Banking',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 61,
+          tabLeft: 284.16,
+          tabTop: 874.88,
+          currentValue: '026009593',
+        },
+      ],
+    });
+
+    expect(result.trusted).toBe(true);
+    expect(result.selectedCandidateId).toBe('29');
+  });
+
+  test('Retargeting does not let two concepts claim the same candidate', () => {
+    const results = resolveMappingClaims([
+      {
+        concept: 'business_name',
+        currentCandidateId: null,
+        expectedAnchor: {
+          jsonKeyPath: 'merchantData.registeredName',
+          businessSection: 'Business Details',
+          pageIndex: 1,
+          ordinalOnPage: 58,
+          tabLeft: 35.2,
+          tabTop: 874.88,
+          docusignFieldFamily: 'Text',
+        },
+        candidates: [
+          {
+            id: 'shared',
+            resolvedLabel: 'Bank Name',
+            labelSource: 'enrichment-position',
+            labelConfidence: 'medium',
+            businessSection: 'Banking',
+            docusignTabType: 'Text',
+            pageIndex: 1,
+            ordinalOnPage: 60,
+            tabLeft: 35.2,
+            tabTop: 874.88,
+            currentValue: 'Bank of Example',
+          },
+        ],
+      },
+      {
+        concept: 'bank_name',
+        currentCandidateId: null,
+        expectedAnchor: {
+          jsonKeyPath: 'merchantData.bankName',
+          businessSection: 'Banking',
+          pageIndex: 1,
+          ordinalOnPage: 58,
+          tabLeft: 35.2,
+          tabTop: 874.88,
+          docusignFieldFamily: 'Text',
+        },
+        candidates: [
+          {
+            id: 'shared',
+            resolvedLabel: 'Bank Name',
+            labelSource: 'enrichment-position',
+            labelConfidence: 'medium',
+            businessSection: 'Banking',
+            docusignTabType: 'Text',
+            pageIndex: 1,
+            ordinalOnPage: 60,
+            tabLeft: 35.2,
+            tabTop: 874.88,
+            currentValue: 'Bank of Example',
+          },
+        ],
+      },
+    ]);
+
+    const businessName = results.find((result) => result.concept === 'business_name')!;
+    const bankName = results.find((result) => result.concept === 'bank_name')!;
+
+    expect(bankName.selection.trusted).toBe(true);
+    expect(bankName.selection.selectedCandidateId).toBe('shared');
+    expect(businessName.blockedCandidateIds).toContain('shared');
+    expect(businessName.selection.trusted).toBe(false);
+  });
+
+  test('Ambiguous neighbor window remains downgraded', () => {
+    const result = selectBestMappingCandidate({
+      concept: 'website',
+      currentCandidateId: null,
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.businessWebsite',
+        businessSection: 'Contact',
+        pageIndex: 1,
+        ordinalOnPage: 55,
+        tabLeft: 35.2,
+        tabTop: 766.08,
+        docusignFieldFamily: 'Text',
+      },
+      candidates: [
+        {
+          id: '22',
+          resolvedLabel: null,
+          labelSource: 'none',
+          labelConfidence: 'none',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 57,
+          tabLeft: 25.2,
+          tabTop: 766.08,
+          currentValue: 'https://alpha.example.com',
+        },
+        {
+          id: '23',
+          resolvedLabel: null,
+          labelSource: 'none',
+          labelConfidence: 'none',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 58,
+          tabLeft: 45.2,
+          tabTop: 766.08,
+          currentValue: 'https://beta.example.com',
+        },
+      ],
+    });
+
     expect(result.trusted).toBe(false);
-    expect(result.decisionReason).toBe('rejected_neighbor_better_match');
-    expect(result.shiftReason).toBe('ordinal_shift');
+    expect(result.decisionReason).toBe('rejected_ambiguous_neighbors');
   });
 
   test('INTERACTIVE_CONCEPTS filters the interactive target set', () => {

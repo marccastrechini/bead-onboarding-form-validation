@@ -18,6 +18,7 @@ export type ValueShape =
 export type MappingDecisionReason =
   | 'trusted_by_label'
   | 'trusted_by_enrichment_and_value_shape'
+  | 'trusted_by_anchor_and_value_shape'
   | 'trusted_by_date_tab_and_value_shape'
   | 'rejected_value_shape_mismatch'
   | 'rejected_section_mismatch'
@@ -34,7 +35,24 @@ export type MappingShiftReason =
   | 'tabType_mismatch'
   | 'enrichment_bundle_stale'
   | 'sample_live_template_drift'
-  | 'concept_alias_mismatch';
+  | 'concept_alias_mismatch'
+  | 'page1_anchor_drift_after_website'
+  | 'stale_enrichment_after_anchor_mismatch'
+  | 'shifted_contact_block_candidate'
+  | 'no_unclaimed_neighbor_with_expected_shape';
+
+export interface MappingClaimRequest {
+  concept: FieldConceptKey;
+  currentCandidateId: string | null;
+  candidates: MappingCandidate[];
+  expectedAnchor?: ExpectedMappingAnchor | null;
+}
+
+export interface MappingClaimResolution {
+  concept: FieldConceptKey;
+  blockedCandidateIds: string[];
+  selection: MappingSelectionResult;
+}
 
 export interface MappingCandidate {
   id: string;
@@ -140,6 +158,10 @@ const REJECTED_SHAPES: Partial<Record<FieldConceptKey, ValueShape[]>> = {
   bank_name: ['email', 'phone', 'url', 'date'],
   date_of_birth: ['email', 'phone', 'url', 'text_name_like'],
 };
+
+export function expectedValueShapesForConcept(concept: FieldConceptKey): ValueShape[] {
+  return [...(EXPECTED_SHAPES[concept] ?? [])];
+}
 
 export function detectValueShape(value: string | null | undefined): ValueShape {
   const raw = (value ?? '').trim();
@@ -268,12 +290,16 @@ export function selectBestMappingCandidate(input: {
   currentCandidateId: string | null;
   candidates: MappingCandidate[];
   expectedAnchor?: ExpectedMappingAnchor | null;
+  blockedCandidateIds?: string[];
 }): MappingSelectionResult {
+  const blockedCandidateIds = new Set(input.blockedCandidateIds ?? []);
   const assessments = input.candidates
     .map((candidate) => assessMappingCandidate(input.concept, candidate, input.expectedAnchor ?? null))
     .sort((a, b) => b.trustScore - a.trustScore || a.candidateId.localeCompare(b.candidateId));
 
-  const best = assessments[0] ?? null;
+  const availableAssessments = assessments.filter((assessment) => !blockedCandidateIds.has(assessment.candidateId));
+
+  const best = availableAssessments[0] ?? null;
   const current = input.currentCandidateId
     ? assessments.find((assessment) => assessment.candidateId === input.currentCandidateId) ?? null
     : null;
@@ -297,7 +323,7 @@ export function selectBestMappingCandidate(input: {
         selectedCandidateId: best.candidateId,
         trusted: true,
         decisionReason: 'trusted_by_date_tab_and_value_shape',
-        shiftReason: current && current.candidateId !== best.candidateId ? inferShiftReason(current, best, input.expectedAnchor ?? null) : 'none',
+        shiftReason: current && current.candidateId !== best.candidateId ? inferShiftReason(input.concept, current, best, input.expectedAnchor ?? null) : 'none',
         valueShape: best.valueShape,
         assessments,
         explanation: 'Date of Birth is date-shaped, date-typed, and sits in stakeholder context.',
@@ -310,10 +336,46 @@ export function selectBestMappingCandidate(input: {
       selectedCandidateId: best.candidateId,
       trusted: true,
       decisionReason: 'trusted_by_label',
-      shiftReason: current && current.candidateId !== best.candidateId ? inferShiftReason(current, best, input.expectedAnchor ?? null) : 'none',
+      shiftReason: current && current.candidateId !== best.candidateId ? inferShiftReason(input.concept, current, best, input.expectedAnchor ?? null) : 'none',
       valueShape: best.valueShape,
       assessments,
       explanation: 'A strong field-local label agrees with the concept without a conflicting value shape.',
+    };
+  }
+
+  const anchorShapeMatches = availableAssessments.filter((assessment) =>
+    assessment.valueShapeMatches &&
+    !assessment.valueShapeMismatch &&
+    isNearAnchorCandidate(assessment, input.expectedAnchor ?? null),
+  );
+  const exactAnchorShapeMatches = anchorShapeMatches.filter((assessment) =>
+    isExactAnchorCandidate(assessment, input.expectedAnchor ?? null),
+  );
+
+  if (
+    anchorShapeMatches.length > 1 &&
+    exactAnchorShapeMatches.length === 0
+  ) {
+    return {
+      selectedCandidateId: anchorShapeMatches[0]!.candidateId,
+      trusted: false,
+      decisionReason: 'rejected_ambiguous_neighbors',
+      shiftReason: inferShiftReason(input.concept, current ?? anchorShapeMatches[0]!, anchorShapeMatches[0]!, input.expectedAnchor ?? null),
+      valueShape: anchorShapeMatches[0]!.valueShape,
+      assessments,
+      explanation: 'Multiple nearby candidates match the expected value shape without a single exact anchor hit.',
+    };
+  }
+
+  if (exactAnchorShapeMatches.length === 1 && exactAnchorShapeMatches[0]!.candidateId === best.candidateId) {
+    return {
+      selectedCandidateId: best.candidateId,
+      trusted: true,
+      decisionReason: 'trusted_by_anchor_and_value_shape',
+      shiftReason: current && current.candidateId !== best.candidateId ? inferShiftReason(input.concept, current, best, input.expectedAnchor ?? null) : 'none',
+      valueShape: best.valueShape,
+      assessments,
+      explanation: 'The candidate sits on the sample anchor and its live value shape matches the expected concept.',
     };
   }
 
@@ -322,20 +384,20 @@ export function selectBestMappingCandidate(input: {
       selectedCandidateId: best.candidateId,
       trusted: true,
       decisionReason: 'trusted_by_enrichment_and_value_shape',
-      shiftReason: current && current.candidateId !== best.candidateId ? inferShiftReason(current, best, input.expectedAnchor ?? null) : 'none',
+      shiftReason: current && current.candidateId !== best.candidateId ? inferShiftReason(input.concept, current, best, input.expectedAnchor ?? null) : 'none',
       valueShape: best.valueShape,
       assessments,
       explanation: 'Enrichment, section, and live value shape agree strongly enough to trust this mapping.',
     };
   }
 
-  const second = assessments[1] ?? null;
+  const second = availableAssessments[1] ?? null;
   if (current && best.candidateId !== current.candidateId && best.trustScore >= current.trustScore + 3) {
     return {
       selectedCandidateId: current.candidateId,
       trusted: false,
       decisionReason: 'rejected_neighbor_better_match',
-      shiftReason: inferShiftReason(current, best, input.expectedAnchor ?? null),
+      shiftReason: inferShiftReason(input.concept, current, best, input.expectedAnchor ?? null),
       valueShape: current.valueShape,
       assessments,
       explanation: `${best.candidateId} is a better nearby match than the current mapped field for ${FIELD_CONCEPT_REGISTRY[input.concept].displayName}.`,
@@ -347,7 +409,7 @@ export function selectBestMappingCandidate(input: {
       selectedCandidateId: best.candidateId,
       trusted: false,
       decisionReason: 'rejected_value_shape_mismatch',
-      shiftReason: inferShiftReason(current ?? best, best, input.expectedAnchor ?? null),
+      shiftReason: inferShiftReason(input.concept, current ?? best, best, input.expectedAnchor ?? null),
       valueShape: best.valueShape,
       assessments,
       explanation: `The best candidate still has a ${best.valueShape} value shape that conflicts with ${FIELD_CONCEPT_REGISTRY[input.concept].displayName}.`,
@@ -359,7 +421,7 @@ export function selectBestMappingCandidate(input: {
       selectedCandidateId: best.candidateId,
       trusted: false,
       decisionReason: 'rejected_section_mismatch',
-      shiftReason: inferShiftReason(current ?? best, best, input.expectedAnchor ?? null),
+      shiftReason: inferShiftReason(input.concept, current ?? best, best, input.expectedAnchor ?? null),
       valueShape: best.valueShape,
       assessments,
       explanation: `The best candidate sits in the wrong business section for ${FIELD_CONCEPT_REGISTRY[input.concept].displayName}.`,
@@ -371,7 +433,7 @@ export function selectBestMappingCandidate(input: {
       selectedCandidateId: best.candidateId,
       trusted: false,
       decisionReason: 'rejected_ambiguous_neighbors',
-      shiftReason: inferShiftReason(current ?? best, best, input.expectedAnchor ?? null),
+      shiftReason: inferShiftReason(input.concept, current ?? best, best, input.expectedAnchor ?? null),
       valueShape: best.valueShape,
       assessments,
       explanation: 'Multiple nearby candidates remain too close to trust a mutating mapping decision.',
@@ -385,7 +447,7 @@ export function selectBestMappingCandidate(input: {
         selectedCandidateId: best.candidateId,
         trusted: false,
         decisionReason: 'rejected_stale_enrichment',
-        shiftReason: inferShiftReason(current ?? best, best, input.expectedAnchor ?? null),
+        shiftReason: inferShiftReason(input.concept, current ?? best, best, input.expectedAnchor ?? null),
         valueShape: best.valueShape,
         assessments,
         explanation: 'The enrichment anchor appears stale relative to the live neighbor window.',
@@ -397,18 +459,94 @@ export function selectBestMappingCandidate(input: {
     selectedCandidateId: best.candidateId,
     trusted: false,
     decisionReason: 'rejected_insufficient_label_proof',
-    shiftReason: inferShiftReason(current ?? best, best, input.expectedAnchor ?? null),
+    shiftReason: inferShiftReason(input.concept, current ?? best, best, input.expectedAnchor ?? null),
     valueShape: best.valueShape,
     assessments,
     explanation: 'The candidate does not yet have enough converging proof to trust mutation.',
   };
 }
 
+export function resolveMappingClaims(requests: MappingClaimRequest[]): MappingClaimResolution[] {
+  const blockedByConcept = new Map<FieldConceptKey, Set<string>>();
+  const selections = new Map<FieldConceptKey, MappingSelectionResult>();
+
+  const getBlocked = (concept: FieldConceptKey): Set<string> => {
+    const existing = blockedByConcept.get(concept);
+    if (existing) return existing;
+    const created = new Set<string>();
+    blockedByConcept.set(concept, created);
+    return created;
+  };
+
+  for (let pass = 0; pass < 4; pass++) {
+    for (const request of requests) {
+      selections.set(
+        request.concept,
+        selectBestMappingCandidate({
+          ...request,
+          blockedCandidateIds: Array.from(getBlocked(request.concept)),
+        }),
+      );
+    }
+
+    const claims = new Map<string, MappingClaimRequest[]>();
+    for (const request of requests) {
+      const selection = selections.get(request.concept)!;
+      if (!selection.trusted || !selection.selectedCandidateId) continue;
+      const arr = claims.get(selection.selectedCandidateId) ?? [];
+      arr.push(request);
+      claims.set(selection.selectedCandidateId, arr);
+    }
+
+    let changed = false;
+    for (const [candidateId, conflictingRequests] of claims) {
+      if (conflictingRequests.length <= 1) continue;
+
+      const ranked = conflictingRequests
+        .map((request) => ({
+          request,
+          selection: selections.get(request.concept)!,
+          priority: claimPriority(selections.get(request.concept)!),
+        }))
+        .sort((a, b) => b.priority - a.priority || a.request.concept.localeCompare(b.request.concept));
+
+      const winner = ranked[0]!;
+      const ambiguousTop = ranked[1] && ranked[1]!.priority === winner.priority;
+      for (const entry of ranked) {
+        if (!ambiguousTop && entry.request.concept === winner.request.concept) continue;
+        const blocked = getBlocked(entry.request.concept);
+        if (!blocked.has(candidateId)) {
+          blocked.add(candidateId);
+          changed = true;
+        }
+      }
+    }
+
+    if (!changed) break;
+  }
+
+  return requests.map((request) => ({
+    concept: request.concept,
+    blockedCandidateIds: Array.from(getBlocked(request.concept)),
+    selection: selections.get(request.concept)!,
+  }));
+}
+
 function inferShiftReason(
+  concept: FieldConceptKey,
   current: Pick<CandidateAssessment, 'candidateId'> & Partial<MappingCandidate>,
   best: Pick<CandidateAssessment, 'candidateId'> & Partial<MappingCandidate>,
   expectedAnchor: ExpectedMappingAnchor | null,
 ): MappingShiftReason {
+  if (
+    expectedAnchor?.pageIndex === 1 &&
+    current.candidateId !== best.candidateId &&
+    isPage1AnchorAligned(best, expectedAnchor)
+  ) {
+    if (concept === 'website') return 'page1_anchor_drift_after_website';
+    if (concept === 'bank_name') return 'stale_enrichment_after_anchor_mismatch';
+    if (concept === 'email' || concept === 'phone') return 'shifted_contact_block_candidate';
+  }
   if (expectedAnchor?.pageIndex !== null && expectedAnchor?.pageIndex !== undefined) {
     if (best.pageIndex !== undefined && best.pageIndex !== null && best.pageIndex !== expectedAnchor.pageIndex) {
       return 'page_mismatch';
@@ -441,8 +579,87 @@ function inferShiftReason(
     if (deltaX > 100 || deltaY > 100) return 'sample_live_template_drift';
     if (deltaX > 20 || deltaY > 20) return 'coordinate_scale_mismatch';
   }
+  if (current.candidateId !== best.candidateId && expectedAnchor?.pageIndex === 1) {
+    return 'no_unclaimed_neighbor_with_expected_shape';
+  }
   if (current.candidateId !== best.candidateId) return 'enrichment_bundle_stale';
   return 'none';
+}
+
+function isNearAnchorCandidate(
+  assessment: Pick<CandidateAssessment, 'pageIndex' | 'ordinalOnPage' | 'tabLeft' | 'tabTop'>,
+  expectedAnchor: ExpectedMappingAnchor | null,
+): boolean {
+  if (!expectedAnchor) return false;
+  if (expectedAnchor.pageIndex !== null && expectedAnchor.pageIndex !== undefined) {
+    if (assessment.pageIndex === null || assessment.pageIndex !== expectedAnchor.pageIndex) return false;
+  }
+
+  const coordinateDistance = anchorCoordinateDistance(assessment, expectedAnchor);
+  if (coordinateDistance !== null && coordinateDistance <= 20) return true;
+
+  if (
+    expectedAnchor.ordinalOnPage !== null &&
+    expectedAnchor.ordinalOnPage !== undefined &&
+    assessment.ordinalOnPage !== null &&
+    assessment.ordinalOnPage !== undefined
+  ) {
+    return Math.abs(assessment.ordinalOnPage - expectedAnchor.ordinalOnPage) <= 2;
+  }
+
+  return false;
+}
+
+function isExactAnchorCandidate(
+  assessment: Pick<CandidateAssessment, 'pageIndex' | 'tabLeft' | 'tabTop'>,
+  expectedAnchor: ExpectedMappingAnchor | null,
+): boolean {
+  const coordinateDistance = anchorCoordinateDistance(assessment, expectedAnchor);
+  return coordinateDistance !== null && coordinateDistance <= 5;
+}
+
+function anchorCoordinateDistance(
+  assessment: Pick<CandidateAssessment, 'tabLeft' | 'tabTop'>,
+  expectedAnchor: ExpectedMappingAnchor | null,
+): number | null {
+  if (!expectedAnchor) return null;
+  if (
+    expectedAnchor.tabLeft === null ||
+    expectedAnchor.tabLeft === undefined ||
+    expectedAnchor.tabTop === null ||
+    expectedAnchor.tabTop === undefined ||
+    assessment.tabLeft === null ||
+    assessment.tabLeft === undefined ||
+    assessment.tabTop === null ||
+    assessment.tabTop === undefined
+  ) {
+    return null;
+  }
+  return Math.max(
+    Math.abs(assessment.tabLeft - expectedAnchor.tabLeft),
+    Math.abs(assessment.tabTop - expectedAnchor.tabTop),
+  );
+}
+
+function isPage1AnchorAligned(
+  assessment: Pick<CandidateAssessment, 'pageIndex' | 'tabLeft' | 'tabTop'>,
+  expectedAnchor: ExpectedMappingAnchor | null,
+): boolean {
+  return expectedAnchor?.pageIndex === 1 && isExactAnchorCandidate(assessment, expectedAnchor);
+}
+
+function claimPriority(selection: MappingSelectionResult): number {
+  if (!selection.selectedCandidateId) return Number.NEGATIVE_INFINITY;
+  const assessment = selection.assessments.find((entry) => entry.candidateId === selection.selectedCandidateId);
+  if (!assessment) return Number.NEGATIVE_INFINITY;
+  let priority = assessment.trustScore;
+  if (assessment.strongLabel && assessment.labelMatches) priority += 20;
+  if (assessment.enrichmentMatches) priority += 15;
+  if (assessment.valueShapeMatches) priority += 10;
+  if (selection.decisionReason === 'trusted_by_label') priority += 8;
+  if (selection.decisionReason === 'trusted_by_enrichment_and_value_shape') priority += 6;
+  if (selection.decisionReason === 'trusted_by_anchor_and_value_shape') priority += 4;
+  return priority;
 }
 
 function sectionNameMatchesBusinessSection(sectionName: string | null, businessSection: string): boolean {

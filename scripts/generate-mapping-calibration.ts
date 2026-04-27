@@ -9,11 +9,11 @@ import type { FieldRecord, ValidationReport } from '../fixtures/validation-repor
 import type { EnrichmentBundle, EnrichmentRecord } from '../lib/enrichment-loader';
 import {
   detectValueShape,
-  selectBestMappingCandidate,
+  expectedValueShapesForConcept,
+  resolveMappingClaims,
   type MappingDecisionReason,
   type MappingShiftReason,
   type ValueShape,
-  valueShapeConflictsWithConcept,
 } from '../lib/mapping-calibration';
 
 interface SampleAlignmentArtifact {
@@ -38,13 +38,32 @@ type CalibrationDecision =
   | 'downgrade_current_mapping_to_unresolved'
   | 'leave_unresolved';
 
+type CalibrationReason =
+  | 'page1_anchor_drift_after_website'
+  | 'stale_enrichment_after_anchor_mismatch'
+  | 'shifted_contact_block_candidate'
+  | 'no_unclaimed_neighbor_with_expected_shape'
+  | 'none';
+
 interface CalibrationCandidateSummary {
   fieldIndex: number;
   label: string;
+  businessSection: string | null;
   tabType: string | null;
   pageIndex: number | null;
   ordinalOnPage: number | null;
   coordinates: string;
+  valueShape: ValueShape;
+}
+
+interface NeighborWindowEntry {
+  fieldIndex: number;
+  label: string;
+  businessSection: string | null;
+  pageIndex: number | null;
+  ordinalOnPage: number | null;
+  coordinates: string;
+  tabType: string | null;
   valueShape: ValueShape;
 }
 
@@ -53,14 +72,25 @@ interface MappingCalibrationRow {
   conceptDisplayName: string;
   jsonKeyPath: string;
   currentMappedField: string;
+  currentCandidateFieldIndex: number | null;
+  currentCandidateOrdinal: number | null;
+  currentCandidateCoordinates: string | null;
   currentMappedValueShape: ValueShape;
+  expectedValueShapes: ValueShape[];
   sampleExpectedAnchor: string;
+  sampleAnchorSource: string;
   nearbyCandidateShapes: string;
+  nearestShapeMatch: string | null;
+  nearestLabelSectionMatch: string | null;
   likelyBetterCandidate: string | null;
+  selectedCandidate: string | null;
   decision: CalibrationDecision;
+  calibrationReason: CalibrationReason;
   mappingDecisionReason: MappingDecisionReason;
   suspectedShiftReason: MappingShiftReason;
+  blockedCandidateIds: string[];
   explanation: string;
+  neighborWindow: NeighborWindowEntry[];
 }
 
 interface MappingCalibrationFile {
@@ -81,6 +111,27 @@ interface MappingCalibrationFile {
   };
   findings: string[];
   rows: MappingCalibrationRow[];
+}
+
+interface ConceptCalibrationContext {
+  concept: FieldConceptKey;
+  diagnosticsRow: InteractiveTargetDiagnosticsFile['rows'][number] | null;
+  enrichmentRecord: EnrichmentRecord;
+  alignmentRow: SampleAlignmentArtifact['rows'][number] | null;
+  anchor: {
+    jsonKeyPath: string;
+    displayName: string;
+    businessSection: string | null;
+    pageIndex: number | null;
+    ordinalOnPage: number | null;
+    tabLeft: number | null;
+    tabTop: number | null;
+    docusignFieldFamily: string | null;
+  };
+  currentField: FieldRecord | null;
+  currentSignature: string;
+  currentValueShape: ValueShape;
+  nearbyFields: FieldRecord[];
 }
 
 const artifactsDir = path.resolve(__dirname, '..', 'artifacts');
@@ -128,15 +179,18 @@ function buildMappingCalibration(input: {
   enrichmentPath: string;
   alignmentPath: string;
 }): MappingCalibrationFile {
-  const byConcept = new Map<FieldConceptKey, InteractiveTargetDiagnosticsFile['rows'][number]>();
-  for (const row of input.targetDiagnostics.rows) {
-    if (!byConcept.has(row.concept)) byConcept.set(row.concept, row);
-  }
+  const contexts = buildConceptContexts(input);
+  const resolutions = resolveMappingClaims(contexts.map((context) => ({
+    concept: context.concept,
+    currentCandidateId: context.currentField ? String(context.currentField.index) : null,
+    candidates: context.nearbyFields.map(toMappingCandidate),
+    expectedAnchor: context.anchor,
+  })));
+  const resolutionByConcept = new Map(resolutions.map((resolution) => [resolution.concept, resolution]));
 
-  const rows = Array.from(byConcept.keys())
-    .sort((a, b) => a.localeCompare(b))
-    .map((concept) => buildConceptRow(concept, byConcept.get(concept)!, input))
-    .filter((row): row is MappingCalibrationRow => row !== null);
+  const rows = contexts
+    .map((context) => buildConceptRow(context, resolutionByConcept.get(context.concept)!))
+    .sort((a, b) => conceptOrder(a.concept) - conceptOrder(b.concept));
 
   const trustCurrent = rows.filter((row) => row.decision === 'trust_current_mapping').length;
   const trustBetter = rows.filter((row) => row.decision === 'trust_likely_better_candidate').length;
@@ -159,227 +213,304 @@ function buildMappingCalibration(input: {
       downgradeToUnresolved,
       unresolved,
     },
-    findings: buildFindings(rows, input.report),
+    findings: buildFindings(rows),
     rows,
   };
 }
 
+function buildConceptContexts(input: {
+  report: ValidationReport;
+  targetDiagnostics: InteractiveTargetDiagnosticsFile;
+  enrichment: EnrichmentBundle;
+  alignment: SampleAlignmentArtifact;
+}): ConceptCalibrationContext[] {
+  const diagnosticsByConcept = new Map<FieldConceptKey, InteractiveTargetDiagnosticsFile['rows'][number]>();
+  for (const row of input.targetDiagnostics.rows) {
+    if (!diagnosticsByConcept.has(row.concept)) diagnosticsByConcept.set(row.concept, row);
+  }
+
+  const requestedConcepts = new Set<FieldConceptKey>(['website', 'email', 'phone', 'bank_name', 'date_of_birth']);
+  for (const concept of diagnosticsByConcept.keys()) requestedConcepts.add(concept);
+
+  return Array.from(requestedConcepts)
+    .sort((a, b) => conceptOrder(a) - conceptOrder(b))
+    .flatMap((concept) => {
+      const conceptDef = FIELD_CONCEPT_REGISTRY[concept];
+      const enrichmentRecord = input.enrichment.records.find((record) =>
+        conceptDef.jsonKeyPatterns.some((pattern) => pattern.test(record.jsonKeyPath)),
+      );
+      if (!enrichmentRecord) return [];
+
+      const alignmentRow = input.alignment.rows.find((row) => row.jsonKeyPath === enrichmentRecord.jsonKeyPath) ?? null;
+      const fingerprint = parseFingerprint(enrichmentRecord.positionalFingerprint);
+      const anchor = {
+        jsonKeyPath: enrichmentRecord.jsonKeyPath,
+        displayName: enrichmentRecord.suggestedDisplayName,
+        businessSection: alignmentRow?.businessSection ?? enrichmentRecord.suggestedBusinessSection,
+        pageIndex: alignmentRow?.tabPageIndex ?? fingerprint?.pageIndex ?? null,
+        ordinalOnPage: alignmentRow?.tabOrdinalOnPage ?? fingerprint?.ordinalOnPage ?? null,
+        tabLeft: alignmentRow?.tabLeft ?? enrichmentRecord.tabLeft ?? null,
+        tabTop: alignmentRow?.tabTop ?? enrichmentRecord.tabTop ?? null,
+        docusignFieldFamily: alignmentRow?.candidateDocuSignFieldFamily ?? enrichmentRecord.docusignFieldFamily,
+      };
+
+      const nearbyFields = input.report.fields
+        .filter((field) => field.controlCategory === 'merchant_input')
+        .filter((field) => field.pageIndex === anchor.pageIndex || anchor.pageIndex === null)
+        .filter((field) => {
+          if (anchor.ordinalOnPage === null) return true;
+          if (field.ordinalOnPage === null) return false;
+          return Math.abs(field.ordinalOnPage - anchor.ordinalOnPage) <= 5;
+        })
+        .sort((a, b) => (a.pageIndex ?? 0) - (b.pageIndex ?? 0) || (a.ordinalOnPage ?? 0) - (b.ordinalOnPage ?? 0));
+
+      const diagnosticsRow = diagnosticsByConcept.get(concept) ?? null;
+      const currentField = findCurrentField({
+        diagnosticsRow,
+        enrichmentRecord,
+        nearbyFields,
+      });
+      const currentValueShape = diagnosticsRow?.valueBefore
+        ? detectValueShape(diagnosticsRow.valueBefore)
+        : currentField
+          ? detectValueShape(extractFieldCurrentValueHint(currentField))
+          : 'unknown';
+
+      return [{
+        concept,
+        diagnosticsRow,
+        enrichmentRecord,
+        alignmentRow,
+        anchor,
+        currentField,
+        currentSignature: diagnosticsRow?.actualFieldSignature ?? (currentField ? formatCandidateSummary(summarizeField(currentField)) : 'n/a'),
+        currentValueShape,
+        nearbyFields,
+      }];
+    });
+}
+
 function buildConceptRow(
-  concept: FieldConceptKey,
-  diagnosticsRow: InteractiveTargetDiagnosticsFile['rows'][number],
-  input: {
-    report: ValidationReport;
-    targetDiagnostics: InteractiveTargetDiagnosticsFile;
-    enrichment: EnrichmentBundle;
-    alignment: SampleAlignmentArtifact;
-  },
-): MappingCalibrationRow | null {
-  const conceptDef = FIELD_CONCEPT_REGISTRY[concept];
-  const enrichmentRecord = input.enrichment.records.find((record) => conceptDef.jsonKeyPatterns.some((pattern) => pattern.test(record.jsonKeyPath)));
-  if (!enrichmentRecord) return null;
+  context: ConceptCalibrationContext,
+  resolution: ReturnType<typeof resolveMappingClaims>[number],
+): MappingCalibrationRow {
+  const selection = resolution.selection;
+  const selectedField = selection.selectedCandidateId
+    ? context.nearbyFields.find((field) => String(field.index) === selection.selectedCandidateId) ?? null
+    : null;
+  const nearestShapeMatch = pickNearestField(context, selection, (assessment) =>
+    assessment.valueShapeMatches && !assessment.valueShapeMismatch,
+  );
+  const nearestLabelSectionMatch = pickNearestField(context, selection, (assessment) =>
+    assessment.labelMatches || assessment.sectionMatches || assessment.enrichmentMatches,
+  );
 
-  const alignmentRow = input.alignment.rows.find((row) => row.jsonKeyPath === enrichmentRecord.jsonKeyPath) ?? null;
-  const currentSummaryField = input.report.fields.find((field) => field.enrichment?.jsonKeyPath === enrichmentRecord.jsonKeyPath) ?? null;
-  const anchor = {
-    jsonKeyPath: enrichmentRecord.jsonKeyPath,
-    displayName: enrichmentRecord.suggestedDisplayName,
-    businessSection: alignmentRow?.businessSection ?? enrichmentRecord.suggestedBusinessSection,
-    pageIndex: alignmentRow?.tabPageIndex ?? parseFingerprint(enrichmentRecord.positionalFingerprint)?.pageIndex ?? null,
-    ordinalOnPage: alignmentRow?.tabOrdinalOnPage ?? parseFingerprint(enrichmentRecord.positionalFingerprint)?.ordinalOnPage ?? null,
-    tabLeft: alignmentRow?.tabLeft ?? enrichmentRecord.tabLeft ?? null,
-    tabTop: alignmentRow?.tabTop ?? enrichmentRecord.tabTop ?? null,
-    docusignFieldFamily: alignmentRow?.candidateDocuSignFieldFamily ?? enrichmentRecord.docusignFieldFamily,
-  };
-
-  const nearbyFields = input.report.fields
-    .filter((field) => field.controlCategory === 'merchant_input')
-    .filter((field) => field.pageIndex === anchor.pageIndex || anchor.pageIndex === null)
-    .filter((field) => {
-      if (anchor.ordinalOnPage === null) return true;
-      if (field.ordinalOnPage === null) return false;
-      return Math.abs(field.ordinalOnPage - anchor.ordinalOnPage) <= 3;
-    })
-    .sort((a, b) => (a.pageIndex ?? 0) - (b.pageIndex ?? 0) || (a.ordinalOnPage ?? 0) - (b.ordinalOnPage ?? 0));
-
-  const selection = selectBestMappingCandidate({
-    concept,
-    currentCandidateId: currentSummaryField ? String(currentSummaryField.index) : null,
-    candidates: nearbyFields.map((field) => ({
-      id: String(field.index),
-      resolvedLabel: field.resolvedLabel,
-      labelSource: field.labelSource,
-      labelConfidence: field.labelConfidence,
-      businessSection: field.enrichment?.suggestedBusinessSection ?? null,
-      sectionName: field.section,
-      inferredType: field.inferredType,
-      docusignTabType: field.docusignTabType,
-      pageIndex: field.pageIndex,
-      ordinalOnPage: field.ordinalOnPage,
-      tabLeft: field.tabLeft,
-      tabTop: field.tabTop,
-      observedValueLikeTextNearControl: field.observedValueLikeTextNearControl,
-      enrichment: field.enrichment ? {
-        jsonKeyPath: field.enrichment.jsonKeyPath,
-        matchedBy: field.enrichment.matchedBy,
-        confidence: field.enrichment.confidence,
-        suggestedDisplayName: field.enrichment.suggestedDisplayName,
-        suggestedBusinessSection: field.enrichment.suggestedBusinessSection,
-        positionalFingerprint: field.enrichment.positionalFingerprint,
-      } : null,
-    })),
-    expectedAnchor: anchor,
-  });
-
-  const diagnosticsShape = detectValueShape(diagnosticsRow.valueBefore);
-  const currentShape = diagnosticsShape !== 'unknown'
-    ? diagnosticsShape
-    : detectValueShape(currentSummaryField?.observedValueLikeTextNearControl ?? null);
-  const exactCoordinateCandidate = nearbyFields.find((field) =>
-    currentSummaryField?.index !== field.index &&
-    field.tabLeft !== null &&
-    field.tabTop !== null &&
-    anchor.tabLeft !== null &&
-    anchor.tabTop !== null &&
-    Math.max(Math.abs(field.tabLeft - anchor.tabLeft), Math.abs(field.tabTop - anchor.tabTop)) <= 3,
-  ) ?? null;
-
-  const likelyBetterCandidate = pickLikelyBetterCandidate(selection, currentSummaryField, nearbyFields, exactCoordinateCandidate);
-  const decision = decideCalibrationOutcome(selection, currentShape, currentSummaryField, likelyBetterCandidate);
-  const explanation = explainDecision({
-    concept,
-    diagnosticsRow,
-    currentShape,
-    currentSummaryField,
-    likelyBetterCandidate,
-    selection,
-    exactCoordinateCandidate,
-    alignmentRow,
-    enrichmentRecord,
-  });
+  const decision = decideCalibrationOutcome(selection, context.currentField, selectedField);
+  const calibrationReason = deriveCalibrationReason(context, selection, selectedField, nearestShapeMatch);
 
   return {
-    concept,
-    conceptDisplayName: conceptDef.displayName,
-    jsonKeyPath: enrichmentRecord.jsonKeyPath,
-    currentMappedField: diagnosticsRow.actualFieldSignature,
-    currentMappedValueShape: currentShape,
-    sampleExpectedAnchor: formatAnchor(enrichmentRecord, alignmentRow),
-    nearbyCandidateShapes: nearbyFields.map((field) => formatCandidateSummary(summarizeField(field))).join(' ; '),
-    likelyBetterCandidate: likelyBetterCandidate ? formatCandidateSummary(summarizeField(likelyBetterCandidate)) : null,
+    concept: context.concept,
+    conceptDisplayName: FIELD_CONCEPT_REGISTRY[context.concept].displayName,
+    jsonKeyPath: context.enrichmentRecord.jsonKeyPath,
+    currentMappedField: context.currentSignature,
+    currentCandidateFieldIndex: context.currentField?.index ?? null,
+    currentCandidateOrdinal: context.currentField?.ordinalOnPage ?? null,
+    currentCandidateCoordinates: context.currentField ? formatCoordinates(context.currentField.tabLeft, context.currentField.tabTop) : null,
+    currentMappedValueShape: context.currentValueShape,
+    expectedValueShapes: expectedValueShapesForConcept(context.concept),
+    sampleExpectedAnchor: formatAnchor(context.enrichmentRecord, context.alignmentRow),
+    sampleAnchorSource: formatAnchorSource(context.enrichmentRecord, context.alignmentRow),
+    nearbyCandidateShapes: context.nearbyFields.map((field) => formatCandidateSummary(summarizeField(field))).join(' ; '),
+    nearestShapeMatch: nearestShapeMatch ? formatCandidateSummary(summarizeField(nearestShapeMatch)) : null,
+    nearestLabelSectionMatch: nearestLabelSectionMatch ? formatCandidateSummary(summarizeField(nearestLabelSectionMatch)) : null,
+    likelyBetterCandidate: selectedField && (!context.currentField || selectedField.index !== context.currentField.index)
+      ? formatCandidateSummary(summarizeField(selectedField))
+      : null,
+    selectedCandidate: selectedField ? formatCandidateSummary(summarizeField(selectedField)) : null,
     decision,
+    calibrationReason,
     mappingDecisionReason: selection.decisionReason,
     suspectedShiftReason: selection.shiftReason,
-    explanation,
+    blockedCandidateIds: resolution.blockedCandidateIds,
+    explanation: explainDecision(context, selection, selectedField, nearestShapeMatch, calibrationReason),
+    neighborWindow: context.nearbyFields.map((field) => ({
+      fieldIndex: field.index,
+      label: field.resolvedLabel ?? '(unresolved)',
+      businessSection: field.enrichment?.suggestedBusinessSection ?? null,
+      pageIndex: field.pageIndex,
+      ordinalOnPage: field.ordinalOnPage,
+      coordinates: formatCoordinates(field.tabLeft, field.tabTop),
+      tabType: field.docusignTabType,
+      valueShape: detectValueShape(extractFieldCurrentValueHint(field)),
+    })),
   };
 }
 
 function decideCalibrationOutcome(
-  selection: ReturnType<typeof selectBestMappingCandidate>,
-  currentShape: ValueShape,
-  currentSummaryField: FieldRecord | null,
-  likelyBetterCandidate: FieldRecord | null,
+  selection: ReturnType<typeof resolveMappingClaims>[number]['selection'],
+  currentField: FieldRecord | null,
+  selectedField: FieldRecord | null,
 ): CalibrationDecision {
-  if (selection.trusted && selection.selectedCandidateId === (currentSummaryField ? String(currentSummaryField.index) : null)) {
+  if (selection.trusted && currentField && selectedField && currentField.index === selectedField.index) {
     return 'trust_current_mapping';
   }
-  if (selection.trusted && selection.selectedCandidateId && selection.selectedCandidateId !== (currentSummaryField ? String(currentSummaryField.index) : null)) {
+  if (selection.trusted && selectedField) {
     return 'trust_likely_better_candidate';
   }
-  if (
-    likelyBetterCandidate &&
-    currentShape !== 'empty' &&
-    currentShape !== 'unknown' &&
-    selection.decisionReason !== 'trusted_by_date_tab_and_value_shape'
-  ) {
+  if (currentField) {
     return 'downgrade_current_mapping_to_unresolved';
   }
   return 'leave_unresolved';
 }
 
-function pickLikelyBetterCandidate(
-  selection: ReturnType<typeof selectBestMappingCandidate>,
-  currentSummaryField: FieldRecord | null,
-  nearbyFields: FieldRecord[],
-  exactCoordinateCandidate: FieldRecord | null,
-): FieldRecord | null {
-  if (selection.trusted && selection.selectedCandidateId) {
-    return nearbyFields.find((field) => String(field.index) === selection.selectedCandidateId) ?? null;
+function deriveCalibrationReason(
+  context: ConceptCalibrationContext,
+  selection: ReturnType<typeof resolveMappingClaims>[number]['selection'],
+  selectedField: FieldRecord | null,
+  nearestShapeMatch: FieldRecord | null,
+): CalibrationReason {
+  if (context.concept === 'website' && context.anchor.pageIndex === 1) {
+    return 'page1_anchor_drift_after_website';
   }
-  if (exactCoordinateCandidate) return exactCoordinateCandidate;
-  const bestAssessment = selection.assessments[0] ?? null;
-  if (!bestAssessment) return null;
-  if (currentSummaryField && bestAssessment.candidateId === String(currentSummaryField.index)) return null;
-  return nearbyFields.find((field) => String(field.index) === bestAssessment.candidateId) ?? null;
+  if ((context.concept === 'email' || context.concept === 'phone') && selection.trusted && selectedField) {
+    return 'shifted_contact_block_candidate';
+  }
+  if (context.concept === 'bank_name' && selection.trusted && selectedField) {
+    return 'stale_enrichment_after_anchor_mismatch';
+  }
+  if ((context.concept === 'website' || context.concept === 'email' || context.concept === 'phone' || context.concept === 'bank_name') && !selection.trusted && !nearestShapeMatch) {
+    return 'no_unclaimed_neighbor_with_expected_shape';
+  }
+  return 'none';
 }
 
-function explainDecision(input: {
-  concept: FieldConceptKey;
-  diagnosticsRow: InteractiveTargetDiagnosticsFile['rows'][number];
-  currentShape: ValueShape;
-  currentSummaryField: FieldRecord | null;
-  likelyBetterCandidate: FieldRecord | null;
-  selection: ReturnType<typeof selectBestMappingCandidate>;
-  exactCoordinateCandidate: FieldRecord | null;
-  alignmentRow: SampleAlignmentArtifact['rows'][number] | null;
-  enrichmentRecord: EnrichmentRecord;
-}): string {
+function explainDecision(
+  context: ConceptCalibrationContext,
+  selection: ReturnType<typeof resolveMappingClaims>[number]['selection'],
+  selectedField: FieldRecord | null,
+  nearestShapeMatch: FieldRecord | null,
+  calibrationReason: CalibrationReason,
+): string {
   const parts: string[] = [];
-  if (valueShapeConflictsWithConcept(input.concept, input.currentShape)) {
-    parts.push(`Current mapped value looks ${input.currentShape}, which conflicts with ${FIELD_CONCEPT_REGISTRY[input.concept].displayName.toLowerCase()} for the stale target.`);
+
+  if (context.currentField && selection.selectedCandidateId && String(context.currentField.index) !== selection.selectedCandidateId) {
+    parts.push(`Current candidate #${context.currentField.index} looks ${context.currentValueShape}, but #${selection.selectedCandidateId} is the safer anchor-aligned choice.`);
+  } else if (!context.currentField) {
+    parts.push('No prior live-mapped candidate could be recovered from the saved diagnostics for this concept.');
   }
-  if (input.exactCoordinateCandidate) {
-    parts.push(`The sample anchor lands exactly on nearby field #${input.exactCoordinateCandidate.index} in the safe summary, which is stronger drift evidence than the current position fallback.`);
+
+  if (selectedField) {
+    parts.push(`Selected candidate ${formatCandidateSummary(summarizeField(selectedField))}.`);
   }
-  if (input.concept === 'date_of_birth') {
-    parts.push('Date Of Birth is the first case with converging proof: date tab, stakeholder section, and date-shaped value.');
+  if (nearestShapeMatch && (!selectedField || nearestShapeMatch.index !== selectedField.index)) {
+    parts.push(`Nearest expected-shape neighbor: ${formatCandidateSummary(summarizeField(nearestShapeMatch))}.`);
   }
-  if (input.alignmentRow?.matchingMethod) {
-    parts.push(`Offline sample alignment matched by ${input.alignmentRow.matchingMethod}.`);
+  if (selection.shiftReason !== 'none') {
+    parts.push(`Shift reason: ${selection.shiftReason}.`);
   }
-  if (input.selection.shiftReason !== 'none') {
-    parts.push(`Suspected shift reason: ${input.selection.shiftReason}.`);
+  if (calibrationReason !== 'none') {
+    parts.push(`Calibration reason: ${calibrationReason}.`);
   }
-  if (parts.length === 0) {
-    parts.push(`Current evidence remains insufficient to trust ${input.enrichmentRecord.suggestedDisplayName}.`);
-  }
+  parts.push(`Decision reason: ${selection.decisionReason}.`);
+
   return parts.join(' ');
 }
 
-function buildFindings(rows: MappingCalibrationRow[], report: ValidationReport): string[] {
-  const findings: string[] = [];
-  const websiteUnmatched = report.enrichmentDiagnostics.unmatchedRecords.find(
-    (record) => record.jsonKeyPath === 'merchantData.businessWebsite',
+function pickNearestField(
+  context: ConceptCalibrationContext,
+  selection: ReturnType<typeof resolveMappingClaims>[number]['selection'],
+  predicate: (assessment: ReturnType<typeof resolveMappingClaims>[number]['selection']['assessments'][number]) => boolean,
+): FieldRecord | null {
+  const matches = selection.assessments
+    .filter(predicate)
+    .map((assessment) => {
+      const field = context.nearbyFields.find((candidate) => candidate.index === Number(assessment.candidateId)) ?? null;
+      return field ? { field, distance: anchorDistance(context.anchor, field) } : null;
+    })
+    .filter((entry): entry is { field: FieldRecord; distance: number } => entry !== null)
+    .sort((a, b) => a.distance - b.distance || a.field.index - b.field.index);
+
+  return matches[0]?.field ?? null;
+}
+
+function findCurrentField(input: {
+  diagnosticsRow: InteractiveTargetDiagnosticsFile['rows'][number] | null;
+  enrichmentRecord: EnrichmentRecord;
+  nearbyFields: FieldRecord[];
+}): FieldRecord | null {
+  if (input.diagnosticsRow?.valueBefore) {
+    const exact = input.nearbyFields.filter((field) => normalizeValue(extractFieldCurrentValueHint(field)) === normalizeValue(input.diagnosticsRow!.valueBefore));
+    if (exact.length === 1) return exact[0]!;
+
+    const shape = detectValueShape(input.diagnosticsRow.valueBefore);
+    const shapeMatches = input.nearbyFields.filter((field) => detectValueShape(extractFieldCurrentValueHint(field)) === shape);
+    if (shapeMatches.length === 1) return shapeMatches[0]!;
+  }
+
+  return input.nearbyFields.find((field) => field.enrichment?.jsonKeyPath === input.enrichmentRecord.jsonKeyPath) ?? null;
+}
+
+function toMappingCandidate(field: FieldRecord) {
+  const currentValue = extractFieldCurrentValueHint(field);
+  return {
+    id: String(field.index),
+    resolvedLabel: field.resolvedLabel,
+    labelSource: field.labelSource,
+    labelConfidence: field.labelConfidence,
+    businessSection: field.enrichment?.suggestedBusinessSection ?? null,
+    sectionName: field.section,
+    inferredType: field.inferredType,
+    docusignTabType: field.docusignTabType,
+    pageIndex: field.pageIndex,
+    ordinalOnPage: field.ordinalOnPage,
+    tabLeft: field.tabLeft,
+    tabTop: field.tabTop,
+    currentValue,
+    observedValueLikeTextNearControl: field.observedValueLikeTextNearControl,
+    enrichment: field.enrichment ? {
+      jsonKeyPath: field.enrichment.jsonKeyPath,
+      matchedBy: field.enrichment.matchedBy,
+      confidence: field.enrichment.confidence,
+      suggestedDisplayName: field.enrichment.suggestedDisplayName,
+      suggestedBusinessSection: field.enrichment.suggestedBusinessSection,
+      positionalFingerprint: field.enrichment.positionalFingerprint,
+    } : null,
+  };
+}
+
+function extractFieldCurrentValueHint(field: FieldRecord): string | null {
+  const equalValueCandidates = new Set(
+    field.rejectedLabelCandidates
+      .filter((candidate) => candidate.reason === 'equals-field-value')
+      .map((candidate) => `${candidate.source}::${normalizeValue(candidate.value)}`),
   );
-  if (websiteUnmatched?.reason === 'tab-type-mismatch') {
-    findings.push('The page-1 contact/banking cluster is drifting after the sample website anchor: the website record no longer lands on a live Text tab, so later position-only matches are stale.');
+
+  for (const source of ['preceding-text', 'section+row'] as const) {
+    const raw = field.rawCandidateLabels.find((candidate) =>
+      candidate.source === source && equalValueCandidates.has(`${candidate.source}::${normalizeValue(candidate.value)}`),
+    )?.value;
+    if (raw) return stripSectionPrefix(raw);
   }
-  const downgraded = rows.filter((row) => row.decision === 'downgrade_current_mapping_to_unresolved');
-  if (downgraded.length > 0) {
-    findings.push(`Downgrade ${downgraded.length} current mapping(s) to unresolved before mutation; their current values contradict the intended concept more strongly than the enrichment label supports it.`);
-  }
-  const dob = rows.find((row) => row.concept === 'date_of_birth');
-  if (dob?.decision === 'trust_current_mapping') {
-    findings.push('Date of Birth has enough independent proof to trust the current mapping without loosening the gate: date tab, date-shaped value, and stakeholder context agree.');
-  }
-  return findings;
+
+  return field.observedValueLikeTextNearControl;
 }
 
 function summarizeField(field: FieldRecord): CalibrationCandidateSummary {
-  const label = field.resolvedLabel ?? '(unresolved)';
-  const valueShape = detectValueShape(field.observedValueLikeTextNearControl ?? null);
   return {
     fieldIndex: field.index,
-    label,
+    label: field.resolvedLabel ?? '(unresolved)',
+    businessSection: field.enrichment?.suggestedBusinessSection ?? null,
     tabType: field.docusignTabType,
     pageIndex: field.pageIndex,
     ordinalOnPage: field.ordinalOnPage,
-    coordinates: `${field.tabLeft ?? 'n/a'},${field.tabTop ?? 'n/a'}`,
-    valueShape,
+    coordinates: formatCoordinates(field.tabLeft, field.tabTop),
+    valueShape: detectValueShape(extractFieldCurrentValueHint(field)),
   };
 }
 
 function formatCandidateSummary(candidate: CalibrationCandidateSummary): string {
-  return `#${candidate.fieldIndex} ${candidate.label} p${candidate.pageIndex ?? 'n/a'} ord${candidate.ordinalOnPage ?? 'n/a'} ${candidate.tabType ?? 'n/a'} shape=${candidate.valueShape} @ ${candidate.coordinates}`;
+  const section = candidate.businessSection ? ` ${candidate.businessSection}` : '';
+  return `#${candidate.fieldIndex} ${candidate.label}${section} p${candidate.pageIndex ?? 'n/a'} ord${candidate.ordinalOnPage ?? 'n/a'} ${candidate.tabType ?? 'n/a'} shape=${candidate.valueShape} @ ${candidate.coordinates}`;
 }
 
 function formatAnchor(record: EnrichmentRecord, alignmentRow: SampleAlignmentArtifact['rows'][number] | null): string {
@@ -390,6 +521,13 @@ function formatAnchor(record: EnrichmentRecord, alignmentRow: SampleAlignmentArt
   const left = alignmentRow?.tabLeft ?? record.tabLeft ?? 'n/a';
   const top = alignmentRow?.tabTop ?? record.tabTop ?? 'n/a';
   return `${record.suggestedDisplayName} p${page} ord${ordinal} ${family} @ ${left},${top}`;
+}
+
+function formatAnchorSource(record: EnrichmentRecord, alignmentRow: SampleAlignmentArtifact['rows'][number] | null): string {
+  const alignmentEvidence = alignmentRow
+    ? `${alignmentRow.matchingMethod}/${alignmentRow.confidence}`
+    : 'no-alignment-row';
+  return `${record.positionalFingerprint}; enrichment=${record.confidence}; alignment=${alignmentEvidence}`;
 }
 
 function parseFingerprint(
@@ -403,6 +541,42 @@ function parseFingerprint(
     family: match[2],
     ordinalOnPage: Number(match[3]),
   };
+}
+
+function anchorDistance(
+  anchor: { tabLeft: number | null; tabTop: number | null; ordinalOnPage: number | null },
+  field: Pick<FieldRecord, 'tabLeft' | 'tabTop' | 'ordinalOnPage'>,
+): number {
+  const coordinateDistance =
+    anchor.tabLeft === null || anchor.tabTop === null || field.tabLeft === null || field.tabTop === null
+      ? 1000
+      : Math.max(Math.abs(anchor.tabLeft - field.tabLeft), Math.abs(anchor.tabTop - field.tabTop));
+  const ordinalDistance =
+    anchor.ordinalOnPage === null || field.ordinalOnPage === null
+      ? 100
+      : Math.abs(anchor.ordinalOnPage - field.ordinalOnPage);
+  return coordinateDistance + ordinalDistance;
+}
+
+function buildFindings(rows: MappingCalibrationRow[]): string[] {
+  const findings: string[] = [];
+  const pageOneRetargets = rows.filter((row) => row.concept !== 'date_of_birth' && row.decision === 'trust_likely_better_candidate');
+  const website = rows.find((row) => row.concept === 'website');
+  if (website?.decision === 'trust_likely_better_candidate') {
+    findings.push('The page-1 website anchor is now usable again: the exact anchor carries a URL-shaped live value, so the contact block can be retargeted from that drift seam instead of trusting stale position-only labels.');
+  }
+  if (pageOneRetargets.length > 0) {
+    findings.push(`Promote ${pageOneRetargets.length} better page-1 candidate(s) where exact sample-anchor coordinates and live value shape agree more strongly than the stale current mapping.`);
+  }
+  const downgrades = rows.filter((row) => row.decision === 'downgrade_current_mapping_to_unresolved');
+  if (downgrades.length > 0) {
+    findings.push(`Keep ${downgrades.length} concept(s) downgraded because no unclaimed nearby candidate has enough anchor-plus-shape evidence to trust mutation.`);
+  }
+  const dob = rows.find((row) => row.concept === 'date_of_birth');
+  if (dob?.decision === 'trust_current_mapping') {
+    findings.push('Date of Birth remains trusted: the live field still has date type, date-shaped value, and stakeholder-context alignment.');
+  }
+  return findings;
 }
 
 function renderMappingCalibrationMarkdown(file: MappingCalibrationFile): string {
@@ -426,15 +600,57 @@ function renderMappingCalibrationMarkdown(file: MappingCalibrationFile): string 
   }
   lines.push('## Calibration Table');
   lines.push('');
-  lines.push('| Concept | Current mapped field | Current value shape | Sample expected anchor | Nearby candidate shapes | Likely better candidate | Decision | Why |');
-  lines.push('|---|---|---|---|---|---|---|---|');
+  lines.push('| Concept | Current candidate | Current shape | Expected shape | Sample expected anchor | Nearest shape match | Nearest label/section match | Selected candidate | Decision | Calibration reason |');
+  lines.push('|---|---|---|---|---|---|---|---|---|---|');
   for (const row of file.rows) {
+    const currentCandidate = row.currentCandidateFieldIndex
+      ? `#${row.currentCandidateFieldIndex} ord${row.currentCandidateOrdinal ?? 'n/a'} @ ${row.currentCandidateCoordinates ?? 'n/a'}`
+      : 'n/a';
     lines.push(
-      `| ${escapePipe(row.conceptDisplayName)} | ${escapePipe(row.currentMappedField)} | ${row.currentMappedValueShape} | ${escapePipe(row.sampleExpectedAnchor)} | ${escapePipe(row.nearbyCandidateShapes)} | ${escapePipe(row.likelyBetterCandidate ?? 'n/a')} | ${escapePipe(row.decision)} | ${escapePipe(row.explanation)} |`,
+      `| ${escapePipe(row.conceptDisplayName)} | ${escapePipe(currentCandidate)} | ${row.currentMappedValueShape} | ${escapePipe(row.expectedValueShapes.join(', ') || 'n/a')} | ${escapePipe(row.sampleExpectedAnchor)} | ${escapePipe(row.nearestShapeMatch ?? 'n/a')} | ${escapePipe(row.nearestLabelSectionMatch ?? 'n/a')} | ${escapePipe(row.selectedCandidate ?? 'n/a')} | ${escapePipe(row.decision)} | ${escapePipe(row.calibrationReason)} |`,
     );
   }
   lines.push('');
+  lines.push('## Page-1 Retargeting Diagnostics');
+  lines.push('');
+  for (const row of file.rows.filter((candidate) => candidate.sampleExpectedAnchor.includes('p1 '))) {
+    lines.push(`### ${row.conceptDisplayName}`);
+    lines.push('');
+    lines.push(`- Current candidate: ${row.currentCandidateFieldIndex ? `#${row.currentCandidateFieldIndex} ord${row.currentCandidateOrdinal ?? 'n/a'} @ ${row.currentCandidateCoordinates ?? 'n/a'} shape=${row.currentMappedValueShape}` : 'n/a'}`);
+    lines.push(`- Expected value shape: ${row.expectedValueShapes.join(', ') || 'n/a'}`);
+    lines.push(`- Sample anchor source: ${row.sampleAnchorSource}`);
+    lines.push(`- Decision reason: ${row.mappingDecisionReason}`);
+    lines.push(`- Shift reason: ${row.suspectedShiftReason}`);
+    lines.push(`- Calibration reason: ${row.calibrationReason}`);
+    if (row.blockedCandidateIds.length > 0) {
+      lines.push(`- Blocked candidate ids: ${row.blockedCandidateIds.join(', ')}`);
+    }
+    lines.push(`- Explanation: ${row.explanation}`);
+    lines.push('- Neighbor window:');
+    for (const neighbor of row.neighborWindow) {
+      lines.push(`  - #${neighbor.fieldIndex} ${neighbor.label} ${neighbor.businessSection ?? '(unclassified)'} p${neighbor.pageIndex ?? 'n/a'} ord${neighbor.ordinalOnPage ?? 'n/a'} ${neighbor.tabType ?? 'n/a'} shape=${neighbor.valueShape} @ ${neighbor.coordinates}`);
+    }
+    lines.push('');
+  }
   return lines.join('\n');
+}
+
+function stripSectionPrefix(value: string): string {
+  return value.replace(/^.*›\s*/, '').trim();
+}
+
+function normalizeValue(value: string | null | undefined): string {
+  return (value ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function formatCoordinates(left: number | null, top: number | null): string {
+  return `${left ?? 'n/a'},${top ?? 'n/a'}`;
+}
+
+function conceptOrder(concept: FieldConceptKey): number {
+  const ordered: FieldConceptKey[] = ['website', 'email', 'phone', 'bank_name', 'date_of_birth'];
+  const index = ordered.indexOf(concept);
+  return index >= 0 ? index : ordered.length + concept.localeCompare('website');
 }
 
 function escapePipe(value: string): string {
