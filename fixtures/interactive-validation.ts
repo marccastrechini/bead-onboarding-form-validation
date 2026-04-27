@@ -11,6 +11,7 @@ import type { DiscoveredField } from './field-discovery';
 import type { FieldRecord, ValidationReport } from './validation-report';
 import { buildValidationScorecard, type ScorecardFieldMatch } from './validation-scorecard';
 import type { FrameHost } from './signer-helpers';
+import { selectBestMappingCandidate } from '../lib/mapping-calibration';
 
 export const INTERACTIVE_RESULTS_JSON = 'latest-interactive-validation-results.json';
 export const INTERACTIVE_RESULTS_MD = 'latest-interactive-validation-results.md';
@@ -82,6 +83,9 @@ export interface InteractiveTargetProfile {
   intendedFieldDisplayName: string;
   intendedBusinessSection: string | null;
   intendedSectionName: string | null;
+  jsonKeyPath: string | null;
+  enrichmentMatchedBy: 'guid' | 'position' | 'coordinate' | null;
+  enrichmentPositionalFingerprint: string | null;
   inferredType: string;
   labelSource: string;
   labelConfidence: string;
@@ -90,11 +94,18 @@ export interface InteractiveTargetProfile {
   docusignTabType: string | null;
   pageIndex: number | null;
   ordinalOnPage: number | null;
+  expectedPageIndex: number | null;
+  expectedOrdinalOnPage: number | null;
+  expectedDocusignFieldFamily: string | null;
   coordinates: {
     left: number | null;
     top: number | null;
     width: number | null;
     height: number | null;
+  };
+  expectedCoordinates: {
+    left: number | null;
+    top: number | null;
   };
 }
 
@@ -222,6 +233,8 @@ export interface InteractiveTargetDiagnostics {
   actualFieldSignature: string;
   targetConfidence: InteractiveTargetConfidence;
   targetConfidenceReason: string;
+  mappingDecisionReason: string | null;
+  mappingShiftReason: string | null;
   mappingFlags: string[];
   actualValueBeforeTest: string | null;
   attemptedValue: string;
@@ -254,6 +267,8 @@ export interface InteractiveTargetDiagnosticsFile {
     intendedField: string;
     actualFieldSignature: string;
     targetConfidence: InteractiveTargetConfidence;
+    mappingDecisionReason: string | null;
+    mappingShiftReason: string | null;
     valueBefore: string | null;
     attemptedValue: string | null;
     valueAfter: string | null;
@@ -843,6 +858,7 @@ export function skippedConceptToResult(skipped: InteractiveSkippedConcept): Inte
 export async function runInteractiveCase(
   testCase: InteractiveValidationCase,
   field: DiscoveredField | null,
+  allFields: DiscoveredField[],
   _frame: FrameHost,
 ): Promise<InteractiveValidationResult> {
   if (!field || field.controlCategory !== 'merchant_input') {
@@ -853,13 +869,17 @@ export async function runInteractiveCase(
     return skippedCase(testCase, 'target field was not visible and editable');
   }
 
-  const locator = field.locator;
+  const targetResolution = resolveInteractiveTargetField(testCase, field, allFields);
+  const liveField = targetResolution.field;
+  const locator = liveField.locator;
   const originalValue = await readControlValue(locator);
-  const actualElement = await readElementSignature(field);
-  const targetDiagnostics = createTargetDiagnostics(testCase, field, actualElement, originalValue);
-  const targetVerification = verifyInteractiveTarget(testCase, field, actualElement);
+  const actualElement = await readElementSignature(liveField);
+  const targetDiagnostics = createTargetDiagnostics(testCase, liveField, actualElement, originalValue);
+  const targetVerification = verifyInteractiveTarget(testCase, liveField, actualElement, targetResolution.selection);
   targetDiagnostics.targetConfidence = targetVerification.confidence;
   targetDiagnostics.targetConfidenceReason = targetVerification.reason;
+  targetDiagnostics.mappingDecisionReason = targetVerification.decisionReason;
+  targetDiagnostics.mappingShiftReason = targetVerification.shiftReason;
   targetDiagnostics.mappingFlags = [...targetVerification.flags];
 
   let filled = false;
@@ -878,7 +898,7 @@ export async function runInteractiveCase(
       await waitForClientValidation(locator);
       targetDiagnostics.actualValueAfterBlur = sanitizeNullable(await readControlValue(locator));
 
-      const observation = await collectObservation(field, testCase.concept, testCase.inputValue, filled);
+      const observation = await collectObservation(liveField, testCase.concept, testCase.inputValue, filled);
       if (!targetDiagnostics.actualValueAfterBlur) {
         targetDiagnostics.actualValueAfterBlur = observation.observedValue;
       }
@@ -1067,6 +1087,8 @@ export function buildInteractiveTargetDiagnosticsFile(
     intendedField: result.targetDiagnostics?.intendedFieldDisplayName ?? result.fieldLabel ?? 'n/a',
     actualFieldSignature: result.targetDiagnostics?.actualFieldSignature ?? 'n/a',
     targetConfidence: result.targetDiagnostics?.targetConfidence ?? 'mapping_not_confident',
+    mappingDecisionReason: result.targetDiagnostics?.mappingDecisionReason ?? null,
+    mappingShiftReason: result.targetDiagnostics?.mappingShiftReason ?? null,
     valueBefore: result.targetDiagnostics?.actualValueBeforeTest ?? null,
     attemptedValue: result.targetDiagnostics?.attemptedValue ?? result.inputValue,
     valueAfter: result.targetDiagnostics?.actualValueAfterBlur ?? result.observation?.observedValue ?? null,
@@ -1146,6 +1168,9 @@ function toInteractiveCase(
       intendedFieldDisplayName: match.displayName,
       intendedBusinessSection: match.businessSection,
       intendedSectionName: sourceField.section,
+      jsonKeyPath: sourceField.enrichment?.jsonKeyPath ?? null,
+      enrichmentMatchedBy: sourceField.enrichment?.matchedBy ?? null,
+      enrichmentPositionalFingerprint: sourceField.enrichment?.positionalFingerprint ?? null,
       inferredType: sourceField.inferredType,
       labelSource: sourceField.labelSource,
       labelConfidence: sourceField.labelConfidence,
@@ -1154,11 +1179,18 @@ function toInteractiveCase(
       docusignTabType: sourceField.docusignTabType,
       pageIndex: sourceField.pageIndex,
       ordinalOnPage: sourceField.ordinalOnPage,
+      expectedPageIndex: sourceField.enrichment?.expectedPageIndex ?? null,
+      expectedOrdinalOnPage: sourceField.enrichment?.expectedOrdinalOnPage ?? null,
+      expectedDocusignFieldFamily: sourceField.enrichment?.expectedDocusignFieldFamily ?? null,
       coordinates: {
         left: sourceField.tabLeft,
         top: sourceField.tabTop,
         width: sourceField.tabWidth,
         height: sourceField.tabHeight,
+      },
+      expectedCoordinates: {
+        left: sourceField.enrichment?.expectedTabLeft ?? null,
+        top: sourceField.enrichment?.expectedTabTop ?? null,
       },
     },
     validationId: validation.id,
@@ -1755,6 +1787,8 @@ function createTargetDiagnostics(
     actualFieldSignature: formatActualFieldSignature(actualElement),
     targetConfidence: 'mapping_not_confident',
     targetConfidenceReason: 'Target verification not yet evaluated.',
+    mappingDecisionReason: null,
+    mappingShiftReason: null,
     mappingFlags: [],
     actualValueBeforeTest: sanitizeNullable(originalValue),
     attemptedValue: sanitizeEvidenceText(testCase.inputValue),
@@ -1762,6 +1796,94 @@ function createTargetDiagnostics(
     actualValueAfterBlur: null,
     restoredValue: null,
     restoreSucceeded: null,
+  };
+}
+
+function resolveInteractiveTargetField(
+  testCase: InteractiveValidationCase,
+  field: DiscoveredField,
+  allFields: DiscoveredField[],
+): {
+  field: DiscoveredField;
+  selection: ReturnType<typeof selectBestMappingCandidate>;
+} {
+  const expectedAnchor = buildExpectedAnchor(testCase);
+  const candidatePool = allFields
+    .filter((candidate) => candidate.controlCategory === 'merchant_input' && candidate.visible && candidate.editable)
+    .filter((candidate) => candidate.pageIndex === expectedAnchor.pageIndex || expectedAnchor.pageIndex === null)
+    .filter((candidate) => {
+      if (expectedAnchor.ordinalOnPage === null) return true;
+      if (candidate.ordinalOnPage === null) return false;
+      return Math.abs(candidate.ordinalOnPage - expectedAnchor.ordinalOnPage) <= 3;
+    });
+  const candidates = candidatePool.some((candidate) => candidate.index === field.index)
+    ? candidatePool
+    : [field, ...candidatePool.filter((candidate) => candidate.index !== field.index)];
+
+  const selection = selectBestMappingCandidate({
+    concept: testCase.concept,
+    currentCandidateId: String(field.index),
+    candidates: candidates.map((candidate) => ({
+      id: String(candidate.index),
+      resolvedLabel: candidate.resolvedLabel,
+      labelSource: candidate.labelSource,
+      labelConfidence: candidate.labelConfidence,
+      sectionName: candidate.sectionName,
+      inferredType: typeof candidate.inferredType === 'string' ? candidate.inferredType : candidate.inferredType.type,
+      docusignTabType: candidate.docusignTabType,
+      pageIndex: candidate.pageIndex,
+      ordinalOnPage: candidate.ordinalOnPage,
+      tabLeft: candidate.tabLeft,
+      tabTop: candidate.tabTop,
+      currentValue: candidate.currentValue,
+      observedValueLikeTextNearControl: candidate.observedValueLikeTextNearControl,
+    })),
+    expectedAnchor,
+  });
+
+  const selectedField = selection.trusted && selection.selectedCandidateId
+    ? candidates.find((candidate) => String(candidate.index) === selection.selectedCandidateId) ?? field
+    : field;
+
+  return {
+    field: selectedField,
+    selection,
+  };
+}
+
+function buildExpectedAnchor(testCase: InteractiveValidationCase): {
+  jsonKeyPath: string | null;
+  displayName: string | null;
+  businessSection: string | null;
+  pageIndex: number | null;
+  ordinalOnPage: number | null;
+  tabLeft: number | null;
+  tabTop: number | null;
+  docusignFieldFamily: string | null;
+} {
+  const fingerprint = parseEnrichmentFingerprint(testCase.targetProfile.enrichmentPositionalFingerprint);
+  return {
+    jsonKeyPath: testCase.targetProfile.jsonKeyPath,
+    displayName: testCase.targetProfile.intendedFieldDisplayName,
+    businessSection: testCase.targetProfile.intendedBusinessSection,
+    pageIndex: testCase.targetProfile.expectedPageIndex ?? fingerprint?.pageIndex ?? testCase.targetProfile.pageIndex,
+    ordinalOnPage: testCase.targetProfile.expectedOrdinalOnPage ?? fingerprint?.ordinalOnPage ?? testCase.targetProfile.ordinalOnPage,
+    tabLeft: testCase.targetProfile.expectedCoordinates.left,
+    tabTop: testCase.targetProfile.expectedCoordinates.top,
+    docusignFieldFamily: testCase.targetProfile.expectedDocusignFieldFamily ?? fingerprint?.family ?? testCase.targetProfile.docusignTabType,
+  };
+}
+
+function parseEnrichmentFingerprint(
+  fingerprint: string | null,
+): { pageIndex: number; family: string; ordinalOnPage: number } | null {
+  if (!fingerprint) return null;
+  const match = /^page:(\d+)\|([^|]+)\|ord:(\d+)$/.exec(fingerprint);
+  if (!match) return null;
+  return {
+    pageIndex: Number(match[1]),
+    family: match[2],
+    ordinalOnPage: Number(match[3]),
   };
 }
 
@@ -1801,11 +1923,17 @@ function verifyInteractiveTarget(
   testCase: InteractiveValidationCase,
   field: DiscoveredField,
   actualElement: InteractiveElementSignature,
-): { confidence: InteractiveTargetConfidence; reason: string; flags: string[] } {
+  selection: ReturnType<typeof selectBestMappingCandidate>,
+): {
+  confidence: InteractiveTargetConfidence;
+  reason: string;
+  flags: string[];
+  decisionReason: string;
+  shiftReason: string;
+} {
   const flags: string[] = [];
   const labelSource = testCase.targetProfile.labelSource;
   const strongLabelSource = STRONG_LABEL_SOURCES.has(labelSource);
-  const isEnrichmentPositionFallback = labelSource === 'enrichment-position' || labelSource === 'enrichment-coordinate';
   const actualFamilies = inferSignatureFamilies([
     field.sectionName,
     field.resolvedLabel,
@@ -1831,24 +1959,24 @@ function verifyInteractiveTarget(
   const inferredTypeName = typeof field.inferredType === 'string'
     ? field.inferredType
     : field.inferredType?.type ?? '';
-  const primaryFamily = PRIMARY_FAMILY_BY_CONCEPT[testCase.concept] ?? null;
   const blockedFamilies = BLOCKED_SIGNATURE_FAMILIES[testCase.concept] ?? [];
-  const typeConsistent = primaryFamily
-    ? actualFamilies.includes(primaryFamily) || inferredTypeName.includes(primaryFamily)
-    : true;
-  const sectionConsistent = sectionLooksConsistent(testCase.targetProfile.intendedBusinessSection, field.sectionName);
 
-  if (!strongLabelSource && !isEnrichmentPositionFallback) {
-    flags.push(`label source ${labelSource} is not trusted enough for a mutating check`);
+  if (!selection.trusted) {
+    flags.push(selection.explanation);
+    if (selection.shiftReason !== 'none') {
+      flags.push(`suspected shift reason: ${selection.shiftReason}`);
+    }
+  } else if (selection.selectedCandidateId && Number(selection.selectedCandidateId) !== testCase.targetField.fieldIndex) {
+    flags.push(`redirected to live field #${selection.selectedCandidateId} based on ${selection.decisionReason}`);
+    if (selection.shiftReason !== 'none') {
+      flags.push(`suspected shift reason: ${selection.shiftReason}`);
+    }
   }
-  if (isEnrichmentPositionFallback && (!typeConsistent || !sectionConsistent)) {
-    flags.push('position/coordinate enrichment is not backed by a matching field family and section');
-  }
-  if (!strongLabelSource && testCase.targetProfile.mappingConfidence !== 'high') {
-    flags.push(`mapping confidence is ${testCase.targetProfile.mappingConfidence} without strong field-local label evidence`);
+  if (!strongLabelSource && selection.trusted && testCase.targetProfile.mappingConfidence !== 'high') {
+    flags.push(`mapping confidence was ${testCase.targetProfile.mappingConfidence} until live target verification promoted this candidate`);
   }
   for (const family of blockedFamilies) {
-    if (actualFamilies.includes(family)) {
+    if (actualFamilies.includes(family) || inferredTypeName.includes(family)) {
       flags.push(`target signature suggests ${family} instead of ${testCase.conceptDisplayName}`);
     }
   }
@@ -1858,19 +1986,25 @@ function verifyInteractiveTarget(
       confidence: 'tool_mapping_suspect',
       reason: flags[0],
       flags,
+      decisionReason: selection.decisionReason,
+      shiftReason: selection.shiftReason,
     };
   }
-  if (flags.length > 0) {
+  if (!selection.trusted) {
     return {
       confidence: 'mapping_not_confident',
-      reason: flags[0],
+      reason: flags[0] ?? selection.explanation,
       flags,
+      decisionReason: selection.decisionReason,
+      shiftReason: selection.shiftReason,
     };
   }
   return {
     confidence: 'trusted',
     reason: 'Target label, section, and signature look consistent enough to mutate this control.',
-    flags: [],
+    flags,
+    decisionReason: selection.decisionReason,
+    shiftReason: selection.shiftReason,
   };
 }
 

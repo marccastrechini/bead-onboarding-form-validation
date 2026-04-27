@@ -64,7 +64,7 @@ test.describe('Bead Onboarding - Interactive Field Validation', () => {
 
       for (const validationCase of plan.cases) {
         const field = fields[validationCase.targetField.fieldIndex - 1] ?? null;
-        const result = await runInteractiveCase(validationCase, field, frame);
+        const result = await runInteractiveCase(validationCase, field, fields, frame);
         results.push(result);
         flush();
       }

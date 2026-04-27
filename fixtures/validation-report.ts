@@ -27,6 +27,12 @@ import type {
   EnrichmentUnavailableReason,
 } from '../lib/enrichment-loader';
 import { buildPositionalFingerprint, matchField, normalizeFamily } from '../lib/enrichment-loader';
+import {
+  conceptKeyForJsonKeyPath,
+  detectValueShape,
+  type ValueShape,
+  valueShapeConflictsWithConcept,
+} from '../lib/mapping-calibration';
 import { writeScorecardArtifacts } from './validation-scorecard';
 
 export type CheckStatus = 'pass' | 'fail' | 'warning' | 'manual_review' | 'skipped';
@@ -58,6 +64,7 @@ export interface FieldRecord {
   rejectedLabelCandidates: RejectedLabelCandidate[];
   labelLooksLikeValue: boolean;
   observedValueLikeTextNearControl: string | null;
+  currentValueShape: ValueShape;
   idOrNameKey: string | null;
   attachmentEvidence: AttachmentEvidence;
   groupName: string | null;
@@ -107,6 +114,12 @@ export interface FieldEnrichmentAnnotation {
   suggestedBusinessSection: string;
   confidence: 'high' | 'medium' | 'low';
   positionalFingerprint: string;
+  expectedPageIndex: number | null;
+  expectedOrdinalOnPage: number | null;
+  expectedDocusignFieldFamily: string | null;
+  expectedTabLeft: number | null;
+  expectedTabTop: number | null;
+  expectedJsonTypeHint: string | null;
   /** The original (pre-enrichment) resolved label, kept for audit. */
   priorResolvedLabel: string | null;
   /** The original label source before enrichment overrode it. */
@@ -114,6 +127,8 @@ export interface FieldEnrichmentAnnotation {
   /** `true` when enrichment upgraded the display name; `false` when it was
    *  recorded for reference but the existing label was kept. */
   appliedToLabel: boolean;
+  /** Present when label upgrade was intentionally blocked by calibration logic. */
+  labelUpgradeBlockedReason: string | null;
 }
 
 export interface Finding {
@@ -311,6 +326,7 @@ export class ReportBuilder {
       rejectedLabelCandidates: f.rejectedLabelCandidates,
       labelLooksLikeValue: f.labelLooksLikeValue,
       observedValueLikeTextNearControl: f.observedValueLikeTextNearControl,
+      currentValueShape: detectValueShape(f.currentValue),
       idOrNameKey: f.idOrNameKey,
       attachmentEvidence: f.attachmentEvidence,
       groupName: f.groupName,
@@ -479,11 +495,20 @@ export class ReportBuilder {
 
       const priorLabel = f.resolvedLabel;
       const priorSource = f.labelSource;
+      const expected = parseEnrichmentFingerprint(match.record.positionalFingerprint);
+      const enrichmentConcept = conceptKeyForJsonKeyPath(match.record.jsonKeyPath);
+      const valueShapeConflict =
+        match.matchedBy !== 'guid' &&
+        Boolean(enrichmentConcept && valueShapeConflictsWithConcept(enrichmentConcept, f.currentValueShape));
+      const labelUpgradeBlockedReason = valueShapeConflict
+        ? `current value shape ${f.currentValueShape} conflicts with ${match.record.jsonKeyPath}`
+        : null;
 
       const canUpgradeLabel =
-        (!priorLabel && f.labelConfidence !== 'high') ||
-        weakLabelSources.has(priorSource) ||
-        (match.matchedBy === 'guid' && match.record.confidence === 'high');
+        (((!priorLabel && f.labelConfidence !== 'high') ||
+          weakLabelSources.has(priorSource) ||
+          (match.matchedBy === 'guid' && match.record.confidence === 'high')) &&
+          !valueShapeConflict);
 
       let appliedToLabel = false;
       if (canUpgradeLabel && match.record.suggestedDisplayName) {
@@ -506,9 +531,16 @@ export class ReportBuilder {
         suggestedBusinessSection: match.record.suggestedBusinessSection,
         confidence: match.record.confidence,
         positionalFingerprint: match.record.positionalFingerprint,
+        expectedPageIndex: expected?.pageIndex ?? null,
+        expectedOrdinalOnPage: expected?.ordinalOnPage ?? null,
+        expectedDocusignFieldFamily: match.record.docusignFieldFamily ?? expected?.family ?? null,
+        expectedTabLeft: match.record.tabLeft ?? null,
+        expectedTabTop: match.record.tabTop ?? null,
+        expectedJsonTypeHint: match.record.jsonTypeHint ?? null,
         priorResolvedLabel: priorLabel,
         priorLabelSource: priorSource,
         appliedToLabel,
+        labelUpgradeBlockedReason,
       };
     }
 

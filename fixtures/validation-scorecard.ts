@@ -13,6 +13,7 @@ import type {
   InteractiveValidationResult,
   InteractiveValidationResultsFile,
 } from './interactive-validation';
+import { assessMappingCandidate, type CandidateAssessment } from '../lib/mapping-calibration';
 
 export type IdentificationConfidence = 'none' | 'low' | 'medium' | 'high';
 
@@ -361,24 +362,41 @@ function matchFieldToConcept(
   const evidence: string[] = [];
   let confidence: IdentificationConfidence = 'none';
   const businessTexts = businessLabelTexts(field);
+  const assessment = conceptAssessmentForField(field, concept);
+  const enrichmentMatchesConcept = Boolean(
+    field.enrichment?.jsonKeyPath && concept.jsonKeyPatterns.some((pattern) => pattern.test(field.enrichment!.jsonKeyPath)),
+  );
 
-  if (field.enrichment?.jsonKeyPath && concept.jsonKeyPatterns.some((pattern) => pattern.test(field.enrichment!.jsonKeyPath))) {
-    confidence = maxConfidence(confidence, confidenceFromEnrichment(field));
-    evidence.push(`enrichment key ${field.enrichment.jsonKeyPath}`);
+  if (enrichmentMatchesConcept) {
+    const enrichmentConfidence = confidenceFromEnrichment(field, concept, assessment);
+    if (enrichmentConfidence !== 'none') {
+      confidence = maxConfidence(confidence, enrichmentConfidence);
+      evidence.push(`enrichment key ${field.enrichment!.jsonKeyPath}`);
+      if (assessment?.valueShapeMatches) evidence.push(`value shape ${assessment.valueShape}`);
+    } else if (field.enrichment?.labelUpgradeBlockedReason) {
+      evidence.push(`enrichment rejected: ${field.enrichment.labelUpgradeBlockedReason}`);
+    } else if (assessment?.valueShapeMismatch) {
+      evidence.push(`enrichment rejected: value shape ${assessment.valueShape} conflicts with ${concept.displayName}`);
+    }
   }
 
   const matchingText = businessTexts.find((text) => concept.labelPatterns.some((pattern) => pattern.test(text)));
   if (matchingText) {
-    confidence = maxConfidence(confidence, confidenceFromLabel(field));
-    evidence.push(`business label "${truncate(matchingText, 80)}"`);
+    const labelConfidence = confidenceFromLabel(field, concept, assessment);
+    if (labelConfidence !== 'none') {
+      confidence = maxConfidence(confidence, labelConfidence);
+      evidence.push(`business label "${truncate(matchingText, 80)}"`);
+    }
   }
 
   if (concept.fieldTypes.includes(field.inferredType)) {
     const typeConfidence = usableBusinessLabel(field) || field.enrichment?.suggestedDisplayName
-      ? confidenceFromLabel(field)
+      ? confidenceFromLabel(field, concept, assessment)
       : 'low';
-    confidence = maxConfidence(confidence, typeConfidence);
-    evidence.push(`inferred type ${field.inferredType}`);
+    if (typeConfidence !== 'none') {
+      confidence = maxConfidence(confidence, typeConfidence);
+      evidence.push(`inferred type ${field.inferredType}`);
+    }
   }
 
   if (confidence === 'none') return null;
@@ -940,20 +958,82 @@ function sectionFromField(field: FieldRecord, concept: FieldConceptDefinition): 
   return field.section ?? concept.businessSection;
 }
 
-function confidenceFromEnrichment(field: FieldRecord): IdentificationConfidence {
+function confidenceFromEnrichment(
+  field: FieldRecord,
+  concept: FieldConceptDefinition,
+  assessment: CandidateAssessment | null,
+): IdentificationConfidence {
   if (!field.enrichment) return 'none';
   if (field.enrichment.matchedBy === 'guid' && field.enrichment.confidence === 'high') return 'high';
+  if (assessment?.valueShapeMismatch) return 'none';
+  if (field.enrichment.matchedBy !== 'guid') {
+    if (assessment?.sectionMatches && assessment.typeMatches && assessment.valueShapeMatches) {
+      return concept.key === 'date_of_birth' && (field.docusignTabType ?? '').toLowerCase() === 'date'
+        ? 'high'
+        : 'medium';
+    }
+    if (assessment?.sectionMatches && (assessment.typeMatches || assessment.valueShapeMatches)) {
+      return 'low';
+    }
+    return field.enrichment.confidence === 'low' ? 'low' : 'none';
+  }
   if (field.enrichment.confidence === 'low') return 'low';
   return 'medium';
 }
 
-function confidenceFromLabel(field: FieldRecord): IdentificationConfidence {
-  if (field.enrichment?.appliedToLabel) return confidenceFromEnrichment(field);
+function confidenceFromLabel(
+  field: FieldRecord,
+  concept: FieldConceptDefinition,
+  assessment: CandidateAssessment | null,
+): IdentificationConfidence {
+  if (field.enrichment?.appliedToLabel) return confidenceFromEnrichment(field, concept, assessment);
   if (field.labelConfidence === 'high') return 'high';
   if (field.labelConfidence === 'medium') return 'medium';
   if (field.labelConfidence === 'low') return 'low';
-  if (field.labelSource.startsWith('enrichment-')) return confidenceFromEnrichment(field);
+  if (field.labelSource.startsWith('enrichment-')) return confidenceFromEnrichment(field, concept, assessment);
   return 'low';
+}
+
+function conceptAssessmentForField(
+  field: FieldRecord,
+  concept: FieldConceptDefinition,
+): CandidateAssessment | null {
+  return assessMappingCandidate(
+    concept.key,
+    {
+      id: String(field.index),
+      resolvedLabel: field.resolvedLabel,
+      labelSource: field.labelSource,
+      labelConfidence: field.labelConfidence,
+      businessSection: field.enrichment?.suggestedBusinessSection ?? null,
+      sectionName: field.section,
+      inferredType: field.inferredType,
+      docusignTabType: field.docusignTabType,
+      pageIndex: field.pageIndex,
+      ordinalOnPage: field.ordinalOnPage,
+      tabLeft: field.tabLeft,
+      tabTop: field.tabTop,
+      observedValueLikeTextNearControl: field.observedValueLikeTextNearControl,
+      enrichment: field.enrichment ? {
+        jsonKeyPath: field.enrichment.jsonKeyPath,
+        matchedBy: field.enrichment.matchedBy,
+        confidence: field.enrichment.confidence,
+        suggestedDisplayName: field.enrichment.suggestedDisplayName,
+        suggestedBusinessSection: field.enrichment.suggestedBusinessSection,
+        positionalFingerprint: field.enrichment.positionalFingerprint,
+      } : null,
+    },
+    field.enrichment ? {
+      jsonKeyPath: field.enrichment.jsonKeyPath,
+      displayName: field.enrichment.suggestedDisplayName,
+      businessSection: field.enrichment.suggestedBusinessSection,
+      pageIndex: field.enrichment.expectedPageIndex,
+      ordinalOnPage: field.enrichment.expectedOrdinalOnPage,
+      tabLeft: field.enrichment.expectedTabLeft,
+      tabTop: field.enrichment.expectedTabTop,
+      docusignFieldFamily: field.enrichment.expectedDocusignFieldFamily,
+    } : null,
+  );
 }
 
 function maxConfidence(a: IdentificationConfidence, b: IdentificationConfidence): IdentificationConfidence {

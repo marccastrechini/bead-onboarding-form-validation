@@ -32,6 +32,10 @@ import {
   findCandidateRedirectUrls,
   extractSigningUrl,
 } from '../lib/link-extractor';
+import {
+  detectValueShape,
+  selectBestMappingCandidate,
+} from '../lib/mapping-calibration';
 import { redactUrl } from '../lib/url-sanitize';
 
 test.describe('bead-client: buildResendUrl', () => {
@@ -539,6 +543,30 @@ test.describe('field validation scorecard', () => {
 });
 
 test.describe('interactive validation safety', () => {
+  test('detects email value shape', () => {
+    expect(detectValueShape('qa.signer@example.com')).toBe('email');
+  });
+
+  test('detects phone value shape', () => {
+    expect(detectValueShape('+15551234567')).toBe('phone');
+  });
+
+  test('detects URL value shape', () => {
+    expect(detectValueShape('https://example.com')).toBe('url');
+  });
+
+  test('detects redacted URL value shape', () => {
+    expect(detectValueShape('[redacted-url]')).toBe('url');
+  });
+
+  test('detects date value shape', () => {
+    expect(detectValueShape('1990/01/15')).toBe('date');
+  });
+
+  test('detects bank-name/text value shape', () => {
+    expect(detectValueShape('Wells Fargo Bank')).toBe('text_name_like');
+  });
+
   test('interactive guard refuses to run without INTERACTIVE_VALIDATION=1', () => {
     expect(() => assertInteractiveValidationGuards({ DISPOSABLE_ENVELOPE: '1' } as NodeJS.ProcessEnv))
       .toThrow(/INTERACTIVE_VALIDATION=1/);
@@ -626,6 +654,160 @@ test.describe('interactive validation safety', () => {
 
     expect(diagnostics.fieldLocalTexts).toEqual([]);
     expect(diagnostics.ownershipSuspectTexts).toContain('Field must be an email.');
+  });
+
+  test('value shape mismatch blocks trust', () => {
+    const result = selectBestMappingCandidate({
+      concept: 'bank_name',
+      currentCandidateId: 'bank-field',
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.bankName',
+        businessSection: 'Banking',
+        pageIndex: 1,
+        ordinalOnPage: 58,
+        tabLeft: 35.2,
+        tabTop: 874.88,
+        docusignFieldFamily: 'Text',
+      },
+      candidates: [{
+        id: 'bank-field',
+        resolvedLabel: 'Bank Name',
+        labelSource: 'enrichment-position',
+        labelConfidence: 'medium',
+        businessSection: 'Banking',
+        inferredType: 'unknown_manual_review',
+        docusignTabType: 'Text',
+        pageIndex: 1,
+        ordinalOnPage: 58,
+        tabLeft: 35.2,
+        tabTop: 874.88,
+        currentValue: '+15154407899',
+        enrichment: {
+          jsonKeyPath: 'merchantData.bankName',
+          matchedBy: 'position',
+          suggestedDisplayName: 'Bank Name',
+          suggestedBusinessSection: 'Banking',
+        },
+      }],
+    });
+
+    expect(result.trusted).toBe(false);
+    expect(result.decisionReason).toBe('rejected_value_shape_mismatch');
+  });
+
+  test('Date of Birth can be promoted only with date tab, date value, and stakeholder context', () => {
+    const promoted = selectBestMappingCandidate({
+      concept: 'date_of_birth',
+      currentCandidateId: 'dob',
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.stakeholders[0].dateOfBirth',
+        businessSection: 'Stakeholder',
+        pageIndex: 3,
+        ordinalOnPage: 5,
+        tabLeft: 128.64,
+        tabTop: 154.88,
+        docusignFieldFamily: 'Date',
+      },
+      candidates: [{
+        id: 'dob',
+        resolvedLabel: 'stakeholders #0 › Date Of Birth',
+        labelSource: 'enrichment-coordinate',
+        labelConfidence: 'medium',
+        businessSection: 'Stakeholder',
+        inferredType: 'date',
+        docusignTabType: 'Date',
+        pageIndex: 3,
+        ordinalOnPage: 6,
+        tabLeft: 128.64,
+        tabTop: 154.88,
+        currentValue: '1969/01/30',
+        enrichment: {
+          jsonKeyPath: 'merchantData.stakeholders[0].dateOfBirth',
+          matchedBy: 'coordinate',
+          suggestedDisplayName: 'Date Of Birth',
+          suggestedBusinessSection: 'Stakeholder',
+        },
+      }],
+    });
+
+    const rejected = selectBestMappingCandidate({
+      concept: 'date_of_birth',
+      currentCandidateId: 'dob',
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.stakeholders[0].dateOfBirth',
+        businessSection: 'Stakeholder',
+      },
+      candidates: [{
+        id: 'dob',
+        resolvedLabel: 'Date Of Birth',
+        labelSource: 'enrichment-coordinate',
+        labelConfidence: 'medium',
+        businessSection: 'Business Details',
+        inferredType: 'date',
+        docusignTabType: 'Text',
+        currentValue: 'not-a-date',
+      }],
+    });
+
+    expect(promoted.trusted).toBe(true);
+    expect(promoted.decisionReason).toBe('trusted_by_date_tab_and_value_shape');
+    expect(rejected.trusted).toBe(false);
+  });
+
+  test('shifted enrichment candidate is rejected when neighboring candidate has better value shape', () => {
+    const result = selectBestMappingCandidate({
+      concept: 'email',
+      currentCandidateId: 'current',
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.businessEmail',
+        businessSection: 'Contact',
+        pageIndex: 1,
+        ordinalOnPage: 56,
+        tabLeft: 410.88,
+        tabTop: 766.08,
+        docusignFieldFamily: 'Text',
+      },
+      candidates: [
+        {
+          id: 'current',
+          resolvedLabel: 'Business Email',
+          labelSource: 'enrichment-position',
+          labelConfidence: 'medium',
+          businessSection: 'Contact',
+          inferredType: 'unknown_manual_review',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 56,
+          tabLeft: 35.2,
+          tabTop: 766.08,
+          currentValue: 'https://example.com',
+          enrichment: {
+            jsonKeyPath: 'merchantData.businessEmail',
+            matchedBy: 'position',
+            suggestedDisplayName: 'Business Email',
+            suggestedBusinessSection: 'Contact',
+          },
+        },
+        {
+          id: 'neighbor',
+          resolvedLabel: null,
+          labelSource: 'none',
+          labelConfidence: 'none',
+          businessSection: 'Contact',
+          inferredType: 'unknown_manual_review',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 57,
+          tabLeft: 410.88,
+          tabTop: 766.08,
+          currentValue: 'hello@example.com',
+        },
+      ],
+    });
+
+    expect(result.trusted).toBe(false);
+    expect(result.decisionReason).toBe('rejected_neighbor_better_match');
+    expect(result.shiftReason).toBe('ordinal_shift');
   });
 
   test('INTERACTIVE_CONCEPTS filters the interactive target set', () => {
