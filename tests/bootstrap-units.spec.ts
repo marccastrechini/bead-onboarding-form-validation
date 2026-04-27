@@ -10,6 +10,13 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { buildResendUrl, normalizeResendMethod } from '../lib/bead-client';
 import { ReportBuilder } from '../fixtures/validation-report';
+import type { FieldRecord, ValidationReport } from '../fixtures/validation-report';
+import { FIELD_CONCEPT_REGISTRY } from '../fixtures/field-concepts';
+import {
+  buildValidationScorecard,
+  renderScorecardMarkdown,
+  writeScorecardArtifacts,
+} from '../fixtures/validation-scorecard';
 import { buildSearchQuery, messageTargetsAddress, selectFreshestMessage, selectMailboxMessage } from '../lib/gmail-client';
 import { loadEnrichment } from '../lib/enrichment-loader';
 import {
@@ -287,3 +294,291 @@ test.describe('sample enrichment status', () => {
     }
   });
 });
+
+test.describe('field validation scorecard', () => {
+  test('concept registry includes required concepts and validation expectations', () => {
+    for (const key of ['business_name', 'date_of_birth', 'phone', 'ein', 'email', 'routing_number', 'signature'] as const) {
+      const concept = FIELD_CONCEPT_REGISTRY[key];
+      expect(concept.displayName.length).toBeGreaterThan(0);
+      expect(concept.businessSection.length).toBeGreaterThan(0);
+      expect(concept.bestPracticeValidations.length).toBeGreaterThan(0);
+      expect(concept.validExamples.length).toBeGreaterThan(0);
+      expect(concept.invalidExamples.length).toBeGreaterThan(0);
+      expect(concept.notes.length).toBeGreaterThan(0);
+    }
+  });
+
+  test('distinguishes not-run validations from failed validations', () => {
+    const report = mockValidationReport([
+      mockField({
+        index: 1,
+        resolvedLabel: 'Business Email',
+        label: 'Business Email',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'email',
+        inferredClassification: 'inferred_best_practice',
+        checks: [
+          { case: 'email:missing-at', status: 'fail', detail: 'accepted invalid address' },
+        ],
+      }),
+    ]);
+
+    const scorecard = buildValidationScorecard(report);
+    const email = scorecard.conceptScores.find((score) => score.key === 'email')!;
+    const failed = email.bestPracticeValidations.find((row) => row.id === 'missing-at-rejected')!;
+    const notRun = email.bestPracticeValidations.find((row) => row.id === 'valid-email-accepted')!;
+
+    expect(failed.status).toBe('failed');
+    expect(failed.executed).toBe(true);
+    expect(notRun.status).toBe('not_run');
+    expect(notRun.executed).toBe(false);
+  });
+
+  test('generic DocuSign labels do not count as identified business fields', () => {
+    const report = mockValidationReport([
+      mockField({
+        index: 1,
+        resolvedLabel: 'Email',
+        label: 'Email',
+        labelSource: 'docusign-tab-type',
+        labelConfidence: 'low',
+        inferredType: 'email',
+        inferredClassification: 'inferred_best_practice',
+      }),
+    ]);
+
+    const scorecard = buildValidationScorecard(report);
+    const email = scorecard.conceptScores.find((score) => score.key === 'email')!;
+
+    expect(email.foundField).toBe(true);
+    expect(email.identifiedWithConfidence).toBe(false);
+    expect(email.validationQualityGrade).toBe('Needs Mapping');
+    expect(email.bestPracticeValidations[0].status).toBe('cannot_run_not_confidently_mapped');
+  });
+
+  test('DOB, phone, EIN, and email matrices include expected recommended tests', () => {
+    expect(FIELD_CONCEPT_REGISTRY.date_of_birth.bestPracticeValidations.map((row) => row.id)).toEqual(
+      expect.arrayContaining([
+        'valid-adult-dob-accepted',
+        'letters-rejected',
+        'impossible-date-rejected',
+        'future-date-rejected',
+        'under-age-dob-rejected-or-flagged',
+        'unrealistic-old-date-rejected-or-flagged',
+        'empty-required-behavior',
+        'accepted-date-format-documented',
+      ]),
+    );
+    expect(FIELD_CONCEPT_REGISTRY.phone.bestPracticeValidations.map((row) => row.id)).toEqual(
+      expect.arrayContaining([
+        'valid-e164-accepted',
+        'missing-plus-handling',
+        'letters-rejected',
+        'too-short-rejected',
+        'too-long-rejected',
+        'punctuation-format-handling',
+        'empty-required-behavior',
+      ]),
+    );
+    expect(FIELD_CONCEPT_REGISTRY.ein.bestPracticeValidations.map((row) => row.id)).toEqual(
+      expect.arrayContaining([
+        'valid-ein-accepted',
+        'letters-rejected',
+        'too-short-rejected',
+        'too-long-rejected',
+        'missing-dash-behavior',
+        'repeated-digits-behavior',
+        'empty-required-behavior',
+      ]),
+    );
+    expect(FIELD_CONCEPT_REGISTRY.email.bestPracticeValidations.map((row) => row.id)).toEqual(
+      expect.arrayContaining([
+        'valid-email-accepted',
+        'missing-at-rejected',
+        'invalid-domain-rejected',
+        'spaces-rejected',
+        'too-long-rejected',
+        'empty-required-behavior',
+      ]),
+    );
+  });
+
+  test('scorecard output is generated from a small mock report', () => {
+    const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bead-scorecard-'));
+    try {
+      const report = mockValidationReport([
+        mockField({
+          index: 1,
+          resolvedLabel: 'Business Phone',
+          label: 'Business Phone',
+          labelSource: 'aria-label',
+          labelConfidence: 'high',
+          inferredType: 'phone_e164',
+          inferredClassification: 'inferred_best_practice',
+          checks: [{ case: 'phone_e164:valid-e164', status: 'pass' }],
+        }),
+      ]);
+
+      const { jsonPath, mdPath, scorecard } = writeScorecardArtifacts(report, outDir);
+      const json = JSON.parse(fs.readFileSync(jsonPath, 'utf8')) as { overall: { fieldConceptsCovered: number } };
+      const md = fs.readFileSync(mdPath, 'utf8');
+
+      expect(scorecard.conceptScores.find((score) => score.key === 'phone')!.executedValidationCount).toBe(1);
+      expect(json.overall.fieldConceptsCovered).toBeGreaterThan(0);
+      expect(md).toContain('# Bead Onboarding - Field Validation Scorecard');
+      expect(md).toContain('Business Phone');
+      expect(renderScorecardMarkdown(scorecard)).toContain('Tests actually executed');
+    } finally {
+      fs.rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+});
+
+function mockField(overrides: Partial<FieldRecord> = {}): FieldRecord {
+  const field: FieldRecord = {
+    kind: 'textbox',
+    index: 1,
+    section: 'Mock section',
+    label: null,
+    resolvedLabel: null,
+    labelSource: 'none',
+    labelConfidence: 'none',
+    rawCandidateLabels: [],
+    rejectedLabelCandidates: [],
+    labelLooksLikeValue: false,
+    observedValueLikeTextNearControl: null,
+    idOrNameKey: null,
+    attachmentEvidence: 'none',
+    groupName: null,
+    placeholder: null,
+    ariaLabel: null,
+    title: null,
+    describedBy: null,
+    helperText: null,
+    type: 'text',
+    inputMode: null,
+    autocomplete: null,
+    pattern: null,
+    minLength: null,
+    maxLength: null,
+    required: true,
+    docusignTabType: null,
+    visible: true,
+    editable: true,
+    controlCategory: 'merchant_input',
+    inferredType: 'unknown_manual_review',
+    inferredClassification: 'manual_review',
+    locatorConfidence: 'css-fallback',
+    checks: [],
+    enrichment: null,
+    tabGuid: null,
+    pageIndex: null,
+    ordinalOnPage: null,
+    tabLeft: null,
+    tabTop: null,
+    tabWidth: null,
+    tabHeight: null,
+    ...overrides,
+  };
+  if (!Object.prototype.hasOwnProperty.call(overrides, 'label')) field.label = field.resolvedLabel;
+  return field;
+}
+
+function mockValidationReport(fields: FieldRecord[]): ValidationReport {
+  const allChecks = fields.flatMap((field) => field.checks);
+  return {
+    runStartedAt: '2026-04-27T00:00:00.000Z',
+    runFinishedAt: '2026-04-27T00:00:01.000Z',
+    destructiveMode: false,
+    discoveryDiagnostics: {
+      disclosureDetected: null,
+      disclosureCheckboxChecked: null,
+      disclosureContinueClicked: null,
+      formReadyAfterDisclosure: null,
+      signerSurfaceResolved: true,
+    },
+    totals: {
+      discovered: fields.length,
+      merchantInputs: fields.filter((field) => field.controlCategory === 'merchant_input').length,
+      pass: allChecks.filter((check) => check.status === 'pass').length,
+      fail: allChecks.filter((check) => check.status === 'fail').length,
+      warning: allChecks.filter((check) => check.status === 'warning').length,
+      manual_review: allChecks.filter((check) => check.status === 'manual_review').length,
+      skipped: allChecks.filter((check) => check.status === 'skipped').length,
+    },
+    countsByControlCategory: {
+      merchant_input: fields.filter((field) => field.controlCategory === 'merchant_input').length,
+      read_only_display: 0,
+      docusign_chrome: 0,
+      signature_widget: 0,
+      date_signed_widget: 0,
+      attachment_control: 0,
+      acknowledgement_checkbox: 0,
+      unknown_control: 0,
+    },
+    countsByClassification: {
+      confirmed_from_ui: 0,
+      inferred_best_practice: fields.filter((field) => field.inferredClassification === 'inferred_best_practice').length,
+      manual_review: fields.filter((field) => field.inferredClassification === 'manual_review').length,
+    },
+    countsByInferredType: {},
+    countsByLabelSource: {},
+    countsBySection: {},
+    countsByBusinessSection: {},
+    countsByCategory: {
+      hard_fail: 0,
+      warning: 0,
+      accessibility_gap: 0,
+      validation_gap: 0,
+      selector_risk: 0,
+      manual_review: 0,
+    },
+    labelExtractionSummary: {
+      labelsRejectedTotal: 0,
+      labelsRejectedByReason: {
+        'looks-like-value': 0,
+        'docusign-stub': 0,
+        'chrome-text': 0,
+        'equals-field-value': 0,
+        'generic-docusign-tab-type': 0,
+        'too-short': 0,
+        'too-long': 0,
+        'pure-punctuation': 0,
+        'pure-digits': 0,
+      },
+      labelsLookedLikeValue: 0,
+      controlsWithNoAcceptedLabel: fields.filter((field) => !field.resolvedLabel).length,
+    },
+    labelQualitySummary: {
+      acceptedHumanLabels: fields.filter((field) => field.resolvedLabel && field.labelSource !== 'docusign-tab-type').length,
+      enrichmentLabels: fields.filter((field) => field.labelSource.startsWith('enrichment-')).length,
+      genericDocusignTabTypeHints: fields.filter((field) => Boolean(field.docusignTabType)).length,
+      genericDocusignTabTypeLabelsAccepted: fields.filter((field) => field.labelSource === 'docusign-tab-type').length,
+      unresolvedFields: fields.filter((field) => !field.resolvedLabel).length,
+    },
+    enrichmentDiagnostics: { matchedRecords: [], unmatchedRecords: [] },
+    attachmentEvidenceBreakdown: { strong: 0, weak: 0, none: fields.length },
+    candidateValidations: [],
+    prioritizedUnknowns: [],
+    fragileSelectors: [],
+    topFindings: [],
+    quickFieldIndex: [],
+    enrichmentSummary: {
+      requested: false,
+      enabled: false,
+      bundlePath: null,
+      unavailableReason: null,
+      bundleRecordCount: 0,
+      fieldsConsidered: 0,
+      matchesByGuid: 0,
+      matchesByPosition: 0,
+      matchesByCoordinate: 0,
+      labelsUpgraded: 0,
+      businessSectionsUpgraded: 0,
+      unmatchedRecords: 0,
+      unmatchedRecordReasons: {},
+    },
+    fields,
+  };
+}

@@ -2,6 +2,8 @@
  * Accumulates per-field validation results and writes artifacts:
  *   - artifacts/latest-validation-summary.json  (machine-readable)
  *   - artifacts/latest-validation-summary.md    (human-readable)
+ *   - artifacts/latest-validation-scorecard.json (human-readable planning data)
+ *   - artifacts/latest-validation-scorecard.md   (reviewer scorecard)
  */
 
 import * as fs from 'node:fs';
@@ -25,6 +27,7 @@ import type {
   EnrichmentUnavailableReason,
 } from '../lib/enrichment-loader';
 import { buildPositionalFingerprint, matchField, normalizeFamily } from '../lib/enrichment-loader';
+import { writeScorecardArtifacts } from './validation-scorecard';
 
 export type CheckStatus = 'pass' | 'fail' | 'warning' | 'manual_review' | 'skipped';
 
@@ -787,6 +790,8 @@ export class ReportBuilder {
 
     const mdPath = path.join(outDir, 'latest-validation-summary.md');
     fs.writeFileSync(mdPath, renderMarkdown(report), 'utf8');
+
+    writeScorecardArtifacts(report, outDir);
 
     return { jsonPath, mdPath };
   }
