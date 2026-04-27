@@ -36,6 +36,13 @@ import {
   detectValueShape,
   selectBestMappingCandidate,
 } from '../lib/mapping-calibration';
+import {
+  isRedactedSampleValue,
+  normalizeSampleApplication,
+  resolveSampleInputs,
+} from '../lib/sample-inputs';
+import { buildSourceFieldInventory } from '../lib/sample-alignment';
+import { buildSampleIngestionReview } from '../lib/sample-ingestion';
 import { redactUrl } from '../lib/url-sanitize';
 
 test.describe('bead-client: buildResendUrl', () => {
@@ -542,6 +549,275 @@ test.describe('field validation scorecard', () => {
   });
 });
 
+test.describe('sample input normalization', () => {
+  test('normalizes legacy merchantData sample shape', () => {
+    const normalized = normalizeSampleApplication({
+      id: 'app-1',
+      partnerId: 'partner-1',
+      status: 'Draft',
+      merchantData: {
+        registeredName: 'Juniper Home Goods',
+      },
+      signer: {
+        position: 'owner',
+      },
+    });
+
+    expect(normalized.applicationId).toBe('app-1');
+    expect(normalized.partnerId).toBe('partner-1');
+    expect(normalized.signerPosition).toBe('owner');
+    expect(normalized.merchantData.registeredName).toBe('Juniper Home Goods');
+  });
+
+  test('normalizes application-response sample shape', () => {
+    const normalized = normalizeSampleApplication({
+      id: '69efc4c4282f71a0677471da',
+      partnerId: '69d54991387048d86725ef06',
+      status: 'Signing',
+      agreementApplication: {
+        envelopeId: 'faab2807-d326-8c41-80e6-c69272421bb2',
+        partnerExternalId: 'ext-202604271618',
+        templateId: 'template-1',
+        status: 'sent',
+        signer: {
+          position: 'president',
+        },
+        merchantOnboardingApplicationDetails: {
+          registeredName: 'Mosaic Zieme',
+          businessWebsite: 'https://example.test',
+        },
+      },
+    });
+
+    expect(normalized.applicationId).toBe('69efc4c4282f71a0677471da');
+    expect(normalized.envelopeId).toBe('faab2807-d326-8c41-80e6-c69272421bb2');
+    expect(normalized.partnerExternalId).toBe('ext-202604271618');
+    expect(normalized.agreementStatus).toBe('sent');
+    expect(normalized.signerPosition).toBe('president');
+    expect(normalized.merchantData.businessWebsite).toBe('https://example.test');
+  });
+
+  test('marks masked sample values as redacted and non-matchable', () => {
+    expect(isRedactedSampleValue('***')).toBe(true);
+    expect(isRedactedSampleValue('***-0000')).toBe(true);
+    expect(isRedactedSampleValue('m***@example.com')).toBe(true);
+    expect(isRedactedSampleValue('https://juniper-home.example')).toBe(false);
+  });
+
+  test('source inventory skips rendered variants for redacted values', () => {
+    const fields = buildSourceFieldInventory({
+      agreementApplication: {
+        merchantOnboardingApplicationDetails: {
+          businessEmail: 'm***@example.com',
+          businessWebsite: 'https://juniper-home.example',
+        },
+      },
+    });
+
+    const email = fields.find((field) => field.keyPath === 'merchantData.businessEmail');
+    const website = fields.find((field) => field.keyPath === 'merchantData.businessWebsite');
+    expect(email?.redacted).toBe(true);
+    expect(website?.redacted).toBe(false);
+  });
+
+  test('source inventory applies PDF-confirmed overrides to redacted values', () => {
+    const fields = buildSourceFieldInventory(
+      {
+        agreementApplication: {
+          merchantOnboardingApplicationDetails: {
+            businessEmail: 'm***@example.com',
+          },
+        },
+      },
+      {
+        valueOverrides: {
+          'merchantData.businessEmail': 'merchant@example.com',
+        },
+      },
+    );
+
+    const email = fields.find((field) => field.keyPath === 'merchantData.businessEmail');
+    expect(email?.redacted).toBe(false);
+    expect(email?.valueSample).toBe('merchant@example.com');
+    expect(email?.valueSource).toBe('pdf_confirmed_mhtml');
+  });
+
+  test('sample ingestion review accepts PDF-confirmed overrides for a matched sample set', () => {
+    const review = buildSampleIngestionReview({
+      inputs: {
+        applicationJsonPath: path.resolve('samples/private/app.json'),
+        pdfPath: path.resolve('samples/private/app.pdf'),
+        mhtmlPath: path.resolve('samples/private/app.mhtml'),
+        urlPath: null,
+        manifestPath: path.resolve('samples/private/current-sample-manifest.json'),
+        resolvedFrom: 'manifest',
+      },
+      submission: {
+        id: '69efc4c4282f71a0677471da',
+        partnerId: '69d54991387048d86725ef06',
+        status: 'Signing',
+        agreementApplication: {
+          envelopeId: 'FAAB2807-D326-8C41-80E6-C69272421BB2',
+          partnerExternalId: 'castro-test-all-tender-202604271618',
+          status: 'sent',
+          signer: {
+            position: 'owner',
+          },
+          merchantOnboardingApplicationDetails: {
+            registeredName: '***',
+            registrationDate: '***-0000',
+            businessWebsite: 'https://example.test',
+            businessEmail: '***@example.test',
+            businessPhone: '***-2480',
+            bankName: '***',
+            mainPointOfContact: {
+              firstName: '***',
+              lastName: '***',
+              email: '***',
+              phoneNumber: '***',
+            },
+            stakeholders: [
+              {
+                firstName: '***',
+                lastName: '***',
+                email: '***',
+                phoneNumber: '***',
+                dateOfBirth: '***-0000',
+                ownershipPercentage: 60,
+                jobTitle: 'Managing Member',
+              },
+            ],
+          },
+        },
+      },
+      mhtml: {
+        snapshotLocationRedacted: 'https://apps-d.docusign.com/[redacted-path]?[redacted]',
+        subject: 'Review and sign documents on Docusign | Docusign',
+        pageCount: 4,
+        decodedHtmlLength: 1,
+        warnings: [],
+        countsByType: { Text: 18, Unknown: 2 },
+        tabs: [
+          mockMhtmlTab({ pageIndex: 1, ordinalOnPage: 0, value: '69efc4c4282f71a0677471da' }),
+          mockMhtmlTab({ pageIndex: 1, ordinalOnPage: 2, value: '69d54991387048d86725ef06' }),
+          mockMhtmlTab({ pageIndex: 1, ordinalOnPage: 3, value: 'castro-test-all-tender-202604271618' }),
+          mockMhtmlTab({ pageIndex: 1, ordinalOnPage: 4, value: 'Mosaic Zieme Living Inc' }),
+          mockMhtmlTab({ pageIndex: 1, ordinalOnPage: 5, value: '2024/06/18', type: 'Unknown' }),
+          mockMhtmlTab({ pageIndex: 1, ordinalOnPage: 31, value: 'Justine' }),
+          mockMhtmlTab({ pageIndex: 1, ordinalOnPage: 32, value: 'Mueller' }),
+          mockMhtmlTab({ pageIndex: 1, ordinalOnPage: 33, value: 'justine@example.test' }),
+          mockMhtmlTab({ pageIndex: 1, ordinalOnPage: 34, value: '+13049558791' }),
+          mockMhtmlTab({ pageIndex: 1, ordinalOnPage: 55, value: 'https://example.test' }),
+          mockMhtmlTab({ pageIndex: 1, ordinalOnPage: 56, value: 'hello@example.test' }),
+          mockMhtmlTab({ pageIndex: 1, ordinalOnPage: 57, value: '+14029122480' }),
+          mockMhtmlTab({ pageIndex: 1, ordinalOnPage: 58, value: 'JPMorgan Chase Bank' }),
+          mockMhtmlTab({ pageIndex: 3, ordinalOnPage: 1, value: 'Test' }),
+          mockMhtmlTab({ pageIndex: 3, ordinalOnPage: 2, value: 'marc.castrechini' }),
+          mockMhtmlTab({ pageIndex: 3, ordinalOnPage: 5, value: '1968/04/28', type: 'Unknown' }),
+          mockMhtmlTab({ pageIndex: 3, ordinalOnPage: 7, value: '60' }),
+          mockMhtmlTab({ pageIndex: 3, ordinalOnPage: 22, value: 'marc@example.test' }),
+          mockMhtmlTab({ pageIndex: 3, ordinalOnPage: 23, value: '+12193662653' }),
+          mockMhtmlTab({ pageIndex: 3, ordinalOnPage: 27, value: 'Managing Member' }),
+        ],
+      },
+      pdf: {
+        pageCount: 3,
+        text: [
+          '69efc4c4282f71a0677471da',
+          '69d54991387048d86725ef06',
+          'castro-test-all-tender-202604271618',
+          'Mosaic Zieme Living Inc',
+          '2024/06/18',
+          'Justine',
+          'Mueller',
+          'justine@example.test',
+          '+13049558791',
+          'https://example.test',
+          'hello@example.test',
+          '+14029122480',
+          'JPMorgan Chase Bank',
+          'Docusign Envelope ID: FAAB2807-D326-8C41-80E6-C69272421BB2',
+          'Test',
+          'marc.castrechini',
+          '1968/04/28',
+          '60',
+          'marc@example.test',
+          '+12193662653',
+          'Managing Member',
+        ].join('\n'),
+        pages: [
+          {
+            pageNumber: 1,
+            text: [
+              '69efc4c4282f71a0677471da',
+              '69d54991387048d86725ef06',
+              'castro-test-all-tender-202604271618',
+              'Mosaic Zieme Living Inc',
+              '2024/06/18',
+              'Justine',
+              'Mueller',
+              'justine@example.test',
+              '+13049558791',
+              'https://example.test',
+              'hello@example.test',
+              '+14029122480',
+              'JPMorgan Chase Bank',
+              'Docusign Envelope ID: FAAB2807-D326-8C41-80E6-C69272421BB2',
+            ].join('\n'),
+          },
+          {
+            pageNumber: 3,
+            text: [
+              'Test',
+              'marc.castrechini',
+              '1968/04/28',
+              '60',
+              'marc@example.test',
+              '+12193662653',
+              'Managing Member',
+            ].join('\n'),
+          },
+        ],
+      },
+    });
+
+    expect(review.review.matchedSet).toBe(true);
+    expect(review.review.acceptedOverrideCount).toBeGreaterThanOrEqual(6);
+    expect(review.valueOverrides['merchantData.businessEmail']).toBe('hello@example.test');
+    expect(review.valueOverrides['merchantData.registrationDate']).toBe('2024/06/18');
+    expect(review.valueOverrides['merchantData.stakeholders[0].email']).toBe('marc@example.test');
+  });
+
+  test('manifest resolution supports ignored current-sample manifest', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sample-manifest-'));
+    const cwd = process.cwd();
+    try {
+      process.chdir(tempDir);
+      fs.mkdirSync(path.join(tempDir, 'samples', 'private'), { recursive: true });
+      fs.writeFileSync(
+        path.join(tempDir, 'samples', 'private', 'current-sample-manifest.json'),
+        JSON.stringify({
+          applicationJsonPath: 'samples/private/new-app.txt',
+          pdfPath: 'samples/private/new.pdf',
+          mhtmlPath: 'samples/private/new.mhtml',
+          urlPath: 'samples/private/url.txt',
+        }),
+        'utf8',
+      );
+
+      const resolved = resolveSampleInputs({ env: {} as NodeJS.ProcessEnv });
+      expect(resolved.resolvedFrom).toBe('manifest');
+      expect(path.basename(resolved.applicationJsonPath)).toBe('new-app.txt');
+      expect(path.basename(resolved.mhtmlPath)).toBe('new.mhtml');
+      expect(path.basename(resolved.pdfPath ?? '')).toBe('new.pdf');
+      expect(path.basename(resolved.urlPath ?? '')).toBe('url.txt');
+    } finally {
+      process.chdir(cwd);
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+});
+
 test.describe('interactive validation safety', () => {
   test('detects email value shape', () => {
     expect(detectValueShape('qa.signer@example.com')).toBe('email');
@@ -973,6 +1249,31 @@ function mockInteractiveResults(
       cleanupStrategy: 'restore_original_value_then_blur',
       safetyNotes: ['Uses disposable test input values.'],
     }],
+  };
+}
+
+function mockMhtmlTab(args: {
+  pageIndex: number;
+  ordinalOnPage: number;
+  value: string;
+  type?: 'Text' | 'Unknown';
+}) {
+  return {
+    tabGuid: `00000000-0000-0000-0000-${String(args.pageIndex).padStart(4, '0')}${String(args.ordinalOnPage).padStart(8, '0')}`,
+    dataType: args.type ?? 'Text',
+    rawDataType: args.type ?? 'Text',
+    pageIndex: args.pageIndex,
+    pageGuid: null,
+    ordinalOnPage: args.ordinalOnPage,
+    left: null,
+    top: null,
+    required: true,
+    ownedBySigner: true,
+    renderedValue: args.value,
+    inputValue: args.value,
+    decoratorLabel: 'Required',
+    dataQa: null,
+    maxLength: null,
   };
 }
 

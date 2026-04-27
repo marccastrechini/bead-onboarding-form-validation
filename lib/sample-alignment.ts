@@ -8,6 +8,7 @@
  */
 
 import type { MhtmlTab, MhtmlTabType, MhtmlParseResult } from './mhtml-parser';
+import { isRedactedSampleValue, normalizeSampleApplication } from './sample-inputs';
 
 // ---------------------------------------------------------------------------
 // 1. JSON source field inventory
@@ -49,8 +50,14 @@ export interface SourceField {
   valueSample: string;
   typeHint: NormalizedTypeHint;
   businessSection: BusinessSection;
+  redacted: boolean;
+  valueSource: 'json' | 'pdf_confirmed_mhtml';
   /** Canonical prompt aliases a human might see on a rendered form. */
   promptAliases: string[];
+}
+
+export interface BuildSourceFieldInventoryOptions {
+  valueOverrides?: Record<string, string>;
 }
 
 const MERCHANT_KEY_MAP: Record<string, { type: NormalizedTypeHint; section: BusinessSection; aliases: string[] }> = {
@@ -175,10 +182,13 @@ function stringifyValue(v: unknown): string {
  * known business-meaningful keys are emitted; the raw envelope isn't
  * reproduced.
  */
-export function buildSourceFieldInventory(submission: unknown): SourceField[] {
+export function buildSourceFieldInventory(
+  submission: unknown,
+  options: BuildSourceFieldInventoryOptions = {},
+): SourceField[] {
   const fields: SourceField[] = [];
-  const root = submission as { merchantData?: Record<string, unknown> };
-  const md = root?.merchantData ?? {};
+  const normalized = normalizeSampleApplication(submission);
+  const md = normalized.merchantData;
   const push = (
     keyPath: string,
     value: unknown,
@@ -187,13 +197,19 @@ export function buildSourceFieldInventory(submission: unknown): SourceField[] {
     aliases: string[],
   ) => {
     if (value === undefined) return;
-    const sample = stringifyValue(value);
+    const originalRedacted = isRedactedSampleValue(value);
+    const overrideValue = originalRedacted ? options.valueOverrides?.[keyPath] : undefined;
+    const effectiveValue = overrideValue ?? value;
+    const sample = stringifyValue(effectiveValue);
+    const redacted = isRedactedSampleValue(effectiveValue);
     fields.push({
       keyPath,
-      value,
+      value: effectiveValue,
       valueSample: sample.length > 120 ? sample.slice(0, 117) + '...' : sample,
       typeHint: type,
       businessSection: section,
+      redacted,
+      valueSource: overrideValue ? 'pdf_confirmed_mhtml' : 'json',
       promptAliases: aliases,
     });
   };
@@ -292,6 +308,7 @@ export function buildSourceFieldInventory(submission: unknown): SourceField[] {
 
 /** Generate candidate rendered-value shapes a vendor might use. */
 export function renderedVariants(field: SourceField): string[] {
+  if (field.redacted) return [];
   const raw = field.valueSample;
   if (!raw) return [];
   const out = new Set<string>();
@@ -471,9 +488,9 @@ function decoratorFamily(t: MhtmlTabType): BusinessSection | null {
 export function buildAlignment(
   submission: unknown,
   mhtml: MhtmlParseResult,
-  opts: { jsonPath: string; mhtmlPath: string },
+  opts: { jsonPath: string; mhtmlPath: string; valueOverrides?: Record<string, string> },
 ): AlignmentReport {
-  const jsonFields = buildSourceFieldInventory(submission);
+  const jsonFields = buildSourceFieldInventory(submission, { valueOverrides: opts.valueOverrides });
 
   // Index tabs by lowercase trimmed rendered value.  Include both the visual
   // sizer text and the underlying input[value] — the visual text is often
@@ -581,7 +598,12 @@ export function buildAlignment(
         businessSection: decFamily ?? f.businessSection,
         confidence: conf,
         matchingMethod: match.method,
-        notes: match.method === 'substring' ? `substring of rendered value` : '',
+        notes:
+          f.valueSource === 'pdf_confirmed_mhtml'
+            ? 'matched using a PDF-confirmed MHTML value for a redacted JSON field'
+            : match.method === 'substring'
+              ? 'substring of rendered value'
+              : '',
       });
     } else {
       rows.push({
@@ -600,7 +622,10 @@ export function buildAlignment(
         businessSection: f.businessSection,
         confidence: 'none',
         matchingMethod: 'unmatched',
-        notes: 'no rendered value matched any variant',
+        notes:
+          f.valueSource === 'pdf_confirmed_mhtml'
+            ? 'no rendered value matched after applying a PDF-confirmed MHTML fallback'
+            : 'no rendered value matched any variant',
       });
     }
   }
