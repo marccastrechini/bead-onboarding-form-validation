@@ -229,16 +229,25 @@ function buildConceptContexts(input: {
     if (!diagnosticsByConcept.has(row.concept)) diagnosticsByConcept.set(row.concept, row);
   }
 
-  const requestedConcepts = new Set<FieldConceptKey>(['website', 'email', 'phone', 'bank_name', 'date_of_birth']);
+  const requestedConcepts = new Set<FieldConceptKey>([
+    'website',
+    'email',
+    'phone',
+    'bank_name',
+    'date_of_birth',
+    'registration_date',
+    'ownership_percentage',
+    'postal_code',
+    'business_name',
+    'dba_name',
+    'business_description',
+  ]);
   for (const concept of diagnosticsByConcept.keys()) requestedConcepts.add(concept);
 
   return Array.from(requestedConcepts)
     .sort((a, b) => conceptOrder(a) - conceptOrder(b))
     .flatMap((concept) => {
-      const conceptDef = FIELD_CONCEPT_REGISTRY[concept];
-      const enrichmentRecord = input.enrichment.records.find((record) =>
-        conceptDef.jsonKeyPatterns.some((pattern) => pattern.test(record.jsonKeyPath)),
-      );
+      const enrichmentRecord = findConceptEnrichmentRecord(input, concept);
       if (!enrichmentRecord) return [];
 
       const alignmentRow = input.alignment.rows.find((row) => row.jsonKeyPath === enrichmentRecord.jsonKeyPath) ?? null;
@@ -288,6 +297,36 @@ function buildConceptContexts(input: {
         nearbyFields,
       }];
     });
+}
+
+function findConceptEnrichmentRecord(input: {
+  report: ValidationReport;
+  enrichment: EnrichmentBundle;
+}, concept: FieldConceptKey): EnrichmentRecord | null {
+  const conceptDef = FIELD_CONCEPT_REGISTRY[concept];
+  const bundled = input.enrichment.records.find((record) =>
+    conceptDef.jsonKeyPatterns.some((pattern) => pattern.test(record.jsonKeyPath)),
+  );
+  if (bundled) return bundled;
+
+  const field = input.report.fields.find((candidate) =>
+    candidate.enrichment?.jsonKeyPath && conceptDef.jsonKeyPatterns.some((pattern) => pattern.test(candidate.enrichment!.jsonKeyPath)),
+  );
+  if (!field?.enrichment) return null;
+
+  return {
+    tabGuid: field.tabGuid ?? '',
+    positionalFingerprint: field.enrichment.positionalFingerprint,
+    tabLeft: field.enrichment.expectedTabLeft ?? field.tabLeft,
+    tabTop: field.enrichment.expectedTabTop ?? field.tabTop,
+    jsonKeyPath: field.enrichment.jsonKeyPath,
+    jsonFieldFamily: field.enrichment.suggestedBusinessSection,
+    jsonTypeHint: field.enrichment.expectedJsonTypeHint ?? 'string',
+    docusignFieldFamily: field.enrichment.expectedDocusignFieldFamily ?? field.docusignTabType ?? 'Unknown',
+    confidence: field.enrichment.confidence,
+    suggestedDisplayName: field.enrichment.suggestedDisplayName,
+    suggestedBusinessSection: field.enrichment.suggestedBusinessSection,
+  };
 }
 
 function buildConceptRow(
@@ -378,7 +417,7 @@ function deriveCalibrationReason(
   if (context.concept === 'bank_name' && selection.trusted && selectedField) {
     return 'stale_enrichment_after_anchor_mismatch';
   }
-  if ((context.concept === 'website' || context.concept === 'email' || context.concept === 'phone' || context.concept === 'bank_name') && !selection.trusted && !nearestShapeMatch) {
+  if (!selection.trusted && !nearestShapeMatch) {
     return 'no_unclaimed_neighbor_with_expected_shape';
   }
   return 'none';
@@ -648,7 +687,19 @@ function formatCoordinates(left: number | null, top: number | null): string {
 }
 
 function conceptOrder(concept: FieldConceptKey): number {
-  const ordered: FieldConceptKey[] = ['website', 'email', 'phone', 'bank_name', 'date_of_birth'];
+  const ordered: FieldConceptKey[] = [
+    'website',
+    'email',
+    'phone',
+    'bank_name',
+    'date_of_birth',
+    'registration_date',
+    'ownership_percentage',
+    'postal_code',
+    'business_name',
+    'dba_name',
+    'business_description',
+  ];
   const index = ordered.indexOf(concept);
   return index >= 0 ? index : ordered.length + concept.localeCompare('website');
 }

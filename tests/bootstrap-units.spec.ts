@@ -21,6 +21,7 @@ import {
   assertInteractiveValidationGuards,
   buildInteractiveValidationPlan,
   extractFieldLocalValidationDiagnostics,
+  INTERACTIVE_TARGET_CONCEPTS,
   resolveInteractiveTargetConcepts,
   skippedConceptToResult,
   type InteractiveResultOutcome,
@@ -37,6 +38,7 @@ import {
 } from '../lib/link-extractor';
 import {
   detectValueShape,
+  expectedValueShapesForConcept,
   resolveMappingClaims,
   selectBestMappingCandidate,
 } from '../lib/mapping-calibration';
@@ -606,6 +608,35 @@ test.describe('validation findings export', () => {
     expect(report.mappingBlockedFields[0].concept).toBe('bank_name');
     expect(report.likelyProductValidationFindings).toEqual([]);
     expect(report.ambiguousHumanReviewFindings).toEqual([]);
+  });
+
+  test('Batch 1 mapping_not_confident remains distinct from product_failure', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'business_name',
+          conceptDisplayName: 'Business Name',
+          validationId: 'normal-value-accepted',
+          testName: 'normal value accepted',
+          status: 'skipped',
+          outcome: 'mapping_not_confident',
+          targetConfidence: 'mapping_not_confident',
+          mappingDecisionReason: 'rejected_value_shape_mismatch',
+        }),
+        mockFindingsResult({
+          concept: 'ownership_percentage',
+          conceptDisplayName: 'Ownership Percentage',
+          validationId: 'over-100-rejected',
+          testName: 'over 100 rejected',
+          status: 'failed',
+          outcome: 'product_failure',
+          targetConfidence: 'trusted',
+        }),
+      ],
+    }));
+
+    expect(report.mappingBlockedFields.map((finding) => finding.concept)).toEqual(['business_name']);
+    expect(report.likelyProductValidationFindings.map((finding) => finding.concept)).toEqual(['ownership_percentage']);
   });
 
   test('observer_ambiguous appears only in human-review section', () => {
@@ -1766,6 +1797,216 @@ test.describe('interactive validation safety', () => {
     expect(result.decisionReason).toBe('rejected_ambiguous_neighbors');
   });
 
+  test('Batch 1 concepts are recognized by INTERACTIVE_CONCEPTS', () => {
+    const batchOne = [
+      'registration_date',
+      'ownership_percentage',
+      'postal_code',
+      'business_name',
+      'dba_name',
+      'business_description',
+    ] as const;
+
+    expect(INTERACTIVE_TARGET_CONCEPTS).toEqual(expect.arrayContaining([...batchOne]));
+    expect(resolveInteractiveTargetConcepts({
+      INTERACTIVE_CONCEPTS: batchOne.join(','),
+    } as NodeJS.ProcessEnv)).toEqual([...batchOne]);
+  });
+
+  test('Batch 1 concepts build the expected interactive matrix', () => {
+    const plan = buildInteractiveValidationPlan(mockValidationReport([
+      mockField({
+        index: 1,
+        resolvedLabel: 'Registration Date',
+        label: 'Registration Date',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'formation_date',
+      }),
+      mockField({
+        index: 2,
+        resolvedLabel: 'Ownership Percentage',
+        label: 'Ownership Percentage',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'ownership_percent',
+      }),
+      mockField({
+        index: 3,
+        resolvedLabel: 'Postal Code',
+        label: 'Postal Code',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'zip_postal_code',
+      }),
+      mockField({
+        index: 4,
+        resolvedLabel: 'Business Name',
+        label: 'Business Name',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'business_name',
+      }),
+      mockField({
+        index: 5,
+        resolvedLabel: 'DBA Name',
+        label: 'DBA Name',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'dba_name',
+      }),
+      mockField({
+        index: 6,
+        resolvedLabel: 'Business Description',
+        label: 'Business Description',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'business_description',
+      }),
+    ]), {
+      INTERACTIVE_CONCEPTS: 'registration_date,ownership_percentage,postal_code,business_name,dba_name,business_description',
+    } as NodeJS.ProcessEnv);
+
+    const casesByConcept = new Map<string, string[]>();
+    for (const entry of plan.cases) {
+      casesByConcept.set(entry.concept, [...(casesByConcept.get(entry.concept) ?? []), entry.validationId]);
+    }
+
+    expect(plan.skippedConcepts).toEqual([]);
+    expect(casesByConcept.get('registration_date')).toEqual([
+      'valid-date-accepted',
+      'accepted-date-format-documented',
+      'letters-rejected',
+      'impossible-date-rejected',
+      'future-date-behavior',
+    ]);
+    expect(casesByConcept.get('ownership_percentage')).toEqual([
+      'valid-percent-accepted',
+      'over-100-rejected',
+      'negative-rejected',
+      'letters-rejected',
+      'empty-required-behavior',
+    ]);
+    expect(casesByConcept.get('postal_code')).toEqual([
+      'valid-postal-code-accepted',
+      'too-short-rejected',
+      'letters-behavior',
+      'empty-required-behavior',
+    ]);
+    expect(casesByConcept.get('business_name')).toEqual([
+      'normal-value-accepted',
+      'very-short-behavior',
+      'excessive-length-behavior',
+      'special-characters-behavior',
+      'empty-required-behavior',
+    ]);
+    expect(casesByConcept.get('dba_name')).toEqual([
+      'normal-value-accepted',
+      'very-short-behavior',
+      'excessive-length-behavior',
+      'special-characters-behavior',
+      'empty-required-behavior',
+    ]);
+    expect(casesByConcept.get('business_description')).toEqual([
+      'normal-text-accepted',
+      'very-short-behavior',
+      'excessive-length-behavior',
+      'garbage-text-rejected-or-flagged',
+      'empty-required-behavior',
+    ]);
+  });
+
+  test('invalid interactive concept names are rejected', () => {
+    expect(() => resolveInteractiveTargetConcepts({
+      INTERACTIVE_CONCEPTS: 'registration_date,not_a_real_concept',
+    } as NodeJS.ProcessEnv)).toThrow(/Invalid INTERACTIVE_CONCEPTS value/);
+  });
+
+  test('Batch 1 mappings are not trusted when value shape is contradictory', () => {
+    const contradictions = [
+      { concept: 'registration_date', label: 'Registration Date', section: 'Business Details', value: 'qa.signer@example.com' },
+      { concept: 'ownership_percentage', label: 'Ownership Percentage', section: 'Stakeholder', value: 'Example Business LLC' },
+      { concept: 'postal_code', label: 'Postal Code', section: 'Address', value: 'https://example.test' },
+      { concept: 'business_name', label: 'Business Name', section: 'Business Details', value: '+15551234567' },
+      { concept: 'dba_name', label: 'DBA Name', section: 'Business Details', value: '2024/06/18' },
+      { concept: 'business_description', label: 'Business Description', section: 'Business Details', value: '12345' },
+    ] as const;
+
+    for (const item of contradictions) {
+      expect(expectedValueShapesForConcept(item.concept).length).toBeGreaterThan(0);
+      const result = selectBestMappingCandidate({
+        concept: item.concept,
+        currentCandidateId: 'candidate',
+        expectedAnchor: {
+          displayName: item.label,
+          businessSection: item.section,
+          pageIndex: 1,
+          ordinalOnPage: 1,
+          tabLeft: 10,
+          tabTop: 10,
+          docusignFieldFamily: 'Text',
+        },
+        candidates: [{
+          id: 'candidate',
+          resolvedLabel: item.label,
+          labelSource: 'aria-label',
+          labelConfidence: 'high',
+          businessSection: item.section,
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 1,
+          tabLeft: 10,
+          tabTop: 10,
+          currentValue: item.value,
+        }],
+      });
+
+      expect(result.trusted).toBe(false);
+      expect(result.decisionReason).toBe('rejected_value_shape_mismatch');
+    }
+  });
+
+  test('Batch 1 can run only when mapping is trusted', () => {
+    const trustedPlan = buildInteractiveValidationPlan(mockValidationReport([
+      mockField({
+        index: 1,
+        resolvedLabel: 'Postal Code',
+        label: 'Postal Code',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'zip_postal_code',
+      }),
+    ]), {
+      INTERACTIVE_CONCEPTS: 'postal_code',
+    } as NodeJS.ProcessEnv);
+    const blockedPlan = buildInteractiveValidationPlan(mockValidationReport([
+      mockField({
+        index: 1,
+        resolvedLabel: 'Business Name',
+        label: 'Business Name',
+        labelSource: 'enrichment-coordinate',
+        labelConfidence: 'medium',
+        observedValueLikeTextNearControl: 'qa.signer@example.com',
+        enrichment: mockEnrichment({
+          jsonKeyPath: 'merchantData.registeredName',
+          suggestedDisplayName: 'Business Name',
+          suggestedBusinessSection: 'Business Details',
+        }),
+      }),
+    ]), {
+      INTERACTIVE_CONCEPTS: 'business_name',
+    } as NodeJS.ProcessEnv);
+
+    expect(trustedPlan.cases.length).toBeGreaterThan(0);
+    expect(trustedPlan.skippedConcepts).toEqual([]);
+    expect(blockedPlan.cases).toEqual([]);
+    expect(blockedPlan.skippedConcepts[0]).toMatchObject({
+      concept: 'business_name',
+      reason: 'field is not confidently mapped in the scorecard source report',
+    });
+    expect(skippedConceptToResult(blockedPlan.skippedConcepts[0]!).outcome).toBe('mapping_not_confident');
+  });
+
   test('INTERACTIVE_CONCEPTS filters the interactive target set', () => {
     expect(resolveInteractiveTargetConcepts({
       INTERACTIVE_CONCEPTS: 'website,email,phone,bank_name,date_of_birth',
@@ -1972,6 +2213,30 @@ function mockField(overrides: Partial<FieldRecord> = {}): FieldRecord {
   };
   if (!Object.prototype.hasOwnProperty.call(overrides, 'label')) field.label = field.resolvedLabel;
   return field;
+}
+
+function mockEnrichment(
+  overrides: Partial<NonNullable<FieldRecord['enrichment']>> = {},
+): NonNullable<FieldRecord['enrichment']> {
+  return {
+    matchedBy: 'coordinate',
+    jsonKeyPath: 'merchantData.registeredName',
+    suggestedDisplayName: 'Registered Name',
+    suggestedBusinessSection: 'Business Details',
+    confidence: 'high',
+    positionalFingerprint: 'page:1|Text|ord:1',
+    expectedPageIndex: 1,
+    expectedOrdinalOnPage: 1,
+    expectedDocusignFieldFamily: 'Text',
+    expectedTabLeft: 10,
+    expectedTabTop: 10,
+    expectedJsonTypeHint: 'string',
+    priorResolvedLabel: null,
+    priorLabelSource: 'none',
+    appliedToLabel: true,
+    labelUpgradeBlockedReason: null,
+    ...overrides,
+  };
 }
 
 function mockInteractiveResults(

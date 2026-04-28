@@ -356,6 +356,9 @@ const SIGNATURE_FAMILY_PATTERNS: Array<{ family: string; pattern: RegExp }> = [
   { family: 'phone', pattern: /\b(phone|telephone|e\.164|phone number|tel)\b|\+1\d{6,}/i },
   { family: 'url', pattern: /\b(website|url|homepage|domain)\b|https?:\/\/\S+|www\./i },
   { family: 'date', pattern: /\b(date of birth|dob|yyyy\/mm\/dd|mm\/dd\/yyyy|enter date|birth date|date)\b/i },
+  { family: 'postal', pattern: /\b(zip|postal\s*code|post\s*code)\b/i },
+  { family: 'percentage', pattern: /\b(percent|percentage|pct|%)\b/i },
+  { family: 'description', pattern: /\b(business description|description|nature of business|describe)\b/i },
   { family: 'bank', pattern: /\b(bank|routing|account number|account type|deposit)\b/i },
   { family: 'name', pattern: /\b(name|business name|registered name|dba)\b/i },
 ];
@@ -366,14 +369,23 @@ const PRIMARY_FAMILY_BY_CONCEPT: Partial<Record<FieldConceptKey, string>> = {
   bank_name: 'bank',
   date_of_birth: 'date',
   registration_date: 'date',
+  postal_code: 'postal',
+  ownership_percentage: 'percentage',
   business_name: 'name',
   dba_name: 'name',
+  business_description: 'description',
 };
 const BLOCKED_SIGNATURE_FAMILIES: Partial<Record<FieldConceptKey, string[]>> = {
-  website: ['email', 'phone', 'bank', 'date', 'name'],
-  bank_name: ['phone', 'email', 'date'],
-  phone: ['email', 'bank', 'date', 'name'],
-  email: ['phone', 'bank', 'date', 'name'],
+  website: ['email', 'phone', 'bank', 'date', 'name', 'postal', 'percentage', 'description'],
+  bank_name: ['phone', 'email', 'date', 'postal', 'percentage', 'description'],
+  phone: ['email', 'bank', 'date', 'name', 'postal', 'percentage', 'description'],
+  email: ['phone', 'bank', 'date', 'name', 'postal', 'percentage', 'description'],
+  registration_date: ['email', 'phone', 'url', 'bank', 'name', 'postal', 'percentage', 'description'],
+  postal_code: ['email', 'phone', 'url', 'bank', 'date', 'name', 'percentage', 'description'],
+  ownership_percentage: ['email', 'phone', 'url', 'bank', 'date', 'name', 'postal', 'description'],
+  business_name: ['email', 'phone', 'url', 'bank', 'date', 'postal', 'percentage', 'description'],
+  dba_name: ['email', 'phone', 'url', 'bank', 'date', 'postal', 'percentage', 'description'],
+  business_description: ['email', 'phone', 'url', 'bank', 'date', 'postal', 'percentage'],
 };
 
 const TEXT_FIELD_MATRIX: MatrixCaseDefinition[] = [
@@ -615,11 +627,11 @@ const MATRIX_BY_CONCEPT: Record<InteractiveTargetConcept, MatrixCaseDefinition[]
       expectedBehavior: 'accept',
     },
     {
-      validationId: 'garbage-text-rejected-or-flagged',
-      caseName: 'suspicious-garbage',
-      testName: 'garbage text rejected or flagged',
-      inputValue: '!@#$%^&*()',
-      expectedBehavior: 'reject_or_warn',
+      validationId: 'very-short-behavior',
+      caseName: 'single-char',
+      testName: 'very short value behavior observed',
+      inputValue: 'A',
+      expectedBehavior: 'reject_or_manual_review',
     },
     {
       validationId: 'excessive-length-behavior',
@@ -627,6 +639,13 @@ const MATRIX_BY_CONCEPT: Record<InteractiveTargetConcept, MatrixCaseDefinition[]
       testName: 'excessive length behavior observed',
       inputValue: LONG_DESCRIPTION,
       expectedBehavior: 'reject_or_manual_review',
+    },
+    {
+      validationId: 'garbage-text-rejected-or-flagged',
+      caseName: 'suspicious-garbage',
+      testName: 'garbage text rejected or flagged',
+      inputValue: '!@#$%^&*()',
+      expectedBehavior: 'reject_or_warn',
     },
     {
       validationId: 'empty-required-behavior',
@@ -724,6 +743,13 @@ const MATRIX_BY_CONCEPT: Record<InteractiveTargetConcept, MatrixCaseDefinition[]
       testName: 'letters rejected',
       inputValue: 'fifty',
       expectedBehavior: 'reject',
+    },
+    {
+      validationId: 'empty-required-behavior',
+      caseName: 'empty-required',
+      testName: 'empty required behavior observed',
+      inputValue: '',
+      expectedBehavior: 'reject_or_manual_review',
     },
   ],
   postal_code: [
@@ -2098,6 +2124,7 @@ function familyBelongsToConcept(family: string, concept: FieldConceptKey): boole
   const primary = PRIMARY_FAMILY_BY_CONCEPT[concept];
   if (primary && family === primary) return true;
   if ((concept === 'bank_name' || concept === 'business_name' || concept === 'dba_name') && family === 'name') return true;
+  if (concept === 'business_description' && family === 'description') return true;
   return false;
 }
 

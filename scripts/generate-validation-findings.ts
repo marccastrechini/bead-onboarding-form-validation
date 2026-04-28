@@ -162,7 +162,19 @@ export interface ValidationFindingsReport {
   safetyNotes: string[];
 }
 
-const TARGET_CONCEPT_ORDER: FieldConceptKey[] = ['website', 'email', 'phone', 'bank_name', 'date_of_birth'];
+const TARGET_CONCEPT_ORDER: FieldConceptKey[] = [
+  'website',
+  'email',
+  'phone',
+  'bank_name',
+  'date_of_birth',
+  'registration_date',
+  'ownership_percentage',
+  'postal_code',
+  'business_name',
+  'dba_name',
+  'business_description',
+];
 const NON_PRODUCT_OUTCOMES = new Set<InteractiveResultOutcome>([
   'mapping_not_confident',
   'tool_mapping_suspect',

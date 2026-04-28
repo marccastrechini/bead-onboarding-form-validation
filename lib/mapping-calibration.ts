@@ -145,6 +145,7 @@ const EXPECTED_SHAPES: Partial<Record<FieldConceptKey, ValueShape[]>> = {
   bank_name: ['text_name_like'],
   business_name: ['text_name_like'],
   dba_name: ['text_name_like'],
+  business_description: ['text_name_like'],
   date_of_birth: ['date'],
   registration_date: ['date'],
   postal_code: ['postal_code', 'numeric'],
@@ -156,7 +157,13 @@ const REJECTED_SHAPES: Partial<Record<FieldConceptKey, ValueShape[]>> = {
   phone: ['email', 'url', 'date', 'text_name_like'],
   website: ['email', 'phone', 'date', 'text_name_like'],
   bank_name: ['email', 'phone', 'url', 'date', 'numeric'],
-  date_of_birth: ['email', 'phone', 'url', 'text_name_like'],
+  business_name: ['email', 'phone', 'url', 'date', 'postal_code', 'percentage', 'numeric'],
+  dba_name: ['email', 'phone', 'url', 'date', 'postal_code', 'percentage', 'numeric'],
+  business_description: ['email', 'phone', 'url', 'date', 'postal_code', 'percentage', 'numeric'],
+  date_of_birth: ['email', 'phone', 'url', 'text_name_like', 'postal_code', 'percentage', 'numeric'],
+  registration_date: ['email', 'phone', 'url', 'text_name_like', 'postal_code', 'percentage', 'numeric'],
+  postal_code: ['email', 'phone', 'url', 'date', 'text_name_like', 'percentage'],
+  ownership_percentage: ['email', 'phone', 'url', 'date', 'postal_code', 'text_name_like'],
 };
 
 export function expectedValueShapesForConcept(concept: FieldConceptKey): ValueShape[] {

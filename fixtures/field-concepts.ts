@@ -90,6 +90,7 @@ const TEXT_LENGTH_AND_CONTENT = [
 
 const FREE_TEXT_MATRIX = [
   v('normal-text-accepted', 'Normal text accepted', 'A realistic free-text value is accepted.', 'critical', ['valid-typical', 'normal-value'], 'Confirms that legitimate descriptive text can be entered.'),
+  v('very-short-behavior', 'Very short value behavior', 'A suspiciously short free-text value is rejected, flagged, or explicitly allowed.', 'medium', ['single-char', 'too-short'], 'Short descriptions often indicate incomplete onboarding data.'),
   v('garbage-text-rejected-or-flagged', 'Garbage text rejected or flagged', 'Obvious garbage text is rejected, warned, or flagged for review.', 'medium', ['suspicious-garbage'], 'Free-text fields still benefit from light quality gates.'),
   v('excessive-length-behavior', 'Excessive length behavior', 'Very long text is constrained or handled intentionally.', 'medium', ['too-long', 'excessive-length'], 'Prevents unreadable or downstream-breaking descriptions.'),
   EMPTY_REQUIRED,
@@ -295,7 +296,7 @@ export const FIELD_CONCEPTS: FieldConceptDefinition[] = [
     missingValidationSeverity: 'medium',
     weakValidationSeverity: 'low',
     validExamples: ['We sell handmade ceramics online.'],
-    invalidExamples: ['', '!@#$%^&*()'],
+    invalidExamples: ['', 'A', '!@#$%^&*()'],
     notes: 'Description quality affects risk review and supportability.',
   },
   {
