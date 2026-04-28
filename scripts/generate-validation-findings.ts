@@ -8,6 +8,7 @@ import type {
 } from '../fixtures/interactive-validation';
 import type { FieldConceptKey } from '../fixtures/field-concepts';
 import type { MappingCalibrationFile } from '../fixtures/validation-scorecard';
+import { detectValueShape, type ValueShape } from '../lib/mapping-calibration';
 
 interface DiagnosticsFile {
   schemaVersion: 1;
@@ -101,8 +102,32 @@ interface FindingItem {
   mappingShiftReason: string | null;
   mappingMissingProof: string[];
   humanConfirmation: HumanConfirmationRequest | null;
+  ambiguity: AmbiguityReview | null;
   interpretation: string;
   recommendation: string;
+}
+
+type AmbiguityType =
+  | 'observer_needs_stronger_error_ownership'
+  | 'expected_lenient_behavior'
+  | 'policy_question'
+  | 'matrix_expectation_mismatch'
+  | 'mapping_evidence_insufficient'
+  | 'product_validation_gap_candidate'
+  | 'acceptable_behavior_documented';
+
+interface AmbiguityReview {
+  type: AmbiguityType;
+  groupTitle: string;
+  evidenceSourceSummary: string;
+  valueBehaviorSummary: string;
+  attemptedValueShape: ValueShape | 'missing';
+  observedValueShape: ValueShape | 'missing';
+  lengthEffect: 'not_observed' | 'unchanged_length' | 'shortened' | 'expanded' | 'cleared_or_prevented' | 'unknown';
+  whyNotProductFinding: string;
+  wouldBecomeProductFindingIf: string;
+  humanGuidanceNeeded: boolean;
+  humanGuidancePrompt: string | null;
 }
 
 interface HumanConfirmationRequest {
@@ -163,6 +188,8 @@ export interface ValidationFindingsReport {
   trustedExecutedObservations: FindingItem[];
   likelyProductValidationFindings: FindingItem[];
   ambiguousHumanReviewFindings: FindingItem[];
+  ambiguityTypeBreakdown: Record<AmbiguityType, number>;
+  ambiguousFindingsByType: Record<AmbiguityType, FindingItem[]>;
   mappingBlockedFields: FindingItem[];
   perConceptResults: PerConceptSummary[];
   scorecardCoverage: {
@@ -196,6 +223,16 @@ const NON_PRODUCT_OUTCOMES = new Set<InteractiveResultOutcome>([
   'observer_ambiguous',
 ]);
 
+const AMBIGUITY_SECTIONS: Array<{ type: AmbiguityType; title: string }> = [
+  { type: 'observer_needs_stronger_error_ownership', title: 'Needs observer improvement' },
+  { type: 'policy_question', title: 'Policy question' },
+  { type: 'product_validation_gap_candidate', title: 'Possible product validation gap' },
+  { type: 'expected_lenient_behavior', title: 'Expected lenient behavior' },
+  { type: 'mapping_evidence_insufficient', title: 'Mapping evidence issue' },
+  { type: 'matrix_expectation_mismatch', title: 'Test matrix expectation mismatch' },
+  { type: 'acceptable_behavior_documented', title: 'Acceptable behavior documented' },
+];
+
 export function buildValidationFindingsReport(input: {
   results: InteractiveValidationResultsFile;
   diagnostics: DiagnosticsFile;
@@ -224,7 +261,7 @@ export function buildValidationFindingsReport(input: {
     const humanConfirmation = includeMappingProof
       ? calibration?.humanConfirmation ?? buildLiveHumanConfirmationRequest(result, targetConfidenceReason, mappingFlags)
       : null;
-    return {
+    const finding: Omit<FindingItem, 'ambiguity'> = {
       concept: result.concept,
       conceptDisplayName: result.conceptDisplayName,
       validationId: result.validationId,
@@ -241,6 +278,10 @@ export function buildValidationFindingsReport(input: {
       interpretation: result.interpretation,
       recommendation: result.recommendation,
     };
+    return {
+      ...finding,
+      ambiguity: buildAmbiguityReview(result, finding),
+    };
   };
 
   const findings = input.results.results.map(toFinding);
@@ -251,6 +292,10 @@ export function buildValidationFindingsReport(input: {
   const ambiguousHumanReviewFindings = findings.filter((finding) =>
     finding.outcome === 'observer_ambiguous' || finding.status === 'manual_review',
   );
+  const ambiguousFindingsByType = groupAmbiguousFindingsByType(ambiguousHumanReviewFindings);
+  const ambiguityTypeBreakdown = Object.fromEntries(
+    AMBIGUITY_SECTIONS.map((section) => [section.type, ambiguousFindingsByType[section.type].length]),
+  ) as Record<AmbiguityType, number>;
   const mappingBlockedFields = findings.filter((finding) =>
     finding.outcome === 'mapping_not_confident' || finding.targetConfidence === 'mapping_not_confident',
   );
@@ -298,6 +343,8 @@ export function buildValidationFindingsReport(input: {
     trustedExecutedObservations,
     likelyProductValidationFindings,
     ambiguousHumanReviewFindings,
+    ambiguityTypeBreakdown,
+    ambiguousFindingsByType,
     mappingBlockedFields,
     perConceptResults,
     scorecardCoverage,
@@ -333,7 +380,7 @@ export function renderValidationFindingsMarkdown(report: ValidationFindingsRepor
   lines.push('');
   renderFindingTable(lines, 'Trusted Executed Observations', report.trustedExecutedObservations);
   renderFindingTable(lines, 'Likely Product Validation Findings', report.likelyProductValidationFindings);
-  renderFindingTable(lines, 'Ambiguous / Human Review Findings', report.ambiguousHumanReviewFindings);
+  renderAmbiguousFindingsByType(lines, report);
   renderFindingTable(lines, 'Mapping-Blocked Fields', report.mappingBlockedFields);
   lines.push('## Per-Concept Results');
   lines.push('');
@@ -414,6 +461,243 @@ function isLikelyProductFinding(finding: FindingItem): boolean {
   if (finding.targetConfidence !== 'trusted' || finding.status === 'skipped') return false;
   if (finding.outcome === 'product_failure') return true;
   return finding.status === 'warning' && !NON_PRODUCT_OUTCOMES.has(finding.outcome);
+}
+
+function groupAmbiguousFindingsByType(findings: FindingItem[]): Record<AmbiguityType, FindingItem[]> {
+  const grouped = Object.fromEntries(
+    AMBIGUITY_SECTIONS.map((section) => [section.type, []]),
+  ) as Record<AmbiguityType, FindingItem[]>;
+  for (const finding of findings) {
+    const type = finding.ambiguity?.type ?? 'observer_needs_stronger_error_ownership';
+    grouped[type].push(finding);
+  }
+  return grouped;
+}
+
+function buildAmbiguityReview(
+  result: ValidationResult,
+  finding: Omit<FindingItem, 'ambiguity'>,
+): AmbiguityReview | null {
+  if (finding.outcome !== 'observer_ambiguous' && finding.status !== 'manual_review') return null;
+
+  const attemptedValueShape = valueShape(result.inputValue);
+  const observedValueShape = valueShape(result.observation?.observedValue ?? null);
+  const lengthEffect = inferLengthEffect(result);
+  const valueBehaviorSummary = summarizeValueBehavior(result, attemptedValueShape, observedValueShape, lengthEffect);
+  const evidenceSourceSummary = summarizeEvidenceSources(result);
+  const type = classifyAmbiguityType(result, finding, lengthEffect);
+  const humanGuidancePrompt = humanGuidancePromptFor(type, result, finding);
+
+  return {
+    type,
+    groupTitle: sectionTitle(type),
+    evidenceSourceSummary,
+    valueBehaviorSummary,
+    attemptedValueShape,
+    observedValueShape,
+    lengthEffect,
+    whyNotProductFinding: whyNotProductFinding(type, result, finding),
+    wouldBecomeProductFindingIf: wouldBecomeProductFindingIf(type, result, finding),
+    humanGuidanceNeeded: humanGuidancePrompt !== null,
+    humanGuidancePrompt,
+  };
+}
+
+function classifyAmbiguityType(
+  result: ValidationResult,
+  finding: Omit<FindingItem, 'ambiguity'>,
+  lengthEffect: AmbiguityReview['lengthEffect'],
+): AmbiguityType {
+  if (finding.targetConfidence !== 'trusted' || finding.outcome === 'mapping_not_confident') {
+    return 'mapping_evidence_insufficient';
+  }
+  if (hasObservedValidationFeedback(result.observation)) {
+    return 'matrix_expectation_mismatch';
+  }
+  if (result.observation?.normalizedOrReformatted || lengthEffect === 'shortened' || lengthEffect === 'expanded') {
+    return 'acceptable_behavior_documented';
+  }
+  if (/empty-required/i.test(result.validationId)) {
+    return 'product_validation_gap_candidate';
+  }
+  if (/very-short/i.test(result.validationId)) {
+    return 'policy_question';
+  }
+  if (isKnownPolicyQuestion(result, finding)) {
+    return 'policy_question';
+  }
+  if (/special-characters/i.test(result.validationId)) {
+    return 'expected_lenient_behavior';
+  }
+  return 'observer_needs_stronger_error_ownership';
+}
+
+function isKnownPolicyQuestion(result: ValidationResult, finding: Omit<FindingItem, 'ambiguity'>): boolean {
+  const haystack = `${result.validationId} ${result.testName}`;
+  return (finding.concept === 'website' && /protocol|missing/i.test(haystack)) ||
+    (finding.concept === 'phone' && /plus|domestic|format/i.test(haystack)) ||
+    (finding.concept === 'date_of_birth' && /under|age|alternate|format|MM\/DD|YYYY\/MM/i.test(haystack)) ||
+    (finding.concept === 'business_description' && /short|special|garbage/i.test(haystack));
+}
+
+function sectionTitle(type: AmbiguityType): string {
+  return AMBIGUITY_SECTIONS.find((section) => section.type === type)?.title ?? type;
+}
+
+function hasObservedValidationFeedback(observation: ValidationResult['observation']): boolean {
+  if (!observation) return false;
+  return observation.ariaInvalid === 'true' ||
+    Boolean(observation.validationMessage) ||
+    Boolean(observation.nearbyErrorText) ||
+    observation.docusignValidationText.length > 0 ||
+    observation.invalidIndicators.length > 0 ||
+    observation.evidenceItems.some((item) => item.classification === 'field-local');
+}
+
+function valueShape(value: string | null | undefined): ValueShape | 'missing' {
+  return value === null || value === undefined ? 'missing' : detectValueShape(value);
+}
+
+function inferLengthEffect(result: ValidationResult): AmbiguityReview['lengthEffect'] {
+  const attempted = result.inputValue;
+  const observed = result.observation?.observedValue ?? null;
+  if (!result.observation) return 'not_observed';
+  if (result.observation.inputPrevented || (attempted.length > 0 && observed !== null && observed.length === 0)) {
+    return 'cleared_or_prevented';
+  }
+  if (observed === null) return 'unknown';
+  if (observed.length === attempted.length) return 'unchanged_length';
+  return observed.length < attempted.length ? 'shortened' : 'expanded';
+}
+
+function summarizeValueBehavior(
+  result: ValidationResult,
+  attemptedValueShape: ValueShape | 'missing',
+  observedValueShape: ValueShape | 'missing',
+  lengthEffect: AmbiguityReview['lengthEffect'],
+): string {
+  const signals: string[] = [
+    `attempted shape=${attemptedValueShape}`,
+    `observed shape=${observedValueShape}`,
+    `length=${lengthEffect}`,
+  ];
+  if (result.observation?.normalizedOrReformatted) signals.push('normalized/reformatted=yes');
+  if (result.observation?.inputPrevented) signals.push('input prevented=yes');
+  if (result.targetDiagnostics?.restoreSucceeded === true) signals.push('restore=ok');
+  if (result.targetDiagnostics?.restoreSucceeded === false) signals.push('restore=failed');
+  return signals.join('; ');
+}
+
+function summarizeEvidenceSources(result: ValidationResult): string {
+  const observation = result.observation;
+  if (!observation) return 'no observation captured';
+  const sources = Array.from(new Set(
+    observation.evidenceItems
+      .filter((item) => item.classification !== 'ignored')
+      .map((item) => item.source),
+  ));
+  const parts = [
+    `aria-invalid=${observation.ariaInvalid ?? 'null'}`,
+    `native-message=${observation.validationMessage ? 'present' : 'absent'}`,
+    `field-local-text=${observation.nearbyErrorText || observation.docusignValidationText.length > 0 ? 'present' : 'absent'}`,
+    `invalid-indicators=${observation.invalidIndicators.length}`,
+  ];
+  if (sources.length > 0) parts.push(`sources=${sources.join(',')}`);
+  return parts.join('; ');
+}
+
+function whyNotProductFinding(
+  type: AmbiguityType,
+  result: ValidationResult,
+  finding: Omit<FindingItem, 'ambiguity'>,
+): string {
+  switch (type) {
+    case 'observer_needs_stronger_error_ownership':
+      return 'No field-local error, native validity change, or confirmed policy rule is strong enough to claim a product defect.';
+    case 'expected_lenient_behavior':
+      return `${finding.conceptDisplayName} accepted a value that may be legitimate leniency unless product policy says this case must be rejected.`;
+    case 'policy_question':
+      return 'The observed behavior depends on product or underwriting policy that is not encoded in the current matrix.';
+    case 'matrix_expectation_mismatch':
+      return 'The observer captured field-local validation evidence, but this matrix row is configured as observe/manual-review instead of a reject expectation.';
+    case 'mapping_evidence_insufficient':
+      return 'The target mapping is not trusted enough to connect behavior to the intended field.';
+    case 'product_validation_gap_candidate':
+      return 'A trusted target accepted or failed to flag the value, but policy still needs to confirm this case is mandatory at form entry.';
+    case 'acceptable_behavior_documented':
+      return result.observation?.normalizedOrReformatted
+        ? 'The control changed the submitted value, which can be acceptable enforcement if truncation or normalization is intended.'
+        : 'The behavior is documented as acceptable unless product policy requires a stricter visible error.';
+  }
+}
+
+function wouldBecomeProductFindingIf(
+  type: AmbiguityType,
+  result: ValidationResult,
+  finding: Omit<FindingItem, 'ambiguity'>,
+): string {
+  switch (type) {
+    case 'observer_needs_stronger_error_ownership':
+      return 'A fresh trusted observation still shows no local error, no input prevention, and no normalization after stronger ownership capture.';
+    case 'expected_lenient_behavior':
+      return `Policy says ${finding.conceptDisplayName} must reject this case and a trusted rerun still accepts it without a local validation signal.`;
+    case 'policy_question':
+      return `A human policy decision says this ${finding.conceptDisplayName} case must be rejected at form entry, and the trusted observation still shows no rejection signal.`;
+    case 'matrix_expectation_mismatch':
+      return 'The matrix is updated to expect rejection and a rerun lacks field-local validation or input blocking.';
+    case 'mapping_evidence_insufficient':
+      return 'The target is later trusted and the same behavior persists without a field-local validation signal.';
+    case 'product_validation_gap_candidate':
+      return `Policy confirms ${finding.conceptDisplayName} is required/invalid for this case and a trusted rerun still allows it without field-local error or input prevention.`;
+    case 'acceptable_behavior_documented':
+      return result.observation?.normalizedOrReformatted
+        ? 'Policy requires a visible blocking error instead of silent normalization/truncation.'
+        : 'Policy says the documented behavior is not acceptable and the trusted observation still lacks validation feedback.';
+  }
+}
+
+function humanGuidancePromptFor(
+  type: AmbiguityType,
+  result: ValidationResult,
+  finding: Omit<FindingItem, 'ambiguity'>,
+): string | null {
+  if (type === 'mapping_evidence_insufficient') return finding.humanConfirmation?.requestedEvidence ?? null;
+  if (type === 'matrix_expectation_mismatch') {
+    return `Should ${finding.conceptDisplayName}: ${finding.testName} become a reject expectation now that field-local validation was observed?`;
+  }
+  if (type === 'acceptable_behavior_documented') {
+    return `Should ${finding.conceptDisplayName} accept normalization/truncation for ${finding.testName}, or require a visible blocking error?`;
+  }
+  if (finding.concept === 'website' && /protocol|missing/i.test(result.validationId + ' ' + result.testName)) {
+    return 'Should missing protocol in Website be allowed or normalized?';
+  }
+  if (finding.concept === 'phone' && /plus|domestic|format/i.test(result.validationId + ' ' + result.testName)) {
+    return 'Should Phone require a leading plus or allow domestic format?';
+  }
+  if (finding.concept === 'date_of_birth' && /under|age/i.test(result.validationId + ' ' + result.testName)) {
+    return 'Should Date of Birth reject under-age applicants at form entry or defer to downstream review?';
+  }
+  if (finding.concept === 'date_of_birth' && /alternate|format|MM\/DD|YYYY\/MM/i.test(result.validationId + ' ' + result.testName)) {
+    return 'Should alternate date formats be accepted or rejected?';
+  }
+  if (finding.concept === 'business_description' && /short|special|garbage/i.test(result.validationId + ' ' + result.testName)) {
+    return 'Should Business Description allow very short / special-character text?';
+  }
+  if ((finding.concept === 'business_name' || finding.concept === 'dba_name') && /very-short/i.test(result.validationId)) {
+    return `Should ${finding.conceptDisplayName} require more than one character?`;
+  }
+  if ((finding.concept === 'business_name' || finding.concept === 'dba_name') && /special-characters/i.test(result.validationId)) {
+    return `Should ${finding.conceptDisplayName} allow punctuation and symbol-heavy names, normalize them, or reject them?`;
+  }
+  if (finding.concept === 'dba_name' && /empty-required/i.test(result.validationId)) {
+    return 'Should DBA Name be required, or can it be blank when the merchant has no DBA?';
+  }
+  if (type === 'observer_needs_stronger_error_ownership') {
+    return `Is there any visible field-local validation text or styling for ${finding.conceptDisplayName} that the observer missed?`;
+  }
+  return type === 'policy_question' || type === 'product_validation_gap_candidate'
+    ? `What is the expected product policy for ${finding.conceptDisplayName}: ${finding.testName}?`
+    : null;
 }
 
 function buildPerConceptSummaries(input: {
@@ -569,6 +853,49 @@ function renderFindingTable(lines: string[], title: string, findings: FindingIte
     lines.push(`| ${esc(finding.conceptDisplayName)} | ${esc(finding.testName)} | ${finding.status} | ${finding.outcome} | ${finding.targetConfidence ?? 'n/a'} | ${esc(finding.interpretation)} | ${esc(formatRecommendation(finding))} |`);
   }
   lines.push('');
+}
+
+function renderAmbiguousFindingsByType(lines: string[], report: ValidationFindingsReport): void {
+  lines.push('## Ambiguous / Human Review Findings');
+  lines.push('');
+  if (report.ambiguousHumanReviewFindings.length === 0) {
+    lines.push('No findings in this category.');
+    lines.push('');
+    return;
+  }
+
+  lines.push('| Type | Count |');
+  lines.push('|---|---|');
+  for (const section of AMBIGUITY_SECTIONS) {
+    lines.push(`| ${section.title} | ${report.ambiguityTypeBreakdown[section.type] ?? 0} |`);
+  }
+  lines.push('');
+
+  for (const section of AMBIGUITY_SECTIONS) {
+    const findings = report.ambiguousFindingsByType[section.type] ?? [];
+    lines.push(`### ${section.title}`);
+    lines.push('');
+    if (findings.length === 0) {
+      lines.push('No findings in this category.');
+      lines.push('');
+      continue;
+    }
+    lines.push('| Concept | Check | Interpretation | Why not product bug yet | Would convert to product finding if | Human guidance | Evidence summary |');
+    lines.push('|---|---|---|---|---|---|---|');
+    for (const finding of findings) {
+      const ambiguity = finding.ambiguity;
+      lines.push(
+        `| ${esc(finding.conceptDisplayName)} | ${esc(finding.testName)} | ${esc(finding.interpretation)} | ${esc(ambiguity?.whyNotProductFinding)} | ${esc(ambiguity?.wouldBecomeProductFindingIf)} | ${esc(ambiguity?.humanGuidanceNeeded ? ambiguity.humanGuidancePrompt ?? 'Yes' : 'No')} | ${esc(formatAmbiguityEvidenceSummary(finding))} |`,
+      );
+    }
+    lines.push('');
+  }
+}
+
+function formatAmbiguityEvidenceSummary(finding: FindingItem): string {
+  const ambiguity = finding.ambiguity;
+  if (!ambiguity) return 'n/a';
+  return `${ambiguity.evidenceSourceSummary}; ${ambiguity.valueBehaviorSummary}; restore ${finding.targetConfidence === 'trusted' ? 'tracked' : 'n/a'}`;
 }
 
 function formatRecommendation(finding: FindingItem): string {
