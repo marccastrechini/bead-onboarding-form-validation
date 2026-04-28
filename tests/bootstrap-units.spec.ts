@@ -23,6 +23,9 @@ import {
   extractFieldLocalValidationDiagnostics,
   resolveInteractiveTargetConcepts,
   skippedConceptToResult,
+  type InteractiveResultOutcome,
+  type InteractiveResultStatus,
+  type InteractiveTargetConfidence,
   type InteractiveValidationResultsFile,
 } from '../fixtures/interactive-validation';
 import { buildSearchQuery, messageTargetsAddress, selectFreshestMessage, selectMailboxMessage } from '../lib/gmail-client';
@@ -45,6 +48,10 @@ import {
 import { buildSourceFieldInventory } from '../lib/sample-alignment';
 import { buildSampleIngestionReview } from '../lib/sample-ingestion';
 import { redactUrl } from '../lib/url-sanitize';
+import {
+  buildValidationFindingsReport,
+  writeValidationFindingsArtifacts,
+} from '../scripts/generate-validation-findings';
 
 test.describe('bead-client: buildResendUrl', () => {
   test('substitutes {applicationId} and joins base + path', () => {
@@ -547,6 +554,155 @@ test.describe('field validation scorecard', () => {
     expect(email.failedValidationCount).toBe(0);
     expect(email.skippedValidationCount).toBe(1);
     expect(skipped.status).toBe('skipped');
+  });
+});
+
+test.describe('validation findings export', () => {
+  test('product_failure appears in likely product findings only when trusted', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'website',
+          conceptDisplayName: 'Website',
+          validationId: 'malformed-url-rejected',
+          testName: 'malformed URL rejected',
+          status: 'failed',
+          outcome: 'product_failure',
+          targetConfidence: 'trusted',
+        }),
+        mockFindingsResult({
+          concept: 'phone',
+          conceptDisplayName: 'Phone',
+          validationId: 'too-long-rejected',
+          testName: 'too long rejected',
+          status: 'failed',
+          outcome: 'product_failure',
+          targetConfidence: 'tool_mapping_suspect',
+        }),
+      ],
+    }));
+
+    expect(report.likelyProductValidationFindings.map((finding) => finding.concept)).toEqual(['website']);
+    expect(report.likelyProductValidationFindings[0].validationId).toBe('malformed-url-rejected');
+  });
+
+  test('mapping_not_confident appears only in mapping-blocked section', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'bank_name',
+          conceptDisplayName: 'Bank Name',
+          validationId: 'normal-value-accepted',
+          testName: 'normal value accepted',
+          status: 'skipped',
+          outcome: 'mapping_not_confident',
+          targetConfidence: 'mapping_not_confident',
+          mappingDecisionReason: 'rejected_value_shape_mismatch',
+        }),
+      ],
+    }));
+
+    expect(report.mappingBlockedFields).toHaveLength(1);
+    expect(report.mappingBlockedFields[0].concept).toBe('bank_name');
+    expect(report.likelyProductValidationFindings).toEqual([]);
+    expect(report.ambiguousHumanReviewFindings).toEqual([]);
+  });
+
+  test('observer_ambiguous appears only in human-review section', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'date_of_birth',
+          conceptDisplayName: 'Date of Birth',
+          validationId: 'accepted-date-format-documented',
+          testName: 'MM/DD/YYYY format behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+        }),
+      ],
+    }));
+
+    expect(report.ambiguousHumanReviewFindings).toHaveLength(1);
+    expect(report.ambiguousHumanReviewFindings[0].concept).toBe('date_of_birth');
+    expect(report.likelyProductValidationFindings).toEqual([]);
+    expect(report.mappingBlockedFields).toEqual([]);
+  });
+
+  test('Bank Name blocked is not classified as product failure', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'bank_name',
+          conceptDisplayName: 'Bank Name',
+          validationId: 'empty-required-behavior',
+          testName: 'empty required behavior observed',
+          status: 'skipped',
+          outcome: 'mapping_not_confident',
+          targetConfidence: 'mapping_not_confident',
+        }),
+      ],
+    }));
+
+    expect(report.likelyProductValidationFindings).toEqual([]);
+    expect(report.mappingBlockedFields).toHaveLength(1);
+    expect(report.perConceptResults.find((concept) => concept.concept === 'bank_name')!.notes.join(' '))
+      .toContain('not a product validation finding');
+  });
+
+  test('findings report can generate from a small mock artifact set', () => {
+    const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bead-findings-'));
+    try {
+      const input = mockFindingsInput({
+        results: [
+          mockFindingsResult({
+            concept: 'website',
+            conceptDisplayName: 'Website',
+            validationId: 'spaces-rejected',
+            testName: 'URL containing spaces rejected',
+            status: 'warning',
+            outcome: 'product_failure',
+            targetConfidence: 'trusted',
+          }),
+          mockFindingsResult({
+            concept: 'bank_name',
+            conceptDisplayName: 'Bank Name',
+            validationId: 'normal-value-accepted',
+            testName: 'normal value accepted',
+            status: 'skipped',
+            outcome: 'mapping_not_confident',
+            targetConfidence: 'mapping_not_confident',
+          }),
+        ],
+      });
+      const resultsPath = path.join(outDir, 'results.json');
+      const diagnosticsPath = path.join(outDir, 'diagnostics.json');
+      const scorecardPath = path.join(outDir, 'scorecard.json');
+      const calibrationPath = path.join(outDir, 'calibration.json');
+      fs.writeFileSync(resultsPath, JSON.stringify(input.results), 'utf8');
+      fs.writeFileSync(diagnosticsPath, JSON.stringify(input.diagnostics), 'utf8');
+      fs.writeFileSync(scorecardPath, JSON.stringify(input.scorecard), 'utf8');
+      fs.writeFileSync(calibrationPath, JSON.stringify(input.calibration), 'utf8');
+
+      const { jsonPath, mdPath, report } = writeValidationFindingsArtifacts({
+        artifactsDir: outDir,
+        resultsPath,
+        diagnosticsPath,
+        scorecardPath,
+        calibrationPath,
+      });
+
+      const md = fs.readFileSync(mdPath, 'utf8');
+      const json = JSON.parse(fs.readFileSync(jsonPath, 'utf8')) as { likelyProductValidationFindings: unknown[] };
+
+      expect(report.likelyProductValidationFindings).toHaveLength(1);
+      expect(json.likelyProductValidationFindings).toHaveLength(1);
+      expect(md).toContain('## Likely Product Validation Findings');
+      expect(md).toContain('## Mapping-Blocked Fields');
+      expect(md).toContain('Batch 1');
+    } finally {
+      fs.rmSync(outDir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -1885,6 +2041,212 @@ function mockInteractiveResults(
       safetyNotes: ['Uses disposable test input values.'],
     }],
   };
+}
+
+function mockFindingsResult(input: {
+  concept: InteractiveValidationResultsFile['results'][number]['concept'];
+  conceptDisplayName: string;
+  validationId: string;
+  testName: string;
+  status: InteractiveResultStatus;
+  outcome: InteractiveResultOutcome;
+  targetConfidence: InteractiveTargetConfidence;
+  mappingDecisionReason?: string | null;
+  mappingShiftReason?: string | null;
+}): InteractiveValidationResultsFile['results'][number] {
+  return {
+    concept: input.concept,
+    conceptDisplayName: input.conceptDisplayName,
+    fieldLabel: input.conceptDisplayName,
+    validationId: input.validationId,
+    caseName: input.validationId,
+    testName: input.testName,
+    status: input.status,
+    outcome: input.outcome,
+    evidence: `${input.testName} evidence`,
+    targetField: {
+      primary: 'live-discovery-field-index',
+      fieldIndex: 1,
+      displayName: input.conceptDisplayName,
+      inferredType: input.concept,
+      confidence: 'high',
+      fallback: 'skip-if-field-does-not-resolve-visible-editable-merchant-input',
+    },
+    inputValue: 'synthetic-value',
+    expectedBehavior: 'Synthetic expected behavior.',
+    severity: 'major',
+    reasonCode: interactiveReasonCodeFor(input.outcome),
+    observation: {
+      ariaInvalid: null,
+      validationMessage: null,
+      nearbyErrorText: null,
+      docusignValidationText: [],
+      invalidIndicators: [],
+      ignoredDiagnostics: [],
+      ownershipSuspectText: [],
+      evidenceItems: [],
+      observedValue: 'synthetic-value',
+      normalizedOrReformatted: false,
+      inputPrevented: false,
+    },
+    targetDiagnostics: {
+      targetConfidence: input.targetConfidence,
+      mappingDecisionReason: input.mappingDecisionReason ?? (input.targetConfidence === 'trusted' ? 'trusted_by_value_shape' : 'not_trusted_by_value_shape'),
+      mappingShiftReason: input.mappingShiftReason ?? null,
+      activeCandidate: null,
+      selectedCandidate: null,
+      neighborCandidates: [],
+    } as InteractiveValidationResultsFile['results'][number]['targetDiagnostics'],
+    interpretation: `Synthetic ${input.outcome} interpretation.`,
+    recommendation: 'Review the observed behavior.',
+    cleanupStrategy: 'restore_original_value_then_blur',
+    safetyNotes: ['Synthetic offline fixture.'],
+  };
+}
+
+function mockFindingsInput(args: {
+  results: InteractiveValidationResultsFile['results'];
+}): Parameters<typeof buildValidationFindingsReport>[0] {
+  const summary = countStatuses(args.results);
+  const outcomes = countOutcomes(args.results);
+  const targetConcepts = Array.from(new Set(args.results.map((result) => result.concept)));
+  const conceptScores = targetConcepts.map((concept) => {
+    const conceptResults = args.results.filter((result) => result.concept === concept);
+    const executedValidationCount = conceptResults.filter((result) => result.status !== 'skipped').length;
+    const skippedValidationCount = conceptResults.filter((result) => result.status === 'skipped').length;
+    return {
+      key: concept,
+      displayName: conceptResults[0].conceptDisplayName,
+      identifiedWithConfidence: true,
+      identificationConfidence: 'high',
+      expectedValidationCount: conceptResults.length,
+      executedValidationCount,
+      passedValidationCount: conceptResults.filter((result) => result.status === 'passed').length,
+      failedValidationCount: conceptResults.filter((result) => result.status === 'failed').length,
+      warningValidationCount: conceptResults.filter((result) => result.status === 'warning').length,
+      manualReviewValidationCount: conceptResults.filter((result) => result.status === 'manual_review').length,
+      skippedValidationCount,
+      notRunValidationCount: 0,
+      cannotRunValidationCount: 0,
+      validationCoveragePercent: conceptResults.length === 0 ? 0 : Math.round((executedValidationCount / conceptResults.length) * 100),
+      validationQualityGrade: executedValidationCount === conceptResults.length ? 'A' : 'D',
+      summary: `${conceptResults[0].conceptDisplayName} mock summary`,
+    };
+  });
+
+  return {
+    results: {
+      schemaVersion: 1,
+      runStartedAt: '2026-04-27T00:00:00.000Z',
+      runFinishedAt: '2026-04-27T00:00:01.000Z',
+      guardState: { INTERACTIVE_VALIDATION: true, DISPOSABLE_ENVELOPE: true },
+      sourceReport: {
+        runStartedAt: '2026-04-27T00:00:00.000Z',
+        runFinishedAt: '2026-04-27T00:00:01.000Z',
+      },
+      summary,
+      outcomes,
+      targetConcepts,
+      skippedConcepts: [],
+      results: args.results,
+    },
+    diagnostics: {
+      schemaVersion: 1,
+      runStartedAt: '2026-04-27T00:00:00.000Z',
+      runFinishedAt: '2026-04-27T00:00:01.000Z',
+      summary: {
+        total: args.results.length,
+        trusted: args.results.filter((result) => result.targetDiagnostics?.targetConfidence === 'trusted').length,
+        tool_mapping_suspect: args.results.filter((result) => result.targetDiagnostics?.targetConfidence === 'tool_mapping_suspect').length,
+        mapping_not_confident: args.results.filter((result) => result.targetDiagnostics?.targetConfidence === 'mapping_not_confident').length,
+        error_ownership_suspect: outcomes.error_ownership_suspect,
+        product_failure: outcomes.product_failure,
+        observer_ambiguous: outcomes.observer_ambiguous,
+        passed: summary.passed,
+        skipped: summary.skipped,
+        manual_review: summary.manual_review,
+      },
+      rows: args.results.map((result) => ({
+        concept: result.concept,
+        conceptDisplayName: result.conceptDisplayName,
+        testName: result.testName,
+        targetConfidence: result.targetDiagnostics?.targetConfidence ?? 'trusted',
+        mappingDecisionReason: result.targetDiagnostics?.mappingDecisionReason ?? null,
+        mappingShiftReason: result.targetDiagnostics?.mappingShiftReason ?? null,
+        status: result.status,
+        outcome: result.outcome,
+        interpretation: result.interpretation,
+      })),
+    },
+    scorecard: {
+      schemaVersion: 1,
+      generatedAt: '2026-04-27T00:00:01.000Z',
+      overall: {
+        expectedValidationCount: args.results.length,
+        executedValidationCount: args.results.filter((result) => result.status !== 'skipped').length,
+        passedValidationCount: summary.passed,
+        failedValidationCount: summary.failed,
+        warningValidationCount: summary.warning,
+        manualReviewValidationCount: summary.manual_review,
+        skippedValidationCount: summary.skipped,
+        validationCoveragePercent: args.results.length === 0 ? 0 : Math.round(((args.results.length - summary.skipped) / args.results.length) * 100),
+        validationQualityGrade: summary.skipped === 0 ? 'A' : 'D',
+      },
+      interactiveValidation: {
+        resultsLoaded: true,
+        total: summary.total,
+        passed: summary.passed,
+        failed: summary.failed,
+        warning: summary.warning,
+        manual_review: summary.manual_review,
+        skipped: summary.skipped,
+      },
+      conceptScores,
+    },
+    calibration: {
+      schemaVersion: 1,
+      rows: targetConcepts.map((concept) => ({
+        concept,
+        conceptDisplayName: args.results.find((result) => result.concept === concept)!.conceptDisplayName,
+        currentCandidateFieldIndex: 1,
+        selectedCandidate: '#1 synthetic candidate',
+        decision: concept === 'bank_name' ? 'trust_likely_better_candidate' : 'trust_current_mapping',
+        calibrationReason: concept === 'bank_name' ? 'page1_anchor_drift_after_website' : 'none',
+        mappingDecisionReason: concept === 'bank_name' ? 'rejected_value_shape_mismatch' : 'trusted_by_value_shape',
+      })),
+    },
+    generatedAt: '2026-04-27T00:00:02.000Z',
+  } as Parameters<typeof buildValidationFindingsReport>[0];
+}
+
+function countStatuses(results: InteractiveValidationResultsFile['results']): InteractiveValidationResultsFile['summary'] {
+  return {
+    total: results.length,
+    passed: results.filter((result) => result.status === 'passed').length,
+    failed: results.filter((result) => result.status === 'failed').length,
+    warning: results.filter((result) => result.status === 'warning').length,
+    manual_review: results.filter((result) => result.status === 'manual_review').length,
+    skipped: results.filter((result) => result.status === 'skipped').length,
+  };
+}
+
+function countOutcomes(results: InteractiveValidationResultsFile['results']): InteractiveValidationResultsFile['outcomes'] {
+  return {
+    passed: results.filter((result) => result.outcome === 'passed').length,
+    product_failure: results.filter((result) => result.outcome === 'product_failure').length,
+    tool_mapping_suspect: results.filter((result) => result.outcome === 'tool_mapping_suspect').length,
+    error_ownership_suspect: results.filter((result) => result.outcome === 'error_ownership_suspect').length,
+    observer_ambiguous: results.filter((result) => result.outcome === 'observer_ambiguous').length,
+    mapping_not_confident: results.filter((result) => result.outcome === 'mapping_not_confident').length,
+  };
+}
+
+function interactiveReasonCodeFor(outcome: InteractiveResultOutcome): InteractiveValidationResultsFile['results'][number]['reasonCode'] {
+  if (outcome === 'passed') return 'none';
+  if (outcome === 'product_failure') return 'product_failure';
+  if (outcome === 'observer_ambiguous') return 'observer_ambiguous';
+  if (outcome === 'error_ownership_suspect') return 'error_ownership_suspect';
+  return 'target_mapping_not_trusted';
 }
 
 function mockMhtmlTab(args: {

@@ -17,6 +17,8 @@
     "summary:open": "powershell -NoProfile -Command \"Get-Content artifacts/latest-validation-summary.md\"",
     "scorecard:generate": "tsx scripts/generate-scorecard.ts",
     "scorecard:open": "node -e \"process.stdout.write(require('fs').readFileSync('artifacts/latest-validation-scorecard.md', 'utf8'))\"",
+    "findings:generate": "tsx scripts/generate-validation-findings.ts",
+    "findings:open": "node -e \"process.stdout.write(require('fs').readFileSync('artifacts/latest-validation-findings.md', 'utf8'))\"",
     "align:sample": "tsx scripts/align-sample.ts",
     "align:sample:open": "powershell -NoProfile -Command \"Get-Content artifacts/sample-field-alignment.md\""
   },
