@@ -80,6 +80,38 @@ npm run test:units
 Covers resend URL construction, Gmail query building, freshest-message
 selection, DocuSign link extraction, and URL redaction.
 
+## Refresh generated reports
+
+After safe discovery, scorecard generation, or interactive validation, refresh
+generated artifacts in this order:
+
+```powershell
+npm run reports:refresh
+```
+
+That command runs:
+
+1. `npx tsx scripts/generate-mapping-calibration.ts`
+2. `npm run scorecard:generate`
+3. `npm run findings:generate`
+
+Why the order matters:
+
+- `latest-validation-scorecard.json` must be regenerated after calibration.
+- `latest-validation-findings.json` reads the existing scorecard and
+   interactive artifacts; it does not rebuild the scorecard for you.
+- If findings are generated from a stale scorecard, they can incorrectly show
+   `mapping_not_confident` even when calibration has already trusted the target.
+
+Open the final report separately when needed:
+
+```powershell
+npm run reports:open
+```
+
+These files under `artifacts/` are generated outputs and should not be
+committed.
+
 ## Safety guarantees
 
 - `DESTRUCTIVE_VALIDATION` is cleared in the spawned env.
