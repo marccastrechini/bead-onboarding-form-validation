@@ -268,8 +268,10 @@ export interface InteractiveTargetDiagnosticsFile {
     intendedField: string;
     actualFieldSignature: string;
     targetConfidence: InteractiveTargetConfidence;
+    targetConfidenceReason: string;
     mappingDecisionReason: string | null;
     mappingShiftReason: string | null;
+    mappingFlags: string[];
     valueBefore: string | null;
     attemptedValue: string | null;
     valueAfter: string | null;
@@ -1157,8 +1159,10 @@ export function buildInteractiveTargetDiagnosticsFile(
     intendedField: result.targetDiagnostics?.intendedFieldDisplayName ?? result.fieldLabel ?? 'n/a',
     actualFieldSignature: result.targetDiagnostics?.actualFieldSignature ?? 'n/a',
     targetConfidence: result.targetDiagnostics?.targetConfidence ?? 'mapping_not_confident',
+    targetConfidenceReason: result.targetDiagnostics?.targetConfidenceReason ?? result.skippedReason ?? result.evidence,
     mappingDecisionReason: result.targetDiagnostics?.mappingDecisionReason ?? null,
     mappingShiftReason: result.targetDiagnostics?.mappingShiftReason ?? null,
+    mappingFlags: result.targetDiagnostics?.mappingFlags ?? [],
     valueBefore: result.targetDiagnostics?.actualValueBeforeTest ?? null,
     attemptedValue: result.targetDiagnostics?.attemptedValue ?? result.inputValue,
     valueAfter: result.targetDiagnostics?.actualValueAfterBlur ?? result.observation?.observedValue ?? null,
@@ -1208,11 +1212,12 @@ export function renderInteractiveTargetDiagnosticsMarkdown(file: InteractiveTarg
   lines.push('');
   lines.push('## Target Review');
   lines.push('');
-  lines.push('| Concept | Test | Intended field | Actual field signature | Target confidence | Value before/after | Error evidence | Outcome | Interpretation |');
-  lines.push('|---|---|---|---|---|---|---|---|---|');
+  lines.push('| Concept | Test | Intended field | Actual field signature | Target confidence | Reason | Value before/after | Error evidence | Outcome | Interpretation |');
+  lines.push('|---|---|---|---|---|---|---|---|---|---|');
   for (const row of file.rows) {
+    const reason = [row.targetConfidenceReason, ...(row.mappingFlags ?? [])].filter(Boolean).join(' | ');
     lines.push(
-      `| ${esc(row.conceptDisplayName)} | ${esc(row.testName)} | ${esc(row.intendedField)} | ${esc(row.actualFieldSignature)} | ${esc(row.targetConfidence)} | ${esc(formatValueFlow(row))} | ${esc(row.errorEvidence)} | ${esc(row.outcome)} | ${esc(row.interpretation)} |`,
+      `| ${esc(row.conceptDisplayName)} | ${esc(row.testName)} | ${esc(row.intendedField)} | ${esc(row.actualFieldSignature)} | ${esc(row.targetConfidence)} | ${esc(reason || 'n/a')} | ${esc(formatValueFlow(row))} | ${esc(row.errorEvidence)} | ${esc(row.outcome)} | ${esc(row.interpretation)} |`,
     );
   }
   lines.push('');
@@ -1890,11 +1895,16 @@ function resolveInteractiveTargetField(
     ? candidatePool
     : [field, ...candidatePool.filter((candidate) => candidate.index !== field.index)];
 
+  const sourceFieldIndex = (candidate: DiscoveredField): number => {
+    const index = allFields.indexOf(candidate);
+    return index >= 0 ? index + 1 : candidate.index + 1;
+  };
+
   const selection = selectBestMappingCandidate({
     concept: testCase.concept,
-    currentCandidateId: String(field.index),
+    currentCandidateId: String(sourceFieldIndex(field)),
     candidates: candidates.map((candidate) => ({
-      id: String(candidate.index),
+      id: String(sourceFieldIndex(candidate)),
       resolvedLabel: candidate.resolvedLabel,
       labelSource: candidate.labelSource,
       labelConfidence: candidate.labelConfidence,
@@ -1907,12 +1917,15 @@ function resolveInteractiveTargetField(
       tabTop: candidate.tabTop,
       currentValue: candidate.currentValue,
       observedValueLikeTextNearControl: candidate.observedValueLikeTextNearControl,
+      controlCategory: candidate.controlCategory,
+      visible: candidate.visible,
+      editable: candidate.editable,
     })),
     expectedAnchor,
   });
 
   const selectedField = selection.trusted && selection.selectedCandidateId
-    ? candidates.find((candidate) => String(candidate.index) === selection.selectedCandidateId) ?? field
+    ? candidates.find((candidate) => String(sourceFieldIndex(candidate)) === selection.selectedCandidateId) ?? field
     : field;
 
   return {

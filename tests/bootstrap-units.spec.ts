@@ -2007,6 +2007,377 @@ test.describe('interactive validation safety', () => {
     expect(skippedConceptToResult(blockedPlan.skippedConcepts[0]!).outcome).toBe('mapping_not_confident');
   });
 
+  test('calibrated Batch 1 targets use report-order field indexes for interactive plans', () => {
+    const calibrationDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bead-calibration-'));
+    const calibrationPath = path.join(calibrationDir, 'latest-mapping-calibration.json');
+
+    fs.writeFileSync(calibrationPath, JSON.stringify({
+      schemaVersion: 1,
+      rows: [
+        {
+          concept: 'business_name',
+          conceptDisplayName: 'Business Name',
+          currentCandidateFieldIndex: 4,
+          selectedCandidate: '#4 Registered Name Business Details p1 ord5 Text shape=text_name_like @ 35,224',
+          decision: 'trust_current_mapping',
+          calibrationReason: 'none',
+          mappingDecisionReason: 'trusted_by_anchor_and_value_shape',
+        },
+      ],
+    }), 'utf8');
+
+    try {
+      const report = mockValidationReport([
+        mockField({ index: 0, resolvedLabel: 'Intro display', controlCategory: 'merchant_input' }),
+        mockField({ index: 1, resolvedLabel: 'Unrelated', controlCategory: 'merchant_input' }),
+        mockField({ index: 2, resolvedLabel: 'Unrelated 2', controlCategory: 'merchant_input' }),
+        mockField({
+          index: 3,
+          resolvedLabel: 'Tab Label D7a05bfc Be9e 4541 84fe 3e86440e62c4',
+          label: 'Tab Label D7a05bfc Be9e 4541 84fe 3e86440e62c4',
+          labelSource: 'id-or-name-key',
+          labelConfidence: 'high',
+          controlCategory: 'read_only_display',
+          visible: true,
+          editable: false,
+        }),
+        mockField({
+          index: 4,
+          resolvedLabel: 'Registered Name',
+          label: 'Registered Name',
+          labelSource: 'enrichment-coordinate',
+          labelConfidence: 'medium',
+          observedValueLikeTextNearControl: 'Example Business LLC',
+          controlCategory: 'merchant_input',
+          enrichment: mockEnrichment({
+            jsonKeyPath: 'merchantData.registeredName',
+            suggestedDisplayName: 'Registered Name',
+            suggestedBusinessSection: 'Business Details',
+          }),
+        }),
+      ]);
+
+      const plan = buildInteractiveValidationPlan(report, {
+        INTERACTIVE_CONCEPTS: 'business_name',
+        INTERACTIVE_MAPPING_CALIBRATION_PATH: calibrationPath,
+      } as NodeJS.ProcessEnv);
+
+      expect(plan.skippedConcepts).toEqual([]);
+      expect(plan.cases.length).toBeGreaterThan(0);
+      expect(plan.cases.every((entry) => entry.targetField.fieldIndex === 5)).toBe(true);
+      expect(plan.cases.every((entry) => entry.targetField.displayName === 'Registered Name')).toBe(true);
+    } finally {
+      fs.rmSync(calibrationDir, { recursive: true, force: true });
+    }
+  });
+
+  test('Postal Code trusts only editable ZIP-shaped address candidates', () => {
+    const trusted = selectBestMappingCandidate({
+      concept: 'postal_code',
+      currentCandidateId: 'zip',
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.registeredLegalAddress.postalCode',
+        businessSection: 'Address',
+        pageIndex: 1,
+        ordinalOnPage: 41,
+        tabLeft: 35.2,
+        tabTop: 543.36,
+        docusignFieldFamily: 'Text',
+      },
+      candidates: [{
+        id: 'zip',
+        resolvedLabel: 'Postal Code',
+        labelSource: 'enrichment-coordinate',
+        labelConfidence: 'medium',
+        businessSection: 'Address',
+        docusignTabType: 'Text',
+        pageIndex: 1,
+        ordinalOnPage: 41,
+        tabLeft: 35.2,
+        tabTop: 543.36,
+        currentValue: '12345',
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+      }],
+    });
+    const readOnly = selectBestMappingCandidate({
+      concept: 'postal_code',
+      currentCandidateId: 'zip',
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.registeredLegalAddress.postalCode',
+        businessSection: 'Address',
+        pageIndex: 1,
+        ordinalOnPage: 41,
+        tabLeft: 35.2,
+        tabTop: 543.36,
+        docusignFieldFamily: 'Text',
+      },
+      candidates: [{
+        id: 'zip',
+        resolvedLabel: 'Postal Code',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        businessSection: 'Address',
+        docusignTabType: 'Text',
+        pageIndex: 1,
+        ordinalOnPage: 41,
+        tabLeft: 35.2,
+        tabTop: 543.36,
+        currentValue: '12345',
+        controlCategory: 'read_only_display',
+        visible: true,
+        editable: false,
+      }],
+    });
+    const conflictingShape = selectBestMappingCandidate({
+      concept: 'postal_code',
+      currentCandidateId: 'zip',
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.registeredLegalAddress.postalCode',
+        businessSection: 'Address',
+      },
+      candidates: [{
+        id: 'zip',
+        resolvedLabel: 'Postal Code',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        businessSection: 'Address',
+        currentValue: 'Example Business LLC',
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+      }],
+    });
+
+    expect(trusted.trusted).toBe(true);
+    expect(trusted.decisionReason).toBe('trusted_by_anchor_and_value_shape');
+    expect(readOnly.trusted).toBe(false);
+    expect(readOnly.decisionReason).toBe('rejected_not_editable_merchant_input');
+    expect(conflictingShape.trusted).toBe(false);
+    expect(conflictingShape.decisionReason).toBe('rejected_value_shape_mismatch');
+  });
+
+  test('Business and DBA names require editable unambiguous name-like targets', () => {
+    const businessName = selectBestMappingCandidate({
+      concept: 'business_name',
+      currentCandidateId: 'display',
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.registeredName',
+        businessSection: 'Business Details',
+        pageIndex: 1,
+        ordinalOnPage: 5,
+        tabLeft: 35.2,
+        tabTop: 224.64,
+        docusignFieldFamily: 'Text',
+      },
+      candidates: [
+        {
+          id: 'display',
+          resolvedLabel: 'Registered Name',
+          labelSource: 'aria-label',
+          labelConfidence: 'high',
+          businessSection: 'Business Details',
+          currentValue: 'Example Business LLC',
+          controlCategory: 'read_only_display',
+          visible: true,
+          editable: false,
+        },
+        {
+          id: 'editable',
+          resolvedLabel: 'Registered Name',
+          labelSource: 'enrichment-coordinate',
+          labelConfidence: 'medium',
+          businessSection: 'Business Details',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 5,
+          tabLeft: 35.2,
+          tabTop: 224.64,
+          currentValue: 'Example Business LLC',
+          controlCategory: 'merchant_input',
+          visible: true,
+          editable: true,
+        },
+      ],
+    });
+    const dbaName = selectBestMappingCandidate({
+      concept: 'dba_name',
+      currentCandidateId: 'registered-name',
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.dbaName',
+        businessSection: 'Business Details',
+        pageIndex: 1,
+        ordinalOnPage: 7,
+        tabLeft: 35.2,
+        tabTop: 256.64,
+        docusignFieldFamily: 'Text',
+      },
+      candidates: [
+        {
+          id: 'registered-name',
+          resolvedLabel: 'Registered Name',
+          labelSource: 'enrichment-coordinate',
+          labelConfidence: 'medium',
+          businessSection: 'Business Details',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 5,
+          tabLeft: 25.2,
+          tabTop: 256.64,
+          currentValue: 'Example Business LLC',
+          controlCategory: 'merchant_input',
+          visible: true,
+          editable: true,
+        },
+        {
+          id: 'location-name',
+          resolvedLabel: 'Location Name',
+          labelSource: 'enrichment-coordinate',
+          labelConfidence: 'medium',
+          businessSection: 'Business Details',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 8,
+          tabLeft: 45.2,
+          tabTop: 256.64,
+          currentValue: 'Example Location',
+          controlCategory: 'merchant_input',
+          visible: true,
+          editable: true,
+        },
+      ],
+    });
+
+    expect(businessName.trusted).toBe(true);
+    expect(businessName.selectedCandidateId).toBe('editable');
+    expect(dbaName.trusted).toBe(false);
+    expect(dbaName.decisionReason).toBe('rejected_ambiguous_neighbors');
+  });
+
+  test('Business Description needs description-specific proof before mutation', () => {
+    const shortUnlabelled = selectBestMappingCandidate({
+      concept: 'business_description',
+      currentCandidateId: 'description',
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.businessDescription',
+        businessSection: 'Business Details',
+        pageIndex: 1,
+        ordinalOnPage: 19,
+        tabLeft: 35.2,
+        tabTop: 348.8,
+        docusignFieldFamily: 'Text',
+      },
+      candidates: [{
+        id: 'description',
+        resolvedLabel: null,
+        labelSource: 'none',
+        labelConfidence: 'none',
+        businessSection: 'Business Details',
+        docusignTabType: 'Text',
+        pageIndex: 1,
+        ordinalOnPage: 19,
+        tabLeft: 35.2,
+        tabTop: 348.8,
+        currentValue: 'Retail goods',
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+      }],
+    });
+    const labelled = selectBestMappingCandidate({
+      concept: 'business_description',
+      currentCandidateId: 'description',
+      candidates: [{
+        id: 'description',
+        resolvedLabel: 'Business Description',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        businessSection: 'Business Details',
+        currentValue: 'Retail goods',
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+      }],
+    });
+    const textareaLike = selectBestMappingCandidate({
+      concept: 'business_description',
+      currentCandidateId: 'description',
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.businessDescription',
+        businessSection: 'Business Details',
+        pageIndex: 1,
+        ordinalOnPage: 19,
+        tabLeft: 35.2,
+        tabTop: 348.8,
+        docusignFieldFamily: 'Textarea',
+      },
+      candidates: [{
+        id: 'description',
+        resolvedLabel: null,
+        labelSource: 'none',
+        labelConfidence: 'none',
+        businessSection: 'Business Details',
+        docusignTabType: 'Textarea',
+        pageIndex: 1,
+        ordinalOnPage: 19,
+        tabLeft: 35.2,
+        tabTop: 348.8,
+        currentValue: 'Retail goods',
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+      }],
+    });
+
+    expect(shortUnlabelled.trusted).toBe(false);
+    expect(shortUnlabelled.decisionReason).toBe('rejected_insufficient_description_proof');
+    expect(labelled.trusted).toBe(true);
+    expect(labelled.decisionReason).toBe('trusted_by_label');
+    expect(textareaLike.trusted).toBe(true);
+    expect(textareaLike.decisionReason).toBe('trusted_by_anchor_and_value_shape');
+  });
+
+  test('mapping-blocked findings carry missing proof and human confirmation request', () => {
+    const input = mockFindingsInput({
+      results: [mockFindingsResult({
+        concept: 'postal_code',
+        conceptDisplayName: 'Postal Code',
+        validationId: 'concept-mapping',
+        testName: 'Postal Code skipped',
+        status: 'skipped',
+        outcome: 'mapping_not_confident',
+        targetConfidence: 'mapping_not_confident',
+        mappingDecisionReason: 'rejected_value_shape_mismatch',
+        mappingShiftReason: 'none',
+      })],
+    });
+    input.calibration.rows = [{
+      concept: 'postal_code',
+      conceptDisplayName: 'Postal Code',
+      currentCandidateFieldIndex: 19,
+      selectedCandidate: '#19 Postal Code Address p1 ord41 Text shape=text_name_like @ 35,543',
+      decision: 'downgrade_current_mapping_to_unresolved',
+      calibrationReason: 'no_unclaimed_neighbor_with_expected_shape',
+      mappingDecisionReason: 'rejected_value_shape_mismatch',
+      missingProof: ['Need a visible editable Address field with ZIP/postal-code-shaped value or field-local Postal Code label proof.'],
+      humanConfirmation: {
+        needed: true,
+        concept: 'postal_code',
+        suspectedFieldLocation: '#19 Postal Code Address p1 ord41 Text shape=text_name_like @ 35,543',
+        currentBlocker: 'The current mapped candidate has a text_name_like value shape.',
+        requestedEvidence: 'Review a screenshot of #19 and confirm whether it is the visible editable Postal Code input.',
+        decisionImpact: 'If confirmed, postal_code can be recalibrated; otherwise it remains mapping-blocked.',
+      },
+    }];
+
+    const report = buildValidationFindingsReport(input);
+
+    expect(report.mappingBlockedFields[0]!.mappingMissingProof).toContain('Need a visible editable Address field with ZIP/postal-code-shaped value or field-local Postal Code label proof.');
+    expect(report.mappingBlockedFields[0]!.humanConfirmation?.requestedEvidence).toContain('Review a screenshot');
+    expect(report.likelyProductValidationFindings).toEqual([]);
+  });
+
   test('INTERACTIVE_CONCEPTS filters the interactive target set', () => {
     expect(resolveInteractiveTargetConcepts({
       INTERACTIVE_CONCEPTS: 'website,email,phone,bank_name,date_of_birth',

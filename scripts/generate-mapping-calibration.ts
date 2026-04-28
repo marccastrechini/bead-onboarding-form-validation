@@ -89,8 +89,19 @@ interface MappingCalibrationRow {
   mappingDecisionReason: MappingDecisionReason;
   suspectedShiftReason: MappingShiftReason;
   blockedCandidateIds: string[];
+  missingProof: string[];
+  humanConfirmation: HumanConfirmationRequest | null;
   explanation: string;
   neighborWindow: NeighborWindowEntry[];
+}
+
+interface HumanConfirmationRequest {
+  needed: true;
+  concept: FieldConceptKey;
+  suspectedFieldLocation: string;
+  currentBlocker: string;
+  requestedEvidence: string;
+  decisionImpact: string;
 }
 
 interface MappingCalibrationFile {
@@ -132,6 +143,7 @@ interface ConceptCalibrationContext {
   currentSignature: string;
   currentValueShape: ValueShape;
   nearbyFields: FieldRecord[];
+  sourceFieldIndexByField: Map<FieldRecord, number>;
 }
 
 const artifactsDir = path.resolve(__dirname, '..', 'artifacts');
@@ -182,8 +194,8 @@ function buildMappingCalibration(input: {
   const contexts = buildConceptContexts(input);
   const resolutions = resolveMappingClaims(contexts.map((context) => ({
     concept: context.concept,
-    currentCandidateId: context.currentField ? String(context.currentField.index) : null,
-    candidates: context.nearbyFields.map(toMappingCandidate),
+    currentCandidateId: context.currentField ? String(sourceFieldIndex(context, context.currentField)) : null,
+    candidates: context.nearbyFields.map((field) => toMappingCandidate(context, field)),
     expectedAnchor: context.anchor,
   })));
   const resolutionByConcept = new Map(resolutions.map((resolution) => [resolution.concept, resolution]));
@@ -224,6 +236,7 @@ function buildConceptContexts(input: {
   enrichment: EnrichmentBundle;
   alignment: SampleAlignmentArtifact;
 }): ConceptCalibrationContext[] {
+  const sourceFieldIndexByField = new Map(input.report.fields.map((field, index) => [field, index + 1]));
   const diagnosticsByConcept = new Map<FieldConceptKey, InteractiveTargetDiagnosticsFile['rows'][number]>();
   for (const row of input.targetDiagnostics.rows) {
     if (!diagnosticsByConcept.has(row.concept)) diagnosticsByConcept.set(row.concept, row);
@@ -285,17 +298,20 @@ function buildConceptContexts(input: {
           ? detectValueShape(extractFieldCurrentValueHint(currentField))
           : 'unknown';
 
-      return [{
+      const context: ConceptCalibrationContext = {
         concept,
         diagnosticsRow,
         enrichmentRecord,
         alignmentRow,
         anchor,
         currentField,
-        currentSignature: diagnosticsRow?.actualFieldSignature ?? (currentField ? formatCandidateSummary(summarizeField(currentField)) : 'n/a'),
+        currentSignature: 'n/a',
         currentValueShape,
         nearbyFields,
-      }];
+        sourceFieldIndexByField,
+      };
+      context.currentSignature = diagnosticsRow?.actualFieldSignature ?? (currentField ? formatCandidateSummary(summarizeField(context, currentField)) : 'n/a');
+      return [context];
     });
 }
 
@@ -335,7 +351,7 @@ function buildConceptRow(
 ): MappingCalibrationRow {
   const selection = resolution.selection;
   const selectedField = selection.selectedCandidateId
-    ? context.nearbyFields.find((field) => String(field.index) === selection.selectedCandidateId) ?? null
+    ? context.nearbyFields.find((field) => String(sourceFieldIndex(context, field)) === selection.selectedCandidateId) ?? null
     : null;
   const nearestShapeMatch = pickNearestField(context, selection, (assessment) =>
     assessment.valueShapeMatches && !assessment.valueShapeMismatch,
@@ -344,36 +360,40 @@ function buildConceptRow(
     assessment.labelMatches || assessment.sectionMatches || assessment.enrichmentMatches,
   );
 
-  const decision = decideCalibrationOutcome(selection, context.currentField, selectedField);
+  const decision = decideCalibrationOutcome(context, selection, context.currentField, selectedField);
   const calibrationReason = deriveCalibrationReason(context, selection, selectedField, nearestShapeMatch);
+  const missingProof = missingProofForSelection(context, selection, selectedField, nearestShapeMatch);
+  const humanConfirmation = buildHumanConfirmationRequest(context, selection, selectedField, nearestShapeMatch, missingProof);
 
   return {
     concept: context.concept,
     conceptDisplayName: FIELD_CONCEPT_REGISTRY[context.concept].displayName,
     jsonKeyPath: context.enrichmentRecord.jsonKeyPath,
     currentMappedField: context.currentSignature,
-    currentCandidateFieldIndex: context.currentField?.index ?? null,
+    currentCandidateFieldIndex: context.currentField ? sourceFieldIndex(context, context.currentField) : null,
     currentCandidateOrdinal: context.currentField?.ordinalOnPage ?? null,
     currentCandidateCoordinates: context.currentField ? formatCoordinates(context.currentField.tabLeft, context.currentField.tabTop) : null,
     currentMappedValueShape: context.currentValueShape,
     expectedValueShapes: expectedValueShapesForConcept(context.concept),
     sampleExpectedAnchor: formatAnchor(context.enrichmentRecord, context.alignmentRow),
     sampleAnchorSource: formatAnchorSource(context.enrichmentRecord, context.alignmentRow),
-    nearbyCandidateShapes: context.nearbyFields.map((field) => formatCandidateSummary(summarizeField(field))).join(' ; '),
-    nearestShapeMatch: nearestShapeMatch ? formatCandidateSummary(summarizeField(nearestShapeMatch)) : null,
-    nearestLabelSectionMatch: nearestLabelSectionMatch ? formatCandidateSummary(summarizeField(nearestLabelSectionMatch)) : null,
-    likelyBetterCandidate: selectedField && (!context.currentField || selectedField.index !== context.currentField.index)
-      ? formatCandidateSummary(summarizeField(selectedField))
+    nearbyCandidateShapes: context.nearbyFields.map((field) => formatCandidateSummary(summarizeField(context, field))).join(' ; '),
+    nearestShapeMatch: nearestShapeMatch ? formatCandidateSummary(summarizeField(context, nearestShapeMatch)) : null,
+    nearestLabelSectionMatch: nearestLabelSectionMatch ? formatCandidateSummary(summarizeField(context, nearestLabelSectionMatch)) : null,
+    likelyBetterCandidate: selectedField && (!context.currentField || sourceFieldIndex(context, selectedField) !== sourceFieldIndex(context, context.currentField))
+      ? formatCandidateSummary(summarizeField(context, selectedField))
       : null,
-    selectedCandidate: selectedField ? formatCandidateSummary(summarizeField(selectedField)) : null,
+    selectedCandidate: selectedField ? formatCandidateSummary(summarizeField(context, selectedField)) : null,
     decision,
     calibrationReason,
     mappingDecisionReason: selection.decisionReason,
     suspectedShiftReason: selection.shiftReason,
     blockedCandidateIds: resolution.blockedCandidateIds,
+    missingProof,
+    humanConfirmation,
     explanation: explainDecision(context, selection, selectedField, nearestShapeMatch, calibrationReason),
     neighborWindow: context.nearbyFields.map((field) => ({
-      fieldIndex: field.index,
+      fieldIndex: sourceFieldIndex(context, field),
       label: field.resolvedLabel ?? '(unresolved)',
       businessSection: field.enrichment?.suggestedBusinessSection ?? null,
       pageIndex: field.pageIndex,
@@ -386,11 +406,12 @@ function buildConceptRow(
 }
 
 function decideCalibrationOutcome(
+  context: ConceptCalibrationContext,
   selection: ReturnType<typeof resolveMappingClaims>[number]['selection'],
   currentField: FieldRecord | null,
   selectedField: FieldRecord | null,
 ): CalibrationDecision {
-  if (selection.trusted && currentField && selectedField && currentField.index === selectedField.index) {
+  if (selection.trusted && currentField && selectedField && sourceFieldIndex(context, currentField) === sourceFieldIndex(context, selectedField)) {
     return 'trust_current_mapping';
   }
   if (selection.trusted && selectedField) {
@@ -423,6 +444,99 @@ function deriveCalibrationReason(
   return 'none';
 }
 
+function missingProofForSelection(
+  context: ConceptCalibrationContext,
+  selection: ReturnType<typeof resolveMappingClaims>[number]['selection'],
+  selectedField: FieldRecord | null,
+  nearestShapeMatch: FieldRecord | null,
+): string[] {
+  if (selection.trusted) return [];
+
+  const selectedAssessment = selection.selectedCandidateId
+    ? selection.assessments.find((assessment) => assessment.candidateId === selection.selectedCandidateId) ?? null
+    : null;
+  const missing: string[] = [];
+  const expectedShapes = expectedValueShapesForConcept(context.concept).join(' or ') || 'expected';
+
+  if (!nearestShapeMatch) {
+    missing.push(`No unclaimed editable candidate has a ${expectedShapes} live value shape.`);
+  }
+  if (selectedAssessment?.reasons.length) {
+    missing.push(...selectedAssessment.reasons.map((reason) => sentenceCase(reason)));
+  }
+
+  switch (selection.decisionReason) {
+    case 'rejected_value_shape_mismatch':
+      missing.push(`The current candidate value shape is ${selection.valueShape}, not ${expectedShapes}.`);
+      break;
+    case 'rejected_neighbor_better_match':
+      missing.push('The live neighbor window points at a better candidate than the current mapped field.');
+      break;
+    case 'rejected_ambiguous_neighbors':
+      missing.push('Multiple nearby editable candidates still look plausible, with no single exact anchor hit.');
+      break;
+    case 'rejected_stale_enrichment':
+      missing.push('The saved sample anchor appears stale relative to the live field position.');
+      break;
+    case 'rejected_not_editable_merchant_input':
+      missing.push('The best candidate is not an editable merchant input.');
+      break;
+    case 'rejected_insufficient_description_proof':
+      missing.push('Business Description needs long-text, textarea, or field-local description proof before mutation.');
+      break;
+    case 'rejected_section_mismatch':
+      missing.push(`The best candidate is outside the ${FIELD_CONCEPT_REGISTRY[context.concept].businessSection} section.`);
+      break;
+    case 'rejected_insufficient_label_proof':
+      missing.push('The candidate does not have enough label, section, enrichment, and value-shape proof to trust mutation.');
+      break;
+  }
+
+  if (context.concept === 'postal_code') {
+    missing.push('Need a visible editable Address field with ZIP/postal-code-shaped value or field-local Postal Code label proof.');
+  }
+  if (context.concept === 'business_name') {
+    missing.push('Need the editable Registered/Business Name input, not a neighboring read-only display row.');
+  }
+  if (context.concept === 'dba_name') {
+    missing.push('Need one unclaimed DBA Name input distinct from Registered Name, Registration Date, and location/name neighbors.');
+  }
+  if (context.concept === 'business_description') {
+    missing.push('Need a Business Description label/section cue, textarea-like control, or long descriptive live text.');
+  }
+
+  if (selectedField && selectedAssessment && !selectedAssessment.labelMatches && !selectedAssessment.enrichmentMatches) {
+    missing.push(`Candidate #${sourceFieldIndex(context, selectedField)} needs field-local label or enrichment proof for ${FIELD_CONCEPT_REGISTRY[context.concept].displayName}.`);
+  }
+
+  return unique(missing);
+}
+
+function buildHumanConfirmationRequest(
+  context: ConceptCalibrationContext,
+  selection: ReturnType<typeof resolveMappingClaims>[number]['selection'],
+  selectedField: FieldRecord | null,
+  nearestShapeMatch: FieldRecord | null,
+  missingProof: string[],
+): HumanConfirmationRequest | null {
+  if (selection.trusted || missingProof.length === 0) return null;
+
+  const suspectedField = selectedField ?? nearestShapeMatch ?? context.currentField;
+  const suspectedFieldLocation = suspectedField
+    ? formatCandidateSummary(summarizeField(context, suspectedField))
+    : context.currentSignature;
+  const conceptName = FIELD_CONCEPT_REGISTRY[context.concept].displayName;
+
+  return {
+    needed: true,
+    concept: context.concept,
+    suspectedFieldLocation,
+    currentBlocker: selection.explanation,
+    requestedEvidence: `Review a screenshot of ${suspectedFieldLocation} and answer whether it is the visible editable ${conceptName} input, including the field label, section header, and nearest neighboring labels.`,
+    decisionImpact: `If the visual answer supplies the missing proof (${missingProof.join('; ')}), the next calibration can trust this mapping; otherwise ${conceptName} stays mapping-blocked and out of product-failure counts.`,
+  };
+}
+
 function explainDecision(
   context: ConceptCalibrationContext,
   selection: ReturnType<typeof resolveMappingClaims>[number]['selection'],
@@ -432,17 +546,17 @@ function explainDecision(
 ): string {
   const parts: string[] = [];
 
-  if (context.currentField && selection.selectedCandidateId && String(context.currentField.index) !== selection.selectedCandidateId) {
-    parts.push(`Current candidate #${context.currentField.index} looks ${context.currentValueShape}, but #${selection.selectedCandidateId} is the safer anchor-aligned choice.`);
+  if (context.currentField && selection.selectedCandidateId && String(sourceFieldIndex(context, context.currentField)) !== selection.selectedCandidateId) {
+    parts.push(`Current candidate #${sourceFieldIndex(context, context.currentField)} looks ${context.currentValueShape}, but #${selection.selectedCandidateId} is the safer anchor-aligned choice.`);
   } else if (!context.currentField) {
     parts.push('No prior live-mapped candidate could be recovered from the saved diagnostics for this concept.');
   }
 
   if (selectedField) {
-    parts.push(`Selected candidate ${formatCandidateSummary(summarizeField(selectedField))}.`);
+    parts.push(`Selected candidate ${formatCandidateSummary(summarizeField(context, selectedField))}.`);
   }
-  if (nearestShapeMatch && (!selectedField || nearestShapeMatch.index !== selectedField.index)) {
-    parts.push(`Nearest expected-shape neighbor: ${formatCandidateSummary(summarizeField(nearestShapeMatch))}.`);
+  if (nearestShapeMatch && (!selectedField || sourceFieldIndex(context, nearestShapeMatch) !== sourceFieldIndex(context, selectedField))) {
+    parts.push(`Nearest expected-shape neighbor: ${formatCandidateSummary(summarizeField(context, nearestShapeMatch))}.`);
   }
   if (selection.shiftReason !== 'none') {
     parts.push(`Shift reason: ${selection.shiftReason}.`);
@@ -463,11 +577,11 @@ function pickNearestField(
   const matches = selection.assessments
     .filter(predicate)
     .map((assessment) => {
-      const field = context.nearbyFields.find((candidate) => candidate.index === Number(assessment.candidateId)) ?? null;
+      const field = context.nearbyFields.find((candidate) => sourceFieldIndex(context, candidate) === Number(assessment.candidateId)) ?? null;
       return field ? { field, distance: anchorDistance(context.anchor, field) } : null;
     })
     .filter((entry): entry is { field: FieldRecord; distance: number } => entry !== null)
-    .sort((a, b) => a.distance - b.distance || a.field.index - b.field.index);
+    .sort((a, b) => a.distance - b.distance || sourceFieldIndex(context, a.field) - sourceFieldIndex(context, b.field));
 
   return matches[0]?.field ?? null;
 }
@@ -489,10 +603,10 @@ function findCurrentField(input: {
   return input.nearbyFields.find((field) => field.enrichment?.jsonKeyPath === input.enrichmentRecord.jsonKeyPath) ?? null;
 }
 
-function toMappingCandidate(field: FieldRecord) {
+function toMappingCandidate(context: ConceptCalibrationContext, field: FieldRecord) {
   const currentValue = extractFieldCurrentValueHint(field);
   return {
-    id: String(field.index),
+    id: String(sourceFieldIndex(context, field)),
     resolvedLabel: field.resolvedLabel,
     labelSource: field.labelSource,
     labelConfidence: field.labelConfidence,
@@ -506,6 +620,9 @@ function toMappingCandidate(field: FieldRecord) {
     tabTop: field.tabTop,
     currentValue,
     observedValueLikeTextNearControl: field.observedValueLikeTextNearControl,
+    controlCategory: field.controlCategory,
+    visible: field.visible,
+    editable: field.editable,
     enrichment: field.enrichment ? {
       jsonKeyPath: field.enrichment.jsonKeyPath,
       matchedBy: field.enrichment.matchedBy,
@@ -534,9 +651,9 @@ function extractFieldCurrentValueHint(field: FieldRecord): string | null {
   return field.observedValueLikeTextNearControl;
 }
 
-function summarizeField(field: FieldRecord): CalibrationCandidateSummary {
+function summarizeField(context: ConceptCalibrationContext, field: FieldRecord): CalibrationCandidateSummary {
   return {
-    fieldIndex: field.index,
+    fieldIndex: sourceFieldIndex(context, field),
     label: field.resolvedLabel ?? '(unresolved)',
     businessSection: field.enrichment?.suggestedBusinessSection ?? null,
     tabType: field.docusignTabType,
@@ -545,6 +662,10 @@ function summarizeField(field: FieldRecord): CalibrationCandidateSummary {
     coordinates: formatCoordinates(field.tabLeft, field.tabTop),
     valueShape: detectValueShape(extractFieldCurrentValueHint(field)),
   };
+}
+
+function sourceFieldIndex(context: ConceptCalibrationContext, field: FieldRecord): number {
+  return context.sourceFieldIndexByField.get(field) ?? field.index + 1;
 }
 
 function formatCandidateSummary(candidate: CalibrationCandidateSummary): string {
@@ -664,6 +785,13 @@ function renderMappingCalibrationMarkdown(file: MappingCalibrationFile): string 
     if (row.blockedCandidateIds.length > 0) {
       lines.push(`- Blocked candidate ids: ${row.blockedCandidateIds.join(', ')}`);
     }
+    if (row.missingProof.length > 0) {
+      lines.push(`- Missing proof: ${row.missingProof.join('; ')}`);
+    }
+    if (row.humanConfirmation) {
+      lines.push(`- Human confirmation requested: ${row.humanConfirmation.requestedEvidence}`);
+      lines.push(`- Decision impact: ${row.humanConfirmation.decisionImpact}`);
+    }
     lines.push(`- Explanation: ${row.explanation}`);
     lines.push('- Neighbor window:');
     for (const neighbor of row.neighborWindow) {
@@ -706,6 +834,16 @@ function conceptOrder(concept: FieldConceptKey): number {
 
 function escapePipe(value: string): string {
   return value.replace(/\|/g, '\\|');
+}
+
+function sentenceCase(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return trimmed;
+  return `${trimmed[0]!.toUpperCase()}${trimmed.slice(1)}${/[.!?]$/.test(trimmed) ? '' : '.'}`;
+}
+
+function unique<T>(values: T[]): T[] {
+  return Array.from(new Set(values));
 }
 
 function loadJson<T>(filePath: string): T {

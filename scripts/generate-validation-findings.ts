@@ -33,8 +33,10 @@ interface DiagnosticRow {
   conceptDisplayName: string;
   testName: string;
   targetConfidence: InteractiveTargetConfidence;
+  targetConfidenceReason?: string;
   mappingDecisionReason: string | null;
   mappingShiftReason: string | null;
+  mappingFlags?: string[];
   status: InteractiveResultStatus;
   outcome: InteractiveResultOutcome;
   interpretation: string;
@@ -94,10 +96,22 @@ interface FindingItem {
   outcome: InteractiveResultOutcome;
   severity: string;
   targetConfidence: InteractiveTargetConfidence | null;
+  targetConfidenceReason: string | null;
   mappingDecisionReason: string | null;
   mappingShiftReason: string | null;
+  mappingMissingProof: string[];
+  humanConfirmation: HumanConfirmationRequest | null;
   interpretation: string;
   recommendation: string;
+}
+
+interface HumanConfirmationRequest {
+  needed: true;
+  concept: FieldConceptKey;
+  suspectedFieldLocation: string;
+  currentBlocker: string;
+  requestedEvidence: string;
+  decisionImpact: string;
 }
 
 interface PerConceptSummary {
@@ -198,6 +212,18 @@ export function buildValidationFindingsReport(input: {
 
   const toFinding = (result: ValidationResult): FindingItem => {
     const diagnostic = diagnosticByConceptAndTest.get(`${result.concept}\u0000${result.testName}`);
+    const targetConfidence = result.targetDiagnostics?.targetConfidence ?? diagnostic?.targetConfidence ?? null;
+    const includeMappingProof = result.status === 'skipped' ||
+      result.outcome === 'mapping_not_confident' ||
+      result.outcome === 'tool_mapping_suspect' ||
+      targetConfidence === 'mapping_not_confident' ||
+      targetConfidence === 'tool_mapping_suspect';
+    const calibration = calibrationByConcept.get(result.concept);
+    const targetConfidenceReason = result.targetDiagnostics?.targetConfidenceReason ?? diagnostic?.targetConfidenceReason ?? result.skippedReason ?? null;
+    const mappingFlags = result.targetDiagnostics?.mappingFlags ?? diagnostic?.mappingFlags ?? [];
+    const humanConfirmation = includeMappingProof
+      ? calibration?.humanConfirmation ?? buildLiveHumanConfirmationRequest(result, targetConfidenceReason, mappingFlags)
+      : null;
     return {
       concept: result.concept,
       conceptDisplayName: result.conceptDisplayName,
@@ -206,9 +232,12 @@ export function buildValidationFindingsReport(input: {
       status: result.status,
       outcome: result.outcome,
       severity: result.severity,
-      targetConfidence: result.targetDiagnostics?.targetConfidence ?? diagnostic?.targetConfidence ?? null,
+      targetConfidence,
+      targetConfidenceReason,
       mappingDecisionReason: result.targetDiagnostics?.mappingDecisionReason ?? diagnostic?.mappingDecisionReason ?? null,
       mappingShiftReason: result.targetDiagnostics?.mappingShiftReason ?? diagnostic?.mappingShiftReason ?? null,
+      mappingMissingProof: includeMappingProof ? calibration?.missingProof ?? [] : [],
+      humanConfirmation,
       interpretation: result.interpretation,
       recommendation: result.recommendation,
     };
@@ -537,9 +566,42 @@ function renderFindingTable(lines: string[], title: string, findings: FindingIte
   lines.push('| Concept | Check | Status | Outcome | Target | Interpretation | Recommendation |');
   lines.push('|---|---|---|---|---|---|---|');
   for (const finding of findings) {
-    lines.push(`| ${esc(finding.conceptDisplayName)} | ${esc(finding.testName)} | ${finding.status} | ${finding.outcome} | ${finding.targetConfidence ?? 'n/a'} | ${esc(finding.interpretation)} | ${esc(finding.recommendation)} |`);
+    lines.push(`| ${esc(finding.conceptDisplayName)} | ${esc(finding.testName)} | ${finding.status} | ${finding.outcome} | ${finding.targetConfidence ?? 'n/a'} | ${esc(finding.interpretation)} | ${esc(formatRecommendation(finding))} |`);
   }
   lines.push('');
+}
+
+function formatRecommendation(finding: FindingItem): string {
+  const parts = [finding.recommendation];
+  if (finding.targetConfidenceReason && finding.targetConfidence !== 'trusted') {
+    parts.push(`Target reason: ${finding.targetConfidenceReason}`);
+  }
+  if (finding.mappingMissingProof.length > 0) {
+    parts.push(`Missing mapping proof: ${finding.mappingMissingProof.join('; ')}`);
+  }
+  if (finding.humanConfirmation) {
+    parts.push(`Human confirmation: ${finding.humanConfirmation.requestedEvidence}`);
+  }
+  return parts.join(' ');
+}
+
+function buildLiveHumanConfirmationRequest(
+  result: ValidationResult,
+  targetConfidenceReason: string | null,
+  mappingFlags: string[],
+): HumanConfirmationRequest | null {
+  if (result.status !== 'skipped' || result.outcome !== 'mapping_not_confident') return null;
+  const reason = [targetConfidenceReason, ...mappingFlags].filter(Boolean).join(' | ');
+  if (!reason) return null;
+  const actualField = result.targetDiagnostics?.actualFieldSignature ?? result.fieldLabel ?? result.conceptDisplayName;
+  return {
+    needed: true,
+    concept: result.concept,
+    suspectedFieldLocation: actualField,
+    currentBlocker: reason,
+    requestedEvidence: `Review a screenshot around ${result.conceptDisplayName} (${actualField}) and identify the visible editable field label, section header, and nearest neighboring labels that distinguish the intended input from same-shaped neighbors.`,
+    decisionImpact: `If the screenshot supplies a single unambiguous ${result.conceptDisplayName} target, the next guarded run can trust and mutate that field; otherwise it remains mapping-blocked and out of product-failure counts.`,
+  };
 }
 
 function readJson<T>(filePath: string): T {

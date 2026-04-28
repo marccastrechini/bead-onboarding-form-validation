@@ -20,9 +20,11 @@ export type MappingDecisionReason =
   | 'trusted_by_enrichment_and_value_shape'
   | 'trusted_by_anchor_and_value_shape'
   | 'trusted_by_date_tab_and_value_shape'
+  | 'rejected_not_editable_merchant_input'
   | 'rejected_value_shape_mismatch'
   | 'rejected_section_mismatch'
   | 'rejected_neighbor_better_match'
+  | 'rejected_insufficient_description_proof'
   | 'rejected_insufficient_label_proof'
   | 'rejected_stale_enrichment'
   | 'rejected_ambiguous_neighbors';
@@ -69,6 +71,9 @@ export interface MappingCandidate {
   tabTop?: number | null;
   currentValue?: string | null;
   observedValueLikeTextNearControl?: string | null;
+  controlCategory?: string | null;
+  visible?: boolean | null;
+  editable?: boolean | null;
   enrichment?: {
     jsonKeyPath?: string | null;
     matchedBy?: 'guid' | 'position' | 'coordinate' | null;
@@ -106,6 +111,8 @@ export interface CandidateAssessment {
   enrichmentMatches: boolean;
   valueShapeMatches: boolean;
   valueShapeMismatch: boolean;
+  mutatable: boolean;
+  conceptSpecificProofMatches: boolean;
   reasons: string[];
 }
 
@@ -233,6 +240,18 @@ export function assessMappingCandidate(
   );
   const valueShapeMatches = valueShapeMatchesConcept(concept, valueShape);
   const valueShapeMismatch = valueShapeConflictsWithConcept(concept, valueShape);
+  const mutatable = (candidate.controlCategory === undefined || candidate.controlCategory === null || candidate.controlCategory === 'merchant_input') &&
+    candidate.visible !== false &&
+    candidate.editable !== false;
+  const conceptSpecificProofMatches = concept !== 'business_description' || businessDescriptionProofMatches({
+    candidate,
+    labelText,
+    businessSection,
+    valueShape,
+    labelMatches,
+    sectionMatches,
+    typeMatches,
+  });
 
   let trustScore = 0;
   if (strongLabel && labelMatches) trustScore += 6;
@@ -242,6 +261,9 @@ export function assessMappingCandidate(
   if (enrichmentMatches) trustScore += 2;
   if (valueShapeMatches) trustScore += 5;
   if (valueShapeMismatch) trustScore -= 8;
+  if (!mutatable) trustScore -= 20;
+  if (concept === 'business_description' && valueShapeMatches && conceptSpecificProofMatches) trustScore += 2;
+  if (concept === 'business_description' && valueShapeMatches && !conceptSpecificProofMatches) trustScore -= 3;
 
   if (expectedAnchor?.pageIndex !== undefined && expectedAnchor.pageIndex !== null) {
     if (candidate.pageIndex === expectedAnchor.pageIndex) {
@@ -270,6 +292,10 @@ export function assessMappingCandidate(
   }
 
   if (valueShapeMismatch) reasons.push(`value shape ${valueShape} conflicts with ${concept}`);
+  if (!mutatable) reasons.push('candidate is not an editable merchant input');
+  if (concept === 'business_description' && valueShapeMatches && !conceptSpecificProofMatches) {
+    reasons.push('missing long-text, textarea, or field-local Business Description proof');
+  }
   if (!sectionMatches && businessSection) reasons.push(`section ${businessSection} does not match ${FIELD_CONCEPT_REGISTRY[concept].businessSection}`);
   if (!strongLabel && !valueShapeMatches) reasons.push('insufficient label/value proof');
 
@@ -289,6 +315,8 @@ export function assessMappingCandidate(
     enrichmentMatches,
     valueShapeMatches,
     valueShapeMismatch,
+    mutatable,
+    conceptSpecificProofMatches,
     reasons,
   };
 }
@@ -324,9 +352,21 @@ export function selectBestMappingCandidate(input: {
     };
   }
 
+  if (!best.mutatable) {
+    return {
+      selectedCandidateId: best.candidateId,
+      trusted: false,
+      decisionReason: 'rejected_not_editable_merchant_input',
+      shiftReason: inferShiftReason(input.concept, current ?? best, best, input.expectedAnchor ?? null),
+      valueShape: best.valueShape,
+      assessments,
+      explanation: `The best candidate for ${FIELD_CONCEPT_REGISTRY[input.concept].displayName} is not an editable merchant input, so it cannot be safely mutated.`,
+    };
+  }
+
   if (input.concept === 'date_of_birth') {
     const stakeholderContext = (input.candidates.find((candidate) => candidate.id === best.candidateId)?.businessSection ?? '') === 'Stakeholder';
-    if (best.typeMatches && best.valueShape === 'date' && stakeholderContext) {
+    if (best.mutatable && best.typeMatches && best.valueShape === 'date' && stakeholderContext) {
       return {
         selectedCandidateId: best.candidateId,
         trusted: true,
@@ -339,7 +379,7 @@ export function selectBestMappingCandidate(input: {
     }
   }
 
-  if (best.strongLabel && best.labelMatches && !best.valueShapeMismatch) {
+  if (best.mutatable && best.strongLabel && best.labelMatches && !best.valueShapeMismatch) {
     return {
       selectedCandidateId: best.candidateId,
       trusted: true,
@@ -352,12 +392,16 @@ export function selectBestMappingCandidate(input: {
   }
 
   const anchorShapeMatches = availableAssessments.filter((assessment) =>
+    assessment.mutatable &&
     assessment.valueShapeMatches &&
     !assessment.valueShapeMismatch &&
     isNearAnchorCandidate(assessment, input.expectedAnchor ?? null),
   );
   const exactAnchorShapeMatches = anchorShapeMatches.filter((assessment) =>
     isExactAnchorCandidate(assessment, input.expectedAnchor ?? null),
+  );
+  const exactAnchorTrustedShapeMatches = exactAnchorShapeMatches.filter((assessment) =>
+    assessment.conceptSpecificProofMatches,
   );
 
   if (
@@ -375,7 +419,23 @@ export function selectBestMappingCandidate(input: {
     };
   }
 
-  if (exactAnchorShapeMatches.length === 1 && exactAnchorShapeMatches[0]!.candidateId === best.candidateId) {
+  if (
+    input.concept === 'business_description' &&
+    exactAnchorShapeMatches.length === 1 &&
+    exactAnchorTrustedShapeMatches.length === 0
+  ) {
+    return {
+      selectedCandidateId: exactAnchorShapeMatches[0]!.candidateId,
+      trusted: false,
+      decisionReason: 'rejected_insufficient_description_proof',
+      shiftReason: inferShiftReason(input.concept, current ?? exactAnchorShapeMatches[0]!, exactAnchorShapeMatches[0]!, input.expectedAnchor ?? null),
+      valueShape: exactAnchorShapeMatches[0]!.valueShape,
+      assessments,
+      explanation: 'The Business Description candidate is text-shaped, but needs long-text, textarea, or field-local description proof before mutation.',
+    };
+  }
+
+  if (exactAnchorTrustedShapeMatches.length === 1 && exactAnchorTrustedShapeMatches[0]!.candidateId === best.candidateId) {
     return {
       selectedCandidateId: best.candidateId,
       trusted: true,
@@ -387,7 +447,7 @@ export function selectBestMappingCandidate(input: {
     };
   }
 
-  if (best.enrichmentMatches && best.sectionMatches && best.valueShapeMatches && !best.valueShapeMismatch && best.trustScore >= 8) {
+  if (best.mutatable && best.enrichmentMatches && best.sectionMatches && best.valueShapeMatches && !best.valueShapeMismatch && best.trustScore >= 8) {
     return {
       selectedCandidateId: best.candidateId,
       trusted: true,
@@ -486,6 +546,34 @@ export function selectBestMappingCandidate(input: {
     assessments,
     explanation: 'The candidate does not yet have enough converging proof to trust mutation.',
   };
+}
+
+function businessDescriptionProofMatches(input: {
+  candidate: MappingCandidate;
+  labelText: string;
+  businessSection: string | null;
+  valueShape: ValueShape;
+  labelMatches: boolean;
+  sectionMatches: boolean;
+  typeMatches: boolean;
+}): boolean {
+  const descriptorText = [
+    input.labelText,
+    input.candidate.sectionName,
+    input.businessSection,
+    input.candidate.enrichment?.jsonKeyPath,
+  ].filter(Boolean).join(' ');
+  const hasDescriptionText = /business\s*description|nature\s+of\s+business|description|describe/i.test(descriptorText);
+  const tabType = (input.candidate.docusignTabType ?? '').toLowerCase();
+  const inferredType = (input.candidate.inferredType ?? '').toLowerCase();
+  const currentText = (input.candidate.currentValue ?? input.candidate.observedValueLikeTextNearControl ?? '').trim();
+  const longText = input.valueShape === 'text_name_like' && currentText.length >= 40;
+
+  return hasDescriptionText ||
+    tabType.includes('textarea') ||
+    inferredType.includes('description') ||
+    (input.sectionMatches && input.typeMatches && input.labelMatches) ||
+    (input.sectionMatches && longText);
 }
 
 export function resolveMappingClaims(requests: MappingClaimRequest[]): MappingClaimResolution[] {

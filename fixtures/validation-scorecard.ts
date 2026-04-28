@@ -167,6 +167,15 @@ export interface MappingCalibrationRow {
   decision: MappingCalibrationDecision;
   calibrationReason: string;
   mappingDecisionReason: string;
+  missingProof?: string[];
+  humanConfirmation?: {
+    needed: true;
+    concept: FieldConceptKey;
+    suspectedFieldLocation: string;
+    currentBlocker: string;
+    requestedEvidence: string;
+    decisionImpact: string;
+  } | null;
 }
 
 export interface MappingCalibrationFile {
@@ -1069,6 +1078,9 @@ function conceptAssessmentForField(
       tabLeft: field.tabLeft,
       tabTop: field.tabTop,
       observedValueLikeTextNearControl: field.observedValueLikeTextNearControl,
+      controlCategory: field.controlCategory,
+      visible: field.visible,
+      editable: field.editable,
       enrichment: field.enrichment ? {
         jsonKeyPath: field.enrichment.jsonKeyPath,
         matchedBy: field.enrichment.matchedBy,
@@ -1100,7 +1112,7 @@ function buildCalibratedMatch(
     return null;
   }
 
-  const fieldIndex = calibratedFieldIndex(calibrationRow);
+  const fieldIndex = calibratedFieldIndex(report, concept, calibrationRow);
   if (!fieldIndex || fieldIndex < 1 || fieldIndex > report.fields.length) return null;
 
   const field = report.fields[fieldIndex - 1]!;
@@ -1121,13 +1133,42 @@ function buildCalibratedMatch(
   };
 }
 
-function calibratedFieldIndex(calibrationRow: MappingCalibrationRow): number | null {
+function calibratedFieldIndex(
+  report: ValidationReport,
+  concept: FieldConceptDefinition,
+  calibrationRow: MappingCalibrationRow,
+): number | null {
   if (calibrationRow.decision === 'trust_current_mapping' && calibrationRow.currentCandidateFieldIndex) {
-    return calibrationRow.currentCandidateFieldIndex;
+    return resolveReportFieldIndex(report, concept, calibrationRow.currentCandidateFieldIndex);
   }
-  if (!calibrationRow.selectedCandidate) return calibrationRow.currentCandidateFieldIndex ?? null;
+  if (!calibrationRow.selectedCandidate) {
+    return calibrationRow.currentCandidateFieldIndex
+      ? resolveReportFieldIndex(report, concept, calibrationRow.currentCandidateFieldIndex)
+      : null;
+  }
   const match = calibrationRow.selectedCandidate.match(/^#(\d+)\b/);
-  return match ? Number(match[1]) : calibrationRow.currentCandidateFieldIndex ?? null;
+  const candidateIndex = match ? Number(match[1]) : calibrationRow.currentCandidateFieldIndex ?? null;
+  return candidateIndex ? resolveReportFieldIndex(report, concept, candidateIndex) : null;
+}
+
+function resolveReportFieldIndex(
+  report: ValidationReport,
+  concept: FieldConceptDefinition,
+  candidateIndex: number,
+): number | null {
+  const direct = report.fields[candidateIndex - 1] ?? null;
+  if (direct?.controlCategory === 'merchant_input') return candidateIndex;
+
+  const legacyDiscoveryIndexMatch = report.fields
+    .map((field, index) => ({ field, fieldIndex: index + 1 }))
+    .filter((entry) => entry.field.index === candidateIndex && entry.field.controlCategory === 'merchant_input')
+    .sort((a, b) => {
+      const aAssessment = conceptAssessmentForField(a.field, concept);
+      const bAssessment = conceptAssessmentForField(b.field, concept);
+      return (bAssessment?.trustScore ?? 0) - (aAssessment?.trustScore ?? 0);
+    });
+
+  return legacyDiscoveryIndexMatch[0]?.fieldIndex ?? null;
 }
 
 function maxConfidence(a: IdentificationConfidence, b: IdentificationConfidence): IdentificationConfidence {
