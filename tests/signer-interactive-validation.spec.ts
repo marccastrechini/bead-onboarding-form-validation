@@ -36,6 +36,8 @@ test.describe('Bead Onboarding - Interactive Field Validation', () => {
       ARTIFACTS_DIR,
     );
 
+    flush();
+
     if (!hasSignerUrl()) {
       const artifacts = flush();
       await attachArtifacts(testInfo, artifacts);
@@ -48,7 +50,15 @@ test.describe('Bead Onboarding - Interactive Field Validation', () => {
         testInfo.annotations.push({ type: 'diagnostic', description: diagnostic });
       }
 
+      testInfo.annotations.push({
+        type: 'diagnostic',
+        description: 'interactive phase: signer open complete; field discovery starting',
+      });
       const fields = await discoverFields(frame);
+      testInfo.annotations.push({
+        type: 'diagnostic',
+        description: `interactive phase: field discovery complete (${fields.length} fields); report build starting`,
+      });
       const report = new ReportBuilder(false);
       const enrichment = loadEnrichment();
       report.attachEnrichment(enrichment.index, {
@@ -59,6 +69,10 @@ test.describe('Bead Onboarding - Interactive Field Validation', () => {
       for (const field of fields) report.recordField(field, []);
 
       plan = buildInteractiveValidationPlan(report.build());
+      testInfo.annotations.push({
+        type: 'diagnostic',
+        description: `interactive phase: validation plan built (${plan.cases.length} cases, ${plan.skippedConcepts.length} skipped concepts)`,
+      });
       results.push(...plan.skippedConcepts.map(skippedConceptToResult));
       flush();
 
