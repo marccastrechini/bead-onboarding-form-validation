@@ -30,6 +30,12 @@ export interface EnrichmentRecord {
   confidence: 'high' | 'medium' | 'low';
   suggestedDisplayName: string;
   suggestedBusinessSection: string;
+  layoutSectionHeader?: string | null;
+  layoutFieldLabel?: string | null;
+  layoutValueShape?: string | null;
+  layoutEvidenceSource?: string | null;
+  layoutNeighboringLabels?: string[];
+  layoutEditability?: string | null;
 }
 
 export interface EnrichmentBundle {
@@ -336,11 +342,11 @@ export function matchField(
     if (r) return { record: r, matchedBy: 'guid' };
   }
   const fp = buildPositionalFingerprint(args.pageIndex, args.dataType, args.ordinalOnPage);
+  const coord = coordinateMatch(index, args);
+  if (coord) return { record: coord, matchedBy: 'coordinate' };
   if (fp) {
     const r = index.byFingerprint.get(fp);
     if (r) return { record: r, matchedBy: 'position' };
   }
-  const coord = coordinateMatch(index, args);
-  if (coord) return { record: coord, matchedBy: 'coordinate' };
   return null;
 }

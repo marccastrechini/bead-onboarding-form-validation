@@ -49,6 +49,9 @@ interface CalibrationCandidateSummary {
   fieldIndex: number;
   label: string;
   businessSection: string | null;
+  layoutSectionHeader: string | null;
+  layoutFieldLabel: string | null;
+  editability: 'editable' | 'read_only' | 'unknown';
   tabType: string | null;
   pageIndex: number | null;
   ordinalOnPage: number | null;
@@ -60,6 +63,9 @@ interface NeighborWindowEntry {
   fieldIndex: number;
   label: string;
   businessSection: string | null;
+  layoutSectionHeader: string | null;
+  layoutFieldLabel: string | null;
+  editability: 'editable' | 'read_only' | 'unknown';
   pageIndex: number | null;
   ordinalOnPage: number | null;
   coordinates: string;
@@ -320,9 +326,11 @@ function findConceptEnrichmentRecord(input: {
   enrichment: EnrichmentBundle;
 }, concept: FieldConceptKey): EnrichmentRecord | null {
   const conceptDef = FIELD_CONCEPT_REGISTRY[concept];
-  const bundled = input.enrichment.records.find((record) =>
+  const bundled = input.enrichment.records
+    .filter((record) =>
     conceptDef.jsonKeyPatterns.some((pattern) => pattern.test(record.jsonKeyPath)),
-  );
+    )
+    .sort((a, b) => conceptRecordPriority(concept, a) - conceptRecordPriority(concept, b))[0];
   if (bundled) return bundled;
 
   const field = input.report.fields.find((candidate) =>
@@ -343,6 +351,23 @@ function findConceptEnrichmentRecord(input: {
     suggestedDisplayName: field.enrichment.suggestedDisplayName,
     suggestedBusinessSection: field.enrichment.suggestedBusinessSection,
   };
+}
+
+function conceptRecordPriority(concept: FieldConceptKey, record: EnrichmentRecord): number {
+  const key = record.jsonKeyPath;
+  if (concept === 'postal_code') {
+    if (/registeredLegalAddress\.postalCode$/i.test(key)) return 0;
+    if (/businessMailingAddress\.postalCode$/i.test(key)) return 5;
+    if (/bankAddress\.postalCode$/i.test(key)) return 10;
+    if (/stakeholders\[\d+\]\.address\.postalCode$/i.test(key)) return 20;
+  }
+  if (concept === 'business_name') {
+    if (/merchantData\.registeredName$/i.test(key)) return 0;
+    if (/merchantData\.merchantName$/i.test(key)) return 5;
+  }
+  if (concept === 'dba_name' && /merchantData\.dbaName$/i.test(key)) return 0;
+  if (concept === 'business_description' && /merchantData\.businessDescription$/i.test(key)) return 0;
+  return 50;
 }
 
 function buildConceptRow(
@@ -392,16 +417,22 @@ function buildConceptRow(
     missingProof,
     humanConfirmation,
     explanation: explainDecision(context, selection, selectedField, nearestShapeMatch, calibrationReason),
-    neighborWindow: context.nearbyFields.map((field) => ({
-      fieldIndex: sourceFieldIndex(context, field),
-      label: field.resolvedLabel ?? '(unresolved)',
-      businessSection: field.enrichment?.suggestedBusinessSection ?? null,
-      pageIndex: field.pageIndex,
-      ordinalOnPage: field.ordinalOnPage,
-      coordinates: formatCoordinates(field.tabLeft, field.tabTop),
-      tabType: field.docusignTabType,
-      valueShape: detectValueShape(extractFieldCurrentValueHint(field)),
-    })),
+    neighborWindow: context.nearbyFields.map((field) => {
+      const summary = summarizeField(context, field);
+      return {
+        fieldIndex: summary.fieldIndex,
+        label: summary.label,
+        businessSection: summary.businessSection,
+        layoutSectionHeader: summary.layoutSectionHeader,
+        layoutFieldLabel: summary.layoutFieldLabel,
+        editability: summary.editability,
+        pageIndex: summary.pageIndex,
+        ordinalOnPage: summary.ordinalOnPage,
+        coordinates: summary.coordinates,
+        tabType: summary.tabType,
+        valueShape: summary.valueShape,
+      };
+    }),
   };
 }
 
@@ -600,17 +631,29 @@ function findCurrentField(input: {
     if (shapeMatches.length === 1) return shapeMatches[0]!;
   }
 
-  return input.nearbyFields.find((field) => field.enrichment?.jsonKeyPath === input.enrichmentRecord.jsonKeyPath) ?? null;
+  return input.nearbyFields.find((field) => matchingLayoutRecord(input.enrichmentRecord, field))
+    ?? input.nearbyFields.find((field) => field.enrichment?.jsonKeyPath === input.enrichmentRecord.jsonKeyPath)
+    ?? null;
 }
 
 function toMappingCandidate(context: ConceptCalibrationContext, field: FieldRecord) {
-  const currentValue = extractFieldCurrentValueHint(field);
+  const layoutRecord = matchingLayoutRecord(context.enrichmentRecord, field);
+  const currentValueShape = field.currentValueShape ?? null;
+  const currentValue = layoutRecord && !currentValueShape ? null : extractFieldCurrentValueHint(field);
+  const enrichment = layoutRecord ? enrichmentPayload(layoutRecord) : field.enrichment ? {
+    jsonKeyPath: field.enrichment.jsonKeyPath,
+    matchedBy: field.enrichment.matchedBy,
+    confidence: field.enrichment.confidence,
+    suggestedDisplayName: field.enrichment.suggestedDisplayName,
+    suggestedBusinessSection: field.enrichment.suggestedBusinessSection,
+    positionalFingerprint: field.enrichment.positionalFingerprint,
+  } : null;
   return {
     id: String(sourceFieldIndex(context, field)),
-    resolvedLabel: field.resolvedLabel,
-    labelSource: field.labelSource,
-    labelConfidence: field.labelConfidence,
-    businessSection: field.enrichment?.suggestedBusinessSection ?? null,
+    resolvedLabel: layoutRecord?.suggestedDisplayName ?? field.resolvedLabel,
+    labelSource: layoutRecord ? 'layout-cell' : field.labelSource,
+    labelConfidence: layoutRecord?.confidence === 'high' ? 'high' : field.labelConfidence,
+    businessSection: layoutRecord?.suggestedBusinessSection ?? field.enrichment?.suggestedBusinessSection ?? null,
     sectionName: field.section,
     inferredType: field.inferredType,
     docusignTabType: field.docusignTabType,
@@ -619,18 +662,38 @@ function toMappingCandidate(context: ConceptCalibrationContext, field: FieldReco
     tabLeft: field.tabLeft,
     tabTop: field.tabTop,
     currentValue,
+    currentValueShape,
     observedValueLikeTextNearControl: field.observedValueLikeTextNearControl,
+    layoutValueShape: layoutRecord?.layoutValueShape as ValueShape | null | undefined,
+    layoutSectionHeader: layoutRecord?.layoutSectionHeader ?? null,
+    layoutFieldLabel: layoutRecord?.layoutFieldLabel ?? null,
+    layoutEvidenceSource: layoutRecord?.layoutEvidenceSource ?? null,
     controlCategory: field.controlCategory,
     visible: field.visible,
     editable: field.editable,
-    enrichment: field.enrichment ? {
-      jsonKeyPath: field.enrichment.jsonKeyPath,
-      matchedBy: field.enrichment.matchedBy,
-      confidence: field.enrichment.confidence,
-      suggestedDisplayName: field.enrichment.suggestedDisplayName,
-      suggestedBusinessSection: field.enrichment.suggestedBusinessSection,
-      positionalFingerprint: field.enrichment.positionalFingerprint,
-    } : null,
+    enrichment,
+  };
+}
+
+function matchingLayoutRecord(record: EnrichmentRecord, field: FieldRecord): EnrichmentRecord | null {
+  if (!record.layoutEvidenceSource) return null;
+  const expected = parseFingerprint(record.positionalFingerprint);
+  if (expected?.pageIndex !== undefined && field.pageIndex !== null && field.pageIndex !== expected.pageIndex) return null;
+  if (expected?.family && field.docusignTabType && expected.family !== field.docusignTabType) return null;
+  if (typeof record.tabLeft !== 'number' || typeof record.tabTop !== 'number') return null;
+  if (typeof field.tabLeft !== 'number' || typeof field.tabTop !== 'number') return null;
+  const distance = Math.max(Math.abs(record.tabLeft - field.tabLeft), Math.abs(record.tabTop - field.tabTop));
+  return distance <= 3 ? record : null;
+}
+
+function enrichmentPayload(record: EnrichmentRecord) {
+  return {
+    jsonKeyPath: record.jsonKeyPath,
+    matchedBy: 'coordinate' as const,
+    confidence: record.confidence,
+    suggestedDisplayName: record.suggestedDisplayName,
+    suggestedBusinessSection: record.suggestedBusinessSection,
+    positionalFingerprint: record.positionalFingerprint,
   };
 }
 
@@ -652,15 +715,25 @@ function extractFieldCurrentValueHint(field: FieldRecord): string | null {
 }
 
 function summarizeField(context: ConceptCalibrationContext, field: FieldRecord): CalibrationCandidateSummary {
+  const layoutRecord = matchingLayoutRecord(context.enrichmentRecord, field);
+  const valueHint = layoutRecord && !field.currentValueShape ? null : extractFieldCurrentValueHint(field);
+  const valueShape = field.currentValueShape ?? (layoutRecord?.layoutValueShape as ValueShape | null | undefined) ?? detectValueShape(valueHint);
   return {
     fieldIndex: sourceFieldIndex(context, field),
-    label: field.resolvedLabel ?? '(unresolved)',
-    businessSection: field.enrichment?.suggestedBusinessSection ?? null,
+    label: layoutRecord?.suggestedDisplayName ?? field.resolvedLabel ?? '(unresolved)',
+    businessSection: layoutRecord?.suggestedBusinessSection ?? field.enrichment?.suggestedBusinessSection ?? null,
+    layoutSectionHeader: layoutRecord?.layoutSectionHeader ?? field.enrichment?.layoutSectionHeader ?? null,
+    layoutFieldLabel: layoutRecord?.layoutFieldLabel ?? field.enrichment?.layoutFieldLabel ?? null,
+    editability: field.editable === false || field.controlCategory !== 'merchant_input'
+      ? 'read_only'
+      : field.editable === true
+        ? 'editable'
+        : 'unknown',
     tabType: field.docusignTabType,
     pageIndex: field.pageIndex,
     ordinalOnPage: field.ordinalOnPage,
     coordinates: formatCoordinates(field.tabLeft, field.tabTop),
-    valueShape: detectValueShape(extractFieldCurrentValueHint(field)),
+    valueShape,
   };
 }
 
@@ -670,7 +743,10 @@ function sourceFieldIndex(context: ConceptCalibrationContext, field: FieldRecord
 
 function formatCandidateSummary(candidate: CalibrationCandidateSummary): string {
   const section = candidate.businessSection ? ` ${candidate.businessSection}` : '';
-  return `#${candidate.fieldIndex} ${candidate.label}${section} p${candidate.pageIndex ?? 'n/a'} ord${candidate.ordinalOnPage ?? 'n/a'} ${candidate.tabType ?? 'n/a'} shape=${candidate.valueShape} @ ${candidate.coordinates}`;
+  const layout = candidate.layoutSectionHeader && candidate.layoutFieldLabel
+    ? ` layout=${candidate.layoutSectionHeader} > ${candidate.layoutFieldLabel}`
+    : '';
+  return `#${candidate.fieldIndex} ${candidate.label}${section} p${candidate.pageIndex ?? 'n/a'} ord${candidate.ordinalOnPage ?? 'n/a'} ${candidate.tabType ?? 'n/a'} shape=${candidate.valueShape} editable=${candidate.editability}${layout} @ ${candidate.coordinates}`;
 }
 
 function formatAnchor(record: EnrichmentRecord, alignmentRow: SampleAlignmentArtifact['rows'][number] | null): string {

@@ -13,7 +13,7 @@ import type {
   InteractiveValidationResult,
   InteractiveValidationResultsFile,
 } from './interactive-validation';
-import { assessMappingCandidate, type CandidateAssessment } from '../lib/mapping-calibration';
+import { assessMappingCandidate, type CandidateAssessment, type ValueShape } from '../lib/mapping-calibration';
 
 export type IdentificationConfidence = 'none' | 'low' | 'medium' | 'high';
 
@@ -1077,7 +1077,12 @@ function conceptAssessmentForField(
       ordinalOnPage: field.ordinalOnPage,
       tabLeft: field.tabLeft,
       tabTop: field.tabTop,
+      currentValueShape: field.currentValueShape,
       observedValueLikeTextNearControl: field.observedValueLikeTextNearControl,
+      layoutValueShape: field.enrichment?.layoutValueShape as ValueShape | null | undefined,
+      layoutSectionHeader: field.enrichment?.layoutSectionHeader ?? null,
+      layoutFieldLabel: field.enrichment?.layoutFieldLabel ?? null,
+      layoutEvidenceSource: field.enrichment?.layoutEvidenceSource ?? null,
       controlCategory: field.controlCategory,
       visible: field.visible,
       editable: field.editable,

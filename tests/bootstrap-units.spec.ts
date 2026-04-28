@@ -31,6 +31,7 @@ import {
 } from '../fixtures/interactive-validation';
 import { buildSearchQuery, messageTargetsAddress, selectFreshestMessage, selectMailboxMessage } from '../lib/gmail-client';
 import { loadEnrichment } from '../lib/enrichment-loader';
+import type { MhtmlParseResult, MhtmlTab } from '../lib/mhtml-parser';
 import {
   findDirectDocusignUrls,
   findCandidateRedirectUrls,
@@ -47,7 +48,8 @@ import {
   normalizeSampleApplication,
   resolveSampleInputs,
 } from '../lib/sample-inputs';
-import { buildSourceFieldInventory } from '../lib/sample-alignment';
+import { buildAlignment, buildEnrichmentBundle, buildSourceFieldInventory } from '../lib/sample-alignment';
+import { inferFieldCellEvidenceFromPositionedText } from '../lib/sample-layout-evidence';
 import { buildSampleIngestionReview } from '../lib/sample-ingestion';
 import { redactUrl } from '../lib/url-sanitize';
 import {
@@ -321,6 +323,73 @@ test.describe('sample enrichment status', () => {
     } finally {
       fs.rmSync(outDir, { recursive: true, force: true });
     }
+  });
+});
+
+test.describe('sample layout evidence', () => {
+  test('infers field-cell labels from positioned layout text', () => {
+    const evidence = inferFieldCellEvidenceFromPositionedText({
+      tabs: [mockLayoutMhtmlTab({ ordinalOnPage: 0, left: 24, top: 140, inputValue: 'Example LLC' })],
+      textBlocks: [
+        { pageIndex: 1, text: 'General', left: 20, top: 100, width: 300, isSectionHeader: true },
+        { pageIndex: 1, text: 'Registered Name', left: 24, top: 118, width: 160 },
+      ],
+    });
+
+    expect(evidence).toHaveLength(1);
+    expect(evidence[0]).toMatchObject({
+      sectionHeader: 'General',
+      fieldLabel: 'Registered Name',
+      layoutValueShape: 'text_name_like',
+      editability: 'editable',
+    });
+  });
+
+  test('adds Bead PDF/MHTML field-cell anchors for Batch 1 page-1 concepts', () => {
+    const report = buildAlignment(mockSubmissionForLayout(), mockLayoutMhtmlParseResult([
+      mockLayoutMhtmlTab({ ordinalOnPage: 4, left: 35.2, top: 224.64, inputValue: 'Example Business LLC' }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 6, left: 35.2, top: 256.64, inputValue: '' }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 17, left: 35.2, top: 348.8, inputValue: 'Retail goods and services' }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 41, left: 568.32, top: 543.36, inputValue: '12345' }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 51, left: 567.04, top: 657.92, inputValue: '' }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 52, left: 35.2, top: 712.32, inputValue: 'Location Name Value' }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 67, left: 410.88, top: 936.32, inputValue: '54321' }),
+    ]), {
+      jsonPath: 'sample.json',
+      mhtmlPath: 'sample.mhtml',
+      pdfText: beadPageOneLabelText(),
+    });
+    const bundle = buildEnrichmentBundle(report);
+    const byKey = new Map(bundle.records.map((record) => [record.jsonKeyPath, record]));
+
+    expect(report.rows.find((row) => row.jsonKeyPath === 'merchantData.dbaName')?.matchingMethod).toBe('layout_cell');
+    expect(byKey.get('merchantData.registeredName')).toMatchObject({
+      suggestedDisplayName: 'Registered Name',
+      suggestedBusinessSection: 'Business Details',
+      layoutSectionHeader: 'General',
+    });
+    expect(byKey.get('merchantData.dbaName')).toMatchObject({
+      suggestedDisplayName: 'DBA Name',
+      layoutSectionHeader: 'General',
+    });
+    expect(byKey.get('merchantData.businessDescription')).toMatchObject({
+      suggestedDisplayName: 'Business Description',
+      layoutSectionHeader: 'General',
+    });
+    expect(byKey.get('merchantData.registeredLegalAddress.postalCode')).toMatchObject({
+      suggestedDisplayName: 'Registered Legal Address ZIP',
+      suggestedBusinessSection: 'Address',
+      tabLeft: 568.32,
+      layoutValueShape: 'postal_code',
+    });
+    expect(byKey.get('merchantData.businessMailingAddress.postalCode')).toMatchObject({
+      suggestedDisplayName: 'Physical Operating Address ZIP',
+      layoutValueShape: 'empty',
+    });
+    expect(byKey.get('merchantData.bankAddress.postalCode')).toMatchObject({
+      suggestedDisplayName: 'Bank Address ZIP',
+      suggestedBusinessSection: 'Banking',
+    });
   });
 });
 
@@ -2158,6 +2227,104 @@ test.describe('interactive validation safety', () => {
     expect(conflictingShape.decisionReason).toBe('rejected_value_shape_mismatch');
   });
 
+  test('layout-cell ZIP evidence prefers registered legal address over physical and bank ZIP cells', () => {
+    const registered = selectBestMappingCandidate({
+      concept: 'postal_code',
+      currentCandidateId: null,
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.registeredLegalAddress.postalCode',
+        businessSection: 'Address',
+        pageIndex: 1,
+        ordinalOnPage: 41,
+        tabLeft: 568.32,
+        tabTop: 543.36,
+        docusignFieldFamily: 'Text',
+      },
+      candidates: [
+        {
+          id: 'registered-zip',
+          resolvedLabel: 'Registered Legal Address ZIP',
+          labelSource: 'layout-cell',
+          labelConfidence: 'high',
+          businessSection: 'Address',
+          layoutSectionHeader: 'Registered Legal Address',
+          layoutFieldLabel: 'ZIP',
+          layoutValueShape: 'postal_code',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 43,
+          tabLeft: 568.32,
+          tabTop: 543.36,
+          controlCategory: 'merchant_input',
+          visible: true,
+          editable: true,
+        },
+        {
+          id: 'physical-zip-empty',
+          resolvedLabel: 'Physical Operating Address ZIP',
+          labelSource: 'layout-cell',
+          labelConfidence: 'high',
+          businessSection: 'Address',
+          layoutSectionHeader: 'Physical Operating Address',
+          layoutFieldLabel: 'ZIP',
+          currentValueShape: 'empty',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 51,
+          tabLeft: 567.04,
+          tabTop: 657.92,
+          controlCategory: 'merchant_input',
+          visible: true,
+          editable: true,
+        },
+        {
+          id: 'bank-zip',
+          resolvedLabel: 'Bank Address ZIP',
+          labelSource: 'layout-cell',
+          labelConfidence: 'high',
+          businessSection: 'Banking',
+          layoutSectionHeader: 'Bank Address',
+          layoutFieldLabel: 'ZIP',
+          currentValue: '12345',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 67,
+          tabLeft: 410.88,
+          tabTop: 936.32,
+          controlCategory: 'merchant_input',
+          visible: true,
+          editable: true,
+        },
+      ],
+    });
+    const bankOnly = selectBestMappingCandidate({
+      concept: 'postal_code',
+      currentCandidateId: null,
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.registeredLegalAddress.postalCode',
+        businessSection: 'Address',
+      },
+      candidates: [{
+        id: 'bank-zip',
+        resolvedLabel: 'Bank Address ZIP',
+        labelSource: 'layout-cell',
+        labelConfidence: 'high',
+        businessSection: 'Banking',
+        layoutSectionHeader: 'Bank Address',
+        layoutFieldLabel: 'ZIP',
+        currentValue: '12345',
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+      }],
+    });
+
+    expect(registered.trusted).toBe(true);
+    expect(registered.selectedCandidateId).toBe('registered-zip');
+    expect(bankOnly.trusted).toBe(false);
+    expect(bankOnly.decisionReason).toBe('rejected_section_mismatch');
+  });
+
   test('Business and DBA names require editable unambiguous name-like targets', () => {
     const businessName = selectBestMappingCandidate({
       concept: 'business_name',
@@ -2255,6 +2422,96 @@ test.describe('interactive validation safety', () => {
     expect(dbaName.decisionReason).toBe('rejected_ambiguous_neighbors');
   });
 
+  test('layout-cell labels separate Registered Name and DBA Name from Location Name', () => {
+    const businessName = selectBestMappingCandidate({
+      concept: 'business_name',
+      currentCandidateId: null,
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.registeredName',
+        businessSection: 'Business Details',
+        pageIndex: 1,
+        ordinalOnPage: 4,
+        tabLeft: 35.2,
+        tabTop: 224.64,
+        docusignFieldFamily: 'Text',
+      },
+      candidates: [{
+        id: 'registered-name',
+        resolvedLabel: 'Registered Name',
+        labelSource: 'layout-cell',
+        labelConfidence: 'high',
+        businessSection: 'Business Details',
+        layoutSectionHeader: 'General',
+        layoutFieldLabel: 'Registered Name',
+        layoutValueShape: 'text_name_like',
+        docusignTabType: 'Text',
+        pageIndex: 1,
+        ordinalOnPage: 5,
+        tabLeft: 35.2,
+        tabTop: 224.64,
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+      }],
+    });
+    const dbaName = selectBestMappingCandidate({
+      concept: 'dba_name',
+      currentCandidateId: null,
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.dbaName',
+        businessSection: 'Business Details',
+        pageIndex: 1,
+        ordinalOnPage: 6,
+        tabLeft: 35.2,
+        tabTop: 256.64,
+        docusignFieldFamily: 'Text',
+      },
+      candidates: [
+        {
+          id: 'dba-name',
+          resolvedLabel: 'DBA Name',
+          labelSource: 'layout-cell',
+          labelConfidence: 'high',
+          businessSection: 'Business Details',
+          layoutSectionHeader: 'General',
+          layoutFieldLabel: 'DBA Name (optional)',
+          currentValueShape: 'empty',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 7,
+          tabLeft: 35.2,
+          tabTop: 256.64,
+          controlCategory: 'merchant_input',
+          visible: true,
+          editable: true,
+        },
+        {
+          id: 'location-name',
+          resolvedLabel: 'Location Name',
+          labelSource: 'layout-cell',
+          labelConfidence: 'high',
+          businessSection: 'Business Details',
+          layoutSectionHeader: 'Location Details',
+          layoutFieldLabel: 'Location Name',
+          currentValue: 'Example Location',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 52,
+          tabLeft: 35.2,
+          tabTop: 712.32,
+          controlCategory: 'merchant_input',
+          visible: true,
+          editable: true,
+        },
+      ],
+    });
+
+    expect(businessName.trusted).toBe(true);
+    expect(businessName.selectedCandidateId).toBe('registered-name');
+    expect(dbaName.trusted).toBe(true);
+    expect(dbaName.selectedCandidateId).toBe('dba-name');
+  });
+
   test('Business Description needs description-specific proof before mutation', () => {
     const shortUnlabelled = selectBestMappingCandidate({
       concept: 'business_description',
@@ -2338,6 +2595,70 @@ test.describe('interactive validation safety', () => {
     expect(textareaLike.decisionReason).toBe('trusted_by_anchor_and_value_shape');
   });
 
+  test('Business Description layout proof requires the General field-cell label', () => {
+    const generalDescription = selectBestMappingCandidate({
+      concept: 'business_description',
+      currentCandidateId: 'description',
+      candidates: [{
+        id: 'description',
+        resolvedLabel: 'Business Description',
+        labelSource: 'layout-cell',
+        labelConfidence: 'high',
+        businessSection: 'Business Details',
+        layoutSectionHeader: 'General',
+        layoutFieldLabel: 'Business Description',
+        layoutValueShape: 'text_name_like',
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+      }],
+    });
+    const wrongSection = selectBestMappingCandidate({
+      concept: 'business_description',
+      currentCandidateId: 'description',
+      candidates: [{
+        id: 'description',
+        resolvedLabel: 'Business Description',
+        labelSource: 'layout-cell',
+        labelConfidence: 'high',
+        businessSection: 'Address',
+        layoutSectionHeader: 'Registered Legal Address',
+        layoutFieldLabel: 'Business Description',
+        currentValue: 'Retail goods',
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+      }],
+    });
+
+    expect(generalDescription.trusted).toBe(true);
+    expect(wrongSection.trusted).toBe(false);
+    expect(wrongSection.decisionReason).toBe('rejected_section_mismatch');
+  });
+
+  test('layout-cell evidence never promotes read-only display fields', () => {
+    const result = selectBestMappingCandidate({
+      concept: 'business_name',
+      currentCandidateId: 'display',
+      candidates: [{
+        id: 'display',
+        resolvedLabel: 'Registered Name',
+        labelSource: 'layout-cell',
+        labelConfidence: 'high',
+        businessSection: 'Business Details',
+        layoutSectionHeader: 'General',
+        layoutFieldLabel: 'Registered Name',
+        layoutValueShape: 'text_name_like',
+        controlCategory: 'read_only_display',
+        visible: true,
+        editable: false,
+      }],
+    });
+
+    expect(result.trusted).toBe(false);
+    expect(result.decisionReason).toBe('rejected_not_editable_merchant_input');
+  });
+
   test('mapping-blocked findings carry missing proof and human confirmation request', () => {
     const input = mockFindingsInput({
       results: [mockFindingsResult({
@@ -2376,6 +2697,38 @@ test.describe('interactive validation safety', () => {
     expect(report.mappingBlockedFields[0]!.mappingMissingProof).toContain('Need a visible editable Address field with ZIP/postal-code-shaped value or field-local Postal Code label proof.');
     expect(report.mappingBlockedFields[0]!.humanConfirmation?.requestedEvidence).toContain('Review a screenshot');
     expect(report.likelyProductValidationFindings).toEqual([]);
+  });
+
+  test('trusted findings do not request human mapping confirmation', () => {
+    const input = mockFindingsInput({
+      results: [mockFindingsResult({
+        concept: 'business_name',
+        conceptDisplayName: 'Business Name',
+        validationId: 'very-short-behavior',
+        testName: 'Business Name rejects very short text',
+        status: 'passed',
+        outcome: 'passed',
+        targetConfidence: 'trusted',
+        mappingDecisionReason: 'trusted_by_label',
+        mappingShiftReason: 'none',
+      })],
+    });
+    input.calibration.rows = [{
+      concept: 'business_name',
+      conceptDisplayName: 'Business Name',
+      currentCandidateFieldIndex: 5,
+      selectedCandidate: '#5 Registered Name Business Details p1 ord5 Text shape=text_name_like editable=editable layout=General > Registered Name @ 35,224',
+      decision: 'trust_current_mapping',
+      calibrationReason: 'none',
+      mappingDecisionReason: 'trusted_by_label',
+      missingProof: [],
+      humanConfirmation: null,
+    }];
+
+    const report = buildValidationFindingsReport(input);
+
+    expect(report.trustedExecutedObservations[0]!.humanConfirmation).toBeNull();
+    expect(report.mappingBlockedFields).toEqual([]);
   });
 
   test('INTERACTIVE_CONCEPTS filters the interactive target set', () => {
@@ -2584,6 +2937,64 @@ function mockField(overrides: Partial<FieldRecord> = {}): FieldRecord {
   };
   if (!Object.prototype.hasOwnProperty.call(overrides, 'label')) field.label = field.resolvedLabel;
   return field;
+}
+
+function mockLayoutMhtmlTab(overrides: Partial<MhtmlTab> = {}): MhtmlTab {
+  const ordinal = overrides.ordinalOnPage ?? 0;
+  return {
+    tabGuid: `00000000-0000-4000-8000-${String(ordinal).padStart(12, '0')}`,
+    dataType: 'Text',
+    rawDataType: 'Text',
+    pageIndex: 1,
+    pageGuid: 'page-1',
+    ordinalOnPage: ordinal,
+    left: 0,
+    top: 0,
+    required: true,
+    ownedBySigner: true,
+    renderedValue: overrides.inputValue ?? null,
+    inputValue: overrides.inputValue ?? null,
+    decoratorLabel: null,
+    dataQa: null,
+    maxLength: null,
+    ...overrides,
+  };
+}
+
+function mockLayoutMhtmlParseResult(tabs: MhtmlTab[]): MhtmlParseResult {
+  return {
+    snapshotLocationRedacted: null,
+    subject: null,
+    tabs,
+    countsByType: { Text: tabs.length },
+    pageCount: 1,
+    decodedHtmlLength: 0,
+    warnings: [],
+  };
+}
+
+function mockSubmissionForLayout(): unknown {
+  return {
+    merchantData: {
+      registeredName: 'Example Business LLC',
+      dbaName: '',
+      businessDescription: 'Retail goods and services',
+      locationName: 'Location Name Value',
+      registeredLegalAddress: { postalCode: '[redacted]' },
+      businessMailingAddress: { postalCode: '' },
+      bankAddress: { postalCode: '[redacted]' },
+    },
+  };
+}
+
+function beadPageOneLabelText(): string {
+  return [
+    'General Registered Name Registration Date DBA Name Business Description',
+    'Business Primary Location Registered Legal Address Address Line 1 City State ZIP',
+    'Physical Operating Address Address Line 1 City State ZIP',
+    'Location Details Location Name',
+    'Bank Info Bank Address Line 1 Bank Address Line 2 Bank Address City State ZIP',
+  ].join(' ');
 }
 
 function mockEnrichment(

@@ -70,7 +70,12 @@ export interface MappingCandidate {
   tabLeft?: number | null;
   tabTop?: number | null;
   currentValue?: string | null;
+  currentValueShape?: ValueShape | null;
   observedValueLikeTextNearControl?: string | null;
+  layoutValueShape?: ValueShape | null;
+  layoutSectionHeader?: string | null;
+  layoutFieldLabel?: string | null;
+  layoutEvidenceSource?: string | null;
   controlCategory?: string | null;
   visible?: boolean | null;
   editable?: boolean | null;
@@ -143,6 +148,7 @@ const STRONG_LABEL_SOURCES = new Set([
   'wrapping-label',
   'title',
   'enrichment-guid',
+  'layout-cell',
 ]);
 
 const EXPECTED_SHAPES: Partial<Record<FieldConceptKey, ValueShape[]>> = {
@@ -193,8 +199,11 @@ export function detectValueShape(value: string | null | undefined): ValueShape {
   return 'unknown';
 }
 
-export function candidateValueShape(candidate: Pick<MappingCandidate, 'currentValue' | 'observedValueLikeTextNearControl'>): ValueShape {
-  return detectValueShape(candidate.currentValue ?? candidate.observedValueLikeTextNearControl ?? null);
+export function candidateValueShape(candidate: Pick<MappingCandidate, 'currentValue' | 'observedValueLikeTextNearControl' | 'currentValueShape' | 'layoutValueShape'>): ValueShape {
+  if (candidate.currentValueShape) return candidate.currentValueShape;
+  if (candidate.currentValue) return detectValueShape(candidate.currentValue);
+  if (candidate.layoutValueShape) return candidate.layoutValueShape;
+  return detectValueShape(candidate.observedValueLikeTextNearControl ?? null);
 }
 
 export function valueShapeMatchesConcept(concept: FieldConceptKey, shape: ValueShape): boolean {
@@ -215,7 +224,7 @@ export function assessMappingCandidate(
 ): CandidateAssessment {
   const reasons: string[] = [];
   const valueShape = candidateValueShape(candidate);
-  const labelText = [candidate.resolvedLabel, candidate.enrichment?.suggestedDisplayName]
+  const labelText = [candidate.resolvedLabel, candidate.layoutFieldLabel, candidate.enrichment?.suggestedDisplayName]
     .filter(Boolean)
     .join(' | ');
   const labelMatches = FIELD_CONCEPT_REGISTRY[concept].labelPatterns.some((pattern) => pattern.test(labelText));
@@ -379,7 +388,7 @@ export function selectBestMappingCandidate(input: {
     }
   }
 
-  if (best.mutatable && best.strongLabel && best.labelMatches && !best.valueShapeMismatch) {
+  if (best.mutatable && best.strongLabel && best.labelMatches && !best.valueShapeMismatch && !hasExplicitWrongSection(best, input.candidates)) {
     return {
       selectedCandidateId: best.candidateId,
       trusted: true,
@@ -561,19 +570,31 @@ function businessDescriptionProofMatches(input: {
     input.labelText,
     input.candidate.sectionName,
     input.businessSection,
+    input.candidate.layoutSectionHeader,
+    input.candidate.layoutFieldLabel,
     input.candidate.enrichment?.jsonKeyPath,
   ].filter(Boolean).join(' ');
   const hasDescriptionText = /business\s*description|nature\s+of\s+business|description|describe/i.test(descriptorText);
+  const hasGeneralLayoutSection = /\bgeneral\b/i.test(input.candidate.layoutSectionHeader ?? '');
   const tabType = (input.candidate.docusignTabType ?? '').toLowerCase();
   const inferredType = (input.candidate.inferredType ?? '').toLowerCase();
   const currentText = (input.candidate.currentValue ?? input.candidate.observedValueLikeTextNearControl ?? '').trim();
   const longText = input.valueShape === 'text_name_like' && currentText.length >= 40;
 
-  return hasDescriptionText ||
+  return (hasDescriptionText && (input.sectionMatches || hasGeneralLayoutSection)) ||
     tabType.includes('textarea') ||
     inferredType.includes('description') ||
     (input.sectionMatches && input.typeMatches && input.labelMatches) ||
     (input.sectionMatches && longText);
+}
+
+function hasExplicitWrongSection(
+  assessment: CandidateAssessment,
+  candidates: MappingCandidate[],
+): boolean {
+  const candidate = candidates.find((entry) => entry.id === assessment.candidateId) ?? null;
+  const section = candidate?.businessSection ?? candidate?.enrichment?.suggestedBusinessSection ?? null;
+  return Boolean(section && !assessment.sectionMatches);
 }
 
 export function resolveMappingClaims(requests: MappingClaimRequest[]): MappingClaimResolution[] {

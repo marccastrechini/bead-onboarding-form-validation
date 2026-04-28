@@ -136,6 +136,7 @@ async function main(): Promise<void> {
     jsonPath,
     mhtmlPath,
     valueOverrides: ingestion.valueOverrides,
+    pdfText: parsedPdf?.text ?? null,
   });
   const bundle = buildEnrichmentBundle(report);
 

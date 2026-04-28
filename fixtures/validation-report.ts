@@ -120,6 +120,12 @@ export interface FieldEnrichmentAnnotation {
   expectedTabLeft: number | null;
   expectedTabTop: number | null;
   expectedJsonTypeHint: string | null;
+  layoutSectionHeader?: string | null;
+  layoutFieldLabel?: string | null;
+  layoutValueShape?: string | null;
+  layoutEvidenceSource?: string | null;
+  layoutNeighboringLabels?: string[];
+  layoutEditability?: string | null;
   /** The original (pre-enrichment) resolved label, kept for audit. */
   priorResolvedLabel: string | null;
   /** The original label source before enrichment overrode it. */
@@ -537,6 +543,12 @@ export class ReportBuilder {
         expectedTabLeft: match.record.tabLeft ?? null,
         expectedTabTop: match.record.tabTop ?? null,
         expectedJsonTypeHint: match.record.jsonTypeHint ?? null,
+        layoutSectionHeader: match.record.layoutSectionHeader ?? null,
+        layoutFieldLabel: match.record.layoutFieldLabel ?? null,
+        layoutValueShape: match.record.layoutValueShape ?? null,
+        layoutEvidenceSource: match.record.layoutEvidenceSource ?? null,
+        layoutNeighboringLabels: match.record.layoutNeighboringLabels ?? [],
+        layoutEditability: match.record.layoutEditability ?? null,
         priorResolvedLabel: priorLabel,
         priorLabelSource: priorSource,
         appliedToLabel,

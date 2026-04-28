@@ -8,6 +8,10 @@
  */
 
 import type { MhtmlTab, MhtmlTabType, MhtmlParseResult } from './mhtml-parser';
+import {
+  inferBeadSampleFieldCellEvidence,
+  type FieldCellEvidence,
+} from './sample-layout-evidence';
 import { isRedactedSampleValue, normalizeSampleApplication } from './sample-inputs';
 
 // ---------------------------------------------------------------------------
@@ -413,6 +417,7 @@ export type AlignmentMethod =
   | 'exact_value'
   | 'normalized_value'
   | 'format_variant'
+  | 'layout_cell'
   | 'substring'
   | 'unmatched';
 
@@ -429,6 +434,12 @@ export interface AlignmentRow {
   tabOrdinalOnPage: number | null;
   tabLeft: number | null;
   tabTop: number | null;
+  layoutSectionHeader: string | null;
+  layoutFieldLabel: string | null;
+  layoutEvidenceSource: string | null;
+  layoutValueShape: string | null;
+  layoutNeighboringLabels: string[];
+  layoutEditability: string | null;
   businessSection: BusinessSection;
   confidence: 'high' | 'medium' | 'low' | 'none';
   matchingMethod: AlignmentMethod;
@@ -456,6 +467,7 @@ export interface AlignmentReport {
     lowConfidence: number;
   };
   rows: AlignmentRow[];
+  layoutEvidence: FieldCellEvidence[];
   unmatchedRenderedValues: Array<{
     tabGuid: string;
     dataType: MhtmlTabType;
@@ -488,9 +500,15 @@ function decoratorFamily(t: MhtmlTabType): BusinessSection | null {
 export function buildAlignment(
   submission: unknown,
   mhtml: MhtmlParseResult,
-  opts: { jsonPath: string; mhtmlPath: string; valueOverrides?: Record<string, string> },
+  opts: { jsonPath: string; mhtmlPath: string; valueOverrides?: Record<string, string>; pdfText?: string | null },
 ): AlignmentReport {
   const jsonFields = buildSourceFieldInventory(submission, { valueOverrides: opts.valueOverrides });
+  const layoutEvidence = inferBeadSampleFieldCellEvidence({ mhtml, pdfText: opts.pdfText ?? null });
+  const layoutByJsonKey = new Map(
+    layoutEvidence
+      .filter((evidence) => evidence.jsonKeyPath)
+      .map((evidence) => [evidence.jsonKeyPath!, evidence]),
+  );
 
   // Index tabs by lowercase trimmed rendered value.  Include both the visual
   // sizer text and the underlying input[value] — the visual text is often
@@ -573,11 +591,19 @@ export function buildAlignment(
       }
     }
 
+    const layout = layoutByJsonKey.get(f.keyPath) ?? null;
+    if (!match && layout) {
+      const layoutTab = mhtml.tabs.find((tab) => tab.tabGuid === layout.tabGuid) ?? null;
+      if (layoutTab && !claimed.has(layoutTab.tabGuid)) {
+        match = { tab: layoutTab, method: 'layout_cell', variant: layout.fieldLabel };
+      }
+    }
+
     if (match) {
       claimed.add(match.tab.tabGuid);
       const decFamily = decoratorFamily(match.tab.dataType);
       const conf: 'high' | 'medium' | 'low' =
-        match.method === 'exact_value'
+        match.method === 'exact_value' || match.method === 'layout_cell'
           ? 'high'
           : match.method === 'substring'
             ? 'low'
@@ -595,11 +621,19 @@ export function buildAlignment(
         tabOrdinalOnPage: match.tab.ordinalOnPage,
         tabLeft: match.tab.left,
         tabTop: match.tab.top,
+        layoutSectionHeader: layout?.sectionHeader ?? null,
+        layoutFieldLabel: layout?.fieldLabel ?? null,
+        layoutEvidenceSource: layout?.evidenceSource ?? null,
+        layoutValueShape: layout?.layoutValueShape ?? null,
+        layoutNeighboringLabels: layout?.neighboringLabels ?? [],
+        layoutEditability: layout?.editability ?? null,
         businessSection: decFamily ?? f.businessSection,
         confidence: conf,
         matchingMethod: match.method,
         notes:
-          f.valueSource === 'pdf_confirmed_mhtml'
+          match.method === 'layout_cell'
+            ? `matched using PDF/MHTML field-cell evidence (${layout?.sectionHeader ?? 'unknown section'} > ${layout?.fieldLabel ?? 'unknown field'})`
+            : f.valueSource === 'pdf_confirmed_mhtml'
             ? 'matched using a PDF-confirmed MHTML value for a redacted JSON field'
             : match.method === 'substring'
               ? 'substring of rendered value'
@@ -619,6 +653,12 @@ export function buildAlignment(
         tabOrdinalOnPage: null,
         tabLeft: null,
         tabTop: null,
+        layoutSectionHeader: layout?.sectionHeader ?? null,
+        layoutFieldLabel: layout?.fieldLabel ?? null,
+        layoutEvidenceSource: layout?.evidenceSource ?? null,
+        layoutValueShape: layout?.layoutValueShape ?? null,
+        layoutNeighboringLabels: layout?.neighboringLabels ?? [],
+        layoutEditability: layout?.editability ?? null,
         businessSection: f.businessSection,
         confidence: 'none',
         matchingMethod: 'unmatched',
@@ -680,6 +720,7 @@ export function buildAlignment(
     },
     totals,
     rows,
+    layoutEvidence,
     unmatchedRenderedValues,
     recommendedManualConfirmations,
   };
@@ -786,6 +827,20 @@ export function renderAlignmentMarkdown(report: AlignmentReport): string {
     lines.push('');
   }
 
+  if (report.layoutEvidence.length) {
+    lines.push('## Field-cell layout evidence');
+    lines.push('');
+    lines.push('| JSON key | Layout section | Field label | Page | Ordinal | Coordinates | Shape | Source |');
+    lines.push('|---|---|---|---|---|---|---|---|');
+    for (const evidence of report.layoutEvidence) {
+      const jsonKey = evidence.jsonKeyPath ?? '';
+      lines.push(
+        `| ${jsonKey} | ${evidence.sectionHeader ?? ''} | ${evidence.fieldLabel} | ${evidence.pageIndex ?? ''} | ${evidence.ordinalOnPage ?? ''} | ${evidence.tabLeft ?? ''},${evidence.tabTop ?? ''} | ${evidence.layoutValueShape} | ${evidence.evidenceSource} |`,
+      );
+    }
+    lines.push('');
+  }
+
   return lines.join('\n');
 }
 
@@ -811,6 +866,12 @@ export interface EnrichmentRecord {
   confidence: 'high' | 'medium' | 'low';
   suggestedDisplayName: string;
   suggestedBusinessSection: BusinessSection;
+  layoutSectionHeader?: string | null;
+  layoutFieldLabel?: string | null;
+  layoutValueShape?: string | null;
+  layoutEvidenceSource?: string | null;
+  layoutNeighboringLabels?: string[];
+  layoutEditability?: string | null;
 }
 
 export interface EnrichmentBundle {
@@ -836,8 +897,16 @@ export function buildEnrichmentBundle(report: AlignmentReport): EnrichmentBundle
       jsonTypeHint: r.jsonTypeHint,
       docusignFieldFamily: r.candidateDocuSignFieldFamily,
       confidence: r.confidence as 'high' | 'medium' | 'low',
-      suggestedDisplayName: keyPathToDisplayName(r.jsonKeyPath),
+      suggestedDisplayName: r.layoutFieldLabel
+        ? displayNameFromLayout(r.jsonKeyPath, r.layoutFieldLabel, r.layoutSectionHeader)
+        : keyPathToDisplayName(r.jsonKeyPath),
       suggestedBusinessSection: r.businessSection,
+      layoutSectionHeader: r.layoutSectionHeader,
+      layoutFieldLabel: r.layoutFieldLabel,
+      layoutValueShape: r.layoutValueShape,
+      layoutEvidenceSource: r.layoutEvidenceSource,
+      layoutNeighboringLabels: r.layoutNeighboringLabels,
+      layoutEditability: r.layoutEditability,
     });
   }
   return {
@@ -847,6 +916,12 @@ export function buildEnrichmentBundle(report: AlignmentReport): EnrichmentBundle
     sourceMhtml: report.source.mhtmlPath,
     records,
   };
+}
+
+function displayNameFromLayout(keyPath: string, fieldLabel: string, sectionHeader: string | null): string {
+  const label = fieldLabel.replace(/\s*\(optional\)\s*$/i, '').trim();
+  if (/^zip$/i.test(label) && sectionHeader) return `${sectionHeader} ZIP`;
+  return label || keyPathToDisplayName(keyPath);
 }
 
 function keyPathToDisplayName(keyPath: string): string {
