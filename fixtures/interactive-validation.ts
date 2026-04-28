@@ -410,14 +410,14 @@ const TEXT_FIELD_MATRIX: MatrixCaseDefinition[] = [
     caseName: 'excessive-length',
     testName: 'excessive length behavior observed',
     inputValue: LONG_NAME,
-    expectedBehavior: 'reject_or_manual_review',
+    expectedBehavior: 'observe',
   },
   {
     validationId: 'special-characters-behavior',
     caseName: 'suspicious-garbage',
     testName: 'special characters behavior observed',
     inputValue: '!@#$%^&*()',
-    expectedBehavior: 'reject_or_warn',
+    expectedBehavior: 'observe',
   },
   {
     validationId: 'empty-required-behavior',
@@ -618,7 +618,9 @@ const MATRIX_BY_CONCEPT: Record<InteractiveTargetConcept, MatrixCaseDefinition[]
   dba_name: TEXT_FIELD_MATRIX.map((entry) =>
     entry.validationId === 'normal-value-accepted'
       ? { ...entry, inputValue: 'Acme Trade Co' }
-      : entry,
+      : entry.validationId === 'empty-required-behavior'
+        ? { ...entry, expectedBehavior: 'accept', testName: 'empty optional behavior documented' }
+        : entry,
   ),
   business_description: [
     {
@@ -772,9 +774,9 @@ const MATRIX_BY_CONCEPT: Record<InteractiveTargetConcept, MatrixCaseDefinition[]
     {
       validationId: 'letters-behavior',
       caseName: 'letters',
-      testName: 'letters behavior observed',
+      testName: 'letters rejected',
       inputValue: 'ABCDE',
-      expectedBehavior: 'observe',
+      expectedBehavior: 'reject',
     },
     {
       validationId: 'empty-required-behavior',

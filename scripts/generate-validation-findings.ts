@@ -278,20 +278,21 @@ export function buildValidationFindingsReport(input: {
       interpretation: result.interpretation,
       recommendation: result.recommendation,
     };
+    const resolvedFinding = resolveFindingForPolicy(result, finding);
     return {
-      ...finding,
-      ambiguity: buildAmbiguityReview(result, finding),
+      ...resolvedFinding,
+      ambiguity: buildAmbiguityReview(result, resolvedFinding),
     };
   };
 
   const findings = input.results.results.map(toFinding);
+  const resultCounts = countFindingStatuses(findings);
+  const outcomeCounts = countFindingOutcomes(findings);
   const trustedExecutedObservations = findings.filter((finding) =>
     finding.status !== 'skipped' && finding.targetConfidence === 'trusted',
   );
   const likelyProductValidationFindings = findings.filter(isLikelyProductFinding);
-  const ambiguousHumanReviewFindings = findings.filter((finding) =>
-    finding.outcome === 'observer_ambiguous' || finding.status === 'manual_review',
-  );
+  const ambiguousHumanReviewFindings = findings.filter((finding) => finding.ambiguity !== null);
   const ambiguousFindingsByType = groupAmbiguousFindingsByType(ambiguousHumanReviewFindings);
   const ambiguityTypeBreakdown = Object.fromEntries(
     AMBIGUITY_SECTIONS.map((section) => [section.type, ambiguousFindingsByType[section.type].length]),
@@ -324,7 +325,9 @@ export function buildValidationFindingsReport(input: {
       calibrationPath: input.inputPaths?.calibrationPath ?? 'artifacts/latest-mapping-calibration.json',
     },
     executiveSummary: buildExecutiveSummary({
-      results: input.results,
+      totalObservations: resultCounts.total,
+      targetConcepts: input.results.targetConcepts,
+      resultCounts,
       likelyProductValidationFindings,
       ambiguousHumanReviewFindings,
       mappingBlockedFields,
@@ -334,9 +337,9 @@ export function buildValidationFindingsReport(input: {
       runStartedAt: input.results.runStartedAt,
       runFinishedAt: input.results.runFinishedAt,
       targetConcepts: input.results.targetConcepts,
-      totalObservations: input.results.summary.total,
-      resultCounts: input.results.summary,
-      outcomeCounts: input.results.outcomes,
+      totalObservations: resultCounts.total,
+      resultCounts,
+      outcomeCounts,
       trustedTargetObservations: trustedExecutedObservations.length,
       scorecardCoverage: `${scorecardCoverage.executedValidationCount}/${scorecardCoverage.expectedValidationCount} (${scorecardCoverage.validationCoveragePercent}%)`,
     },
@@ -460,6 +463,7 @@ export function writeValidationFindingsArtifacts(input: {
 function isLikelyProductFinding(finding: FindingItem): boolean {
   if (finding.targetConfidence !== 'trusted' || finding.status === 'skipped') return false;
   if (finding.outcome === 'product_failure') return true;
+  if (finding.outcome === 'passed') return false;
   return finding.status === 'warning' && !NON_PRODUCT_OUTCOMES.has(finding.outcome);
 }
 
@@ -472,6 +476,55 @@ function groupAmbiguousFindingsByType(findings: FindingItem[]): Record<Ambiguity
     grouped[type].push(finding);
   }
   return grouped;
+}
+
+function resolveFindingForPolicy(
+  result: ValidationResult,
+  finding: Omit<FindingItem, 'ambiguity'>,
+): Omit<FindingItem, 'ambiguity'> {
+  if (finding.targetConfidence !== 'trusted') return finding;
+
+  if (finding.concept === 'postal_code' && /letters-behavior/i.test(result.validationId) && hasObservedValidationFeedback(result.observation)) {
+    return {
+      ...finding,
+      status: 'passed',
+      outcome: 'passed',
+      interpretation: 'Expected alphabetic ZIP input was rejected or clearly flagged for this US postal-code field.',
+      recommendation: 'Observed behavior matched the current Batch 1 postal-code expectation.',
+    };
+  }
+
+  if (finding.concept === 'dba_name' && /empty-required/i.test(result.validationId) && isBlankValue(result.inputValue) && isBlankValue(result.observation?.observedValue ?? null)) {
+    return {
+      ...finding,
+      status: 'passed',
+      outcome: 'passed',
+      interpretation: 'Blank DBA Name remained allowed, which matches the optional DBA policy when no separate trade name exists.',
+      recommendation: 'Observed behavior matched the optional-field expectation for DBA Name.',
+    };
+  }
+
+  if (isNameLengthBehaviorResolved(result, finding)) {
+    return {
+      ...finding,
+      status: 'passed',
+      outcome: 'passed',
+      interpretation: `Observed acceptable ${finding.conceptDisplayName} length enforcement through truncation or normalization.`,
+      recommendation: 'Document the enforced limit or maxlength, but do not treat this behavior as a product defect.',
+    };
+  }
+
+  if (isNameSpecialCharacterBehaviorResolved(result, finding)) {
+    return {
+      ...finding,
+      status: 'warning',
+      outcome: 'passed',
+      interpretation: `Observed documented leniency for symbol-heavy ${finding.conceptDisplayName} input under the current name policy.`,
+      recommendation: 'Keep this as accepted leniency unless policy later requires blocking clearly harmful characters.',
+    };
+  }
+
+  return finding;
 }
 
 function buildAmbiguityReview(
@@ -556,6 +609,30 @@ function hasObservedValidationFeedback(observation: ValidationResult['observatio
 
 function valueShape(value: string | null | undefined): ValueShape | 'missing' {
   return value === null || value === undefined ? 'missing' : detectValueShape(value);
+}
+
+function isBlankValue(value: string | null | undefined): boolean {
+  return (value ?? '').trim().length === 0;
+}
+
+function isNameLengthBehaviorResolved(
+  result: ValidationResult,
+  finding: Omit<FindingItem, 'ambiguity'>,
+): boolean {
+  if (!isNameConcept(finding.concept) || !/excessive-length/i.test(result.validationId)) return false;
+  const lengthEffect = inferLengthEffect(result);
+  return result.observation?.normalizedOrReformatted === true || lengthEffect === 'shortened';
+}
+
+function isNameSpecialCharacterBehaviorResolved(
+  result: ValidationResult,
+  finding: Omit<FindingItem, 'ambiguity'>,
+): boolean {
+  return isNameConcept(finding.concept) && /special-characters/i.test(result.validationId);
+}
+
+function isNameConcept(concept: FieldConceptKey): concept is 'business_name' | 'dba_name' {
+  return concept === 'business_name' || concept === 'dba_name';
 }
 
 function inferLengthEffect(result: ValidationResult): AmbiguityReview['lengthEffect'] {
@@ -735,14 +812,16 @@ function buildPerConceptSummaries(input: {
         validationQualityGrade: score?.validationQualityGrade ?? null,
         calibrationDecision: calibration?.decision ?? null,
         calibrationReason: calibration?.calibrationReason ?? null,
-        summary: score?.summary ?? summarizeConcept(conceptDisplayName, findings),
+        summary: summarizeConceptForReport(conceptDisplayName, findings, score),
         notes: conceptNotes(concept, findings, score),
       };
     });
 }
 
 function buildExecutiveSummary(input: {
-  results: InteractiveValidationResultsFile;
+  totalObservations: number;
+  targetConcepts: FieldConceptKey[];
+  resultCounts: InteractiveValidationResultsFile['summary'];
   likelyProductValidationFindings: FindingItem[];
   ambiguousHumanReviewFindings: FindingItem[];
   mappingBlockedFields: FindingItem[];
@@ -750,8 +829,8 @@ function buildExecutiveSummary(input: {
 }): string[] {
   const blockedConcepts = unique(input.mappingBlockedFields.map((finding) => finding.conceptDisplayName));
   return [
-    `${input.results.summary.total} observations were reviewed across ${input.results.targetConcepts.length} targeted concept(s).`,
-    `${input.results.summary.passed} passed, ${input.results.summary.failed} failed, ${input.results.summary.warning} warned, ${input.results.summary.manual_review} require manual review, and ${input.results.summary.skipped} were skipped.`,
+    `${input.totalObservations} observations were reviewed across ${input.targetConcepts.length} targeted concept(s).`,
+    `${input.resultCounts.passed} passed, ${input.resultCounts.failed} failed, ${input.resultCounts.warning} warned, ${input.resultCounts.manual_review} require manual review, and ${input.resultCounts.skipped} were skipped.`,
     `${input.likelyProductValidationFindings.length} likely product validation finding(s) came from trusted executed observations.`,
     `${input.ambiguousHumanReviewFindings.length} ambiguous observation(s) require human review before product-defect classification.`,
     blockedConcepts.length > 0
@@ -824,12 +903,46 @@ function conceptNotes(
     notes.push('Date of Birth ran through a trusted target. Future-date behavior remains a likely product validation finding if accepted.');
     notes.push('Alternate format and under-age behavior should remain human-review policy questions unless product policy is confirmed.');
   }
+  if (concept === 'postal_code' && findings.some((finding) => finding.validationId === 'letters-behavior' && finding.outcome === 'passed')) {
+    notes.push('Alphabetic ZIP input is treated as expected rejection when field-local ZIP validation is present for this Batch 1 US address flow.');
+  }
+  if (isNameConcept(concept) && findings.some((finding) => /excessive-length/i.test(finding.validationId) && finding.outcome === 'passed')) {
+    notes.push('Safe truncation or normalization for excessive length is treated as acceptable enforcement in this report.');
+  }
+  if (isNameConcept(concept) && findings.some((finding) => /special-characters/i.test(finding.validationId) && finding.outcome === 'passed')) {
+    notes.push('Symbol-heavy name input is reported as documented leniency, not as a product defect, unless policy later tightens this rule.');
+  }
+  if (concept === 'dba_name' && findings.some((finding) => /empty-required/i.test(finding.validationId) && finding.outcome === 'passed')) {
+    notes.push('Blank DBA Name is treated as acceptable when the merchant has no separate trade name.');
+  }
   if (concept === 'bank_name') {
     notes.push('The tool did not mutate Bank Name because the resolved live target did not have safe bank-name-shaped evidence and no unclaimed neighboring candidate was safe enough.');
     notes.push('This is not a product validation finding yet.');
   }
   if (notes.length === 0) notes.push(summarizeConcept(findings[0]?.conceptDisplayName ?? concept, findings));
   return notes;
+}
+
+function summarizeConceptForReport(
+  displayName: string,
+  findings: FindingItem[],
+  score: ValidationScorecardFile['conceptScores'][number] | null,
+): string {
+  if (findings.every((finding) => finding.status === 'skipped')) {
+    return score?.summary ?? summarizeConcept(displayName, findings);
+  }
+
+  const executed = findings.filter((finding) => finding.status !== 'skipped').length;
+  const reviewCount = findings.filter((finding) => finding.ambiguity !== null).length;
+  const warningCount = findings.filter((finding) => finding.status === 'warning').length;
+
+  if (reviewCount > 0) {
+    return `${executed} best-practice validations ran and ${reviewCount} need review.`;
+  }
+  if (warningCount > 0) {
+    return `${executed} best-practice validations ran with ${warningCount} documented warning${warningCount === 1 ? '' : 's'}.`;
+  }
+  return `${executed} best-practice validations ran and none need review.`;
 }
 
 function summarizeConcept(displayName: string, findings: FindingItem[]): string {
@@ -942,6 +1055,28 @@ function countBy<T>(items: T[], key: (item: T) => string | null | undefined): Re
     counts[value] = (counts[value] ?? 0) + 1;
   }
   return counts;
+}
+
+function countFindingStatuses(findings: FindingItem[]): InteractiveValidationResultsFile['summary'] {
+  return {
+    total: findings.length,
+    passed: findings.filter((finding) => finding.status === 'passed').length,
+    failed: findings.filter((finding) => finding.status === 'failed').length,
+    warning: findings.filter((finding) => finding.status === 'warning').length,
+    manual_review: findings.filter((finding) => finding.status === 'manual_review').length,
+    skipped: findings.filter((finding) => finding.status === 'skipped').length,
+  };
+}
+
+function countFindingOutcomes(findings: FindingItem[]): InteractiveValidationResultsFile['outcomes'] {
+  return {
+    passed: findings.filter((finding) => finding.outcome === 'passed').length,
+    product_failure: findings.filter((finding) => finding.outcome === 'product_failure').length,
+    tool_mapping_suspect: findings.filter((finding) => finding.outcome === 'tool_mapping_suspect').length,
+    error_ownership_suspect: findings.filter((finding) => finding.outcome === 'error_ownership_suspect').length,
+    observer_ambiguous: findings.filter((finding) => finding.outcome === 'observer_ambiguous').length,
+    mapping_not_confident: findings.filter((finding) => finding.outcome === 'mapping_not_confident').length,
+  };
 }
 
 function formatCounts(counts: Record<string, number>): string {

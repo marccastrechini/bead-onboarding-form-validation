@@ -734,6 +734,80 @@ test.describe('validation findings export', () => {
     const report = buildValidationFindingsReport(mockFindingsInput({
       results: [
         mockFindingsResult({
+          concept: 'phone',
+          conceptDisplayName: 'Phone',
+          validationId: 'missing-plus-behavior',
+          testName: 'missing plus behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          ariaInvalid: 'true',
+          docusignValidationText: ['Phone number is invalid.'],
+          invalidIndicators: ['field-root:class=has-error'],
+        }),
+        mockFindingsResult({
+          concept: 'business_name',
+          conceptDisplayName: 'Business Name',
+          validationId: 'very-short-behavior',
+          testName: 'very short value behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+        }),
+        mockFindingsResult({
+          concept: 'bank_name',
+          conceptDisplayName: 'Bank Name',
+          validationId: 'excessive-length-behavior',
+          testName: 'excessive length behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          inputValue: 'Long Business Name'.repeat(20),
+          observedValue: 'Long Business Name',
+          normalizedOrReformatted: true,
+        }),
+        mockFindingsResult({
+          concept: 'bank_name',
+          conceptDisplayName: 'Bank Name',
+          validationId: 'special-characters-behavior',
+          testName: 'special characters behavior observed',
+          status: 'warning',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+        }),
+        mockFindingsResult({
+          concept: 'bank_name',
+          conceptDisplayName: 'Bank Name',
+          validationId: 'empty-required-behavior',
+          testName: 'empty required behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          inputValue: '',
+          observedValue: '',
+        }),
+      ],
+    }));
+
+    expect(report.ambiguityTypeBreakdown.matrix_expectation_mismatch).toBe(1);
+    expect(report.ambiguityTypeBreakdown.policy_question).toBe(1);
+    expect(report.ambiguityTypeBreakdown.acceptable_behavior_documented).toBe(1);
+    expect(report.ambiguityTypeBreakdown.expected_lenient_behavior).toBe(1);
+    expect(report.ambiguityTypeBreakdown.product_validation_gap_candidate).toBe(1);
+    expect(report.ambiguousFindingsByType.policy_question[0].concept).toBe('business_name');
+
+    const md = renderValidationFindingsMarkdown(report);
+    expect(md).toContain('### Needs observer improvement');
+    expect(md).toContain('### Policy question');
+    expect(md).toContain('### Possible product validation gap');
+    expect(md).toContain('### Expected lenient behavior');
+    expect(md).toContain('### Mapping evidence issue');
+  });
+
+  test('Batch 1 policy resolutions reduce resolved findings out of ambiguity', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
           concept: 'postal_code',
           conceptDisplayName: 'Postal Code',
           validationId: 'letters-behavior',
@@ -778,6 +852,36 @@ test.describe('validation findings export', () => {
         mockFindingsResult({
           concept: 'dba_name',
           conceptDisplayName: 'DBA Name',
+          validationId: 'very-short-behavior',
+          testName: 'very short value behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+        }),
+        mockFindingsResult({
+          concept: 'dba_name',
+          conceptDisplayName: 'DBA Name',
+          validationId: 'excessive-length-behavior',
+          testName: 'excessive length behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          inputValue: 'Long Business Name'.repeat(20),
+          observedValue: 'Long Business Name',
+          normalizedOrReformatted: true,
+        }),
+        mockFindingsResult({
+          concept: 'dba_name',
+          conceptDisplayName: 'DBA Name',
+          validationId: 'special-characters-behavior',
+          testName: 'special characters behavior observed',
+          status: 'warning',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+        }),
+        mockFindingsResult({
+          concept: 'dba_name',
+          conceptDisplayName: 'DBA Name',
           validationId: 'empty-required-behavior',
           testName: 'empty required behavior observed',
           status: 'manual_review',
@@ -789,19 +893,30 @@ test.describe('validation findings export', () => {
       ],
     }));
 
-    expect(report.ambiguityTypeBreakdown.matrix_expectation_mismatch).toBe(1);
-    expect(report.ambiguityTypeBreakdown.policy_question).toBe(1);
-    expect(report.ambiguityTypeBreakdown.acceptable_behavior_documented).toBe(1);
-    expect(report.ambiguityTypeBreakdown.expected_lenient_behavior).toBe(1);
-    expect(report.ambiguityTypeBreakdown.product_validation_gap_candidate).toBe(1);
-    expect(report.ambiguousFindingsByType.policy_question[0].concept).toBe('business_name');
+    expect(report.ambiguousHumanReviewFindings.map((finding) => `${finding.concept}:${finding.validationId}`)).toEqual([
+      'business_name:very-short-behavior',
+      'dba_name:very-short-behavior',
+    ]);
+    expect(report.runScope.resultCounts).toMatchObject({
+      total: 8,
+      passed: 4,
+      warning: 2,
+      manual_review: 2,
+      skipped: 0,
+    });
+    expect(report.runScope.outcomeCounts).toMatchObject({
+      passed: 6,
+      observer_ambiguous: 2,
+    });
+    expect(report.likelyProductValidationFindings).toEqual([]);
 
-    const md = renderValidationFindingsMarkdown(report);
-    expect(md).toContain('### Needs observer improvement');
-    expect(md).toContain('### Policy question');
-    expect(md).toContain('### Possible product validation gap');
-    expect(md).toContain('### Expected lenient behavior');
-    expect(md).toContain('### Mapping evidence issue');
+    const postalLetters = report.trustedExecutedObservations.find((finding) => finding.concept === 'postal_code')!;
+    expect(postalLetters.status).toBe('passed');
+    expect(postalLetters.outcome).toBe('passed');
+
+    const dbaBlank = report.trustedExecutedObservations.find((finding) => finding.concept === 'dba_name' && finding.validationId === 'empty-required-behavior')!;
+    expect(dbaBlank.status).toBe('passed');
+    expect(dbaBlank.outcome).toBe('passed');
   });
 
   test('policy question does not appear as product finding', () => {
@@ -827,8 +942,8 @@ test.describe('validation findings export', () => {
     const report = buildValidationFindingsReport(mockFindingsInput({
       results: [
         mockFindingsResult({
-          concept: 'dba_name',
-          conceptDisplayName: 'DBA Name',
+          concept: 'bank_name',
+          conceptDisplayName: 'Bank Name',
           validationId: 'empty-required-behavior',
           testName: 'empty required behavior observed',
           status: 'manual_review',
@@ -849,7 +964,7 @@ test.describe('validation findings export', () => {
       ],
     }));
 
-    expect(report.ambiguousFindingsByType.product_validation_gap_candidate.map((finding) => finding.concept)).toEqual(['dba_name']);
+    expect(report.ambiguousFindingsByType.product_validation_gap_candidate.map((finding) => finding.concept)).toEqual(['bank_name']);
     expect(report.likelyProductValidationFindings.map((finding) => finding.concept)).toEqual(['ownership_percentage']);
   });
 

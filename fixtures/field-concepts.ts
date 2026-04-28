@@ -83,8 +83,8 @@ const EMPTY_REQUIRED = v(
 const TEXT_LENGTH_AND_CONTENT = [
   v('normal-value-accepted', 'Normal value accepted', 'A normal representative value is accepted.', 'critical', ['valid-typical', 'normal-value'], 'Confirms the field can accept expected production input.'),
   v('very-short-behavior', 'Very short value behavior', 'A suspiciously short value is rejected, flagged, or explicitly allowed.', 'medium', ['single-char', 'too-short'], 'Short values often indicate incomplete onboarding data.'),
-  v('excessive-length-behavior', 'Excessive length behavior', 'An excessive length value is rejected, truncated safely, or constrained by maxlength.', 'high', ['too-long', 'excessive-length'], 'Length limits prevent unusable submissions and downstream storage issues.'),
-  v('special-characters-behavior', 'Special characters behavior', 'Common punctuation is handled intentionally and garbage characters are rejected or flagged.', 'medium', ['punctuation', 'suspicious-garbage'], 'Business names and addresses need punctuation support without accepting arbitrary garbage.'),
+  v('excessive-length-behavior', 'Excessive length behavior', 'An excessive length value is rejected, truncated safely, or constrained by maxlength.', 'high', ['too-long', 'excessive-length'], 'Safe truncation or maxlength enforcement is acceptable when the product intentionally preserves a usable name value.'),
+  v('special-characters-behavior', 'Special characters behavior', 'Common punctuation is handled intentionally and garbage characters are rejected, normalized, or explicitly allowed.', 'medium', ['punctuation', 'suspicious-garbage'], 'Business names often contain punctuation, symbols, or trade-style formatting that should not be treated as defects by default.'),
   EMPTY_REQUIRED,
 ];
 
@@ -269,7 +269,7 @@ export const FIELD_CONCEPTS: FieldConceptDefinition[] = [
     weakValidationSeverity: 'medium',
     validExamples: ['Test Business LLC', 'Acme Payments, Inc.'],
     invalidExamples: ['', 'A', '!@#$%^&*()'],
-    notes: 'Core legal/business identity field used for underwriting and contract records.',
+    notes: 'Core legal/business identity field used for underwriting and contract records. Common legal-name punctuation is acceptable, and excessive-length handling may be satisfied by intentional truncation or normalization rather than only hard rejection.',
   },
   {
     key: 'dba_name',
@@ -283,7 +283,7 @@ export const FIELD_CONCEPTS: FieldConceptDefinition[] = [
     weakValidationSeverity: 'medium',
     validExamples: ['Acme Storefront'],
     invalidExamples: ['', '!@#$%^&*()'],
-    notes: 'DBA/trade names are often optional but should be validated when present.',
+    notes: 'DBA/trade names are often optional and may be blank when the merchant has no separate trade name. When present, common punctuation is acceptable, and excessive-length handling may be satisfied by intentional truncation or normalization.',
   },
   {
     key: 'business_description',
@@ -512,7 +512,7 @@ export const FIELD_CONCEPTS: FieldConceptDefinition[] = [
     weakValidationSeverity: 'medium',
     validExamples: ['02115', '02115-1234'],
     invalidExamples: ['021', 'ABCDE'],
-    notes: 'Postal validation should match the countries actually supported by the flow.',
+    notes: 'Postal validation should match the countries actually supported by the flow. In this Batch 1 US ZIP context, alphabetic values should be treated as invalid when field-local ZIP validation is shown.',
   },
   {
     key: 'country',
