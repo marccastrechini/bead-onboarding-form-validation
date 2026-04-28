@@ -34,10 +34,19 @@ export const INTERACTIVE_TARGET_CONCEPTS = [
   'ownership_percentage',
   'postal_code',
   'bank_name',
+  'legal_entity_type',
+  'business_type',
+  'bank_account_type',
+  'federal_tax_id_type',
+  'proof_of_business_type',
+  'proof_of_address_type',
+  'proof_of_bank_account_type',
 ] as const satisfies readonly FieldConceptKey[];
 
 const INTERACTIVE_TARGET_ALIASES: Record<string, InteractiveTargetConcept> = {
   stakeholder_date_of_birth: 'date_of_birth',
+  account_type: 'bank_account_type',
+  location_business_type: 'business_type',
 };
 
 export type InteractiveTargetConcept = typeof INTERACTIVE_TARGET_CONCEPTS[number];
@@ -54,6 +63,7 @@ export type InteractiveExpectedBehavior =
   | 'reject'
   | 'reject_or_warn'
   | 'reject_or_manual_review'
+  | 'document'
   | 'observe';
 export type InteractiveReasonCode =
   | 'none'
@@ -69,12 +79,32 @@ export interface InteractiveGuardState {
   DISPOSABLE_ENVELOPE: boolean;
 }
 
+export type InteractiveInteractionKind =
+  | 'fill'
+  | 'observe_current'
+  | 'select_alternate'
+  | 'invalid_freeform'
+  | 'clear_if_supported';
+
+export type InteractiveControlKind = 'native-select' | 'combobox' | 'checkbox' | 'radio' | 'text' | 'unsupported';
+
+export interface InteractiveControlDescriptor {
+  kind: InteractiveControlKind;
+  tagName: string | null;
+  role: string | null;
+  inputType: string | null;
+  options: Array<{ value: string; label: string }>;
+  supportsFreeText: boolean;
+  canClear: boolean;
+}
+
 interface MatrixCaseDefinition {
   validationId: string;
   caseName: string;
   testName: string;
   inputValue: string;
   expectedBehavior: InteractiveExpectedBehavior;
+  interactionKind?: InteractiveInteractionKind;
 }
 
 export interface InteractiveLocatorStrategy {
@@ -129,6 +159,7 @@ export interface InteractiveValidationCase {
   inputValue: string;
   expectedBehavior: string;
   expectedSignal: InteractiveExpectedBehavior;
+  interactionKind: InteractiveInteractionKind;
   severity: ValidationExpectationSeverity;
   cleanupStrategy: 'restore_original_value_then_blur';
   safetyNotes: string[];
@@ -165,6 +196,10 @@ export interface InteractiveObservation {
   observedValue: string | null;
   normalizedOrReformatted: boolean;
   inputPrevented: boolean;
+  controlKind?: InteractiveControlKind;
+  optionsDiscoverable?: boolean;
+  freeTextEntryImpossible?: boolean;
+  valueChangedFromOriginal?: boolean;
 }
 
 export type ValidationCandidateSource =
@@ -337,6 +372,19 @@ export interface InteractiveValidationResultsFile {
   results: InteractiveValidationResult[];
 }
 
+interface PreparedInteractiveAction {
+  mode: 'fill' | 'select_option' | 'observe_current';
+  attemptedValue: string;
+  mutated: boolean;
+  optionValue?: string;
+  freeTextEntryImpossible?: boolean;
+}
+
+interface BlockedInteractiveAction {
+  status: InteractiveResultStatus;
+  detail: string;
+}
+
 const LONG_NAME = `Validation Test ${'A'.repeat(180)}`;
 const LONG_DESCRIPTION = `This is a disposable validation test description. ${'A'.repeat(420)}`;
 const GENERIC_DOCUSIGN_TEXT_RE =
@@ -399,6 +447,15 @@ const BLOCKED_SIGNATURE_FAMILIES: Partial<Record<FieldConceptKey, string[]>> = {
   dba_name: ['email', 'phone', 'url', 'bank', 'date', 'postal', 'percentage', 'description'],
   business_description: ['email', 'phone', 'url', 'bank', 'date', 'postal', 'percentage'],
 };
+const CONTROLLED_CHOICE_CONCEPTS = new Set<FieldConceptKey>([
+  'legal_entity_type',
+  'business_type',
+  'bank_account_type',
+  'federal_tax_id_type',
+  'proof_of_business_type',
+  'proof_of_address_type',
+  'proof_of_bank_account_type',
+]);
 
 const TEXT_FIELD_MATRIX: MatrixCaseDefinition[] = [
   {
@@ -435,6 +492,41 @@ const TEXT_FIELD_MATRIX: MatrixCaseDefinition[] = [
     testName: 'empty required behavior observed',
     inputValue: '',
     expectedBehavior: 'reject_or_manual_review',
+  },
+];
+
+const CONTROLLED_CHOICE_MATRIX: MatrixCaseDefinition[] = [
+  {
+    validationId: 'current-option-documented',
+    caseName: 'observe-current',
+    testName: 'current/default value observed',
+    inputValue: '(current value)',
+    expectedBehavior: 'document',
+    interactionKind: 'observe_current',
+  },
+  {
+    validationId: 'valid-option-accepted',
+    caseName: 'alternate-option',
+    testName: 'valid alternate option selected and retained',
+    inputValue: '(alternate listed option)',
+    expectedBehavior: 'accept',
+    interactionKind: 'select_alternate',
+  },
+  {
+    validationId: 'invalid-freeform-rejected',
+    caseName: 'invalid-option',
+    testName: 'invalid free-text entry rejected or impossible',
+    inputValue: '(free-text entry outside option set)',
+    expectedBehavior: 'document',
+    interactionKind: 'invalid_freeform',
+  },
+  {
+    validationId: 'empty-required-behavior',
+    caseName: 'empty-required',
+    testName: 'empty required behavior observed when clearing is supported',
+    inputValue: '',
+    expectedBehavior: 'reject_or_manual_review',
+    interactionKind: 'clear_if_supported',
   },
 ];
 
@@ -868,6 +960,13 @@ const MATRIX_BY_CONCEPT: Record<InteractiveTargetConcept, MatrixCaseDefinition[]
       ? { ...entry, inputValue: 'Bank of Example' }
       : entry,
   ),
+  legal_entity_type: CONTROLLED_CHOICE_MATRIX,
+  business_type: CONTROLLED_CHOICE_MATRIX,
+  bank_account_type: CONTROLLED_CHOICE_MATRIX,
+  federal_tax_id_type: CONTROLLED_CHOICE_MATRIX,
+  proof_of_business_type: CONTROLLED_CHOICE_MATRIX,
+  proof_of_address_type: CONTROLLED_CHOICE_MATRIX,
+  proof_of_bank_account_type: CONTROLLED_CHOICE_MATRIX,
 };
 
 export function getInteractiveGuardState(env: NodeJS.ProcessEnv = process.env): InteractiveGuardState {
@@ -1029,6 +1128,7 @@ export async function runInteractiveCase(
   const liveField = targetResolution.field;
   const locator = liveField.locator;
   const originalValue = await readControlValue(locator);
+  const control = await describeInteractiveControl(locator);
   const actualElement = await readElementSignature(liveField);
   const targetDiagnostics = createTargetDiagnostics(testCase, liveField, actualElement, originalValue);
   const targetVerification = verifyInteractiveTarget(testCase, liveField, actualElement, targetResolution.selection);
@@ -1039,50 +1139,82 @@ export async function runInteractiveCase(
   targetDiagnostics.mappingFlags = [...targetVerification.flags];
 
   let filled = false;
+  let interactionMode: PreparedInteractiveAction['mode'] = 'observe_current';
   let result: InteractiveValidationResult;
 
   try {
     if (targetVerification.confidence !== 'trusted') {
       result = mappingGateResult(testCase, targetDiagnostics, targetVerification);
     } else {
-      await locator.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
-      await locator.click({ timeout: 3_000 }).catch(() => undefined);
-      await locator.fill(testCase.inputValue, { timeout: 7_500 });
-      filled = true;
-      targetDiagnostics.actualValueAfterFill = sanitizeNullable(await readControlValue(locator));
-      await locator.blur({ timeout: 3_000 }).catch(() => undefined);
-      await waitForClientValidation(locator);
-      targetDiagnostics.actualValueAfterBlur = sanitizeNullable(await readControlValue(locator));
+      const preparedAction = isControlledChoiceConcept(testCase.concept)
+        ? prepareControlledChoiceInteraction(testCase, control, originalValue)
+        : {
+          mode: 'fill',
+          attemptedValue: testCase.inputValue,
+          mutated: true,
+        } satisfies PreparedInteractiveAction;
 
-      const observation = await collectObservation(liveField, testCase.concept, testCase.inputValue, filled);
-      if (!targetDiagnostics.actualValueAfterBlur) {
-        targetDiagnostics.actualValueAfterBlur = observation.observedValue;
+      targetDiagnostics.attemptedValue = sanitizeEvidenceText(preparedAction.attemptedValue);
+
+      if ('detail' in preparedAction) {
+        result = interactionBlockedResult(testCase, targetDiagnostics, preparedAction.status, preparedAction.detail);
+      } else {
+        interactionMode = preparedAction.mode;
+        await locator.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
+        await locator.click({ timeout: 3_000 }).catch(() => undefined);
+
+        if (preparedAction.mode === 'fill') {
+          await locator.fill(testCase.inputValue, { timeout: 7_500 });
+          filled = true;
+        } else if (preparedAction.mode === 'select_option') {
+          await locator.selectOption({ value: preparedAction.optionValue ?? '' }, { timeout: 7_500 });
+          filled = true;
+        }
+
+        if (filled) {
+          targetDiagnostics.actualValueAfterFill = sanitizeNullable(await readControlValue(locator));
+          await locator.blur({ timeout: 3_000 }).catch(() => undefined);
+          await waitForClientValidation(locator);
+          targetDiagnostics.actualValueAfterBlur = sanitizeNullable(await readControlValue(locator));
+        } else {
+          targetDiagnostics.actualValueAfterFill = sanitizeNullable(originalValue);
+          targetDiagnostics.actualValueAfterBlur = sanitizeNullable(originalValue);
+        }
+
+        const observation = await collectObservation(liveField, testCase.concept, preparedAction.attemptedValue, filled);
+        observation.controlKind = control.kind;
+        observation.optionsDiscoverable = control.options.length > 0;
+        observation.freeTextEntryImpossible = Boolean(preparedAction.freeTextEntryImpossible);
+        observation.valueChangedFromOriginal = valueChanged(originalValue, targetDiagnostics.actualValueAfterBlur ?? observation.observedValue);
+        if (!targetDiagnostics.actualValueAfterBlur) {
+          targetDiagnostics.actualValueAfterBlur = observation.observedValue;
+        }
+        const evaluation = evaluateObservation(testCase, observation, targetDiagnostics);
+        const evidence = summarizeObservation(testCase, observation, targetDiagnostics, evaluation);
+
+        result = {
+          concept: testCase.concept,
+          conceptDisplayName: testCase.conceptDisplayName,
+          fieldLabel: testCase.fieldLabel,
+          targetField: testCase.targetField,
+          validationId: testCase.validationId,
+          caseName: testCase.caseName,
+          testName: testCase.testName,
+          inputValue: preparedAction.attemptedValue,
+          expectedBehavior: testCase.expectedBehavior,
+          severity: testCase.severity,
+          status: evaluation.status,
+          outcome: evaluation.outcome,
+          reasonCode: evaluation.reasonCode,
+          observation,
+          targetDiagnostics,
+          evidence,
+          interpretation: evaluation.interpretation,
+          recommendation: recommendationForResult(testCase, evaluation, observation),
+          cleanupStrategy: testCase.cleanupStrategy,
+          safetyNotes: testCase.safetyNotes,
+        };
       }
-      const evaluation = evaluateObservation(testCase, observation);
-      const evidence = summarizeObservation(testCase, observation, targetDiagnostics, evaluation);
-
-      result = {
-        concept: testCase.concept,
-        conceptDisplayName: testCase.conceptDisplayName,
-        fieldLabel: testCase.fieldLabel,
-        targetField: testCase.targetField,
-        validationId: testCase.validationId,
-        caseName: testCase.caseName,
-        testName: testCase.testName,
-        inputValue: testCase.inputValue,
-        expectedBehavior: testCase.expectedBehavior,
-        severity: testCase.severity,
-        status: evaluation.status,
-        outcome: evaluation.outcome,
-        reasonCode: evaluation.reasonCode,
-        observation,
-        targetDiagnostics,
-        evidence,
-        interpretation: evaluation.interpretation,
-        recommendation: recommendationForResult(testCase, evaluation, observation),
-        cleanupStrategy: testCase.cleanupStrategy,
-        safetyNotes: testCase.safetyNotes,
-      };
     }
   } catch (error) {
     result = {
@@ -1109,11 +1241,12 @@ export async function runInteractiveCase(
       skippedReason: oneLine(error),
     };
   } finally {
-    const restore = await restoreOriginalValue(locator, originalValue, filled);
+    const restore = await restoreOriginalValue(locator, originalValue, filled, interactionMode);
     targetDiagnostics.restoredValue = sanitizeNullable(restore.restoredValue);
     targetDiagnostics.restoreSucceeded = restore.restoreSucceeded;
   }
 
+  result = applyRestoreSafetyGate(result, targetDiagnostics);
   result.targetDiagnostics = targetDiagnostics;
   result.evidence = result.observation
     ? summarizeObservation(testCase, result.observation, targetDiagnostics, {
@@ -1358,6 +1491,7 @@ function toInteractiveCase(
     inputValue: matrixCase.inputValue,
     expectedBehavior: validation.expectedBehavior,
     expectedSignal: matrixCase.expectedBehavior,
+    interactionKind: matrixCase.interactionKind ?? 'fill',
     severity: validation.severity,
     cleanupStrategy: 'restore_original_value_then_blur',
     safetyNotes: [
@@ -1415,15 +1549,265 @@ async function readControlValue(locator: Locator): Promise<string | null> {
   }
 }
 
+function isControlledChoiceConcept(concept: FieldConceptKey): boolean {
+  return CONTROLLED_CHOICE_CONCEPTS.has(concept);
+}
+
+async function describeInteractiveControl(locator: Locator): Promise<InteractiveControlDescriptor> {
+  try {
+    return await locator.evaluate((element) => {
+      const clean = (value: string | null | undefined): string | null => {
+        const normalized = (value ?? '').replace(/\s+/g, ' ').trim();
+        return normalized ? normalized.slice(0, 120) : null;
+      };
+      const toOptions = (nodes: Iterable<Element>): Array<{ value: string; label: string }> => {
+        const seen = new Set<string>();
+        const options: Array<{ value: string; label: string }> = [];
+        for (const node of Array.from(nodes)) {
+          const value = clean(node.getAttribute('value') ?? (node as HTMLOptionElement).value ?? node.textContent) ?? '';
+          const label = clean((node as HTMLOptionElement).label ?? node.textContent) ?? value;
+          const key = `${value}::${label}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          options.push({ value, label });
+        }
+        return options;
+      };
+
+      if (element instanceof HTMLSelectElement) {
+        const options = toOptions(element.options);
+        return {
+          kind: 'native-select' as const,
+          tagName: 'select',
+          role: clean(element.getAttribute('role')),
+          inputType: null,
+          options,
+          supportsFreeText: false,
+          canClear: options.some((option) => option.value === ''),
+        };
+      }
+
+      if (element instanceof HTMLInputElement && element.type === 'checkbox') {
+        return {
+          kind: 'checkbox' as const,
+          tagName: 'input',
+          role: clean(element.getAttribute('role')),
+          inputType: 'checkbox',
+          options: [],
+          supportsFreeText: false,
+          canClear: true,
+        };
+      }
+
+      if (element instanceof HTMLInputElement && element.type === 'radio') {
+        return {
+          kind: 'radio' as const,
+          tagName: 'input',
+          role: clean(element.getAttribute('role')),
+          inputType: 'radio',
+          options: [],
+          supportsFreeText: false,
+          canClear: false,
+        };
+      }
+
+      const role = clean(element.getAttribute('role'))?.toLowerCase() ?? null;
+      if (role === 'combobox') {
+        const controlledId = element.getAttribute('aria-controls') ?? element.getAttribute('list');
+        const options = controlledId
+          ? toOptions(document.querySelectorAll(`#${CSS.escape(controlledId)} option, #${CSS.escape(controlledId)} [role="option"]`))
+          : [];
+        return {
+          kind: 'combobox' as const,
+          tagName: clean(element.tagName.toLowerCase()),
+          role,
+          inputType: clean(element.getAttribute('type')),
+          options,
+          supportsFreeText: element instanceof HTMLInputElement,
+          canClear: false,
+        };
+      }
+
+      if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+        return {
+          kind: 'text' as const,
+          tagName: clean(element.tagName.toLowerCase()),
+          role,
+          inputType: element instanceof HTMLInputElement ? clean(element.type) : null,
+          options: [],
+          supportsFreeText: true,
+          canClear: true,
+        };
+      }
+
+      return {
+        kind: 'unsupported' as const,
+        tagName: clean(element.tagName.toLowerCase()),
+        role,
+        inputType: clean(element.getAttribute('type')),
+        options: [],
+        supportsFreeText: false,
+        canClear: false,
+      };
+    }, { timeout: 2_000 });
+  } catch {
+    return {
+      kind: 'unsupported',
+      tagName: null,
+      role: null,
+      inputType: null,
+      options: [],
+      supportsFreeText: false,
+      canClear: false,
+    };
+  }
+}
+
+export function prepareControlledChoiceInteraction(
+  testCase: Pick<InteractiveValidationCase, 'interactionKind' | 'conceptDisplayName'>,
+  control: InteractiveControlDescriptor,
+  originalValue: string | null,
+): PreparedInteractiveAction | BlockedInteractiveAction {
+  if (testCase.interactionKind === 'observe_current') {
+    return {
+      mode: 'observe_current',
+      attemptedValue: originalValue ?? '(empty current value)',
+      mutated: false,
+    };
+  }
+
+  if (control.kind === 'text' || control.kind === 'unsupported') {
+    return {
+      status: 'skipped',
+      detail: `field is not a select/dropdown/radio/checkbox for ${testCase.conceptDisplayName}`,
+    };
+  }
+
+  if (control.kind === 'combobox') {
+    return {
+      status: 'manual_review',
+      detail: control.options.length > 0
+        ? `options are discoverable, but ${testCase.conceptDisplayName} is not safely mutable as a native select in this batch`
+        : `options not discoverable for ${testCase.conceptDisplayName}`,
+    };
+  }
+
+  if (control.kind === 'checkbox' || control.kind === 'radio') {
+    return {
+      status: 'manual_review',
+      detail: `${testCase.conceptDisplayName} resolved to a ${control.kind}-like control and needs alternate-selection support instead of select-option mutation`,
+    };
+  }
+
+  const optionValues = new Set(control.options.map((option) => option.value));
+  const nonEmptyOptions = control.options.filter((option) => option.value !== '');
+
+  if (testCase.interactionKind === 'invalid_freeform') {
+    return {
+      mode: 'observe_current',
+      attemptedValue: '(free-text entry impossible on controlled select)',
+      mutated: false,
+      freeTextEntryImpossible: true,
+    };
+  }
+
+  if (testCase.interactionKind === 'clear_if_supported') {
+    if (!control.canClear || !optionValues.has('')) {
+      return {
+        status: 'skipped',
+        detail: `cannot safely clear ${testCase.conceptDisplayName}; empty required behavior was not exercised`,
+      };
+    }
+    if (originalValue && !optionValues.has(originalValue)) {
+      return {
+        status: 'manual_review',
+        detail: `cannot safely restore original value for ${testCase.conceptDisplayName}`,
+      };
+    }
+    return {
+      mode: 'select_option',
+      attemptedValue: '(cleared selection)',
+      mutated: true,
+      optionValue: '',
+    };
+  }
+
+  const alternate = nonEmptyOptions.find((option) => option.value !== (originalValue ?? ''));
+  if (!alternate) {
+    return {
+      status: 'manual_review',
+      detail: control.options.length === 0
+        ? `options not discoverable for ${testCase.conceptDisplayName}`
+        : `no safe alternate option was discoverable for ${testCase.conceptDisplayName}`,
+    };
+  }
+  if (originalValue && !optionValues.has(originalValue)) {
+    return {
+      status: 'manual_review',
+      detail: `cannot safely restore original value for ${testCase.conceptDisplayName}`,
+    };
+  }
+  return {
+    mode: 'select_option',
+    attemptedValue: alternate.label,
+    mutated: true,
+    optionValue: alternate.value,
+  };
+}
+
+function interactionBlockedResult(
+  testCase: InteractiveValidationCase,
+  targetDiagnostics: InteractiveTargetDiagnostics,
+  status: InteractiveResultStatus,
+  detail: string,
+): InteractiveValidationResult {
+  return {
+    concept: testCase.concept,
+    conceptDisplayName: testCase.conceptDisplayName,
+    fieldLabel: testCase.fieldLabel,
+    targetField: testCase.targetField,
+    validationId: testCase.validationId,
+    caseName: testCase.caseName,
+    testName: testCase.testName,
+    inputValue: testCase.inputValue,
+    expectedBehavior: testCase.expectedBehavior,
+    severity: testCase.severity,
+    status,
+    outcome: 'observer_ambiguous',
+    reasonCode: 'observer_ambiguous',
+    observation: null,
+    targetDiagnostics,
+    evidence: summarizeNonObservationResult(testCase, targetDiagnostics, detail),
+    interpretation: `The runner recorded ${testCase.conceptDisplayName} as a non-product blocker because ${detail}.`,
+    recommendation: `Review ${testCase.conceptDisplayName} control support before treating this case as a product defect.`,
+    cleanupStrategy: testCase.cleanupStrategy,
+    safetyNotes: testCase.safetyNotes,
+    skippedReason: detail,
+  };
+}
+
+function valueChanged(before: string | null, after: string | null): boolean {
+  return normalizeObservedValue(before) !== normalizeObservedValue(after);
+}
+
+function normalizeObservedValue(value: string | null | undefined): string {
+  return (value ?? '').replace(/\s+/g, ' ').trim();
+}
+
 async function restoreOriginalValue(
   locator: Locator,
   originalValue: string | null,
   attemptedFill: boolean,
+  interactionMode: PreparedInteractiveAction['mode'],
 ): Promise<{ restoredValue: string | null; restoreSucceeded: boolean | null }> {
   if (!attemptedFill || originalValue === null) {
     return { restoredValue: originalValue, restoreSucceeded: null };
   }
-  await locator.fill(originalValue, { timeout: 5_000 }).catch(() => undefined);
+  if (interactionMode === 'select_option') {
+    await locator.selectOption({ value: originalValue }, { timeout: 5_000 }).catch(() => undefined);
+  } else {
+    await locator.fill(originalValue, { timeout: 5_000 }).catch(() => undefined);
+  }
   await locator.blur({ timeout: 2_000 }).catch(() => undefined);
   const restoredValue = await readControlValue(locator);
   return {
@@ -1717,6 +2101,7 @@ function splitValidationCandidateText(value: string): string[] {
 function evaluateObservation(
   testCase: InteractiveValidationCase,
   observation: InteractiveObservation,
+  targetDiagnostics: InteractiveTargetDiagnostics,
 ): {
   status: InteractiveResultStatus;
   outcome: InteractiveResultOutcome;
@@ -1734,9 +2119,20 @@ function evaluateObservation(
 
   const rejected = hasValidationFeedback(observation);
   const accepted = !rejected && !observation.inputPrevented;
+  const changed = observation.valueChangedFromOriginal ?? valueChanged(targetDiagnostics.actualValueBeforeTest, targetDiagnostics.actualValueAfterBlur ?? observation.observedValue);
 
   switch (testCase.expectedSignal) {
     case 'accept':
+      if (testCase.interactionKind === 'select_alternate') {
+        return changed
+          ? passedEvaluation('Expected alternate controlled option was selected and retained.')
+          : {
+            status: 'manual_review',
+            outcome: 'observer_ambiguous',
+            reasonCode: 'observer_ambiguous',
+            interpretation: `No alternate option change was observed for ${testCase.conceptDisplayName}.`,
+          };
+      }
       return accepted
         ? passedEvaluation('Expected valid input was accepted.')
         : failureEvaluation(testCase.severity, `${testCase.conceptDisplayName} rejected a value that should have been accepted.`);
@@ -1761,6 +2157,18 @@ function evaluateObservation(
           outcome: 'observer_ambiguous',
           reasonCode: 'observer_ambiguous',
           interpretation: `Observed ambiguous behavior for ${testCase.conceptDisplayName}; record it without overclaiming.`,
+        };
+    case 'document':
+      if (testCase.interactionKind === 'invalid_freeform' && observation.freeTextEntryImpossible) {
+        return passedEvaluation('Controlled-choice field did not allow free-text entry outside the listed option set.');
+      }
+      return observation.observedValue && observation.observedValue.trim() !== ''
+        ? passedEvaluation(`Recorded ${testCase.conceptDisplayName} state for reviewer audit.`)
+        : {
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          reasonCode: 'observer_ambiguous',
+          interpretation: `Could not document a stable current value for ${testCase.conceptDisplayName}.`,
         };
     case 'observe':
       return {
@@ -1817,12 +2225,17 @@ function summarizeObservation(
   if (observation.ignoredDiagnostics.length) {
     parts.push(`ignoredDiagnostics="${observation.ignoredDiagnostics.join(' | ')}"`);
   }
+  if (observation.controlKind) parts.push(`control=${observation.controlKind}`);
+  if (observation.optionsDiscoverable !== undefined) parts.push(`optionsDiscoverable=${observation.optionsDiscoverable}`);
+  if (observation.freeTextEntryImpossible) parts.push('free-text-impossible');
+  if (observation.valueChangedFromOriginal !== undefined) parts.push(`valueChanged=${observation.valueChangedFromOriginal}`);
   if (targetDiagnostics.actualFieldSignature) {
     parts.push(`actualField="${targetDiagnostics.actualFieldSignature}"`);
   }
   if (targetDiagnostics.mappingFlags.length) {
     parts.push(`mappingFlags="${targetDiagnostics.mappingFlags.join(' | ')}"`);
   }
+  if (targetDiagnostics.restoreSucceeded !== null) parts.push(`restore=${targetDiagnostics.restoreSucceeded ? 'ok' : 'failed'}`);
   parts.push(`outcome=${evaluation.outcome}`);
   if (observation.normalizedOrReformatted) parts.push('value normalized/reformatted');
   if (observation.inputPrevented) parts.push('input prevented or cleared');
@@ -1843,6 +2256,7 @@ function summarizeNonObservationResult(
     parts.push(`mappingFlags="${targetDiagnostics.mappingFlags.join(' | ')}"`);
   }
   if (detail) parts.push(detail);
+  if (targetDiagnostics.restoreSucceeded !== null) parts.push(`restore=${targetDiagnostics.restoreSucceeded ? 'ok' : 'failed'}`);
   return parts.join('; ');
 }
 
@@ -1874,6 +2288,22 @@ function recommendationForResult(
     return `Block this value or show a validation error for ${testCase.conceptDisplayName} on blur.`;
   }
   return `Confirm the validation rule for ${testCase.conceptDisplayName}.`;
+}
+
+export function applyRestoreSafetyGate(
+  result: InteractiveValidationResult,
+  targetDiagnostics: Pick<InteractiveTargetDiagnostics, 'restoreSucceeded'>,
+): InteractiveValidationResult {
+  if (targetDiagnostics.restoreSucceeded !== false) return result;
+  if (result.outcome === 'mapping_not_confident' || result.outcome === 'tool_mapping_suspect') return result;
+  return {
+    ...result,
+    status: 'manual_review',
+    outcome: 'observer_ambiguous',
+    reasonCode: 'observer_ambiguous',
+    interpretation: `The runner observed ${result.conceptDisplayName}, but could not safely restore the original value afterward.`,
+    recommendation: `Fix restore-original-value safety for ${result.conceptDisplayName} before treating this case as a product finding.`,
+  };
 }
 
 function mappingGateResult(

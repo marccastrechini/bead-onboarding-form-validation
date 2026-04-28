@@ -143,6 +143,18 @@ export function conceptKeyForJsonKeyPath(jsonKeyPath: string | null | undefined)
 
 const EMAIL_LIKE_CONCEPTS = new Set<FieldConceptKey>(['email', 'stakeholder_email']);
 const PHONE_LIKE_CONCEPTS = new Set<FieldConceptKey>(['phone', 'stakeholder_phone']);
+const CONTROLLED_CHOICE_CONCEPTS = new Set<FieldConceptKey>([
+  'legal_entity_type',
+  'business_type',
+  'bank_account_type',
+  'federal_tax_id_type',
+  'proof_of_business_type',
+  'proof_of_address_type',
+  'proof_of_bank_account_type',
+  'document_type',
+  'state',
+  'country',
+]);
 
 const STRONG_LABEL_SOURCES = new Set([
   'aria-label',
@@ -170,6 +182,19 @@ const EXPECTED_SHAPES: Partial<Record<FieldConceptKey, ValueShape[]>> = {
   ownership_percentage: ['percentage', 'numeric'],
 };
 
+const EXPECTED_FIELD_FAMILIES: Partial<Record<FieldConceptKey, string[]>> = {
+  legal_entity_type: ['list', 'radio'],
+  business_type: ['list', 'radio'],
+  bank_account_type: ['list', 'radio'],
+  federal_tax_id_type: ['list', 'radio'],
+  proof_of_business_type: ['list', 'radio'],
+  proof_of_address_type: ['list', 'radio'],
+  proof_of_bank_account_type: ['list', 'radio'],
+  document_type: ['list', 'radio'],
+  state: ['list'],
+  country: ['list'],
+};
+
 const REJECTED_SHAPES: Partial<Record<FieldConceptKey, ValueShape[]>> = {
   email: ['phone', 'url', 'date', 'text_name_like'],
   stakeholder_email: ['phone', 'url', 'date', 'text_name_like'],
@@ -188,6 +213,10 @@ const REJECTED_SHAPES: Partial<Record<FieldConceptKey, ValueShape[]>> = {
 
 export function expectedValueShapesForConcept(concept: FieldConceptKey): ValueShape[] {
   return [...(EXPECTED_SHAPES[concept] ?? [])];
+}
+
+export function expectedFieldFamiliesForConcept(concept: FieldConceptKey): string[] {
+  return [...(EXPECTED_FIELD_FAMILIES[concept] ?? [])];
 }
 
 export function detectValueShape(value: string | null | undefined): ValueShape {
@@ -242,12 +271,16 @@ export function assessMappingCandidate(
     sectionNameMatchesBusinessSection(candidate.sectionName ?? null, FIELD_CONCEPT_REGISTRY[concept].businessSection);
   const inferredType = (candidate.inferredType ?? '').toLowerCase();
   const docusignTabType = (candidate.docusignTabType ?? '').toLowerCase();
+  const fieldFamilyMatches = expectedFieldFamiliesForConcept(concept).some((family) =>
+    docusignTabType === family || inferredType === family || inferredType.includes(family),
+  );
   const typeMatches =
     (EMAIL_LIKE_CONCEPTS.has(concept) && (inferredType.includes('email') || docusignTabType === 'email')) ||
     (PHONE_LIKE_CONCEPTS.has(concept) && inferredType.includes('phone')) ||
     (concept === 'bank_name' && (businessSection === 'Banking' || /bank/.test(labelText))) ||
     (concept === 'date_of_birth' && (docusignTabType === 'date' || inferredType.includes('date') || inferredType.includes('dob'))) ||
     (concept === 'registration_date' && (docusignTabType === 'date' || inferredType.includes('date'))) ||
+    (CONTROLLED_CHOICE_CONCEPTS.has(concept) && fieldFamilyMatches) ||
     (![...EMAIL_LIKE_CONCEPTS, ...PHONE_LIKE_CONCEPTS, 'bank_name', 'date_of_birth', 'registration_date'].includes(concept) && labelMatches);
   const enrichmentMatches = Boolean(
     expectedAnchor?.jsonKeyPath &&
@@ -280,6 +313,7 @@ export function assessMappingCandidate(
   if (!mutatable) trustScore -= 20;
   if (concept === 'business_description' && valueShapeMatches && conceptSpecificProofMatches) trustScore += 2;
   if (concept === 'business_description' && valueShapeMatches && !conceptSpecificProofMatches) trustScore -= 3;
+  if (CONTROLLED_CHOICE_CONCEPTS.has(concept) && fieldFamilyMatches) trustScore += 2;
 
   if (expectedAnchor?.pageIndex !== undefined && expectedAnchor.pageIndex !== null) {
     if (candidate.pageIndex === expectedAnchor.pageIndex) {
@@ -309,6 +343,9 @@ export function assessMappingCandidate(
 
   if (valueShapeMismatch) reasons.push(`value shape ${valueShape} conflicts with ${concept}`);
   if (!mutatable) reasons.push('candidate is not an editable merchant input');
+  if (CONTROLLED_CHOICE_CONCEPTS.has(concept) && !fieldFamilyMatches) {
+    reasons.push('field family is not a supported select/dropdown/radio control');
+  }
   if (concept === 'business_description' && valueShapeMatches && !conceptSpecificProofMatches) {
     reasons.push('missing long-text, textarea, or field-local Business Description proof');
   }

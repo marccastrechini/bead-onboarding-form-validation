@@ -23,6 +23,7 @@ export type FieldType =
   | 'business_name'
   | 'dba_name'
   | 'legal_entity_type'
+  | 'business_type'
   | 'business_description'
   | 'naics'
   | 'mcc'
@@ -44,6 +45,10 @@ export type FieldType =
   | 'ownership_percent'
   | 'document_type'
   | 'proof_type'
+  | 'federal_tax_id_type'
+  | 'proof_of_business_type'
+  | 'proof_of_address_type'
+  | 'proof_of_bank_account_type'
   | 'bank_account_type'
   | 'bank_name'
   | 'address_option'
@@ -237,7 +242,14 @@ export const FIELD_TYPES: FieldTypeDefinition[] = [
     type: 'legal_entity_type',
     classification: 'inferred_best_practice',
     description: 'Legal entity type (LLC, C-Corp, S-Corp, Sole Prop, etc.)',
-    signals: [/entity\s*type|business\s*(structure|type)|legal\s*structure|organization\s*type|tax\s*classification/i],
+    signals: [/entity\s*type|business\s*structure|legal\s*structure|organization\s*type|tax\s*classification/i],
+    cases: [],
+  },
+  {
+    type: 'business_type',
+    classification: 'manual_review',
+    description: 'Business type / location business type selector',
+    signals: [/business\s*type|location\s*business\s*type|type\s*of\s*business/i],
     cases: [],
   },
   {
@@ -424,11 +436,36 @@ export const FIELD_TYPES: FieldTypeDefinition[] = [
     classification: 'manual_review',
     description: 'Proof-of-business document type selector',
     signals: [
-      /proof\s*of\s*business(\s*type)?/i,
-      /\bproofOfBusiness(Type)?\b/,
-      /\bfederalTaxIdType\b/,
       /proof\s*document\s*type/i,
     ],
+    cases: [],
+  },
+  {
+    type: 'federal_tax_id_type',
+    classification: 'manual_review',
+    description: 'Federal tax ID document type selector',
+    signals: [/federal\s*tax\s*id\s*type|tax\s*id\s*type/i, /\bfederalTaxIdType\b/],
+    cases: [],
+  },
+  {
+    type: 'proof_of_business_type',
+    classification: 'manual_review',
+    description: 'Proof-of-business document type selector',
+    signals: [/proof\s*of\s*business(\s*type)?/i, /\bproofOfBusinessType\b/],
+    cases: [],
+  },
+  {
+    type: 'proof_of_address_type',
+    classification: 'manual_review',
+    description: 'Proof-of-address document type selector',
+    signals: [/proof\s*of\s*address(\s*type)?/i, /\bproofOfAddressType\b/],
+    cases: [],
+  },
+  {
+    type: 'proof_of_bank_account_type',
+    classification: 'manual_review',
+    description: 'Proof-of-bank-account document type selector',
+    signals: [/proof\s*of\s*bank\s*account(\s*type)?/i, /\bproofOfBankAccountType\b/],
     cases: [],
   },
   {

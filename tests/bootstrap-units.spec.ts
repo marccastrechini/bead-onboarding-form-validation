@@ -18,10 +18,12 @@ import {
   writeScorecardArtifacts,
 } from '../fixtures/validation-scorecard';
 import {
+  applyRestoreSafetyGate,
   assertInteractiveValidationGuards,
   buildInteractiveValidationPlan,
   extractFieldLocalValidationDiagnostics,
   INTERACTIVE_TARGET_CONCEPTS,
+  prepareControlledChoiceInteraction,
   resolveInteractiveTargetConcepts,
   skippedConceptToResult,
   type InteractiveResultOutcome,
@@ -397,7 +399,7 @@ test.describe('sample layout evidence', () => {
 
 test.describe('field validation scorecard', () => {
   test('concept registry includes required concepts and validation expectations', () => {
-    for (const key of ['business_name', 'date_of_birth', 'phone', 'ein', 'email', 'routing_number', 'signature'] as const) {
+    for (const key of ['business_name', 'date_of_birth', 'phone', 'ein', 'email', 'routing_number', 'signature', 'business_type', 'bank_account_type', 'proof_of_business_type'] as const) {
       const concept = FIELD_CONCEPT_REGISTRY[key];
       expect(concept.displayName.length).toBeGreaterThan(0);
       expect(concept.businessSection.length).toBeGreaterThan(0);
@@ -2464,6 +2466,30 @@ test.describe('interactive validation safety', () => {
     } as NodeJS.ProcessEnv)).toEqual([...batchOne]);
   });
 
+  test('select/dropdown concepts are recognized by INTERACTIVE_CONCEPTS', () => {
+    expect(INTERACTIVE_TARGET_CONCEPTS).toEqual(expect.arrayContaining([
+      'legal_entity_type',
+      'business_type',
+      'bank_account_type',
+      'federal_tax_id_type',
+      'proof_of_business_type',
+      'proof_of_address_type',
+      'proof_of_bank_account_type',
+    ]));
+
+    expect(resolveInteractiveTargetConcepts({
+      INTERACTIVE_CONCEPTS: 'legal_entity_type,account_type,business_type,federal_tax_id_type,proof_of_business_type,proof_of_address_type,proof_of_bank_account_type,location_business_type',
+    } as NodeJS.ProcessEnv)).toEqual([
+      'legal_entity_type',
+      'bank_account_type',
+      'business_type',
+      'federal_tax_id_type',
+      'proof_of_business_type',
+      'proof_of_address_type',
+      'proof_of_bank_account_type',
+    ]);
+  });
+
   test('Batch 1 concepts build the expected interactive matrix', () => {
     const plan = buildInteractiveValidationPlan(mockValidationReport([
       mockField({
@@ -2656,6 +2682,156 @@ test.describe('interactive validation safety', () => {
       reason: 'field is not confidently mapped in the scorecard source report',
     });
     expect(skippedConceptToResult(blockedPlan.skippedConcepts[0]!).outcome).toBe('mapping_not_confident');
+  });
+
+  test('legal_entity_type matrix is generated only for trusted mappings', () => {
+    const trustedPlan = buildInteractiveValidationPlan(mockValidationReport([
+      mockField({
+        index: 1,
+        resolvedLabel: 'Legal Entity Type',
+        label: 'Legal Entity Type',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'legal_entity_type',
+        docusignTabType: 'List',
+      }),
+    ]), {
+      INTERACTIVE_CONCEPTS: 'legal_entity_type',
+    } as NodeJS.ProcessEnv);
+    const blockedPlan = buildInteractiveValidationPlan(mockValidationReport([
+      mockField({
+        index: 1,
+        inferredType: 'legal_entity_type',
+        docusignTabType: 'List',
+        labelSource: 'none',
+        labelConfidence: 'none',
+      }),
+    ]), {
+      INTERACTIVE_CONCEPTS: 'legal_entity_type',
+    } as NodeJS.ProcessEnv);
+
+    expect(trustedPlan.cases.map((entry) => entry.validationId)).toEqual([
+      'current-option-documented',
+      'valid-option-accepted',
+      'invalid-freeform-rejected',
+      'empty-required-behavior',
+    ]);
+    expect(blockedPlan.cases).toEqual([]);
+    expect(blockedPlan.skippedConcepts[0]).toMatchObject({
+      concept: 'legal_entity_type',
+      reason: 'field is not confidently mapped in the scorecard source report',
+    });
+  });
+
+  test('account_type matrix is generated only for trusted mappings', () => {
+    const trustedPlan = buildInteractiveValidationPlan(mockValidationReport([
+      mockField({
+        index: 1,
+        section: 'Banking',
+        resolvedLabel: 'Account Type',
+        label: 'Account Type',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'bank_account_type',
+        docusignTabType: 'List',
+      }),
+    ]), {
+      INTERACTIVE_CONCEPTS: 'account_type',
+    } as NodeJS.ProcessEnv);
+    const blockedPlan = buildInteractiveValidationPlan(mockValidationReport([
+      mockField({
+        index: 1,
+        section: 'Banking',
+        inferredType: 'bank_account_type',
+        docusignTabType: 'List',
+        labelSource: 'none',
+        labelConfidence: 'none',
+      }),
+    ]), {
+      INTERACTIVE_CONCEPTS: 'account_type',
+    } as NodeJS.ProcessEnv);
+
+    expect(trustedPlan.targetConcepts).toEqual(['bank_account_type']);
+    expect(trustedPlan.cases.map((entry) => entry.validationId)).toEqual([
+      'current-option-documented',
+      'valid-option-accepted',
+      'invalid-freeform-rejected',
+      'empty-required-behavior',
+    ]);
+    expect(blockedPlan.cases).toEqual([]);
+    expect(blockedPlan.skippedConcepts[0]).toMatchObject({
+      concept: 'bank_account_type',
+      reason: 'field is not confidently mapped in the scorecard source report',
+    });
+  });
+
+  test('options-not-discoverable results are manual_review or skipped, not product-like execution', () => {
+    const undiscoverable = prepareControlledChoiceInteraction(
+      { interactionKind: 'select_alternate', conceptDisplayName: 'Legal Entity Type' },
+      {
+        kind: 'combobox',
+        tagName: 'div',
+        role: 'combobox',
+        inputType: null,
+        options: [],
+        supportsFreeText: true,
+        canClear: false,
+      },
+      'llc',
+    );
+    const uncleareable = prepareControlledChoiceInteraction(
+      { interactionKind: 'clear_if_supported', conceptDisplayName: 'Bank Account Type' },
+      {
+        kind: 'native-select',
+        tagName: 'select',
+        role: null,
+        inputType: null,
+        options: [{ value: 'checking', label: 'Checking' }],
+        supportsFreeText: false,
+        canClear: false,
+      },
+      'checking',
+    );
+
+    expect('status' in undiscoverable && undiscoverable.status).toBe('manual_review');
+    expect('detail' in undiscoverable && undiscoverable.detail).toMatch(/options not discoverable/i);
+    expect('status' in uncleareable && uncleareable.status).toBe('skipped');
+    expect('detail' in uncleareable && uncleareable.detail).toMatch(/cannot safely clear/i);
+  });
+
+  test('restore-original-value failure prevents product finding', () => {
+    const downgraded = applyRestoreSafetyGate({
+      concept: 'bank_account_type',
+      conceptDisplayName: 'Bank Account Type',
+      fieldLabel: 'Bank Account Type',
+      targetField: null,
+      validationId: 'valid-option-accepted',
+      caseName: 'alternate-option',
+      testName: 'valid alternate option selected and retained',
+      inputValue: 'Savings',
+      expectedBehavior: 'A listed alternate option can be selected and retained.',
+      severity: 'critical',
+      status: 'failed',
+      outcome: 'product_failure',
+      reasonCode: 'product_failure',
+      observation: null,
+      targetDiagnostics: null,
+      evidence: 'accepted invalid option',
+      interpretation: 'Bank Account Type accepted a value that should have been rejected.',
+      recommendation: 'Tighten validation.',
+      cleanupStrategy: 'restore_original_value_then_blur',
+      safetyNotes: [],
+    } as any, { restoreSucceeded: false });
+
+    expect(downgraded.status).toBe('manual_review');
+    expect(downgraded.outcome).toBe('observer_ambiguous');
+    expect(downgraded.reasonCode).toBe('observer_ambiguous');
+  });
+
+  test('sensitive fields are excluded from this batch', () => {
+    for (const concept of ['ein', 'ssn', 'routing_number', 'account_number', 'upload'] as const) {
+      expect(INTERACTIVE_TARGET_CONCEPTS).not.toContain(concept as any);
+    }
   });
 
   test('calibrated Batch 1 targets use report-order field indexes for interactive plans', () => {

@@ -260,6 +260,13 @@ function buildConceptContexts(input: {
     'business_name',
     'dba_name',
     'business_description',
+    'legal_entity_type',
+    'business_type',
+    'bank_account_type',
+    'federal_tax_id_type',
+    'proof_of_business_type',
+    'proof_of_address_type',
+    'proof_of_bank_account_type',
   ]);
   for (const concept of diagnosticsByConcept.keys()) requestedConcepts.add(concept);
 
@@ -282,17 +289,27 @@ function buildConceptContexts(input: {
         docusignFieldFamily: alignmentRow?.candidateDocuSignFieldFamily ?? enrichmentRecord.docusignFieldFamily,
       };
 
-      const nearbyFields = input.report.fields
-        .filter((field) => field.controlCategory === 'merchant_input')
-        .filter((field) => field.pageIndex === anchor.pageIndex || anchor.pageIndex === null)
-        .filter((field) => {
-          if (anchor.ordinalOnPage === null) return true;
-          if (field.ordinalOnPage === null) return false;
-          return Math.abs(field.ordinalOnPage - anchor.ordinalOnPage) <= 5;
-        })
-        .sort((a, b) => (a.pageIndex ?? 0) - (b.pageIndex ?? 0) || (a.ordinalOnPage ?? 0) - (b.ordinalOnPage ?? 0));
-
       const diagnosticsRow = diagnosticsByConcept.get(concept) ?? null;
+
+      const hasAnchorWindow = Boolean(
+        diagnosticsRow ||
+        anchor.pageIndex !== null ||
+        anchor.ordinalOnPage !== null ||
+        anchor.tabLeft !== null ||
+        anchor.tabTop !== null,
+      );
+
+      const nearbyFields = hasAnchorWindow
+        ? input.report.fields
+          .filter((field) => field.controlCategory === 'merchant_input')
+          .filter((field) => field.pageIndex === anchor.pageIndex || anchor.pageIndex === null)
+          .filter((field) => {
+            if (anchor.ordinalOnPage === null) return true;
+            if (field.ordinalOnPage === null) return false;
+            return Math.abs(field.ordinalOnPage - anchor.ordinalOnPage) <= 5;
+          })
+          .sort((a, b) => (a.pageIndex ?? 0) - (b.pageIndex ?? 0) || (a.ordinalOnPage ?? 0) - (b.ordinalOnPage ?? 0))
+        : [];
       const currentField = findCurrentField({
         diagnosticsRow,
         enrichmentRecord,
@@ -324,6 +341,7 @@ function buildConceptContexts(input: {
 function findConceptEnrichmentRecord(input: {
   report: ValidationReport;
   enrichment: EnrichmentBundle;
+  alignment: SampleAlignmentArtifact;
 }, concept: FieldConceptKey): EnrichmentRecord | null {
   const conceptDef = FIELD_CONCEPT_REGISTRY[concept];
   const bundled = input.enrichment.records
@@ -336,6 +354,26 @@ function findConceptEnrichmentRecord(input: {
   const field = input.report.fields.find((candidate) =>
     candidate.enrichment?.jsonKeyPath && conceptDef.jsonKeyPatterns.some((pattern) => pattern.test(candidate.enrichment!.jsonKeyPath)),
   );
+
+  const alignmentRow = input.alignment.rows.find((row) =>
+    conceptDef.jsonKeyPatterns.some((pattern) => pattern.test(row.jsonKeyPath)),
+  );
+  if (alignmentRow) {
+    return {
+      tabGuid: '',
+      positionalFingerprint: null,
+      tabLeft: alignmentRow.tabLeft,
+      tabTop: alignmentRow.tabTop,
+      jsonKeyPath: alignmentRow.jsonKeyPath,
+      jsonFieldFamily: alignmentRow.businessSection,
+      jsonTypeHint: alignmentRow.jsonTypeHint,
+      docusignFieldFamily: alignmentRow.candidateDocuSignFieldFamily ?? 'Unknown',
+      confidence: alignmentRow.confidence as EnrichmentRecord['confidence'],
+      suggestedDisplayName: FIELD_CONCEPT_REGISTRY[concept].displayName,
+      suggestedBusinessSection: alignmentRow.businessSection,
+    };
+  }
+
   if (!field?.enrichment) return null;
 
   return {
@@ -367,6 +405,19 @@ function conceptRecordPriority(concept: FieldConceptKey, record: EnrichmentRecor
   }
   if (concept === 'dba_name' && /merchantData\.dbaName$/i.test(key)) return 0;
   if (concept === 'business_description' && /merchantData\.businessDescription$/i.test(key)) return 0;
+  if (concept === 'legal_entity_type' && /merchantData\.legalEntityType$/i.test(key)) return 0;
+  if (concept === 'business_type') {
+    if (/merchantData\.locationBusinessType$/i.test(key)) return 0;
+    if (/merchantData\.businessType$/i.test(key)) return 5;
+  }
+  if (concept === 'bank_account_type') {
+    if (/merchantData\.accountType$/i.test(key)) return 0;
+    if (/merchantData\.bankAccountType$/i.test(key)) return 5;
+  }
+  if (concept === 'federal_tax_id_type' && /merchantData\.federalTaxIdType$/i.test(key)) return 0;
+  if (concept === 'proof_of_business_type' && /merchantData\.proofOfBusinessType$/i.test(key)) return 0;
+  if (concept === 'proof_of_address_type' && /merchantData\.proofOfAddressType$/i.test(key)) return 0;
+  if (concept === 'proof_of_bank_account_type' && /merchantData\.proofOfBankAccountType$/i.test(key)) return 0;
   return 50;
 }
 
@@ -487,10 +538,13 @@ function missingProofForSelection(
     ? selection.assessments.find((assessment) => assessment.candidateId === selection.selectedCandidateId) ?? null
     : null;
   const missing: string[] = [];
-  const expectedShapes = expectedValueShapesForConcept(context.concept).join(' or ') || 'expected';
+  const expectedShapes = expectedValueShapesForConcept(context.concept);
+  const expectedShapeSummary = expectedShapes.length > 0
+    ? `${expectedShapes.join(' or ')} live value shape`
+    : 'concept-specific field-family proof';
 
   if (!nearestShapeMatch) {
-    missing.push(`No unclaimed editable candidate has a ${expectedShapes} live value shape.`);
+    missing.push(`No unclaimed editable candidate has the expected ${expectedShapeSummary}.`);
   }
   if (selectedAssessment?.reasons.length) {
     missing.push(...selectedAssessment.reasons.map((reason) => sentenceCase(reason)));
@@ -498,7 +552,7 @@ function missingProofForSelection(
 
   switch (selection.decisionReason) {
     case 'rejected_value_shape_mismatch':
-      missing.push(`The current candidate value shape is ${selection.valueShape}, not ${expectedShapes}.`);
+      missing.push(`The current candidate value shape is ${selection.valueShape}, not ${expectedShapes.length > 0 ? expectedShapes.join(' or ') : 'the expected shape for this concept'}.`);
       break;
     case 'rejected_neighbor_better_match':
       missing.push('The live neighbor window points at a better candidate than the current mapped field.');
@@ -535,6 +589,18 @@ function missingProofForSelection(
   if (context.concept === 'business_description') {
     missing.push('Need a Business Description label/section cue, textarea-like control, or long descriptive live text.');
   }
+  if (context.concept === 'legal_entity_type' || context.concept === 'business_type') {
+    missing.push('Need a visible editable List/combobox control with a field-local Legal Entity Type or Business Type label, or enrichment that anchors the intended selector uniquely.');
+  }
+  if (context.concept === 'bank_account_type') {
+    missing.push('Need a visible editable Bank Account Type or Account Type selector with discoverable options such as checking or savings.');
+  }
+  if (context.concept === 'federal_tax_id_type') {
+    missing.push('Need a visible editable Federal Tax ID Type selector rather than the sensitive tax ID value field itself.');
+  }
+  if (context.concept === 'proof_of_business_type' || context.concept === 'proof_of_address_type' || context.concept === 'proof_of_bank_account_type') {
+    missing.push('Need a visible editable proof-type selector that identifies document category only, not an upload widget or uploaded file value.');
+  }
 
   if (selectedField && selectedAssessment && !selectedAssessment.labelMatches && !selectedAssessment.enrichmentMatches) {
     missing.push(`Candidate #${sourceFieldIndex(context, selectedField)} needs field-local label or enrichment proof for ${FIELD_CONCEPT_REGISTRY[context.concept].displayName}.`);
@@ -555,7 +621,9 @@ function buildHumanConfirmationRequest(
   const suspectedField = selectedField ?? nearestShapeMatch ?? context.currentField;
   const suspectedFieldLocation = suspectedField
     ? formatCandidateSummary(summarizeField(context, suspectedField))
-    : context.currentSignature;
+    : context.anchor.displayName
+      ? `${context.anchor.displayName} (${context.anchor.businessSection ?? 'unknown section'})`
+      : context.currentSignature;
   const conceptName = FIELD_CONCEPT_REGISTRY[context.concept].displayName;
 
   return {
@@ -903,6 +971,13 @@ function conceptOrder(concept: FieldConceptKey): number {
     'business_name',
     'dba_name',
     'business_description',
+    'legal_entity_type',
+    'business_type',
+    'bank_account_type',
+    'federal_tax_id_type',
+    'proof_of_business_type',
+    'proof_of_address_type',
+    'proof_of_bank_account_type',
   ];
   const index = ordered.indexOf(concept);
   return index >= 0 ? index : ordered.length + concept.localeCompare('website');

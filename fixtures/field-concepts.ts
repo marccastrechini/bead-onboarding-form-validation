@@ -4,6 +4,7 @@ export type FieldConceptKey =
   | 'business_name'
   | 'dba_name'
   | 'business_description'
+  | 'business_type'
   | 'website'
   | 'email'
   | 'stakeholder_email'
@@ -26,12 +27,16 @@ export type FieldConceptKey =
   | 'routing_number'
   | 'account_number'
   | 'bank_account_type'
+  | 'federal_tax_id_type'
   | 'annual_revenue'
   | 'highest_monthly_volume'
   | 'average_ticket'
   | 'max_ticket'
   | 'ownership_percentage'
   | 'document_type'
+  | 'proof_of_business_type'
+  | 'proof_of_address_type'
+  | 'proof_of_bank_account_type'
   | 'upload'
   | 'acknowledgement_checkbox'
   | 'signature';
@@ -99,7 +104,8 @@ const FREE_TEXT_MATRIX = [
 ];
 
 const DROPDOWN_MATRIX = [
-  v('valid-option-accepted', 'Valid option accepted', 'A listed option can be selected and retained.', 'critical', ['valid-option'], 'Dropdown fields should preserve known controlled vocabulary selections.'),
+  v('current-option-documented', 'Current/default option documented', 'The current or default controlled choice is visible to the reviewer.', 'medium', ['observe-current'], 'Reviewers need to know the pre-existing controlled value before mutation.'),
+  v('valid-option-accepted', 'Valid option accepted', 'A listed alternate option can be selected and retained.', 'critical', ['valid-option', 'alternate-option'], 'Dropdown fields should preserve known controlled vocabulary selections.'),
   v('invalid-freeform-rejected', 'Invalid free-form value rejected', 'A value outside the allowed option set cannot be submitted.', 'high', ['invalid-option'], 'Controlled choices should not allow arbitrary values.'),
   EMPTY_REQUIRED,
 ];
@@ -432,14 +438,28 @@ export const FIELD_CONCEPTS: FieldConceptDefinition[] = [
     displayName: 'Legal Entity Type',
     businessSection: 'Business Details',
     fieldTypes: ['legal_entity_type'],
-    labelPatterns: [/legal\s*entity\s*type/i, /entity\s*type/i, /business\s*(structure|type)/i, /tax\s*classification/i],
-    jsonKeyPatterns: [/merchantData\.(legalEntityType|businessType|taxClassification)$/i],
+    labelPatterns: [/legal\s*entity\s*type/i, /entity\s*type/i, /business\s*structure/i, /tax\s*classification/i],
+    jsonKeyPatterns: [/merchantData\.(legalEntityType|taxClassification)$/i],
     bestPracticeValidations: DROPDOWN_MATRIX,
     missingValidationSeverity: 'high',
     weakValidationSeverity: 'medium',
     validExamples: ['LLC', 'Corporation', 'Sole Proprietor'],
     invalidExamples: ['', 'Not a real entity'],
     notes: 'Legal entity type should be a controlled choice with clear required behavior.',
+  },
+  {
+    key: 'business_type',
+    displayName: 'Business Type',
+    businessSection: 'Business Details',
+    fieldTypes: ['business_type', 'legal_entity_type'],
+    labelPatterns: [/business\s*type/i, /location\s*business\s*type/i, /type\s*of\s*business/i],
+    jsonKeyPatterns: [/merchantData\.(businessType|locationBusinessType)$/i],
+    bestPracticeValidations: DROPDOWN_MATRIX,
+    missingValidationSeverity: 'high',
+    weakValidationSeverity: 'medium',
+    validExamples: ['Retail', 'Professional Services', 'Restaurant'],
+    invalidExamples: ['', 'Unsupported Business Type'],
+    notes: 'Business-type selectors should remain controlled and should not be trusted unless the live dropdown/radio control is clearly anchored to the intended business section.',
   },
   {
     key: 'naics',
@@ -606,13 +626,27 @@ export const FIELD_CONCEPTS: FieldConceptDefinition[] = [
     businessSection: 'Banking',
     fieldTypes: ['bank_account_type'],
     labelPatterns: [/bank\s*account\s*type/i, /account\s*type/i, /checking/i, /savings/i],
-    jsonKeyPatterns: [/merchantData\.bankAccountType$/i],
+    jsonKeyPatterns: [/merchantData\.(bankAccountType|accountType)$/i],
     bestPracticeValidations: DROPDOWN_MATRIX,
     missingValidationSeverity: 'high',
     weakValidationSeverity: 'medium',
     validExamples: ['Checking', 'Savings'],
     invalidExamples: ['', 'Crypto Wallet'],
     notes: 'Bank account type should be a controlled choice.',
+  },
+  {
+    key: 'federal_tax_id_type',
+    displayName: 'Federal Tax ID Type',
+    businessSection: 'Business Details',
+    fieldTypes: ['federal_tax_id_type', 'proof_type'],
+    labelPatterns: [/federal\s*tax\s*id\s*type/i, /tax\s*id\s*type/i, /federal\s*tax\s*document/i],
+    jsonKeyPatterns: [/merchantData\.federalTaxIdType$/i],
+    bestPracticeValidations: DROPDOWN_MATRIX,
+    missingValidationSeverity: 'high',
+    weakValidationSeverity: 'medium',
+    validExamples: ['EIN Letter', 'IRS Document'],
+    invalidExamples: ['', 'Unsupported Tax ID Proof'],
+    notes: 'Federal Tax ID Type is non-sensitive document-category metadata and should stay controlled and separate from the tax ID value itself.',
   },
   {
     key: 'annual_revenue',
@@ -689,14 +723,56 @@ export const FIELD_CONCEPTS: FieldConceptDefinition[] = [
     displayName: 'Document Type',
     businessSection: 'Attachments',
     fieldTypes: ['document_type', 'proof_type'],
-    labelPatterns: [/document\s*type/i, /proof\s*of\s*business/i, /id\s*type/i, /identification\s*type/i],
-    jsonKeyPatterns: [/merchantData\.(documentType|proofOfBusinessType|federalTaxIdType)$/i],
+    labelPatterns: [/document\s*type/i, /id\s*type/i, /identification\s*type/i],
+    jsonKeyPatterns: [/merchantData\.documentType$/i],
     bestPracticeValidations: DROPDOWN_MATRIX,
     missingValidationSeverity: 'high',
     weakValidationSeverity: 'medium',
     validExamples: ['Business License', 'Driver License', 'Passport'],
     invalidExamples: ['', 'Unsupported Document'],
     notes: 'Document type should be controlled and should align with upload requirements.',
+  },
+  {
+    key: 'proof_of_business_type',
+    displayName: 'Proof Of Business Type',
+    businessSection: 'Attachments',
+    fieldTypes: ['proof_of_business_type', 'proof_type'],
+    labelPatterns: [/proof\s*of\s*business(\s*type)?/i, /business\s*proof\s*type/i],
+    jsonKeyPatterns: [/merchantData\.proofOfBusinessType$/i],
+    bestPracticeValidations: DROPDOWN_MATRIX,
+    missingValidationSeverity: 'high',
+    weakValidationSeverity: 'medium',
+    validExamples: ['Articles of Incorporation', 'Business License'],
+    invalidExamples: ['', 'Unsupported Business Proof'],
+    notes: 'Proof Of Business Type should capture only the requested document category and must not be confused with the upload payload itself.',
+  },
+  {
+    key: 'proof_of_address_type',
+    displayName: 'Proof Of Address Type',
+    businessSection: 'Attachments',
+    fieldTypes: ['proof_of_address_type', 'proof_type'],
+    labelPatterns: [/proof\s*of\s*address(\s*type)?/i, /address\s*proof\s*type/i],
+    jsonKeyPatterns: [/merchantData\.proofOfAddressType$/i],
+    bestPracticeValidations: DROPDOWN_MATRIX,
+    missingValidationSeverity: 'high',
+    weakValidationSeverity: 'medium',
+    validExamples: ['Utility Bill', 'Bank Statement'],
+    invalidExamples: ['', 'Unsupported Address Proof'],
+    notes: 'Proof Of Address Type is controlled attachment metadata and should remain separate from upload values or address text fields.',
+  },
+  {
+    key: 'proof_of_bank_account_type',
+    displayName: 'Proof Of Bank Account Type',
+    businessSection: 'Attachments',
+    fieldTypes: ['proof_of_bank_account_type', 'proof_type'],
+    labelPatterns: [/proof\s*of\s*bank\s*account(\s*type)?/i, /bank\s*account\s*proof\s*type/i, /void\s*check/i],
+    jsonKeyPatterns: [/merchantData\.proofOfBankAccountType$/i],
+    bestPracticeValidations: DROPDOWN_MATRIX,
+    missingValidationSeverity: 'high',
+    weakValidationSeverity: 'medium',
+    validExamples: ['Void Check', 'Bank Letter'],
+    invalidExamples: ['', 'Unsupported Bank Proof'],
+    notes: 'Proof Of Bank Account Type should classify the required supporting document without exercising upload values or bank-account numbers.',
   },
   {
     key: 'upload',
