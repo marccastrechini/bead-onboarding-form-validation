@@ -508,6 +508,16 @@ function resolveFindingForPolicy(
     };
   }
 
+  if (isPhoneTooLongBehaviorResolved(result, finding)) {
+    return {
+      ...finding,
+      status: 'passed',
+      outcome: 'passed',
+      interpretation: `Observed acceptable ${finding.conceptDisplayName} length enforcement through truncation, input prevention, or field-local validation.`,
+      recommendation: 'Treat safe truncation, input prevention, or field-local rejection as acceptable enforcement unless policy explicitly requires a different visible error.',
+    };
+  }
+
   if (isNameLengthBehaviorResolved(result, finding)) {
     return {
       ...finding,
@@ -568,6 +578,15 @@ function classifyAmbiguityType(
   if (finding.targetConfidence !== 'trusted' || finding.outcome === 'mapping_not_confident') {
     return 'mapping_evidence_insufficient';
   }
+  if (isPhoneTooLongAcceptedWithoutSignal(result, finding)) {
+    return 'product_validation_gap_candidate';
+  }
+  if (isPhoneTooLongCase(result, finding) && hasObservedValidationFeedback(result.observation)) {
+    return 'acceptable_behavior_documented';
+  }
+  if (isPhoneMissingPlusCase(result, finding) && !hasExplicitE164Requirement(result)) {
+    return 'policy_question';
+  }
   if (hasObservedValidationFeedback(result.observation)) {
     return 'matrix_expectation_mismatch';
   }
@@ -617,6 +636,52 @@ function valueShape(value: string | null | undefined): ValueShape | 'missing' {
 
 function isBlankValue(value: string | null | undefined): boolean {
   return (value ?? '').trim().length === 0;
+}
+
+function isPhoneMissingPlusCase(
+  result: ValidationResult,
+  finding: Omit<FindingItem, 'ambiguity'>,
+): boolean {
+  return PHONE_CONCEPTS.has(finding.concept) && /plus|domestic|format/i.test(`${result.validationId} ${result.testName}`);
+}
+
+function isPhoneTooLongCase(
+  result: ValidationResult,
+  finding: Omit<FindingItem, 'ambiguity'>,
+): boolean {
+  return PHONE_CONCEPTS.has(finding.concept) && /too-long/i.test(result.validationId);
+}
+
+function hasExplicitE164Requirement(result: ValidationResult): boolean {
+  const texts = [
+    result.observation?.validationMessage,
+    result.observation?.nearbyErrorText,
+    ...(result.observation?.docusignValidationText ?? []),
+    ...((result.observation?.evidenceItems ?? []).map((item) => item.text)),
+  ].filter((text): text is string => Boolean(text));
+
+  return texts.some((text) => /\bE\.?164\b/i.test(text));
+}
+
+function isPhoneTooLongBehaviorResolved(
+  result: ValidationResult,
+  finding: Omit<FindingItem, 'ambiguity'>,
+): boolean {
+  if (!isPhoneTooLongCase(result, finding)) return false;
+  return result.observation?.normalizedOrReformatted === true ||
+    result.observation?.inputPrevented === true ||
+    hasObservedValidationFeedback(result.observation);
+}
+
+function isPhoneTooLongAcceptedWithoutSignal(
+  result: ValidationResult,
+  finding: Omit<FindingItem, 'ambiguity'>,
+): boolean {
+  if (!isPhoneTooLongCase(result, finding) || !result.observation) return false;
+  if (result.observation.normalizedOrReformatted || result.observation.inputPrevented || hasObservedValidationFeedback(result.observation)) {
+    return false;
+  }
+  return (result.observation.observedValue ?? null) === result.inputValue;
 }
 
 function isNameLengthBehaviorResolved(
@@ -743,6 +808,11 @@ function humanGuidancePromptFor(
   finding: Omit<FindingItem, 'ambiguity'>,
 ): string | null {
   if (type === 'mapping_evidence_insufficient') return finding.humanConfirmation?.requestedEvidence ?? null;
+  if (isPhoneMissingPlusCase(result, finding)) {
+    return hasExplicitE164Requirement(result)
+      ? `Field-local validation currently requires E.164. Should ${finding.conceptDisplayName} instead accept or normalize domestic phone format without a leading plus?`
+      : `Should ${finding.conceptDisplayName} allow domestic phone format without a leading plus, or require explicit E.164 input?`;
+  }
   if (type === 'matrix_expectation_mismatch') {
     return `Should ${finding.conceptDisplayName}: ${finding.testName} become a reject expectation now that field-local validation was observed?`;
   }
@@ -901,8 +971,25 @@ function conceptNotes(
     if ((score?.notRunValidationCount ?? 0) > 0) notes.push(`${score!.notRunValidationCount} expected ${score!.displayName} check(s) remain not run.`);
   }
   if (PHONE_CONCEPTS.has(concept) && hasTrustedExecutedFinding) {
-    notes.push(`${concept === 'stakeholder_phone' ? 'Stakeholder Phone' : 'Phone'} ran through a trusted target. Too-long behavior remains a likely product validation finding if accepted.`);
-    notes.push('Missing-plus handling is observer-ambiguous and should stay in human review.');
+    const conceptLabel = concept === 'stakeholder_phone' ? 'Stakeholder Phone' : 'Phone';
+    const tooLongFinding = findings.find((finding) => finding.validationId === 'too-long-rejected');
+    const missingPlusFinding = findings.find((finding) => finding.validationId === 'missing-plus-handling');
+
+    if (tooLongFinding?.outcome === 'passed') {
+      notes.push(`${conceptLabel} too-long input showed acceptable truncation, prevention, or field-local enforcement and is not treated as a product defect in this report.`);
+    } else if (tooLongFinding?.ambiguity?.type === 'acceptable_behavior_documented') {
+      notes.push(`${conceptLabel} too-long input showed acceptable normalization or truncation and is documented, not a product defect, unless policy requires a visible blocking error.`);
+    } else if (tooLongFinding?.ambiguity?.type === 'product_validation_gap_candidate') {
+      notes.push(`${conceptLabel} too-long input may indicate a product validation gap if policy requires blocking the full invalid value with a field-local signal.`);
+    }
+
+    if (missingPlusFinding?.ambiguity?.type === 'policy_question') {
+      notes.push('Missing-plus handling remains a phone-format policy question until domestic-format acceptance or normalization is confirmed.');
+    } else if (missingPlusFinding?.ambiguity?.type === 'matrix_expectation_mismatch') {
+      notes.push('Missing-plus handling showed field-local E.164 validation and should stay in human review until domestic-format acceptance or normalization policy is confirmed.');
+    }
+
+    if ((score?.notRunValidationCount ?? 0) > 0) notes.push(`${score!.notRunValidationCount} expected ${score!.displayName} check(s) remain not run.`);
   }
   if (concept === 'date_of_birth' && hasTrustedExecutedFinding) {
     notes.push('Date of Birth ran through a trusted target. Future-date behavior remains a likely product validation finding if accepted.');

@@ -355,7 +355,7 @@ export const FIELD_CONCEPTS: FieldConceptDefinition[] = [
     weakValidationSeverity: 'high',
     validExamples: ['+15551234567', '(555) 123-4567'],
     invalidExamples: ['callmemaybe', '555', '+1555123456789012'],
-    notes: 'Phone validation should be explicit about E.164 vs local-format handling.',
+    notes: 'Phone validation should distinguish explicit E.164-only requirements from domestic-format acceptance, and treat normalization, truncation, or field-local validation as acceptable enforcement when policy allows it.',
   },
   {
     key: 'stakeholder_phone',
@@ -369,7 +369,7 @@ export const FIELD_CONCEPTS: FieldConceptDefinition[] = [
     weakValidationSeverity: 'high',
     validExamples: ['+15551234567', '(555) 123-4567'],
     invalidExamples: ['callmemaybe', '555', '+1555123456789012'],
-    notes: 'Stakeholder phone targets owner contact data and should not reuse business-contact anchors from page 1.',
+    notes: 'Stakeholder phone targets owner contact data and should not reuse business-contact anchors from page 1. Expectations should distinguish strict E.164-only copy, domestic-format tolerance, normalization/truncation, and field-local validation.',
   },
   {
     key: 'ein',

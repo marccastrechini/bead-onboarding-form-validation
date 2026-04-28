@@ -834,12 +834,12 @@ test.describe('validation findings export', () => {
       ],
     }));
 
-    expect(report.ambiguityTypeBreakdown.matrix_expectation_mismatch).toBe(1);
-    expect(report.ambiguityTypeBreakdown.policy_question).toBe(1);
+    expect(report.ambiguityTypeBreakdown.matrix_expectation_mismatch).toBe(0);
+    expect(report.ambiguityTypeBreakdown.policy_question).toBe(2);
     expect(report.ambiguityTypeBreakdown.acceptable_behavior_documented).toBe(1);
     expect(report.ambiguityTypeBreakdown.expected_lenient_behavior).toBe(1);
     expect(report.ambiguityTypeBreakdown.product_validation_gap_candidate).toBe(1);
-    expect(report.ambiguousFindingsByType.policy_question[0].concept).toBe('business_name');
+    expect(report.ambiguousFindingsByType.policy_question.map((finding) => finding.concept)).toEqual(['phone', 'business_name']);
 
     const md = renderValidationFindingsMarkdown(report);
     expect(md).toContain('### Needs observer improvement');
@@ -1029,8 +1029,159 @@ test.describe('validation findings export', () => {
     }));
 
     expect(report.ambiguousHumanReviewFindings[0].ambiguity?.humanGuidancePrompt)
-      .toBe('Should Phone require a leading plus or allow domestic format?');
-    expect(renderValidationFindingsMarkdown(report)).toContain('Should Phone require a leading plus or allow domestic format?');
+      .toBe('Should Phone allow domestic phone format without a leading plus, or require explicit E.164 input?');
+    expect(renderValidationFindingsMarkdown(report)).toContain('Should Phone allow domestic phone format without a leading plus, or require explicit E.164 input?');
+  });
+
+  test('phone missing-plus is policy-sensitive unless field-local copy explicitly requires E.164', () => {
+    const withoutE164 = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'phone',
+          conceptDisplayName: 'Phone',
+          validationId: 'missing-plus-handling',
+          testName: 'missing plus sign behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+        }),
+      ],
+    }));
+
+    expect(withoutE164.ambiguousHumanReviewFindings[0].ambiguity?.type).toBe('policy_question');
+
+    const withE164 = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'stakeholder_phone',
+          conceptDisplayName: 'Stakeholder Phone',
+          validationId: 'missing-plus-handling',
+          testName: 'missing plus sign behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          ariaInvalid: 'true',
+          docusignValidationText: ['Invalid phone number format. Must be a valid E.164 format (e.g., +15551234567).'],
+          invalidIndicators: ['field-root:class=has-tab-error'],
+        }),
+      ],
+    }));
+
+    expect(withE164.ambiguousHumanReviewFindings[0].ambiguity?.type).toBe('matrix_expectation_mismatch');
+    expect(withE164.ambiguousHumanReviewFindings[0].ambiguity?.humanGuidancePrompt)
+      .toBe('Field-local validation currently requires E.164. Should Stakeholder Phone instead accept or normalize domestic phone format without a leading plus?');
+  });
+
+  test('phone too-long with truncation, prevention, or local validation is not a product finding', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'stakeholder_phone',
+          conceptDisplayName: 'Stakeholder Phone',
+          validationId: 'too-long-rejected',
+          testName: 'too long behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          inputValue: '+1555123456789012',
+          observedValue: '+155512345678',
+          normalizedOrReformatted: true,
+        }),
+      ],
+    }));
+
+    const resolved = report.trustedExecutedObservations.find((finding) => finding.concept === 'stakeholder_phone' && finding.validationId === 'too-long-rejected')!;
+    expect(resolved.status).toBe('passed');
+    expect(resolved.outcome).toBe('passed');
+    expect(report.ambiguousHumanReviewFindings).toEqual([]);
+    expect(report.likelyProductValidationFindings).toEqual([]);
+  });
+
+  test('phone too-long accepted without signal becomes a product validation gap candidate', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'stakeholder_phone',
+          conceptDisplayName: 'Stakeholder Phone',
+          validationId: 'too-long-rejected',
+          testName: 'too long behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          inputValue: '+1555123456789012',
+          observedValue: '+1555123456789012',
+        }),
+      ],
+    }));
+
+    expect(report.ambiguousHumanReviewFindings[0].ambiguity?.type).toBe('product_validation_gap_candidate');
+    expect(report.likelyProductValidationFindings).toEqual([]);
+  });
+
+  test('stakeholder_phone findings do not write raw phone values', () => {
+    const rawAttemptedPhone = '+199988877771234';
+    const rawObservedPhone = '+1999888777712';
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'stakeholder_phone',
+          conceptDisplayName: 'Stakeholder Phone',
+          validationId: 'too-long-rejected',
+          testName: 'too long behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          inputValue: rawAttemptedPhone,
+          observedValue: rawObservedPhone,
+          normalizedOrReformatted: true,
+        }),
+      ],
+    }));
+
+    expect(JSON.stringify(report)).not.toContain(rawAttemptedPhone);
+    expect(JSON.stringify(report)).not.toContain(rawObservedPhone);
+    expect(renderValidationFindingsMarkdown(report)).not.toContain(rawAttemptedPhone);
+    expect(renderValidationFindingsMarkdown(report)).not.toContain(rawObservedPhone);
+  });
+
+  test('stakeholder phone findings remain product 0 when artifacts support lenient or policy-backed outcomes', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'stakeholder_phone',
+          conceptDisplayName: 'Stakeholder Phone',
+          validationId: 'missing-plus-handling',
+          testName: 'missing plus sign behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          ariaInvalid: 'true',
+          docusignValidationText: ['Invalid phone number format. Must be a valid E.164 format (e.g., +15551234567).'],
+          invalidIndicators: ['field-root:class=has-tab-error'],
+        }),
+        mockFindingsResult({
+          concept: 'stakeholder_phone',
+          conceptDisplayName: 'Stakeholder Phone',
+          validationId: 'too-long-rejected',
+          testName: 'too long behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          inputValue: '+1555123456789012',
+          observedValue: '+155512345678',
+          normalizedOrReformatted: true,
+        }),
+      ],
+    }));
+
+    expect(report.likelyProductValidationFindings).toEqual([]);
+    expect(report.runScope.resultCounts).toMatchObject({
+      total: 2,
+      passed: 1,
+      manual_review: 1,
+    });
+    expect(report.perConceptResults.find((concept) => concept.concept === 'stakeholder_phone')!.notes.join(' '))
+      .not.toContain('likely product validation finding');
   });
 
   test('findings report does not write raw attempted or observed values', () => {
