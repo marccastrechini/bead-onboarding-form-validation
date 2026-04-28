@@ -153,6 +153,27 @@ export interface ValidationScorecard {
   risksAndCaveats: string[];
 }
 
+type MappingCalibrationDecision =
+  | 'trust_current_mapping'
+  | 'trust_likely_better_candidate'
+  | 'downgrade_current_mapping_to_unresolved'
+  | 'leave_unresolved';
+
+export interface MappingCalibrationRow {
+  concept: FieldConceptKey;
+  conceptDisplayName: string;
+  currentCandidateFieldIndex: number | null;
+  selectedCandidate: string | null;
+  decision: MappingCalibrationDecision;
+  calibrationReason: string;
+  mappingDecisionReason: string;
+}
+
+export interface MappingCalibrationFile {
+  schemaVersion: 1;
+  rows: MappingCalibrationRow[];
+}
+
 const CONFIDENCE_RANK: Record<IdentificationConfidence, number> = {
   none: 0,
   low: 1,
@@ -163,10 +184,12 @@ const CONFIDENCE_RANK: Record<IdentificationConfidence, number> = {
 export function buildValidationScorecard(
   report: ValidationReport,
   interactiveResults: InteractiveValidationResultsFile | null = null,
+  mappingCalibration: MappingCalibrationFile | null = null,
 ): ValidationScorecard {
   const interactiveByConcept = groupInteractiveResults(interactiveResults);
+  const calibrationByConcept = new Map((mappingCalibration?.rows ?? []).map((row) => [row.concept, row]));
   const conceptScores = FIELD_CONCEPTS.map((concept) =>
-    scoreConcept(report, concept, interactiveByConcept.get(concept.key) ?? []),
+    scoreConcept(report, concept, interactiveByConcept.get(concept.key) ?? [], calibrationByConcept.get(concept.key) ?? null),
   );
   const overall = buildOverall(report, conceptScores);
 
@@ -230,9 +253,10 @@ export function writeScorecardArtifacts(
   report: ValidationReport,
   outDir: string,
   interactiveResults: InteractiveValidationResultsFile | null = null,
+  mappingCalibration: MappingCalibrationFile | null = null,
 ): { jsonPath: string; mdPath: string; scorecard: ValidationScorecard } {
   fs.mkdirSync(outDir, { recursive: true });
-  const scorecard = buildValidationScorecard(report, interactiveResults);
+  const scorecard = buildValidationScorecard(report, interactiveResults, mappingCalibration);
   const jsonPath = path.join(outDir, 'latest-validation-scorecard.json');
   const mdPath = path.join(outDir, 'latest-validation-scorecard.md');
   fs.writeFileSync(jsonPath, JSON.stringify(scorecard, null, 2), 'utf8');
@@ -247,7 +271,8 @@ export function generateScorecardFromSummary(
   const raw = fs.readFileSync(summaryPath, 'utf8');
   const report = JSON.parse(raw) as ValidationReport;
   const interactiveResults = loadInteractiveValidationResults(path.join(outDir, 'latest-interactive-validation-results.json'));
-  return writeScorecardArtifacts(report, outDir, interactiveResults);
+  const mappingCalibration = loadMappingCalibration(path.join(outDir, 'latest-mapping-calibration.json'));
+  return writeScorecardArtifacts(report, outDir, interactiveResults, mappingCalibration);
 }
 
 export function loadInteractiveValidationResults(resultsPath: string): InteractiveValidationResultsFile | null {
@@ -260,15 +285,45 @@ export function loadInteractiveValidationResults(resultsPath: string): Interacti
   return parsed;
 }
 
+export function loadMappingCalibration(calibrationPath: string): MappingCalibrationFile | null {
+  if (!fs.existsSync(calibrationPath)) return null;
+  const raw = fs.readFileSync(calibrationPath, 'utf8');
+  const parsed = JSON.parse(raw) as MappingCalibrationFile;
+  if (parsed.schemaVersion !== 1 || !Array.isArray(parsed.rows)) {
+    throw new Error(`Invalid mapping calibration artifact: ${calibrationPath}`);
+  }
+  return parsed;
+}
+
 function scoreConcept(
   report: ValidationReport,
   concept: FieldConceptDefinition,
   interactiveResults: InteractiveValidationResult[],
+  calibrationRow: MappingCalibrationRow | null,
 ): FieldConceptScore {
   const matches = report.fields
     .map((field, fieldIndex) => matchFieldToConcept(field, concept, fieldIndex + 1))
     .filter((match): match is ScorecardFieldMatch => match !== null)
-    .sort((a, b) => {
+  const hasConfidentMatch = matches.some(
+    (match) => CONFIDENCE_RANK[match.identificationConfidence] >= CONFIDENCE_RANK.medium,
+  );
+  const calibratedMatch = !hasConfidentMatch && calibrationRow ? buildCalibratedMatch(report, concept, calibrationRow) : null;
+  if (calibratedMatch) {
+    const existingIndex = matches.findIndex((match) => match.fieldIndex === calibratedMatch.fieldIndex);
+    if (existingIndex >= 0) {
+      matches[existingIndex] = {
+        ...matches[existingIndex]!,
+        displayName: matches[existingIndex]!.displayName || calibratedMatch.displayName,
+        businessSection: matches[existingIndex]!.businessSection || calibratedMatch.businessSection,
+        identificationConfidence: maxConfidence(matches[existingIndex]!.identificationConfidence, calibratedMatch.identificationConfidence),
+        evidence: Array.from(new Set([...calibratedMatch.evidence, ...matches[existingIndex]!.evidence])),
+      };
+    } else {
+      matches.push(calibratedMatch);
+    }
+  }
+
+  matches.sort((a, b) => {
       const confidence = CONFIDENCE_RANK[b.identificationConfidence] - CONFIDENCE_RANK[a.identificationConfidence];
       if (confidence !== 0) return confidence;
       return a.fieldIndex - b.fieldIndex;
@@ -1034,6 +1089,45 @@ function conceptAssessmentForField(
       docusignFieldFamily: field.enrichment.expectedDocusignFieldFamily,
     } : null,
   );
+}
+
+function buildCalibratedMatch(
+  report: ValidationReport,
+  concept: FieldConceptDefinition,
+  calibrationRow: MappingCalibrationRow,
+): ScorecardFieldMatch | null {
+  if (!['trust_current_mapping', 'trust_likely_better_candidate'].includes(calibrationRow.decision)) {
+    return null;
+  }
+
+  const fieldIndex = calibratedFieldIndex(calibrationRow);
+  if (!fieldIndex || fieldIndex < 1 || fieldIndex > report.fields.length) return null;
+
+  const field = report.fields[fieldIndex - 1]!;
+  return {
+    fieldIndex,
+    displayName: displayNameForField(field),
+    businessSection: field.enrichment?.suggestedBusinessSection ?? sectionFromField(field, concept),
+    controlCategory: field.controlCategory,
+    inferredType: field.inferredType,
+    labelSource: field.labelSource,
+    labelConfidence: field.labelConfidence,
+    identificationConfidence: 'high',
+    evidence: [
+      `mapping calibration ${calibrationRow.decision}`,
+      `calibration reason: ${calibrationRow.calibrationReason}`,
+      `calibration decision: ${calibrationRow.mappingDecisionReason}`,
+    ],
+  };
+}
+
+function calibratedFieldIndex(calibrationRow: MappingCalibrationRow): number | null {
+  if (calibrationRow.decision === 'trust_current_mapping' && calibrationRow.currentCandidateFieldIndex) {
+    return calibrationRow.currentCandidateFieldIndex;
+  }
+  if (!calibrationRow.selectedCandidate) return calibrationRow.currentCandidateFieldIndex ?? null;
+  const match = calibrationRow.selectedCandidate.match(/^#(\d+)\b/);
+  return match ? Number(match[1]) : calibrationRow.currentCandidateFieldIndex ?? null;
 }
 
 function maxConfidence(a: IdentificationConfidence, b: IdentificationConfidence): IdentificationConfidence {

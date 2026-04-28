@@ -155,7 +155,7 @@ const REJECTED_SHAPES: Partial<Record<FieldConceptKey, ValueShape[]>> = {
   email: ['phone', 'url', 'date', 'text_name_like'],
   phone: ['email', 'url', 'date', 'text_name_like'],
   website: ['email', 'phone', 'date', 'text_name_like'],
-  bank_name: ['email', 'phone', 'url', 'date'],
+  bank_name: ['email', 'phone', 'url', 'date', 'numeric'],
   date_of_birth: ['email', 'phone', 'url', 'text_name_like'],
 };
 
@@ -173,6 +173,7 @@ export function detectValueShape(value: string | null | undefined): ValueShape {
   if (/^\+?\d[\d\s().-]{6,}$/.test(raw)) return 'phone';
   if (/^\d{5}(?:-\d{4})?$/.test(raw)) return 'postal_code';
   if (/^-?\d+(?:\.\d+)?%$/.test(raw)) return 'percentage';
+  if (/^-?\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(raw)) return 'numeric';
   if (/^-?\d+(?:\.\d+)?$/.test(raw)) return 'numeric';
   if (/[A-Za-z]/.test(raw) && /^[A-Za-z0-9 '&.,/-]{2,}$/.test(raw)) return 'text_name_like';
   return 'unknown';
@@ -388,6 +389,20 @@ export function selectBestMappingCandidate(input: {
       valueShape: best.valueShape,
       assessments,
       explanation: 'Enrichment, section, and live value shape agree strongly enough to trust this mapping.',
+    };
+  }
+
+  if (current?.valueShapeMismatch) {
+    return {
+      selectedCandidateId: current.candidateId,
+      trusted: false,
+      decisionReason: 'rejected_value_shape_mismatch',
+      shiftReason: best.candidateId !== current.candidateId
+        ? inferShiftReason(input.concept, current, best, input.expectedAnchor ?? null)
+        : inferShiftReason(input.concept, current, current, input.expectedAnchor ?? null),
+      valueShape: current.valueShape,
+      assessments,
+      explanation: `The current mapped candidate has a ${current.valueShape} value shape that conflicts with ${FIELD_CONCEPT_REGISTRY[input.concept].displayName}; no unclaimed exact-anchor candidate with the expected value shape was trusted instead.`,
     };
   }
 

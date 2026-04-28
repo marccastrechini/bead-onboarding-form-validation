@@ -844,6 +844,10 @@ test.describe('interactive validation safety', () => {
     expect(detectValueShape('Wells Fargo Bank')).toBe('text_name_like');
   });
 
+  test('detects formatted numeric value shape', () => {
+    expect(detectValueShape('1,815.00')).toBe('numeric');
+  });
+
   test('interactive guard refuses to run without INTERACTIVE_VALIDATION=1', () => {
     expect(() => assertInteractiveValidationGuards({ DISPOSABLE_ENVELOPE: '1' } as NodeJS.ProcessEnv))
       .toThrow(/INTERACTIVE_VALIDATION=1/);
@@ -1318,6 +1322,180 @@ test.describe('interactive validation safety', () => {
     expect(result.selectedCandidateId).toBe('29');
   });
 
+  test('Bank Name rejects URL, email, phone, date, and numeric-shaped current targets', () => {
+    const conflictingValues = [
+      'https://example.test',
+      'hello@example.test',
+      '+15551234567',
+      '1990/01/15',
+      '1,815.00',
+    ];
+
+    for (const currentValue of conflictingValues) {
+      const result = selectBestMappingCandidate({
+        concept: 'bank_name',
+        currentCandidateId: '29',
+        expectedAnchor: {
+          jsonKeyPath: 'merchantData.bankName',
+          businessSection: 'Banking',
+          pageIndex: 1,
+          ordinalOnPage: 58,
+          tabLeft: 35.2,
+          tabTop: 874.88,
+          docusignFieldFamily: 'Text',
+        },
+        candidates: [
+          {
+            id: '29',
+            resolvedLabel: null,
+            labelSource: 'none',
+            labelConfidence: 'none',
+            businessSection: 'Banking',
+            docusignTabType: 'Text',
+            pageIndex: 1,
+            ordinalOnPage: 60,
+            tabLeft: 35.2,
+            tabTop: 874.88,
+            currentValue,
+          },
+          {
+            id: '30',
+            resolvedLabel: null,
+            labelSource: 'none',
+            labelConfidence: 'none',
+            businessSection: 'Banking',
+            docusignTabType: 'Text',
+            pageIndex: 1,
+            ordinalOnPage: 61,
+            tabLeft: 284.16,
+            tabTop: 874.88,
+            currentValue: 'Bank of Example',
+          },
+        ],
+      });
+
+      expect(result.trusted).toBe(false);
+      expect(result.decisionReason).toBe('rejected_value_shape_mismatch');
+    }
+  });
+
+  test('Bank Name diagnostic explains missing proof when current target is formatted numeric', () => {
+    const result = selectBestMappingCandidate({
+      concept: 'bank_name',
+      currentCandidateId: '29',
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.bankName',
+        businessSection: 'Banking',
+        pageIndex: 1,
+        ordinalOnPage: 58,
+        tabLeft: 35.2,
+        tabTop: 874.88,
+        docusignFieldFamily: 'Text',
+      },
+      candidates: [
+        {
+          id: '29',
+          resolvedLabel: null,
+          labelSource: 'none',
+          labelConfidence: 'none',
+          businessSection: 'Banking',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 60,
+          tabLeft: 35.2,
+          tabTop: 874.88,
+          currentValue: '1,815.00',
+        },
+        {
+          id: '30',
+          resolvedLabel: null,
+          labelSource: 'none',
+          labelConfidence: 'none',
+          businessSection: 'Banking',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 61,
+          tabLeft: 284.16,
+          tabTop: 874.88,
+          currentValue: 'Bank of Example',
+        },
+      ],
+    });
+
+    expect(result.trusted).toBe(false);
+    expect(result.valueShape).toBe('numeric');
+    expect(result.explanation).toContain('numeric value shape');
+    expect(result.explanation).toContain('no unclaimed exact-anchor candidate');
+  });
+
+  test('Bank Name is rejected when its candidate is claimed by a stronger concept', () => {
+    const results = resolveMappingClaims([
+      {
+        concept: 'business_name',
+        currentCandidateId: null,
+        expectedAnchor: {
+          jsonKeyPath: 'merchantData.registeredName',
+          businessSection: 'Business Details',
+          pageIndex: 1,
+          ordinalOnPage: 54,
+          tabLeft: 35.2,
+          tabTop: 712.32,
+          docusignFieldFamily: 'Text',
+        },
+        candidates: [
+          {
+            id: 'shared',
+            resolvedLabel: 'Registered Name',
+            labelSource: 'aria-label',
+            labelConfidence: 'high',
+            businessSection: 'Business Details',
+            docusignTabType: 'Text',
+            pageIndex: 1,
+            ordinalOnPage: 54,
+            tabLeft: 35.2,
+            tabTop: 712.32,
+            currentValue: 'Example Business LLC',
+          },
+        ],
+      },
+      {
+        concept: 'bank_name',
+        currentCandidateId: null,
+        expectedAnchor: {
+          jsonKeyPath: 'merchantData.bankName',
+          businessSection: 'Banking',
+          pageIndex: 1,
+          ordinalOnPage: 58,
+          tabLeft: 35.2,
+          tabTop: 712.32,
+          docusignFieldFamily: 'Text',
+        },
+        candidates: [
+          {
+            id: 'shared',
+            resolvedLabel: 'Registered Name',
+            labelSource: 'aria-label',
+            labelConfidence: 'high',
+            businessSection: 'Business Details',
+            docusignTabType: 'Text',
+            pageIndex: 1,
+            ordinalOnPage: 54,
+            tabLeft: 35.2,
+            tabTop: 712.32,
+            currentValue: 'Example Business LLC',
+          },
+        ],
+      },
+    ]);
+
+    const businessName = results.find((result) => result.concept === 'business_name')!;
+    const bankName = results.find((result) => result.concept === 'bank_name')!;
+
+    expect(businessName.selection.trusted).toBe(true);
+    expect(bankName.blockedCandidateIds).toContain('shared');
+    expect(bankName.selection.trusted).toBe(false);
+  });
+
   test('Retargeting does not let two concepts claim the same candidate', () => {
     const results = resolveMappingClaims([
       {
@@ -1434,13 +1612,124 @@ test.describe('interactive validation safety', () => {
 
   test('INTERACTIVE_CONCEPTS filters the interactive target set', () => {
     expect(resolveInteractiveTargetConcepts({
-      INTERACTIVE_CONCEPTS: 'email,phone,bank_name,date_of_birth',
+      INTERACTIVE_CONCEPTS: 'website,email,phone,bank_name,date_of_birth',
     } as NodeJS.ProcessEnv)).toEqual([
+      'website',
       'email',
       'phone',
       'bank_name',
       'date_of_birth',
     ]);
+  });
+
+  test('website matrix uses URL cases and observes missing protocol separately', () => {
+    const plan = buildInteractiveValidationPlan(mockValidationReport([
+      mockField({
+        index: 1,
+        resolvedLabel: 'Website',
+        label: 'Website',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'website',
+        inferredClassification: 'inferred_best_practice',
+      }),
+    ]), {
+      INTERACTIVE_CONCEPTS: 'website',
+    } as NodeJS.ProcessEnv);
+
+    const valid = plan.cases.find((entry) => entry.concept === 'website' && entry.validationId === 'valid-https-accepted')!;
+    const missingProtocol = plan.cases.find((entry) => entry.concept === 'website' && entry.validationId === 'missing-protocol-behavior')!;
+    const malformed = plan.cases.find((entry) => entry.concept === 'website' && entry.validationId === 'malformed-url-rejected')!;
+
+    expect(valid.inputValue).toBe('https://example.test');
+    expect(missingProtocol.inputValue).toBe('example.test');
+    expect(missingProtocol.expectedSignal).toBe('observe');
+    expect(malformed.inputValue).toBe('not a url');
+    expect(plan.targetConcepts).toEqual(['website']);
+  });
+
+  test('interactive plan uses trusted mapping calibration when scorecard mapping is otherwise not confident', () => {
+    const calibrationDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bead-calibration-'));
+    const calibrationPath = path.join(calibrationDir, 'latest-mapping-calibration.json');
+
+    fs.writeFileSync(calibrationPath, JSON.stringify({
+      schemaVersion: 1,
+      rows: [
+        {
+          concept: 'website',
+          conceptDisplayName: 'Website',
+          currentCandidateFieldIndex: null,
+          selectedCandidate: '#1 (unresolved) p1 ord1 Text shape=url @ 10,10',
+          decision: 'trust_likely_better_candidate',
+          calibrationReason: 'page1_anchor_drift_after_website',
+          mappingDecisionReason: 'trusted_by_anchor_and_value_shape',
+        },
+      ],
+    }), 'utf8');
+
+    try {
+      const plan = buildInteractiveValidationPlan(mockValidationReport([
+        mockField({
+          index: 1,
+          observedValueLikeTextNearControl: 'https://example.test',
+        }),
+      ]), {
+        INTERACTIVE_CONCEPTS: 'website',
+        INTERACTIVE_MAPPING_CALIBRATION_PATH: calibrationPath,
+      } as NodeJS.ProcessEnv);
+
+      expect(plan.skippedConcepts).toEqual([]);
+      expect(plan.cases.map((entry) => entry.validationId)).toContain('valid-https-accepted');
+      expect(plan.cases.every((entry) => entry.targetField.fieldIndex === 1)).toBe(true);
+    } finally {
+      fs.rmSync(calibrationDir, { recursive: true, force: true });
+    }
+  });
+
+  test('interactive plan does not let calibration fallback displace an existing confident mapping', () => {
+    const calibrationDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bead-calibration-'));
+    const calibrationPath = path.join(calibrationDir, 'latest-mapping-calibration.json');
+
+    fs.writeFileSync(calibrationPath, JSON.stringify({
+      schemaVersion: 1,
+      rows: [
+        {
+          concept: 'date_of_birth',
+          conceptDisplayName: 'Date Of Birth',
+          currentCandidateFieldIndex: 1,
+          selectedCandidate: '#1 textbox / unknown_manual_review (high)',
+          decision: 'trust_current_mapping',
+          calibrationReason: 'none',
+          mappingDecisionReason: 'trusted_by_date_tab_and_value_shape',
+        },
+      ],
+    }), 'utf8');
+
+    try {
+      const plan = buildInteractiveValidationPlan(mockValidationReport([
+        mockField({
+          index: 1,
+          observedValueLikeTextNearControl: 'not-a-date',
+        }),
+        mockField({
+          index: 2,
+          resolvedLabel: 'Date Of Birth',
+          label: 'Date Of Birth',
+          labelSource: 'aria-label',
+          labelConfidence: 'high',
+          inferredType: 'date_of_birth',
+          inferredClassification: 'inferred_best_practice',
+        }),
+      ]), {
+        INTERACTIVE_CONCEPTS: 'date_of_birth',
+        INTERACTIVE_MAPPING_CALIBRATION_PATH: calibrationPath,
+      } as NodeJS.ProcessEnv);
+
+      expect(plan.skippedConcepts).toEqual([]);
+      expect(plan.cases.every((entry) => entry.targetField.fieldIndex === 2)).toBe(true);
+    } finally {
+      fs.rmSync(calibrationDir, { recursive: true, force: true });
+    }
   });
 
   test('date matrix uses YYYY/MM/DD as valid input and observes MM/DD/YYYY separately', () => {

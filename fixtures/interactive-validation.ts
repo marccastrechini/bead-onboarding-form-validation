@@ -9,7 +9,7 @@ import {
 } from './field-concepts';
 import type { DiscoveredField } from './field-discovery';
 import type { FieldRecord, ValidationReport } from './validation-report';
-import { buildValidationScorecard, type ScorecardFieldMatch } from './validation-scorecard';
+import { buildValidationScorecard, loadMappingCalibration, type ScorecardFieldMatch } from './validation-scorecard';
 import type { FrameHost } from './signer-helpers';
 import { selectBestMappingCandidate } from '../lib/mapping-calibration';
 
@@ -19,6 +19,7 @@ export const INTERACTIVE_TARGET_DIAGNOSTICS_JSON = 'latest-interactive-target-di
 export const INTERACTIVE_TARGET_DIAGNOSTICS_MD = 'latest-interactive-target-diagnostics.md';
 
 export const INTERACTIVE_TARGET_CONCEPTS = [
+  'website',
   'date_of_birth',
   'registration_date',
   'email',
@@ -333,7 +334,7 @@ const LONG_DESCRIPTION = `This is a disposable validation test description. ${'A
 const GENERIC_DOCUSIGN_TEXT_RE =
   /attachmentrequired|signerattachment|attachmentoptional|attachmentrequired|select to load content for this page|this link will open in a new window|hide note|show note|view electronic record|press enter to use the screen reader|page\s+\d+\s+of\s+\d+/i;
 const AMBIGUOUS_REQUIRED_RE = /^required$/i;
-const FIELD_LOCAL_MESSAGE_RE = /(invalid|must\b|format\b|enter\b|between\b|too\s+(short|long)|minimum|max(imum)?|whole number|email|phone|zip|postal|naics|merchant category|date of birth|date)/i;
+const FIELD_LOCAL_MESSAGE_RE = /(invalid|must\b|format\b|enter\b|between\b|too\s+(short|long)|minimum|max(imum)?|whole number|email|phone|website|url|domain|zip|postal|naics|merchant category|date of birth|date)/i;
 const STRONG_LABEL_SOURCES = new Set([
   'aria-label',
   'aria-labelledby',
@@ -353,11 +354,13 @@ const SECTION_TOKENS: Record<string, string[]> = {
 const SIGNATURE_FAMILY_PATTERNS: Array<{ family: string; pattern: RegExp }> = [
   { family: 'email', pattern: /\b(e-?mail|email address|@)\b/i },
   { family: 'phone', pattern: /\b(phone|telephone|e\.164|phone number|tel)\b|\+1\d{6,}/i },
+  { family: 'url', pattern: /\b(website|url|homepage|domain)\b|https?:\/\/\S+|www\./i },
   { family: 'date', pattern: /\b(date of birth|dob|yyyy\/mm\/dd|mm\/dd\/yyyy|enter date|birth date|date)\b/i },
   { family: 'bank', pattern: /\b(bank|routing|account number|account type|deposit)\b/i },
   { family: 'name', pattern: /\b(name|business name|registered name|dba)\b/i },
 ];
 const PRIMARY_FAMILY_BY_CONCEPT: Partial<Record<FieldConceptKey, string>> = {
+  website: 'url',
   email: 'email',
   phone: 'phone',
   bank_name: 'bank',
@@ -367,6 +370,7 @@ const PRIMARY_FAMILY_BY_CONCEPT: Partial<Record<FieldConceptKey, string>> = {
   dba_name: 'name',
 };
 const BLOCKED_SIGNATURE_FAMILIES: Partial<Record<FieldConceptKey, string[]>> = {
+  website: ['email', 'phone', 'bank', 'date', 'name'],
   bank_name: ['phone', 'email', 'date'],
   phone: ['email', 'bank', 'date', 'name'],
   email: ['phone', 'bank', 'date', 'name'],
@@ -411,6 +415,43 @@ const TEXT_FIELD_MATRIX: MatrixCaseDefinition[] = [
 ];
 
 const MATRIX_BY_CONCEPT: Record<InteractiveTargetConcept, MatrixCaseDefinition[]> = {
+  website: [
+    {
+      validationId: 'valid-https-accepted',
+      caseName: 'valid-https',
+      testName: 'valid HTTPS URL accepted',
+      inputValue: 'https://example.test',
+      expectedBehavior: 'accept',
+    },
+    {
+      validationId: 'missing-protocol-behavior',
+      caseName: 'missing-protocol',
+      testName: 'missing protocol behavior observed',
+      inputValue: 'example.test',
+      expectedBehavior: 'observe',
+    },
+    {
+      validationId: 'malformed-url-rejected',
+      caseName: 'malformed',
+      testName: 'malformed URL rejected',
+      inputValue: 'not a url',
+      expectedBehavior: 'reject',
+    },
+    {
+      validationId: 'spaces-rejected',
+      caseName: 'spaces',
+      testName: 'URL containing spaces rejected',
+      inputValue: 'https://example .test',
+      expectedBehavior: 'reject',
+    },
+    {
+      validationId: 'empty-required-behavior',
+      caseName: 'empty-required',
+      testName: 'empty required behavior observed',
+      inputValue: '',
+      expectedBehavior: 'reject_or_manual_review',
+    },
+  ],
   date_of_birth: [
     {
       validationId: 'valid-adult-dob-accepted',
@@ -767,7 +808,10 @@ export function buildInteractiveValidationPlan(
   report: ValidationReport,
   env: NodeJS.ProcessEnv = process.env,
 ): InteractiveValidationPlan {
-  const scorecard = buildValidationScorecard(report);
+  const mappingCalibration = loadMappingCalibration(
+    path.resolve(env.INTERACTIVE_MAPPING_CALIBRATION_PATH ?? path.join(process.cwd(), 'artifacts', 'latest-mapping-calibration.json')),
+  );
+  const scorecard = buildValidationScorecard(report, null, mappingCalibration);
   const scoreByConcept = new Map(scorecard.conceptScores.map((score) => [score.key, score]));
   const cases: InteractiveValidationCase[] = [];
   const skippedConcepts: InteractiveSkippedConcept[] = [];
