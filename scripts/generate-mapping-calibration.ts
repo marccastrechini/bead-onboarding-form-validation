@@ -16,7 +16,7 @@ import {
   type ValueShape,
 } from '../lib/mapping-calibration';
 
-interface SampleAlignmentArtifact {
+export interface SampleAlignmentArtifact {
   rows: Array<{
     jsonKeyPath: string;
     jsonTypeHint: string;
@@ -73,7 +73,7 @@ interface NeighborWindowEntry {
   valueShape: ValueShape;
 }
 
-interface MappingCalibrationRow {
+export interface MappingCalibrationRow {
   concept: FieldConceptKey;
   conceptDisplayName: string;
   jsonKeyPath: string;
@@ -101,7 +101,7 @@ interface MappingCalibrationRow {
   neighborWindow: NeighborWindowEntry[];
 }
 
-interface HumanConfirmationRequest {
+export interface HumanConfirmationRequest {
   needed: true;
   concept: FieldConceptKey;
   suspectedFieldLocation: string;
@@ -110,7 +110,7 @@ interface HumanConfirmationRequest {
   decisionImpact: string;
 }
 
-interface MappingCalibrationFile {
+export interface MappingCalibrationFile {
   schemaVersion: 1;
   generatedAt: string;
   inputs: {
@@ -153,41 +153,71 @@ interface ConceptCalibrationContext {
 }
 
 const artifactsDir = path.resolve(__dirname, '..', 'artifacts');
-const summaryPath = path.resolve(process.argv[2] ?? path.join(artifactsDir, 'latest-validation-summary.json'));
-const targetDiagnosticsPath = path.resolve(process.argv[3] ?? path.join(artifactsDir, 'latest-interactive-target-diagnostics.json'));
-const enrichmentPath = path.resolve(process.argv[4] ?? path.join(artifactsDir, 'sample-field-enrichment.json'));
-const alignmentPath = path.resolve(process.argv[5] ?? path.join(artifactsDir, 'sample-field-alignment.json'));
-const outDir = path.resolve(process.argv[6] ?? artifactsDir);
+const CONTROLLED_CHOICE_CONCEPTS = new Set<FieldConceptKey>([
+  'legal_entity_type',
+  'business_type',
+  'bank_account_type',
+  'federal_tax_id_type',
+  'proof_of_business_type',
+  'proof_of_address_type',
+  'proof_of_bank_account_type',
+]);
 
-const report = loadJson<ValidationReport>(summaryPath);
-const targetDiagnostics = loadJson<InteractiveTargetDiagnosticsFile>(targetDiagnosticsPath);
-const enrichment = loadJson<EnrichmentBundle>(enrichmentPath);
-const alignment = loadJson<SampleAlignmentArtifact>(alignmentPath);
+interface CalibrationCliPaths {
+  summaryPath: string;
+  targetDiagnosticsPath: string;
+  enrichmentPath: string;
+  alignmentPath: string;
+  outDir: string;
+}
 
-const calibration = buildMappingCalibration({
-  report,
-  targetDiagnostics,
-  enrichment,
-  alignment,
-  summaryPath,
-  targetDiagnosticsPath,
-  enrichmentPath,
-  alignmentPath,
-});
+function resolveCliPaths(argv: string[] = process.argv): CalibrationCliPaths {
+  return {
+    summaryPath: path.resolve(argv[2] ?? path.join(artifactsDir, 'latest-validation-summary.json')),
+    targetDiagnosticsPath: path.resolve(argv[3] ?? path.join(artifactsDir, 'latest-interactive-target-diagnostics.json')),
+    enrichmentPath: path.resolve(argv[4] ?? path.join(artifactsDir, 'sample-field-enrichment.json')),
+    alignmentPath: path.resolve(argv[5] ?? path.join(artifactsDir, 'sample-field-alignment.json')),
+    outDir: path.resolve(argv[6] ?? artifactsDir),
+  };
+}
 
-fs.mkdirSync(outDir, { recursive: true });
-const jsonPath = path.join(outDir, 'latest-mapping-calibration.json');
-const mdPath = path.join(outDir, 'latest-mapping-calibration.md');
-fs.writeFileSync(jsonPath, JSON.stringify(calibration, null, 2), 'utf8');
-fs.writeFileSync(mdPath, renderMappingCalibrationMarkdown(calibration), 'utf8');
+export function writeMappingCalibrationArtifacts(file: MappingCalibrationFile, outDir: string): { jsonPath: string; mdPath: string } {
+  fs.mkdirSync(outDir, { recursive: true });
+  const jsonPath = path.join(outDir, 'latest-mapping-calibration.json');
+  const mdPath = path.join(outDir, 'latest-mapping-calibration.md');
+  fs.writeFileSync(jsonPath, JSON.stringify(file, null, 2), 'utf8');
+  fs.writeFileSync(mdPath, renderMappingCalibrationMarkdown(file), 'utf8');
+  return { jsonPath, mdPath };
+}
 
-console.log(`Wrote ${mdPath}`);
-console.log(`Wrote ${jsonPath}`);
-console.log(
-  `Calibration decisions: trust current ${calibration.summary.trustCurrent}, trust better ${calibration.summary.trustBetter}, downgrade ${calibration.summary.downgradeToUnresolved}, unresolved ${calibration.summary.unresolved}`,
-);
+export function runMappingCalibrationCli(argv: string[] = process.argv): MappingCalibrationFile {
+  const paths = resolveCliPaths(argv);
+  const report = loadJson<ValidationReport>(paths.summaryPath);
+  const targetDiagnostics = loadJson<InteractiveTargetDiagnosticsFile>(paths.targetDiagnosticsPath);
+  const enrichment = loadJson<EnrichmentBundle>(paths.enrichmentPath);
+  const alignment = loadJson<SampleAlignmentArtifact>(paths.alignmentPath);
 
-function buildMappingCalibration(input: {
+  const calibration = buildMappingCalibration({
+    report,
+    targetDiagnostics,
+    enrichment,
+    alignment,
+    summaryPath: paths.summaryPath,
+    targetDiagnosticsPath: paths.targetDiagnosticsPath,
+    enrichmentPath: paths.enrichmentPath,
+    alignmentPath: paths.alignmentPath,
+  });
+
+  const { jsonPath, mdPath } = writeMappingCalibrationArtifacts(calibration, paths.outDir);
+  console.log(`Wrote ${mdPath}`);
+  console.log(`Wrote ${jsonPath}`);
+  console.log(
+    `Calibration decisions: trust current ${calibration.summary.trustCurrent}, trust better ${calibration.summary.trustBetter}, downgrade ${calibration.summary.downgradeToUnresolved}, unresolved ${calibration.summary.unresolved}`,
+  );
+  return calibration;
+}
+
+export function buildMappingCalibration(input: {
   report: ValidationReport;
   targetDiagnostics: InteractiveTargetDiagnosticsFile;
   enrichment: EnrichmentBundle;
@@ -546,6 +576,37 @@ function missingProofForSelection(
   if (!nearestShapeMatch) {
     missing.push(`No unclaimed editable candidate has the expected ${expectedShapeSummary}.`);
   }
+
+  if (CONTROLLED_CHOICE_CONCEPTS.has(context.concept)) {
+    if (!selectedField && !context.currentField) {
+      missing.push('Field not found in the safe-mode report.');
+    }
+    if (context.alignmentRow && context.alignmentRow.matchingMethod !== 'unmatched' && !selectedField) {
+      missing.push('Sample alignment exists, but no live field matched the aligned select/list control in the safe-mode report.');
+    }
+    if (context.alignmentRow?.layoutSectionHeader && context.alignmentRow.layoutFieldLabel) {
+      missing.push(`Sample layout evidence points to ${context.alignmentRow.layoutSectionHeader} > ${context.alignmentRow.layoutFieldLabel}.`);
+    }
+    if (context.alignmentRow?.candidateDocuSignFieldFamily && !isTrustedControlledChoiceFamily(context.alignmentRow.candidateDocuSignFieldFamily)) {
+      missing.push(`Layout label exists but the sample DocuSign control family is ${context.alignmentRow.candidateDocuSignFieldFamily}, not a trusted select/list/radio control.`);
+    }
+    if (selectedField?.docusignTabType && !isTrustedControlledChoiceFamily(selectedField.docusignTabType)) {
+      missing.push(`Expected a select/list/radio control, but the live field appears as ${selectedField.docusignTabType}.`);
+    }
+    if (selectedAssessment && !selectedAssessment.sectionMatches) {
+      missing.push('The aligned live field is in the wrong section for this concept.');
+    }
+    if (selectedField && selectedField.editable === false) {
+      missing.push('The aligned control is present but not editable in the safe-mode report.');
+    }
+    if (selectedField && isTrustedControlledChoiceFamily(selectedField.docusignTabType) && !controlOptionsAreDiscoverable(selectedField)) {
+      missing.push('The saved safe-mode report does not expose enough option text to confirm the dropdown choices.');
+    }
+    if (!selectedField) {
+      missing.push('A human screenshot is needed to confirm the field label, section, editability, and control family.');
+    }
+  }
+
   if (selectedAssessment?.reasons.length) {
     missing.push(...selectedAssessment.reasons.map((reason) => sentenceCase(reason)));
   }
@@ -631,9 +692,34 @@ function buildHumanConfirmationRequest(
     concept: context.concept,
     suspectedFieldLocation,
     currentBlocker: selection.explanation,
-    requestedEvidence: `Review a screenshot of ${suspectedFieldLocation} and answer whether it is the visible editable ${conceptName} input, including the field label, section header, and nearest neighboring labels.`,
+    requestedEvidence: requestedEvidenceForConcept(context, suspectedFieldLocation, conceptName),
     decisionImpact: `If the visual answer supplies the missing proof (${missingProof.join('; ')}), the next calibration can trust this mapping; otherwise ${conceptName} stays mapping-blocked and out of product-failure counts.`,
   };
+}
+
+function requestedEvidenceForConcept(
+  context: ConceptCalibrationContext,
+  suspectedFieldLocation: string,
+  conceptName: string,
+): string {
+  switch (context.concept) {
+    case 'legal_entity_type':
+      return 'On page 1 General, is Legal Entity Type an editable dropdown/list or display text?';
+    case 'business_type':
+      return 'In Location Details, is Business Type an editable dropdown/list?';
+    case 'bank_account_type':
+      return 'In Bank Info, is Account Type an editable dropdown/list with Checking selected?';
+    case 'federal_tax_id_type':
+      return 'In General, is Federal Tax ID Type an editable dropdown/list?';
+    case 'proof_of_business_type':
+      return 'In General, is Proof of Business Type an editable dropdown/list and separate from the upload field?';
+    case 'proof_of_address_type':
+      return 'Near Registered Legal Address, is Proof of Address Type editable and separate from the upload field?';
+    case 'proof_of_bank_account_type':
+      return 'In Bank Info, is Proof of Bank Account Type editable and separate from the upload field?';
+    default:
+      return `Review a screenshot of ${suspectedFieldLocation} and answer whether it is the visible editable ${conceptName} input, including the field label, section header, and nearest neighboring labels.`;
+  }
 }
 
 function explainDecision(
@@ -997,6 +1083,24 @@ function unique<T>(values: T[]): T[] {
   return Array.from(new Set(values));
 }
 
+function isTrustedControlledChoiceFamily(value: string | null | undefined): boolean {
+  const normalized = (value ?? '').trim().toLowerCase();
+  return ['list', 'select', 'combobox', 'radio', 'checkbox'].includes(normalized);
+}
+
+function controlOptionsAreDiscoverable(field: FieldRecord): boolean {
+  const haystack = [
+    field.observedValueLikeTextNearControl ?? '',
+    ...field.rawCandidateLabels.map((candidate) => candidate.value),
+  ].join(' | ').toLowerCase();
+  return haystack.includes('-- select --') ||
+    /\bchecking\b|\bsavings\b|articles of incorporation|business license|utility bill|bank statement|void check|ein|ssn/.test(haystack);
+}
+
 function loadJson<T>(filePath: string): T {
   return JSON.parse(fs.readFileSync(filePath, 'utf8')) as T;
+}
+
+if (require.main === module) {
+  runMappingCalibrationCli();
 }

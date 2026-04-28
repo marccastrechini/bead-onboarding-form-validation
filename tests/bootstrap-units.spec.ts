@@ -60,6 +60,7 @@ import {
   renderValidationFindingsMarkdown,
   writeValidationFindingsArtifacts,
 } from '../scripts/generate-validation-findings';
+import { buildMappingCalibration } from '../scripts/generate-mapping-calibration';
 
 test.describe('bead-client: buildResendUrl', () => {
   test('substitutes {applicationId} and joins base + path', () => {
@@ -352,6 +353,7 @@ test.describe('sample layout evidence', () => {
   test('adds Bead PDF/MHTML field-cell anchors for Batch 1 page-1 concepts', () => {
     const report = buildAlignment(mockSubmissionForLayout(), mockLayoutMhtmlParseResult([
       mockLayoutMhtmlTab({ ordinalOnPage: 4, left: 35.2, top: 224.64, inputValue: 'Example Business LLC' }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 5, left: 661.76, top: 224.64, dataType: 'Text', rawDataType: 'Text', inputValue: '2024/06/18' }),
       mockLayoutMhtmlTab({ ordinalOnPage: 6, left: 35.2, top: 256.64, inputValue: '' }),
       mockLayoutMhtmlTab({ ordinalOnPage: 17, left: 35.2, top: 348.8, inputValue: 'Retail goods and services' }),
       mockLayoutMhtmlTab({ ordinalOnPage: 41, left: 568.32, top: 543.36, inputValue: '12345' }),
@@ -393,6 +395,66 @@ test.describe('sample layout evidence', () => {
     expect(byKey.get('merchantData.bankAddress.postalCode')).toMatchObject({
       suggestedDisplayName: 'Bank Address ZIP',
       suggestedBusinessSection: 'Banking',
+    });
+  });
+
+  test('adds Bead PDF/MHTML field-cell anchors for controlled-choice page-1 concepts', () => {
+    const report = buildAlignment(mockSubmissionForLayout(), mockLayoutMhtmlParseResult([
+      mockLayoutMhtmlTab({ ordinalOnPage: 7, left: 663.68, top: 256.64, dataType: 'List', rawDataType: 'List', inputValue: '', ownedBySigner: false }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 8, left: 37.12, top: 288.64, dataType: 'List', rawDataType: 'List', inputValue: '', ownedBySigner: false }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 10, left: 288, top: 287.36, dataType: 'List', rawDataType: 'List', inputValue: '', ownedBySigner: false }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 37, left: 663.68, top: 512.64, dataType: 'List', rawDataType: 'List', inputValue: '', ownedBySigner: false }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 53, left: 411.52, top: 713.6, dataType: 'List', rawDataType: 'List', inputValue: '', ownedBySigner: false }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 61, left: 536.96, top: 876.8, dataType: 'List', rawDataType: 'List', inputValue: '', ownedBySigner: false }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 62, left: 663.68, top: 876.8, dataType: 'List', rawDataType: 'List', inputValue: '', ownedBySigner: false }),
+    ]), {
+      jsonPath: 'sample.json',
+      mhtmlPath: 'sample.mhtml',
+      pdfText: beadPageOneLabelText(),
+    });
+    const byKey = new Map(report.rows.map((row) => [row.jsonKeyPath, row]));
+
+    expect(byKey.get('merchantData.proofOfBusinessType')).toMatchObject({
+      matchingMethod: 'layout_cell',
+      layoutSectionHeader: 'General',
+      layoutFieldLabel: 'Proof of Business Type',
+      candidateDocuSignFieldFamily: 'List',
+    });
+    expect(byKey.get('merchantData.federalTaxIdType')).toMatchObject({
+      matchingMethod: 'layout_cell',
+      layoutSectionHeader: 'General',
+      layoutFieldLabel: 'Federal Tax ID Type',
+      candidateDocuSignFieldFamily: 'List',
+    });
+    expect(byKey.get('merchantData.legalEntityType')).toMatchObject({
+      matchingMethod: 'layout_cell',
+      layoutSectionHeader: 'General',
+      layoutFieldLabel: 'Legal Entity Type',
+      candidateDocuSignFieldFamily: 'List',
+    });
+    expect(byKey.get('merchantData.proofOfAddressType')).toMatchObject({
+      matchingMethod: 'layout_cell',
+      layoutSectionHeader: 'Registered Legal Address',
+      layoutFieldLabel: 'Proof of Address Type',
+      candidateDocuSignFieldFamily: 'List',
+    });
+    expect(byKey.get('merchantData.locationBusinessType')).toMatchObject({
+      matchingMethod: 'layout_cell',
+      layoutSectionHeader: 'Location Details',
+      layoutFieldLabel: 'Business Type',
+      candidateDocuSignFieldFamily: 'List',
+    });
+    expect(byKey.get('merchantData.accountType')).toMatchObject({
+      matchingMethod: 'layout_cell',
+      layoutSectionHeader: 'Bank Info',
+      layoutFieldLabel: 'Account Type',
+      candidateDocuSignFieldFamily: 'List',
+    });
+    expect(byKey.get('merchantData.proofOfBankAccountType')).toMatchObject({
+      matchingMethod: 'layout_cell',
+      layoutSectionHeader: 'Bank Info',
+      layoutFieldLabel: 'Proof of Bank Account Type',
+      candidateDocuSignFieldFamily: 'List',
     });
   });
 });
@@ -3270,6 +3332,239 @@ test.describe('interactive validation safety', () => {
     expect(dbaName.selectedCandidateId).toBe('dba-name');
   });
 
+  test('legal_entity_type requires General section proof', () => {
+    const trusted = selectBestMappingCandidate({
+      concept: 'legal_entity_type',
+      currentCandidateId: null,
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.legalEntityType',
+        businessSection: 'Business Details',
+        pageIndex: 1,
+        ordinalOnPage: 10,
+        tabLeft: 288,
+        tabTop: 287.36,
+        docusignFieldFamily: 'List',
+      },
+      candidates: [{
+        id: 'legal-entity',
+        resolvedLabel: 'Legal Entity Type',
+        labelSource: 'layout-cell',
+        labelConfidence: 'high',
+        businessSection: 'Business Details',
+        layoutSectionHeader: 'General',
+        layoutFieldLabel: 'Legal Entity Type',
+        docusignTabType: 'List',
+        pageIndex: 1,
+        ordinalOnPage: 10,
+        tabLeft: 288,
+        tabTop: 287.36,
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+      }],
+    });
+    const wrongSection = selectBestMappingCandidate({
+      concept: 'legal_entity_type',
+      currentCandidateId: null,
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.legalEntityType',
+        businessSection: 'Business Details',
+        pageIndex: 1,
+        ordinalOnPage: 10,
+        tabLeft: 288,
+        tabTop: 287.36,
+        docusignFieldFamily: 'List',
+      },
+      candidates: [{
+        id: 'legal-entity',
+        resolvedLabel: 'Legal Entity Type',
+        labelSource: 'layout-cell',
+        labelConfidence: 'high',
+        businessSection: 'Business Details',
+        layoutSectionHeader: 'Location Details',
+        layoutFieldLabel: 'Legal Entity Type',
+        docusignTabType: 'List',
+        pageIndex: 1,
+        ordinalOnPage: 10,
+        tabLeft: 288,
+        tabTop: 287.36,
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+      }],
+    });
+
+    expect(trusted.trusted).toBe(true);
+    expect(wrongSection.trusted).toBe(false);
+    expect(wrongSection.decisionReason).toBe('rejected_insufficient_label_proof');
+  });
+
+  test('bank_account_type requires Bank Info and Account Type proof', () => {
+    const trusted = selectBestMappingCandidate({
+      concept: 'bank_account_type',
+      currentCandidateId: null,
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.accountType',
+        businessSection: 'Banking',
+        pageIndex: 1,
+        ordinalOnPage: 61,
+        tabLeft: 536.96,
+        tabTop: 876.8,
+        docusignFieldFamily: 'List',
+      },
+      candidates: [{
+        id: 'account-type',
+        resolvedLabel: 'Bank Account Type',
+        labelSource: 'layout-cell',
+        labelConfidence: 'high',
+        businessSection: 'Banking',
+        layoutSectionHeader: 'Bank Info',
+        layoutFieldLabel: 'Account Type',
+        docusignTabType: 'List',
+        pageIndex: 1,
+        ordinalOnPage: 61,
+        tabLeft: 536.96,
+        tabTop: 876.8,
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+      }],
+    });
+    const wrongSection = selectBestMappingCandidate({
+      concept: 'bank_account_type',
+      currentCandidateId: null,
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.accountType',
+        businessSection: 'Banking',
+        pageIndex: 1,
+        ordinalOnPage: 61,
+        tabLeft: 536.96,
+        tabTop: 876.8,
+        docusignFieldFamily: 'List',
+      },
+      candidates: [{
+        id: 'account-type',
+        resolvedLabel: 'Bank Account Type',
+        labelSource: 'layout-cell',
+        labelConfidence: 'high',
+        businessSection: 'Banking',
+        layoutSectionHeader: 'General',
+        layoutFieldLabel: 'Account Type',
+        docusignTabType: 'List',
+        pageIndex: 1,
+        ordinalOnPage: 61,
+        tabLeft: 536.96,
+        tabTop: 876.8,
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+      }],
+    });
+
+    expect(trusted.trusted).toBe(true);
+    expect(wrongSection.trusted).toBe(false);
+    expect(wrongSection.decisionReason).toBe('rejected_insufficient_label_proof');
+  });
+
+  test('proof_of_address_type is not confused with the upload control', () => {
+    const result = selectBestMappingCandidate({
+      concept: 'proof_of_address_type',
+      currentCandidateId: null,
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.proofOfAddressType',
+        businessSection: 'Attachments',
+        pageIndex: 1,
+        ordinalOnPage: 37,
+        tabLeft: 663.68,
+        tabTop: 512.64,
+        docusignFieldFamily: 'List',
+      },
+      candidates: [
+        {
+          id: 'upload',
+          resolvedLabel: 'Proof of Address Document',
+          labelSource: 'aria-label',
+          labelConfidence: 'high',
+          businessSection: 'Attachments',
+          docusignTabType: 'SignerAttachment',
+          controlCategory: 'attachment_control',
+          visible: true,
+          editable: false,
+        },
+        {
+          id: 'proof-type',
+          resolvedLabel: 'Proof Of Address Type',
+          labelSource: 'layout-cell',
+          labelConfidence: 'high',
+          businessSection: 'Attachments',
+          layoutSectionHeader: 'Registered Legal Address',
+          layoutFieldLabel: 'Proof of Address Type',
+          docusignTabType: 'List',
+          pageIndex: 1,
+          ordinalOnPage: 39,
+          tabLeft: 663.68,
+          tabTop: 512.64,
+          controlCategory: 'merchant_input',
+          visible: true,
+          editable: true,
+        },
+      ],
+    });
+
+    expect(result.trusted).toBe(true);
+    expect(result.selectedCandidateId).toBe('proof-type');
+  });
+
+  test('proof_of_bank_account_type is not confused with bank account number', () => {
+    const result = selectBestMappingCandidate({
+      concept: 'proof_of_bank_account_type',
+      currentCandidateId: 'bank-number',
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.proofOfBankAccountType',
+        businessSection: 'Attachments',
+        pageIndex: 1,
+        ordinalOnPage: 62,
+        tabLeft: 663.68,
+        tabTop: 876.8,
+        docusignFieldFamily: 'List',
+      },
+      candidates: [
+        {
+          id: 'bank-number',
+          resolvedLabel: 'Bank Account Number',
+          labelSource: 'aria-label',
+          labelConfidence: 'high',
+          businessSection: 'Banking',
+          currentValue: '123456789',
+          docusignTabType: 'Text',
+          controlCategory: 'merchant_input',
+          visible: true,
+          editable: true,
+        },
+        {
+          id: 'proof-type',
+          resolvedLabel: 'Proof Of Bank Account Type',
+          labelSource: 'layout-cell',
+          labelConfidence: 'high',
+          businessSection: 'Attachments',
+          layoutSectionHeader: 'Bank Info',
+          layoutFieldLabel: 'Proof of Bank Account Type',
+          docusignTabType: 'List',
+          pageIndex: 1,
+          ordinalOnPage: 63,
+          tabLeft: 663.68,
+          tabTop: 876.8,
+          controlCategory: 'merchant_input',
+          visible: true,
+          editable: true,
+        },
+      ],
+    });
+
+    expect(result.trusted).toBe(true);
+    expect(result.selectedCandidateId).toBe('proof-type');
+  });
+
   test('Business Description needs description-specific proof before mutation', () => {
     const shortUnlabelled = selectBestMappingCandidate({
       concept: 'business_description',
@@ -3455,6 +3750,198 @@ test.describe('interactive validation safety', () => {
     expect(report.mappingBlockedFields[0]!.mappingMissingProof).toContain('Need a visible editable Address field with ZIP/postal-code-shaped value or field-local Postal Code label proof.');
     expect(report.mappingBlockedFields[0]!.humanConfirmation?.requestedEvidence).toContain('Review a screenshot');
     expect(report.likelyProductValidationFindings).toEqual([]);
+  });
+
+  test('unresolved dropdown concepts get specific missing-proof diagnostics and human confirmation prompts', () => {
+    const calibration = buildMappingCalibration({
+      report: mockValidationReport([]),
+      targetDiagnostics: {
+        schemaVersion: 1,
+        runStartedAt: '2026-04-28T00:00:00.000Z',
+        runFinishedAt: '2026-04-28T00:00:01.000Z',
+        summary: {
+          total: 0,
+          trusted: 0,
+          tool_mapping_suspect: 0,
+          mapping_not_confident: 0,
+          error_ownership_suspect: 0,
+          product_failure: 0,
+          observer_ambiguous: 0,
+          passed: 0,
+          skipped: 0,
+          manual_review: 0,
+        },
+        rows: [],
+      },
+      enrichment: {
+        schemaVersion: 1,
+        generatedAt: '2026-04-28T00:00:00.000Z',
+        sourceJson: 'sample.json',
+        sourceMhtml: 'sample.mhtml',
+        records: [{
+          tabGuid: 'guid-legal-entity',
+          positionalFingerprint: 'page:1|List|ord:10',
+          tabLeft: 288,
+          tabTop: 287.36,
+          jsonKeyPath: 'merchantData.legalEntityType',
+          jsonFieldFamily: 'Business Details',
+          jsonTypeHint: 'enum',
+          docusignFieldFamily: 'List',
+          confidence: 'high',
+          suggestedDisplayName: 'Legal Entity Type',
+          suggestedBusinessSection: 'Business Details',
+          layoutSectionHeader: 'General',
+          layoutFieldLabel: 'Legal Entity Type',
+          layoutValueShape: 'empty',
+          layoutEvidenceSource: 'pdf-text-sequence',
+          layoutNeighboringLabels: ['Federal Tax ID Type'],
+          layoutEditability: 'editable',
+        }],
+      },
+      alignment: {
+        rows: [{
+          jsonKeyPath: 'merchantData.legalEntityType',
+          jsonFieldFamily: 'Business Details',
+          jsonValueSample: 'corporationSType',
+          jsonTypeHint: 'enum',
+          matchedTabGuid: 'guid-legal-entity',
+          matchedRenderedValue: null,
+          candidateRenderedPrompt: 'Required - legalEntityType',
+          candidateDocuSignFieldFamily: 'List',
+          tabPageIndex: 1,
+          tabOrdinalOnPage: 10,
+          tabLeft: 288,
+          tabTop: 287.36,
+          layoutSectionHeader: 'General',
+          layoutFieldLabel: 'Legal Entity Type',
+          layoutEvidenceSource: 'pdf-text-sequence',
+          layoutValueShape: 'empty',
+          layoutNeighboringLabels: ['Federal Tax ID Type'],
+          layoutEditability: 'editable',
+          businessSection: 'Business Details',
+          confidence: 'high',
+          matchingMethod: 'layout_cell',
+          notes: 'matched using PDF/MHTML field-cell evidence (General > Legal Entity Type)',
+        }],
+      },
+      summaryPath: 'summary.json',
+      targetDiagnosticsPath: 'diagnostics.json',
+      enrichmentPath: 'enrichment.json',
+      alignmentPath: 'alignment.json',
+    });
+    const row = calibration.rows.find((entry) => entry.concept === 'legal_entity_type');
+
+    expect(row).toBeTruthy();
+    expect(row!.decision).toBe('leave_unresolved');
+    expect(row!.missingProof).toContain('Field not found in the safe-mode report.');
+    expect(row!.missingProof).toContain('Sample alignment exists, but no live field matched the aligned select/list control in the safe-mode report.');
+    expect(row!.missingProof).toContain('Sample layout evidence points to General > Legal Entity Type.');
+    expect(row!.missingProof).toContain('A human screenshot is needed to confirm the field label, section, editability, and control family.');
+    expect(row!.humanConfirmation?.requestedEvidence).toBe('On page 1 General, is Legal Entity Type an editable dropdown/list or display text?');
+  });
+
+  test('controlled-choice calibration diagnostics do not emit sensitive values', () => {
+    const calibration = buildMappingCalibration({
+      report: mockValidationReport([
+        mockField({
+          index: 1,
+          section: 'Bead Onboarding Application US-02604-1.pdf Page 1 of 4.',
+          rawCandidateLabels: [
+            { source: 'preceding-text', value: '123456789 Required' },
+            { source: 'label-for', value: 'Required - bankAccountType' },
+          ],
+          rejectedLabelCandidates: [
+            { source: 'preceding-text', value: '123456789 Required', reason: 'equals-field-value' },
+            { source: 'label-for', value: 'Required - bankAccountType', reason: 'docusign-stub' },
+          ],
+          observedValueLikeTextNearControl: '123456789',
+          currentValueShape: 'numeric',
+          docusignTabType: 'Text',
+          inferredType: 'account_number',
+          inferredClassification: 'manual_review',
+          pageIndex: 1,
+          ordinalOnPage: 63,
+          tabLeft: 663.68,
+          tabTop: 876.8,
+        }),
+      ]),
+      targetDiagnostics: {
+        schemaVersion: 1,
+        runStartedAt: '2026-04-28T00:00:00.000Z',
+        runFinishedAt: '2026-04-28T00:00:01.000Z',
+        summary: {
+          total: 0,
+          trusted: 0,
+          tool_mapping_suspect: 0,
+          mapping_not_confident: 0,
+          error_ownership_suspect: 0,
+          product_failure: 0,
+          observer_ambiguous: 0,
+          passed: 0,
+          skipped: 0,
+          manual_review: 0,
+        },
+        rows: [],
+      },
+      enrichment: {
+        schemaVersion: 1,
+        generatedAt: '2026-04-28T00:00:00.000Z',
+        sourceJson: 'sample.json',
+        sourceMhtml: 'sample.mhtml',
+        records: [{
+          tabGuid: 'guid-proof-bank-account',
+          positionalFingerprint: 'page:1|List|ord:62',
+          tabLeft: 663.68,
+          tabTop: 876.8,
+          jsonKeyPath: 'merchantData.proofOfBankAccountType',
+          jsonFieldFamily: 'Attachments',
+          jsonTypeHint: 'enum',
+          docusignFieldFamily: 'List',
+          confidence: 'high',
+          suggestedDisplayName: 'Proof Of Bank Account Type',
+          suggestedBusinessSection: 'Attachments',
+          layoutSectionHeader: 'Bank Info',
+          layoutFieldLabel: 'Proof of Bank Account Type',
+          layoutValueShape: 'empty',
+          layoutEvidenceSource: 'pdf-text-sequence',
+          layoutNeighboringLabels: ['Account Type'],
+          layoutEditability: 'editable',
+        }],
+      },
+      alignment: {
+        rows: [{
+          jsonKeyPath: 'merchantData.proofOfBankAccountType',
+          jsonFieldFamily: 'Attachments',
+          jsonValueSample: 'colorizedVoidCheck',
+          jsonTypeHint: 'enum',
+          matchedTabGuid: 'guid-proof-bank-account',
+          matchedRenderedValue: null,
+          candidateRenderedPrompt: 'Required - proofOfBankAccountType',
+          candidateDocuSignFieldFamily: 'List',
+          tabPageIndex: 1,
+          tabOrdinalOnPage: 62,
+          tabLeft: 663.68,
+          tabTop: 876.8,
+          layoutSectionHeader: 'Bank Info',
+          layoutFieldLabel: 'Proof of Bank Account Type',
+          layoutEvidenceSource: 'pdf-text-sequence',
+          layoutValueShape: 'empty',
+          layoutNeighboringLabels: ['Account Type'],
+          layoutEditability: 'editable',
+          businessSection: 'Attachments',
+          confidence: 'high',
+          matchingMethod: 'layout_cell',
+          notes: 'matched using PDF/MHTML field-cell evidence (Bank Info > Proof of Bank Account Type)',
+        }],
+      },
+      summaryPath: 'summary.json',
+      targetDiagnosticsPath: 'diagnostics.json',
+      enrichmentPath: 'enrichment.json',
+      alignmentPath: 'alignment.json',
+    });
+    const rowText = JSON.stringify(calibration.rows.find((entry) => entry.concept === 'proof_of_bank_account_type'));
+
+    expect(rowText).not.toContain('123456789');
   });
 
   test('trusted findings do not request human mapping confirmation', () => {
@@ -3839,11 +4326,15 @@ function mockLayoutMhtmlTab(overrides: Partial<MhtmlTab> = {}): MhtmlTab {
 }
 
 function mockLayoutMhtmlParseResult(tabs: MhtmlTab[]): MhtmlParseResult {
+  const countsByType = tabs.reduce<Record<string, number>>((counts, tab) => {
+    counts[tab.dataType] = (counts[tab.dataType] ?? 0) + 1;
+    return counts;
+  }, {});
   return {
     snapshotLocationRedacted: null,
     subject: null,
     tabs,
-    countsByType: { Text: tabs.length },
+    countsByType,
     pageCount: 1,
     decodedHtmlLength: 0,
     warnings: [],
@@ -3856,7 +4347,15 @@ function mockSubmissionForLayout(): unknown {
       registeredName: 'Example Business LLC',
       dbaName: '',
       businessDescription: 'Retail goods and services',
+      registrationDate: '2024/06/18',
+      legalEntityType: 'corporationSType',
+      federalTaxIdType: 'ein',
+      proofOfBusinessType: 'articlesOfIncorporation',
+      proofOfAddressType: 'utilityBill',
       locationName: 'Location Name Value',
+      locationBusinessType: 'virtual',
+      accountType: 'checking',
+      proofOfBankAccountType: 'colorizedVoidCheck',
       registeredLegalAddress: { postalCode: '[redacted]' },
       businessMailingAddress: { postalCode: '' },
       bankAddress: { postalCode: '[redacted]' },
@@ -3866,11 +4365,11 @@ function mockSubmissionForLayout(): unknown {
 
 function beadPageOneLabelText(): string {
   return [
-    'General Registered Name Registration Date DBA Name Business Description',
-    'Business Primary Location Registered Legal Address Address Line 1 City State ZIP',
+    'General Registered Name Registration Date DBA Name (optional) Proof of Business Type Federal Tax ID Type Legal Entity Type Business Description',
+    'Business Primary Location Registered Legal Address Proof of Address Type Address Line 1 City State ZIP',
     'Physical Operating Address Address Line 1 City State ZIP',
-    'Location Details Location Name',
-    'Bank Info Bank Address Line 1 Bank Address Line 2 Bank Address City State ZIP',
+    'Location Details Location Name Business Type',
+    'Bank Info Account Type Proof of Bank Account Type Bank Address Line 1 Bank Address Line 2 Bank Address City State ZIP',
   ].join(' ');
 }
 

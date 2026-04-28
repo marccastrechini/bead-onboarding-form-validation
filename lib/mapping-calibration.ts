@@ -292,7 +292,8 @@ export function assessMappingCandidate(
   const mutatable = (candidate.controlCategory === undefined || candidate.controlCategory === null || candidate.controlCategory === 'merchant_input') &&
     candidate.visible !== false &&
     candidate.editable !== false;
-  const conceptSpecificProofMatches = concept !== 'business_description' || businessDescriptionProofMatches({
+  const conceptSpecificProofMatches = conceptSpecificProofSatisfied({
+    concept,
     candidate,
     labelText,
     businessSection,
@@ -314,6 +315,8 @@ export function assessMappingCandidate(
   if (concept === 'business_description' && valueShapeMatches && conceptSpecificProofMatches) trustScore += 2;
   if (concept === 'business_description' && valueShapeMatches && !conceptSpecificProofMatches) trustScore -= 3;
   if (CONTROLLED_CHOICE_CONCEPTS.has(concept) && fieldFamilyMatches) trustScore += 2;
+  if (CONTROLLED_CHOICE_CONCEPTS.has(concept) && conceptSpecificProofMatches) trustScore += 2;
+  if (CONTROLLED_CHOICE_CONCEPTS.has(concept) && !conceptSpecificProofMatches) trustScore -= 4;
 
   if (expectedAnchor?.pageIndex !== undefined && expectedAnchor.pageIndex !== null) {
     if (candidate.pageIndex === expectedAnchor.pageIndex) {
@@ -345,6 +348,9 @@ export function assessMappingCandidate(
   if (!mutatable) reasons.push('candidate is not an editable merchant input');
   if (CONTROLLED_CHOICE_CONCEPTS.has(concept) && !fieldFamilyMatches) {
     reasons.push('field family is not a supported select/dropdown/radio control');
+  }
+  if (CONTROLLED_CHOICE_CONCEPTS.has(concept) && !conceptSpecificProofMatches) {
+    reasons.push(controlledChoiceProofMessage(concept));
   }
   if (concept === 'business_description' && valueShapeMatches && !conceptSpecificProofMatches) {
     reasons.push('missing long-text, textarea, or field-local Business Description proof');
@@ -432,7 +438,7 @@ export function selectBestMappingCandidate(input: {
     }
   }
 
-  if (best.mutatable && best.strongLabel && best.labelMatches && !best.valueShapeMismatch && !hasExplicitWrongSection(best, input.candidates)) {
+  if (best.mutatable && best.strongLabel && best.labelMatches && best.conceptSpecificProofMatches && !best.valueShapeMismatch && !hasExplicitWrongSection(best, input.candidates)) {
     return {
       selectedCandidateId: best.candidateId,
       trusted: true,
@@ -630,6 +636,96 @@ function businessDescriptionProofMatches(input: {
     inferredType.includes('description') ||
     (input.sectionMatches && input.typeMatches && input.labelMatches) ||
     (input.sectionMatches && longText);
+}
+
+function conceptSpecificProofSatisfied(input: {
+  concept: FieldConceptKey;
+  candidate: MappingCandidate;
+  labelText: string;
+  businessSection: string | null;
+  valueShape: ValueShape;
+  labelMatches: boolean;
+  sectionMatches: boolean;
+  typeMatches: boolean;
+}): boolean {
+  if (input.concept === 'business_description') {
+    return businessDescriptionProofMatches(input);
+  }
+  if (CONTROLLED_CHOICE_CONCEPTS.has(input.concept)) {
+    return controlledChoiceProofMatches(input);
+  }
+  return true;
+}
+
+function controlledChoiceProofMatches(input: {
+  concept: FieldConceptKey;
+  candidate: MappingCandidate;
+  labelText: string;
+  labelMatches: boolean;
+  sectionMatches: boolean;
+}): boolean {
+  const layoutSection = `${input.candidate.layoutSectionHeader ?? ''} ${input.candidate.sectionName ?? ''}`.toLowerCase();
+  const labelField = `${input.candidate.layoutFieldLabel ?? ''} ${input.labelText}`.toLowerCase();
+  const expectedSectionTokens = controlledChoiceSectionTokens(input.concept);
+  const sectionProof = expectedSectionTokens.some((token) => layoutSection.includes(token));
+
+  switch (input.concept) {
+    case 'legal_entity_type':
+      return input.labelMatches && input.sectionMatches && sectionProof && /legal\s*entity\s*type/.test(labelField);
+    case 'business_type':
+      return input.labelMatches && input.sectionMatches && sectionProof && /business\s*type/.test(labelField);
+    case 'bank_account_type':
+      return input.labelMatches && input.sectionMatches && sectionProof && /account\s*type|bank\s*account\s*type/.test(labelField);
+    case 'federal_tax_id_type':
+      return input.labelMatches && input.sectionMatches && sectionProof && /federal\s*tax\s*id\s*type/.test(labelField);
+    case 'proof_of_business_type':
+      return input.labelMatches && input.sectionMatches && sectionProof && /proof\s*of\s*business\s*type/.test(labelField);
+    case 'proof_of_address_type':
+      return input.labelMatches && input.sectionMatches && sectionProof && /proof\s*of\s*address\s*type/.test(labelField);
+    case 'proof_of_bank_account_type':
+      return input.labelMatches && input.sectionMatches && sectionProof && /proof\s*of\s*bank\s*account\s*type/.test(labelField);
+    default:
+      return input.labelMatches && input.sectionMatches;
+  }
+}
+
+function controlledChoiceSectionTokens(concept: FieldConceptKey): string[] {
+  switch (concept) {
+    case 'legal_entity_type':
+    case 'federal_tax_id_type':
+    case 'proof_of_business_type':
+      return ['general'];
+    case 'business_type':
+      return ['location details'];
+    case 'bank_account_type':
+    case 'proof_of_bank_account_type':
+      return ['bank info'];
+    case 'proof_of_address_type':
+      return ['registered legal address'];
+    default:
+      return [];
+  }
+}
+
+function controlledChoiceProofMessage(concept: FieldConceptKey): string {
+  switch (concept) {
+    case 'legal_entity_type':
+      return 'missing General-section Legal Entity Type layout proof';
+    case 'business_type':
+      return 'missing Location Details Business Type layout proof';
+    case 'bank_account_type':
+      return 'missing Bank Info Account Type layout proof';
+    case 'federal_tax_id_type':
+      return 'missing General-section Federal Tax ID Type layout proof';
+    case 'proof_of_business_type':
+      return 'missing General-section Proof of Business Type layout proof';
+    case 'proof_of_address_type':
+      return 'missing Registered Legal Address Proof of Address Type layout proof';
+    case 'proof_of_bank_account_type':
+      return 'missing Bank Info Proof of Bank Account Type layout proof';
+    default:
+      return 'missing controlled-choice layout proof';
+  }
 }
 
 function hasExplicitWrongSection(
