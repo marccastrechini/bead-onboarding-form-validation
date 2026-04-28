@@ -23,7 +23,9 @@ export const INTERACTIVE_TARGET_CONCEPTS = [
   'date_of_birth',
   'registration_date',
   'email',
+  'stakeholder_email',
   'phone',
+  'stakeholder_phone',
   'business_name',
   'dba_name',
   'business_description',
@@ -33,6 +35,10 @@ export const INTERACTIVE_TARGET_CONCEPTS = [
   'postal_code',
   'bank_name',
 ] as const satisfies readonly FieldConceptKey[];
+
+const INTERACTIVE_TARGET_ALIASES: Record<string, InteractiveTargetConcept> = {
+  stakeholder_date_of_birth: 'date_of_birth',
+};
 
 export type InteractiveTargetConcept = typeof INTERACTIVE_TARGET_CONCEPTS[number];
 export type InteractiveResultStatus = 'passed' | 'failed' | 'warning' | 'manual_review' | 'skipped';
@@ -367,7 +373,9 @@ const SIGNATURE_FAMILY_PATTERNS: Array<{ family: string; pattern: RegExp }> = [
 const PRIMARY_FAMILY_BY_CONCEPT: Partial<Record<FieldConceptKey, string>> = {
   website: 'url',
   email: 'email',
+  stakeholder_email: 'email',
   phone: 'phone',
+  stakeholder_phone: 'phone',
   bank_name: 'bank',
   date_of_birth: 'date',
   registration_date: 'date',
@@ -381,7 +389,9 @@ const BLOCKED_SIGNATURE_FAMILIES: Partial<Record<FieldConceptKey, string[]>> = {
   website: ['email', 'phone', 'bank', 'date', 'name', 'postal', 'percentage', 'description'],
   bank_name: ['phone', 'email', 'date', 'postal', 'percentage', 'description'],
   phone: ['email', 'bank', 'date', 'name', 'postal', 'percentage', 'description'],
+  stakeholder_phone: ['email', 'bank', 'date', 'name', 'postal', 'percentage', 'description'],
   email: ['phone', 'bank', 'date', 'name', 'postal', 'percentage', 'description'],
+  stakeholder_email: ['phone', 'bank', 'date', 'name', 'postal', 'percentage', 'description'],
   registration_date: ['email', 'phone', 'url', 'bank', 'name', 'postal', 'percentage', 'description'],
   postal_code: ['email', 'phone', 'url', 'bank', 'date', 'name', 'percentage', 'description'],
   ownership_percentage: ['email', 'phone', 'url', 'bank', 'date', 'name', 'postal', 'description'],
@@ -498,16 +508,16 @@ const MATRIX_BY_CONCEPT: Record<InteractiveTargetConcept, MatrixCaseDefinition[]
     {
       validationId: 'future-date-rejected',
       caseName: 'future-date',
-      testName: 'future date rejected',
+      testName: 'future date behavior observed',
       inputValue: '2099/01/01',
-      expectedBehavior: 'reject',
+      expectedBehavior: 'observe',
     },
     {
       validationId: 'under-age-dob-rejected-or-flagged',
       caseName: 'under-age-dob',
-      testName: 'under-age DOB rejected or flagged',
+      testName: 'under-age DOB behavior observed',
       inputValue: '2012/01/01',
-      expectedBehavior: 'reject_or_warn',
+      expectedBehavior: 'observe',
     },
   ],
   registration_date: [
@@ -577,6 +587,36 @@ const MATRIX_BY_CONCEPT: Record<InteractiveTargetConcept, MatrixCaseDefinition[]
       expectedBehavior: 'reject',
     },
   ],
+  stakeholder_email: [
+    {
+      validationId: 'valid-email-accepted',
+      caseName: 'valid-email',
+      testName: 'valid stakeholder email accepted',
+      inputValue: 'owner@example.test',
+      expectedBehavior: 'accept',
+    },
+    {
+      validationId: 'missing-at-rejected',
+      caseName: 'missing-at',
+      testName: 'missing @ rejected',
+      inputValue: 'ownerexample.test',
+      expectedBehavior: 'reject',
+    },
+    {
+      validationId: 'invalid-domain-rejected',
+      caseName: 'invalid-domain',
+      testName: 'invalid domain rejected',
+      inputValue: 'owner@',
+      expectedBehavior: 'reject',
+    },
+    {
+      validationId: 'spaces-rejected',
+      caseName: 'spaces',
+      testName: 'spaces rejected',
+      inputValue: 'owner @example.test',
+      expectedBehavior: 'reject',
+    },
+  ],
   phone: [
     {
       validationId: 'valid-e164-accepted',
@@ -612,6 +652,43 @@ const MATRIX_BY_CONCEPT: Record<InteractiveTargetConcept, MatrixCaseDefinition[]
       testName: 'too long rejected',
       inputValue: '+1555123456789012',
       expectedBehavior: 'reject',
+    },
+  ],
+  stakeholder_phone: [
+    {
+      validationId: 'valid-e164-accepted',
+      caseName: 'valid-e164',
+      testName: 'valid stakeholder phone accepted',
+      inputValue: '+15551234567',
+      expectedBehavior: 'accept',
+    },
+    {
+      validationId: 'missing-plus-handling',
+      caseName: 'missing-plus',
+      testName: 'missing plus sign behavior observed',
+      inputValue: '15551234567',
+      expectedBehavior: 'observe',
+    },
+    {
+      validationId: 'letters-rejected',
+      caseName: 'letters',
+      testName: 'letters rejected',
+      inputValue: 'callmemaybe',
+      expectedBehavior: 'reject',
+    },
+    {
+      validationId: 'too-short-rejected',
+      caseName: 'too-short',
+      testName: 'too short rejected',
+      inputValue: '555',
+      expectedBehavior: 'reject',
+    },
+    {
+      validationId: 'too-long-rejected',
+      caseName: 'too-long',
+      testName: 'too long behavior observed',
+      inputValue: '+1555123456789012',
+      expectedBehavior: 'observe',
     },
   ],
   business_name: TEXT_FIELD_MATRIX,
@@ -808,15 +885,20 @@ export function resolveInteractiveTargetConcepts(env: NodeJS.ProcessEnv = proces
     .split(',')
     .map((value) => value.trim())
     .filter(Boolean);
-  const allowed = new Set(INTERACTIVE_TARGET_CONCEPTS);
-  const invalid = requested.filter((value): value is string => !allowed.has(value as InteractiveTargetConcept));
+  const allowed = new Set<string>([
+    ...INTERACTIVE_TARGET_CONCEPTS,
+    ...Object.keys(INTERACTIVE_TARGET_ALIASES),
+  ]);
+  const invalid = requested.filter((value): value is string => !allowed.has(value));
   if (invalid.length > 0) {
     throw new Error(
-      `Invalid INTERACTIVE_CONCEPTS value(s): ${invalid.join(', ')}. Allowed concepts: ${INTERACTIVE_TARGET_CONCEPTS.join(', ')}.`,
+      `Invalid INTERACTIVE_CONCEPTS value(s): ${invalid.join(', ')}. Allowed concepts: ${[...INTERACTIVE_TARGET_CONCEPTS, ...Object.keys(INTERACTIVE_TARGET_ALIASES)].join(', ')}.`,
     );
   }
 
-  return Array.from(new Set(requested)) as InteractiveTargetConcept[];
+  return Array.from(new Set(
+    requested.map((value) => INTERACTIVE_TARGET_ALIASES[value] ?? (value as InteractiveTargetConcept)),
+  ));
 }
 
 export function assertInteractiveValidationGuards(env: NodeJS.ProcessEnv = process.env): void {

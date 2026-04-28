@@ -38,6 +38,7 @@ import {
   extractSigningUrl,
 } from '../lib/link-extractor';
 import {
+  conceptKeyForJsonKeyPath,
   detectValueShape,
   expectedValueShapesForConcept,
   resolveMappingClaims,
@@ -503,6 +504,18 @@ test.describe('field validation scorecard', () => {
     );
   });
 
+  test('stakeholder contact concepts resolve to stakeholder-only keys and shapes', () => {
+    expect(conceptKeyForJsonKeyPath('merchantData.businessEmail')).toBe('email');
+    expect(conceptKeyForJsonKeyPath('merchantData.businessPhone')).toBe('phone');
+    expect(conceptKeyForJsonKeyPath('merchantData.stakeholders[0].email')).toBe('stakeholder_email');
+    expect(conceptKeyForJsonKeyPath('merchantData.stakeholders[0].phoneNumber')).toBe('stakeholder_phone');
+
+    expect(FIELD_CONCEPT_REGISTRY.stakeholder_email.businessSection).toBe('Stakeholder');
+    expect(FIELD_CONCEPT_REGISTRY.stakeholder_phone.businessSection).toBe('Stakeholder');
+    expect(expectedValueShapesForConcept('stakeholder_email')).toEqual(['email']);
+    expect(expectedValueShapesForConcept('stakeholder_phone')).toEqual(['phone']);
+  });
+
   test('scorecard output is generated from a small mock report', () => {
     const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bead-scorecard-'));
     try {
@@ -707,6 +720,38 @@ test.describe('validation findings export', () => {
 
     expect(report.mappingBlockedFields.map((finding) => finding.concept)).toEqual(['business_name']);
     expect(report.likelyProductValidationFindings.map((finding) => finding.concept)).toEqual(['ownership_percentage']);
+  });
+
+  test('mapping-blocked stakeholder concepts do not claim trusted execution in per-concept notes', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'stakeholder_email',
+          conceptDisplayName: 'Stakeholder Email',
+          validationId: 'concept-mapping',
+          testName: 'Stakeholder Email skipped',
+          status: 'skipped',
+          outcome: 'mapping_not_confident',
+          targetConfidence: 'mapping_not_confident',
+          mappingDecisionReason: 'rejected_insufficient_label_proof',
+        }),
+        mockFindingsResult({
+          concept: 'stakeholder_phone',
+          conceptDisplayName: 'Stakeholder Phone',
+          validationId: 'concept-mapping',
+          testName: 'Stakeholder Phone skipped',
+          status: 'skipped',
+          outcome: 'mapping_not_confident',
+          targetConfidence: 'mapping_not_confident',
+          mappingDecisionReason: 'rejected_insufficient_label_proof',
+        }),
+      ],
+    }));
+
+    const markdown = renderValidationFindingsMarkdown(report);
+
+    expect(markdown).not.toContain('Stakeholder Email ran through a trusted target');
+    expect(markdown).not.toContain('Stakeholder Phone ran through a trusted target');
   });
 
   test('observer_ambiguous appears only in human-review section', () => {
@@ -1798,6 +1843,111 @@ test.describe('interactive validation safety', () => {
 
     expect(result.trusted).toBe(true);
     expect(result.selectedCandidateId).toBe('24');
+  });
+
+  test('Stakeholder Email prefers stakeholder anchors over business contact fields', () => {
+    const result = selectBestMappingCandidate({
+      concept: 'stakeholder_email',
+      currentCandidateId: 'business-email',
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.stakeholders[0].email',
+        businessSection: 'Stakeholder',
+        pageIndex: 3,
+        ordinalOnPage: 22,
+        tabLeft: 35.2,
+        tabTop: 280.32,
+        docusignFieldFamily: 'Text',
+      },
+      candidates: [
+        {
+          id: 'business-email',
+          resolvedLabel: 'Business Email',
+          labelSource: 'enrichment-guid',
+          labelConfidence: 'high',
+          businessSection: 'Contact',
+          inferredType: 'email',
+          docusignTabType: 'Email',
+          pageIndex: 1,
+          ordinalOnPage: 56,
+          tabLeft: 410.88,
+          tabTop: 766.08,
+          currentValue: 'merchant@example.com',
+          enrichment: {
+            jsonKeyPath: 'merchantData.businessEmail',
+            matchedBy: 'guid',
+            confidence: 'high',
+            suggestedDisplayName: 'Business Email',
+            suggestedBusinessSection: 'Contact',
+          },
+        },
+        {
+          id: 'stakeholder-email',
+          resolvedLabel: 'stakeholders #0 › Email',
+          labelSource: 'enrichment-guid',
+          labelConfidence: 'high',
+          businessSection: 'Stakeholder',
+          inferredType: 'email',
+          docusignTabType: 'Email',
+          pageIndex: 3,
+          ordinalOnPage: 22,
+          tabLeft: 35.2,
+          tabTop: 280.32,
+          currentValue: 'owner@example.com',
+          enrichment: {
+            jsonKeyPath: 'merchantData.stakeholders[0].email',
+            matchedBy: 'guid',
+            confidence: 'high',
+            suggestedDisplayName: 'stakeholders #0 › Email',
+            suggestedBusinessSection: 'Stakeholder',
+          },
+        },
+      ],
+    });
+
+    expect(result.trusted).toBe(true);
+    expect(result.selectedCandidateId).toBe('stakeholder-email');
+  });
+
+  test('Stakeholder Phone does not trust a business-contact-only candidate', () => {
+    const result = selectBestMappingCandidate({
+      concept: 'stakeholder_phone',
+      currentCandidateId: 'business-phone',
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.stakeholders[0].phoneNumber',
+        businessSection: 'Stakeholder',
+        pageIndex: 3,
+        ordinalOnPage: 23,
+        tabLeft: 410.88,
+        tabTop: 279.04,
+        docusignFieldFamily: 'Text',
+      },
+      candidates: [
+        {
+          id: 'business-phone',
+          resolvedLabel: 'Business Phone',
+          labelSource: 'enrichment-guid',
+          labelConfidence: 'high',
+          businessSection: 'Contact',
+          inferredType: 'phone_e164',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 57,
+          tabLeft: 663.04,
+          tabTop: 766.08,
+          currentValue: '+15551234567',
+          enrichment: {
+            jsonKeyPath: 'merchantData.businessPhone',
+            matchedBy: 'guid',
+            confidence: 'high',
+            suggestedDisplayName: 'Business Phone',
+            suggestedBusinessSection: 'Contact',
+          },
+        },
+      ],
+    });
+
+    expect(result.trusted).toBe(false);
+    expect(result.decisionReason).toBe('rejected_section_mismatch');
   });
 
   test('Bank Name rejects phone-shaped candidate and prefers nearby text/name-like banking candidate', () => {
@@ -3012,15 +3162,14 @@ test.describe('interactive validation safety', () => {
     expect(report.mappingBlockedFields).toEqual([]);
   });
 
-  test('INTERACTIVE_CONCEPTS filters the interactive target set', () => {
+  test('INTERACTIVE_CONCEPTS filters the interactive target set and normalizes stakeholder DOB aliases', () => {
     expect(resolveInteractiveTargetConcepts({
-      INTERACTIVE_CONCEPTS: 'website,email,phone,bank_name,date_of_birth',
+      INTERACTIVE_CONCEPTS: 'stakeholder_email,stakeholder_phone,stakeholder_date_of_birth,ownership_percentage',
     } as NodeJS.ProcessEnv)).toEqual([
-      'website',
-      'email',
-      'phone',
-      'bank_name',
+      'stakeholder_email',
+      'stakeholder_phone',
       'date_of_birth',
+      'ownership_percentage',
     ]);
   });
 
@@ -3167,6 +3316,126 @@ test.describe('interactive validation safety', () => {
     expect(registrationValid.inputValue).toBe('2020/06/15');
     expect(registrationFormat.inputValue).toBe('06/15/2020');
     expect(registrationFormat.expectedSignal).toBe('observe');
+  });
+
+  test('stakeholder batch builds stakeholder contact cases and keeps DOB separate from registration date', () => {
+    const plan = buildInteractiveValidationPlan(mockValidationReport([
+      mockField({
+        index: 1,
+        section: 'Stakeholder',
+        resolvedLabel: 'stakeholders #0 › Email',
+        label: 'stakeholders #0 › Email',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'email',
+        inferredClassification: 'inferred_best_practice',
+        docusignTabType: 'Email',
+        enrichment: {
+          jsonKeyPath: 'merchantData.stakeholders[0].email',
+          matchedBy: 'guid',
+          confidence: 'high',
+          suggestedDisplayName: 'stakeholders #0 › Email',
+          suggestedBusinessSection: 'Stakeholder',
+        },
+      }),
+      mockField({
+        index: 2,
+        section: 'Stakeholder',
+        resolvedLabel: 'stakeholders #0 › Phone Number',
+        label: 'stakeholders #0 › Phone Number',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'phone_e164',
+        inferredClassification: 'inferred_best_practice',
+        enrichment: {
+          jsonKeyPath: 'merchantData.stakeholders[0].phoneNumber',
+          matchedBy: 'guid',
+          confidence: 'high',
+          suggestedDisplayName: 'stakeholders #0 › Phone Number',
+          suggestedBusinessSection: 'Stakeholder',
+        },
+      }),
+      mockField({
+        index: 3,
+        section: 'Stakeholder',
+        resolvedLabel: 'stakeholders #0 › Date Of Birth',
+        label: 'stakeholders #0 › Date Of Birth',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'date_of_birth',
+        inferredClassification: 'inferred_best_practice',
+        docusignTabType: 'Date',
+        enrichment: {
+          jsonKeyPath: 'merchantData.stakeholders[0].dateOfBirth',
+          matchedBy: 'guid',
+          confidence: 'high',
+          suggestedDisplayName: 'stakeholders #0 › Date Of Birth',
+          suggestedBusinessSection: 'Stakeholder',
+        },
+      }),
+      mockField({
+        index: 4,
+        section: 'Stakeholder',
+        resolvedLabel: 'stakeholders #0 › Ownership Percentage',
+        label: 'stakeholders #0 › Ownership Percentage',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'ownership_percent',
+        inferredClassification: 'inferred_best_practice',
+        enrichment: {
+          jsonKeyPath: 'merchantData.stakeholders[0].ownershipPercentage',
+          matchedBy: 'guid',
+          confidence: 'high',
+          suggestedDisplayName: 'stakeholders #0 › Ownership Percentage',
+          suggestedBusinessSection: 'Stakeholder',
+        },
+      }),
+      mockField({
+        index: 5,
+        section: 'Business Details',
+        resolvedLabel: 'Registration Date',
+        label: 'Registration Date',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'formation_date',
+        inferredClassification: 'inferred_best_practice',
+        enrichment: {
+          jsonKeyPath: 'merchantData.registrationDate',
+          matchedBy: 'guid',
+          confidence: 'high',
+          suggestedDisplayName: 'Registration Date',
+          suggestedBusinessSection: 'Business Details',
+        },
+      }),
+    ]), {
+      INTERACTIVE_CONCEPTS: 'stakeholder_email,stakeholder_phone,stakeholder_date_of_birth,ownership_percentage',
+    } as NodeJS.ProcessEnv);
+
+    expect(plan.skippedConcepts).toEqual([]);
+    expect(plan.targetConcepts).toEqual(['stakeholder_email', 'stakeholder_phone', 'date_of_birth', 'ownership_percentage']);
+
+    expect(plan.cases.filter((entry) => entry.concept === 'stakeholder_email').map((entry) => entry.validationId)).toEqual([
+      'valid-email-accepted',
+      'missing-at-rejected',
+      'invalid-domain-rejected',
+      'spaces-rejected',
+    ]);
+
+    const stakeholderPhoneCases = plan.cases.filter((entry) => entry.concept === 'stakeholder_phone');
+    expect(stakeholderPhoneCases.map((entry) => entry.validationId)).toEqual([
+      'valid-e164-accepted',
+      'missing-plus-handling',
+      'letters-rejected',
+      'too-short-rejected',
+      'too-long-rejected',
+    ]);
+    expect(stakeholderPhoneCases.find((entry) => entry.validationId === 'too-long-rejected')!.expectedSignal).toBe('observe');
+
+    const dobCases = plan.cases.filter((entry) => entry.concept === 'date_of_birth');
+    expect(dobCases.every((entry) => entry.targetField.fieldIndex === 3)).toBe(true);
+    expect(dobCases.find((entry) => entry.validationId === 'future-date-rejected')!.expectedSignal).toBe('observe');
+    expect(dobCases.find((entry) => entry.validationId === 'under-age-dob-rejected-or-flagged')!.expectedSignal).toBe('observe');
+    expect(plan.cases.some((entry) => entry.concept === 'registration_date')).toBe(false);
   });
 });
 

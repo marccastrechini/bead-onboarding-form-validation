@@ -206,7 +206,9 @@ export interface ValidationFindingsReport {
 const TARGET_CONCEPT_ORDER: FieldConceptKey[] = [
   'website',
   'email',
+  'stakeholder_email',
   'phone',
+  'stakeholder_phone',
   'bank_name',
   'date_of_birth',
   'registration_date',
@@ -222,6 +224,8 @@ const NON_PRODUCT_OUTCOMES = new Set<InteractiveResultOutcome>([
   'error_ownership_suspect',
   'observer_ambiguous',
 ]);
+const EMAIL_CONCEPTS = new Set<FieldConceptKey>(['email', 'stakeholder_email']);
+const PHONE_CONCEPTS = new Set<FieldConceptKey>(['phone', 'stakeholder_phone']);
 
 const AMBIGUITY_SECTIONS: Array<{ type: AmbiguityType; title: string }> = [
   { type: 'observer_needs_stronger_error_ownership', title: 'Needs observer improvement' },
@@ -588,7 +592,7 @@ function classifyAmbiguityType(
 function isKnownPolicyQuestion(result: ValidationResult, finding: Omit<FindingItem, 'ambiguity'>): boolean {
   const haystack = `${result.validationId} ${result.testName}`;
   return (finding.concept === 'website' && /protocol|missing/i.test(haystack)) ||
-    (finding.concept === 'phone' && /plus|domestic|format/i.test(haystack)) ||
+    (PHONE_CONCEPTS.has(finding.concept) && /plus|domestic|format/i.test(haystack)) ||
     (finding.concept === 'date_of_birth' && /under|age|alternate|format|MM\/DD|YYYY\/MM/i.test(haystack)) ||
     (finding.concept === 'business_description' && /short|special|garbage/i.test(haystack));
 }
@@ -748,8 +752,8 @@ function humanGuidancePromptFor(
   if (finding.concept === 'website' && /protocol|missing/i.test(result.validationId + ' ' + result.testName)) {
     return 'Should missing protocol in Website be allowed or normalized?';
   }
-  if (finding.concept === 'phone' && /plus|domestic|format/i.test(result.validationId + ' ' + result.testName)) {
-    return 'Should Phone require a leading plus or allow domestic format?';
+  if (PHONE_CONCEPTS.has(finding.concept) && /plus|domestic|format/i.test(result.validationId + ' ' + result.testName)) {
+    return `Should ${finding.conceptDisplayName} require a leading plus or allow domestic format?`;
   }
   if (finding.concept === 'date_of_birth' && /under|age/i.test(result.validationId + ' ' + result.testName)) {
     return 'Should Date of Birth reject under-age applicants at form entry or defer to downstream review?';
@@ -888,18 +892,19 @@ function conceptNotes(
   score: ValidationScorecardFile['conceptScores'][number] | null,
 ): string[] {
   const notes: string[] = [];
-  if (concept === 'website') {
+  const hasTrustedExecutedFinding = findings.some((finding) => finding.targetConfidence === 'trusted' && finding.status !== 'skipped');
+  if (concept === 'website' && hasTrustedExecutedFinding) {
     notes.push('Website ran through a trusted target. Malformed URL and URL-with-spaces behavior should be reviewed as likely lenient validation.');
   }
-  if (concept === 'email') {
-    notes.push('Email ran through a trusted target and all exercised checks passed.');
-    if ((score?.notRunValidationCount ?? 0) > 0) notes.push(`${score!.notRunValidationCount} expected Email check(s) remain not run.`);
+  if (EMAIL_CONCEPTS.has(concept) && hasTrustedExecutedFinding) {
+    notes.push(`${concept === 'stakeholder_email' ? 'Stakeholder Email' : 'Email'} ran through a trusted target and all exercised checks passed.`);
+    if ((score?.notRunValidationCount ?? 0) > 0) notes.push(`${score!.notRunValidationCount} expected ${score!.displayName} check(s) remain not run.`);
   }
-  if (concept === 'phone') {
-    notes.push('Phone ran through a trusted target. Too-long behavior remains a likely product validation finding if accepted.');
+  if (PHONE_CONCEPTS.has(concept) && hasTrustedExecutedFinding) {
+    notes.push(`${concept === 'stakeholder_phone' ? 'Stakeholder Phone' : 'Phone'} ran through a trusted target. Too-long behavior remains a likely product validation finding if accepted.`);
     notes.push('Missing-plus handling is observer-ambiguous and should stay in human review.');
   }
-  if (concept === 'date_of_birth') {
+  if (concept === 'date_of_birth' && hasTrustedExecutedFinding) {
     notes.push('Date of Birth ran through a trusted target. Future-date behavior remains a likely product validation finding if accepted.');
     notes.push('Alternate format and under-age behavior should remain human-review policy questions unless product policy is confirmed.');
   }

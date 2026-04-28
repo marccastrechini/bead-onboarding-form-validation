@@ -141,6 +141,9 @@ export function conceptKeyForJsonKeyPath(jsonKeyPath: string | null | undefined)
   return null;
 }
 
+const EMAIL_LIKE_CONCEPTS = new Set<FieldConceptKey>(['email', 'stakeholder_email']);
+const PHONE_LIKE_CONCEPTS = new Set<FieldConceptKey>(['phone', 'stakeholder_phone']);
+
 const STRONG_LABEL_SOURCES = new Set([
   'aria-label',
   'aria-labelledby',
@@ -153,7 +156,9 @@ const STRONG_LABEL_SOURCES = new Set([
 
 const EXPECTED_SHAPES: Partial<Record<FieldConceptKey, ValueShape[]>> = {
   email: ['email'],
+  stakeholder_email: ['email'],
   phone: ['phone'],
+  stakeholder_phone: ['phone'],
   website: ['url'],
   bank_name: ['text_name_like'],
   business_name: ['text_name_like'],
@@ -167,7 +172,9 @@ const EXPECTED_SHAPES: Partial<Record<FieldConceptKey, ValueShape[]>> = {
 
 const REJECTED_SHAPES: Partial<Record<FieldConceptKey, ValueShape[]>> = {
   email: ['phone', 'url', 'date', 'text_name_like'],
+  stakeholder_email: ['phone', 'url', 'date', 'text_name_like'],
   phone: ['email', 'url', 'date', 'text_name_like'],
+  stakeholder_phone: ['email', 'url', 'date', 'text_name_like'],
   website: ['email', 'phone', 'date', 'text_name_like'],
   bank_name: ['email', 'phone', 'url', 'date', 'numeric'],
   business_name: ['email', 'phone', 'url', 'date', 'postal_code', 'percentage', 'numeric'],
@@ -236,12 +243,12 @@ export function assessMappingCandidate(
   const inferredType = (candidate.inferredType ?? '').toLowerCase();
   const docusignTabType = (candidate.docusignTabType ?? '').toLowerCase();
   const typeMatches =
-    (concept === 'email' && (inferredType.includes('email') || docusignTabType === 'email')) ||
-    (concept === 'phone' && inferredType.includes('phone')) ||
+    (EMAIL_LIKE_CONCEPTS.has(concept) && (inferredType.includes('email') || docusignTabType === 'email')) ||
+    (PHONE_LIKE_CONCEPTS.has(concept) && inferredType.includes('phone')) ||
     (concept === 'bank_name' && (businessSection === 'Banking' || /bank/.test(labelText))) ||
     (concept === 'date_of_birth' && (docusignTabType === 'date' || inferredType.includes('date') || inferredType.includes('dob'))) ||
     (concept === 'registration_date' && (docusignTabType === 'date' || inferredType.includes('date'))) ||
-    (!['email', 'phone', 'bank_name', 'date_of_birth', 'registration_date'].includes(concept) && labelMatches);
+    (![...EMAIL_LIKE_CONCEPTS, ...PHONE_LIKE_CONCEPTS, 'bank_name', 'date_of_birth', 'registration_date'].includes(concept) && labelMatches);
   const enrichmentMatches = Boolean(
     expectedAnchor?.jsonKeyPath &&
     candidate.enrichment?.jsonKeyPath &&

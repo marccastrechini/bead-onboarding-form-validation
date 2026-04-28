@@ -6,7 +6,9 @@ export type FieldConceptKey =
   | 'business_description'
   | 'website'
   | 'email'
+  | 'stakeholder_email'
   | 'phone'
+  | 'stakeholder_phone'
   | 'ein'
   | 'ssn'
   | 'date_of_birth'
@@ -319,7 +321,7 @@ export const FIELD_CONCEPTS: FieldConceptDefinition[] = [
     businessSection: 'Contact',
     fieldTypes: ['email', 'signer_email'],
     labelPatterns: [/e-?mail/i, /contact\s*email/i, /business\s*email/i],
-    jsonKeyPatterns: [/merchantData\.(businessEmail|.*email)$/i],
+    jsonKeyPatterns: [/merchantData\.businessEmail$/i],
     bestPracticeValidations: EMAIL_MATRIX,
     missingValidationSeverity: 'critical',
     weakValidationSeverity: 'high',
@@ -328,18 +330,46 @@ export const FIELD_CONCEPTS: FieldConceptDefinition[] = [
     notes: 'Email is a primary contact and notification channel.',
   },
   {
+    key: 'stakeholder_email',
+    displayName: 'Stakeholder Email',
+    businessSection: 'Stakeholder',
+    fieldTypes: ['email', 'signer_email'],
+    labelPatterns: [/e-?mail/i, /email\s*address/i, /owner\s*email/i, /principal\s*email/i, /stakeholder.*email/i],
+    jsonKeyPatterns: [/merchantData\.stakeholders\[\d+\]\.email$/i],
+    bestPracticeValidations: EMAIL_MATRIX,
+    missingValidationSeverity: 'critical',
+    weakValidationSeverity: 'high',
+    validExamples: ['owner@example.com'],
+    invalidExamples: ['ownerexample.com', 'owner@', 'owner @example.com'],
+    notes: 'Stakeholder email targets beneficial-owner contact data and should stay anchored to stakeholder-only fields.',
+  },
+  {
     key: 'phone',
     displayName: 'Phone',
     businessSection: 'Contact',
     fieldTypes: ['phone_e164', 'signer_phone'],
     labelPatterns: [/phone/i, /mobile/i, /cell/i, /contact\s*number/i, /business\s*phone/i],
-    jsonKeyPatterns: [/merchantData\.(businessPhone|.*phone)$/i],
+    jsonKeyPatterns: [/merchantData\.businessPhone$/i],
     bestPracticeValidations: PHONE_MATRIX,
     missingValidationSeverity: 'critical',
     weakValidationSeverity: 'high',
     validExamples: ['+15551234567', '(555) 123-4567'],
     invalidExamples: ['callmemaybe', '555', '+1555123456789012'],
     notes: 'Phone validation should be explicit about E.164 vs local-format handling.',
+  },
+  {
+    key: 'stakeholder_phone',
+    displayName: 'Stakeholder Phone',
+    businessSection: 'Stakeholder',
+    fieldTypes: ['phone_e164', 'signer_phone'],
+    labelPatterns: [/phone/i, /mobile/i, /cell/i, /phone\s*number/i, /owner\s*phone/i, /stakeholder.*phone/i],
+    jsonKeyPatterns: [/merchantData\.stakeholders\[\d+\]\.(phoneNumber|phone)$/i],
+    bestPracticeValidations: PHONE_MATRIX,
+    missingValidationSeverity: 'critical',
+    weakValidationSeverity: 'high',
+    validExamples: ['+15551234567', '(555) 123-4567'],
+    invalidExamples: ['callmemaybe', '555', '+1555123456789012'],
+    notes: 'Stakeholder phone targets owner contact data and should not reuse business-contact anchors from page 1.',
   },
   {
     key: 'ein',

@@ -794,6 +794,8 @@ function buildSuggestedImprovements(report: ValidationReport, scores: FieldConce
 function buildNextScenarios(report: ValidationReport, scores: FieldConceptScore[]): string[] {
   const priorityOrder: FieldConceptKey[] = [
     'date_of_birth',
+    'stakeholder_email',
+    'stakeholder_phone',
     'phone',
     'ein',
     'email',
