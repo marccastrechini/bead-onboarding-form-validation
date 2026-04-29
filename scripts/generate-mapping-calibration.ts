@@ -576,6 +576,60 @@ function deriveCalibrationReason(
   return 'none';
 }
 
+function sampleLayoutTarget(context: ConceptCalibrationContext): { sectionHeader: string; fieldLabel: string } | null {
+  const sectionHeader = context.alignmentRow?.layoutSectionHeader ?? context.enrichmentRecord.layoutSectionHeader ?? null;
+  const fieldLabel = context.alignmentRow?.layoutFieldLabel ?? context.enrichmentRecord.layoutFieldLabel ?? null;
+  return sectionHeader && fieldLabel ? { sectionHeader, fieldLabel } : null;
+}
+
+function liveFieldMatchingSampleLayout(context: ConceptCalibrationContext): FieldRecord | null {
+  return context.nearbyFields.find((field) => matchingLayoutRecord(context.enrichmentRecord, field)) ?? null;
+}
+
+function lacksSampleLayoutProof(context: ConceptCalibrationContext): boolean {
+  const hasCoordinates = typeof context.enrichmentRecord.tabLeft === 'number' && typeof context.enrichmentRecord.tabTop === 'number';
+  return !sampleLayoutTarget(context) && !context.enrichmentRecord.layoutEvidenceSource && !hasCoordinates;
+}
+
+function isPhysicalOperatingAddressConcept(context: ConceptCalibrationContext): boolean {
+  return sampleLayoutTarget(context)?.sectionHeader === 'Physical Operating Address';
+}
+
+function expectedSectionHeaderForConcept(concept: FieldConceptKey): string | null {
+  switch (concept) {
+    case 'registered_address_line_1':
+    case 'registered_address_line_2':
+    case 'registered_city':
+    case 'registered_state':
+    case 'registered_country':
+    case 'postal_code':
+      return 'Registered Legal Address';
+    case 'business_mailing_address_line_1':
+    case 'business_mailing_city':
+    case 'business_mailing_state':
+    case 'business_mailing_postal_code':
+      return 'Physical Operating Address';
+    case 'bank_address_line_1':
+    case 'bank_city':
+    case 'bank_state':
+    case 'bank_postal_code':
+    case 'bank_country':
+      return 'Bank Address';
+    default:
+      return null;
+  }
+}
+
+function conceptLeafLabel(concept: FieldConceptKey): string {
+  if (concept.endsWith('_country')) return 'Country';
+  if (concept.endsWith('_state')) return 'State';
+  if (concept.endsWith('_city')) return 'City';
+  if (concept.endsWith('_postal_code') || concept === 'postal_code') return 'ZIP';
+  if (concept.endsWith('_address_line_1')) return 'Address Line 1';
+  if (concept.endsWith('_address_line_2')) return 'Address Line 2';
+  return FIELD_CONCEPT_REGISTRY[concept].displayName;
+}
+
 function missingProofForSelection(
   context: ConceptCalibrationContext,
   selection: ReturnType<typeof resolveMappingClaims>[number]['selection'],
@@ -589,12 +643,25 @@ function missingProofForSelection(
     : null;
   const missing: string[] = [];
   const expectedShapes = expectedValueShapesForConcept(context.concept);
+  const matchedLayoutField = liveFieldMatchingSampleLayout(context);
+  const layoutTarget = sampleLayoutTarget(context);
+  const suppressCandidateSpecificProof = (layoutTarget !== null && matchedLayoutField === null) || lacksSampleLayoutProof(context);
   const expectedShapeSummary = expectedShapes.length > 0
     ? `${expectedShapes.join(' or ')} live value shape`
     : 'concept-specific field-family proof';
 
   if (!nearestShapeMatch) {
     missing.push(`No unclaimed editable candidate has the expected ${expectedShapeSummary}.`);
+  }
+
+  if (layoutTarget && !matchedLayoutField) {
+    missing.push(`Sample layout evidence points to ${layoutTarget.sectionHeader} > ${layoutTarget.fieldLabel}.`);
+    missing.push('No live field in the saved safe-mode report matched that sample anchor.');
+    if (isPhysicalOperatingAddressConcept(context)) {
+      missing.push('The Physical Operating Address block may be conditionally hidden unless the signer indicates the operating address differs from the registered legal address.');
+    }
+  } else if (lacksSampleLayoutProof(context)) {
+    missing.push(`No sample PDF/MHTML layout evidence currently proves a separate ${FIELD_CONCEPT_REGISTRY[context.concept].displayName} control in this saved US flow.`);
   }
 
   if (CONTROLLED_CHOICE_CONCEPTS.has(context.concept)) {
@@ -604,58 +671,57 @@ function missingProofForSelection(
     if (context.alignmentRow && context.alignmentRow.matchingMethod !== 'unmatched' && !selectedField) {
       missing.push('Sample alignment exists, but no live field matched the aligned select/list control in the safe-mode report.');
     }
-    if (context.alignmentRow?.layoutSectionHeader && context.alignmentRow.layoutFieldLabel) {
-      missing.push(`Sample layout evidence points to ${context.alignmentRow.layoutSectionHeader} > ${context.alignmentRow.layoutFieldLabel}.`);
-    }
     if (context.alignmentRow?.candidateDocuSignFieldFamily && !isTrustedControlledChoiceFamily(context.alignmentRow.candidateDocuSignFieldFamily)) {
       missing.push(`Layout label exists but the sample DocuSign control family is ${context.alignmentRow.candidateDocuSignFieldFamily}, not a trusted select/list/radio control.`);
     }
-    if (selectedField?.docusignTabType && !isTrustedControlledChoiceFamily(selectedField.docusignTabType)) {
+    if (!suppressCandidateSpecificProof && selectedField?.docusignTabType && !isTrustedControlledChoiceFamily(selectedField.docusignTabType)) {
       missing.push(`Expected a select/list/radio control, but the live field appears as ${selectedField.docusignTabType}.`);
     }
-    if (selectedAssessment && !selectedAssessment.sectionMatches) {
+    if (!suppressCandidateSpecificProof && selectedAssessment && !selectedAssessment.sectionMatches) {
       missing.push('The aligned live field is in the wrong section for this concept.');
     }
-    if (selectedField && selectedField.editable === false) {
+    if (!suppressCandidateSpecificProof && selectedField && selectedField.editable === false) {
       missing.push('The aligned control is present but not editable in the safe-mode report.');
     }
-    if (selectedField && isTrustedControlledChoiceFamily(selectedField.docusignTabType) && !controlOptionsAreDiscoverable(selectedField)) {
+    if (!suppressCandidateSpecificProof && selectedField && isTrustedControlledChoiceFamily(selectedField.docusignTabType) && !controlOptionsAreDiscoverable(selectedField)) {
       missing.push('The saved safe-mode report does not expose enough option text to confirm the dropdown choices.');
     }
-    if (!selectedField) {
+    if (suppressCandidateSpecificProof || !selectedField) {
       missing.push('A human screenshot is needed to confirm the field label, section, editability, and control family.');
     }
   }
 
-  if (selectedAssessment?.reasons.length) {
+  if (!suppressCandidateSpecificProof && selectedAssessment?.reasons.length) {
     missing.push(...selectedAssessment.reasons.map((reason) => sentenceCase(reason)));
   }
 
-  switch (selection.decisionReason) {
-    case 'rejected_value_shape_mismatch':
-      missing.push(`The current candidate value shape is ${selection.valueShape}, not ${expectedShapes.length > 0 ? expectedShapes.join(' or ') : 'the expected shape for this concept'}.`);
-      break;
-    case 'rejected_neighbor_better_match':
-      missing.push('The live neighbor window points at a better candidate than the current mapped field.');
-      break;
-    case 'rejected_ambiguous_neighbors':
-      missing.push('Multiple nearby editable candidates still look plausible, with no single exact anchor hit.');
-      break;
-    case 'rejected_stale_enrichment':
-      missing.push('The saved sample anchor appears stale relative to the live field position.');
-      break;
-    case 'rejected_not_editable_merchant_input':
-      missing.push('The best candidate is not an editable merchant input.');
-      break;
-    case 'rejected_insufficient_description_proof':
-      missing.push('Business Description needs long-text, textarea, or field-local description proof before mutation.');
-      break;
-    case 'rejected_section_mismatch':
-      missing.push(`The best candidate is outside the ${FIELD_CONCEPT_REGISTRY[context.concept].businessSection} section.`);
-      break;
-    case 'rejected_insufficient_label_proof':
-      missing.push('The candidate does not have enough label, section, enrichment, and value-shape proof to trust mutation.');
-      break;
+  if (!suppressCandidateSpecificProof) {
+    switch (selection.decisionReason) {
+      case 'rejected_value_shape_mismatch':
+        missing.push(`The current candidate value shape is ${selection.valueShape}, not ${expectedShapes.length > 0 ? expectedShapes.join(' or ') : 'the expected shape for this concept'}.`);
+        break;
+      case 'rejected_neighbor_better_match':
+        missing.push('The live neighbor window points at a better candidate than the current mapped field.');
+        break;
+      case 'rejected_ambiguous_neighbors':
+        missing.push('Multiple nearby editable candidates still look plausible, with no single exact anchor hit.');
+        break;
+      case 'rejected_stale_enrichment':
+        missing.push('The saved sample anchor appears stale relative to the live field position.');
+        break;
+      case 'rejected_not_editable_merchant_input':
+        missing.push('The best candidate is not an editable merchant input.');
+        break;
+      case 'rejected_insufficient_description_proof':
+        missing.push('Business Description needs long-text, textarea, or field-local description proof before mutation.');
+        break;
+      case 'rejected_section_mismatch':
+        missing.push(`The best candidate is outside the ${FIELD_CONCEPT_REGISTRY[context.concept].businessSection} section.`);
+        break;
+      case 'rejected_insufficient_label_proof':
+        missing.push('The candidate does not have enough label, section, enrichment, and value-shape proof to trust mutation.');
+        break;
+    }
   }
 
   if (context.concept === 'postal_code') {
@@ -683,7 +749,7 @@ function missingProofForSelection(
     missing.push('Need a visible editable proof-type selector that identifies document category only, not an upload widget or uploaded file value.');
   }
 
-  if (selectedField && selectedAssessment && !selectedAssessment.labelMatches && !selectedAssessment.enrichmentMatches) {
+  if (!suppressCandidateSpecificProof && selectedField && selectedAssessment && !selectedAssessment.labelMatches && !selectedAssessment.enrichmentMatches) {
     missing.push(`Candidate #${sourceFieldIndex(context, selectedField)} needs field-local label or enrichment proof for ${FIELD_CONCEPT_REGISTRY[context.concept].displayName}.`);
   }
 
@@ -699,13 +765,42 @@ function buildHumanConfirmationRequest(
 ): HumanConfirmationRequest | null {
   if (selection.trusted || missingProof.length === 0) return null;
 
+  const layoutTarget = sampleLayoutTarget(context);
+  const matchedLayoutField = liveFieldMatchingSampleLayout(context);
+  const conceptName = FIELD_CONCEPT_REGISTRY[context.concept].displayName;
+
+  if (layoutTarget && matchedLayoutField === null && isPhysicalOperatingAddressConcept(context)) {
+    return {
+      needed: true,
+      concept: context.concept,
+      suspectedFieldLocation: `${layoutTarget.sectionHeader} > ${layoutTarget.fieldLabel}`,
+      currentBlocker: `The saved sample proves ${layoutTarget.sectionHeader} > ${layoutTarget.fieldLabel}, but the current safe-mode report does not surface that field near the expected anchor.`,
+      requestedEvidence: `Review a screenshot of the ${layoutTarget.sectionHeader} section and answer whether ${layoutTarget.fieldLabel} is currently visible/editable, or whether the section is intentionally hidden because the operating address matches the registered legal address.`,
+      decisionImpact: `If the section is visible and ${layoutTarget.fieldLabel} is editable, the next calibration can trust ${conceptName}; if the section is hidden or intentionally omitted for this flow, keep ${conceptName} out of product-failure counts and current batch coverage.`,
+    };
+  }
+
+  if (lacksSampleLayoutProof(context)) {
+    const sectionHeader = expectedSectionHeaderForConcept(context.concept);
+    const fieldLabel = conceptLeafLabel(context.concept);
+    return {
+      needed: true,
+      concept: context.concept,
+      suspectedFieldLocation: sectionHeader ? `${sectionHeader} (${conceptName})` : conceptName,
+      currentBlocker: `The saved sample does not currently prove a separate editable ${conceptName} control.`,
+      requestedEvidence: sectionHeader
+        ? `Review a screenshot of the ${sectionHeader} section and answer whether ${fieldLabel} is exposed as an editable control in this flow, or whether it is omitted or display-only.`
+        : `Review a screenshot around ${conceptName} and answer whether it is exposed as an editable control in this flow, or whether it is omitted or display-only.`,
+      decisionImpact: `If the screenshot confirms one visible editable ${conceptName} control, the next calibration can trust it; otherwise keep ${conceptName} mapping-blocked and out of product-failure counts for this flow.`,
+    };
+  }
+
   const suspectedField = selectedField ?? nearestShapeMatch ?? context.currentField;
   const suspectedFieldLocation = suspectedField
     ? formatCandidateSummary(summarizeField(context, suspectedField))
     : context.anchor.displayName
       ? `${context.anchor.displayName} (${context.anchor.businessSection ?? 'unknown section'})`
       : context.currentSignature;
-  const conceptName = FIELD_CONCEPT_REGISTRY[context.concept].displayName;
 
   return {
     needed: true,

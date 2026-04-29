@@ -99,6 +99,10 @@ interface FindingItem {
   severity: string;
   targetConfidence: InteractiveTargetConfidence | null;
   targetConfidenceReason: string | null;
+  calibrationDecision: string | null;
+  calibrationReason: string | null;
+  calibrationMappingDecisionReason: string | null;
+  calibrationSelectedCandidate: string | null;
   mappingDecisionReason: string | null;
   mappingShiftReason: string | null;
   mappingMissingProof: string[];
@@ -209,6 +213,7 @@ export interface ValidationFindingsReport {
   controlledChoiceFindings: FindingItem[];
   controlledChoiceBreakdown: Record<ControlledChoiceClassification, number>;
   controlledChoiceFindingsByClassification: Record<ControlledChoiceClassification, FindingItem[]>;
+  readyForGuardedRerun: FindingItem[];
   mappingBlockedFields: FindingItem[];
   perConceptResults: PerConceptSummary[];
   scorecardCoverage: {
@@ -323,12 +328,20 @@ export function buildValidationFindingsReport(input: {
   const toFinding = (result: ValidationResult): FindingItem => {
     const diagnostic = diagnosticByConceptAndTest.get(`${result.concept}\u0000${result.testName}`);
     const targetConfidence = result.targetDiagnostics?.targetConfidence ?? diagnostic?.targetConfidence ?? null;
-    const includeMappingProof = result.status === 'skipped' ||
+    const calibration = calibrationByConcept.get(result.concept);
+    const calibrationDecision = calibration?.decision ?? null;
+    const calibrationReason = calibration?.calibrationReason ?? null;
+    const calibrationMappingDecisionReason = calibration?.mappingDecisionReason ?? null;
+    const calibrationSelectedCandidate = calibration?.selectedCandidate ?? null;
+    const calibrationTrusted = calibrationDecision === 'trust_current_mapping' || calibrationDecision === 'trust_likely_better_candidate';
+    const staleSkippedMappingResult = result.status === 'skipped' && result.outcome === 'mapping_not_confident' && calibrationTrusted;
+    const includeMappingProof = !staleSkippedMappingResult && (
+      result.status === 'skipped' ||
       result.outcome === 'mapping_not_confident' ||
       result.outcome === 'tool_mapping_suspect' ||
       targetConfidence === 'mapping_not_confident' ||
-      targetConfidence === 'tool_mapping_suspect';
-    const calibration = calibrationByConcept.get(result.concept);
+      targetConfidence === 'tool_mapping_suspect'
+    );
     const targetConfidenceReason = result.targetDiagnostics?.targetConfidenceReason ?? diagnostic?.targetConfidenceReason ?? result.skippedReason ?? null;
     const mappingFlags = result.targetDiagnostics?.mappingFlags ?? diagnostic?.mappingFlags ?? [];
     const humanConfirmation = includeMappingProof
@@ -344,6 +357,10 @@ export function buildValidationFindingsReport(input: {
       severity: result.severity,
       targetConfidence,
       targetConfidenceReason,
+      calibrationDecision,
+      calibrationReason,
+      calibrationMappingDecisionReason,
+      calibrationSelectedCandidate,
       mappingDecisionReason: result.targetDiagnostics?.mappingDecisionReason ?? diagnostic?.mappingDecisionReason ?? null,
       mappingShiftReason: result.targetDiagnostics?.mappingShiftReason ?? diagnostic?.mappingShiftReason ?? null,
       mappingMissingProof: includeMappingProof ? calibration?.missingProof ?? [] : [],
@@ -356,7 +373,11 @@ export function buildValidationFindingsReport(input: {
         ? hasReadableControlledChoiceCurrentValue(result)
         : null,
       interpretation: result.interpretation,
-      recommendation: result.recommendation,
+      recommendation: staleSkippedMappingResult
+        ? calibrationSelectedCandidate
+          ? `Offline calibration now trusts ${calibrationSelectedCandidate}; rerun this guarded case to replace the stale skipped result.`
+          : 'Offline calibration now trusts this mapping; rerun this guarded case to replace the stale skipped result.'
+        : result.recommendation,
     };
     const resolvedFinding = resolveFindingForPolicy(result, finding);
     return {
@@ -383,8 +404,9 @@ export function buildValidationFindingsReport(input: {
   const controlledChoiceBreakdown = Object.fromEntries(
     CONTROLLED_CHOICE_CLASSIFICATIONS.map((section) => [section.type, controlledChoiceFindingsByClassification[section.type].length]),
   ) as Record<ControlledChoiceClassification, number>;
+  const readyForGuardedRerun = findings.filter((finding) => isReadyForGuardedRerun(finding));
   const mappingBlockedFields = findings.filter((finding) =>
-    finding.outcome === 'mapping_not_confident' || finding.targetConfidence === 'mapping_not_confident',
+    (finding.outcome === 'mapping_not_confident' || finding.targetConfidence === 'mapping_not_confident') && !isReadyForGuardedRerun(finding),
   );
 
   const perConceptResults = buildPerConceptSummaries({
@@ -416,6 +438,7 @@ export function buildValidationFindingsReport(input: {
       resultCounts,
       likelyProductValidationFindings,
       ambiguousHumanReviewFindings,
+      readyForGuardedRerun,
       mappingBlockedFields,
       scorecardCoverage,
     }),
@@ -437,10 +460,11 @@ export function buildValidationFindingsReport(input: {
     controlledChoiceFindings,
     controlledChoiceBreakdown,
     controlledChoiceFindingsByClassification,
+    readyForGuardedRerun,
     mappingBlockedFields,
     perConceptResults,
     scorecardCoverage,
-    recommendedNextToolingWork: buildRecommendedToolingWork(mappingBlockedFields),
+    recommendedNextToolingWork: buildRecommendedToolingWork(mappingBlockedFields, readyForGuardedRerun),
     recommendedNextFieldExpansionBatches: buildRecommendedBatches(),
     safetyNotes: [
       'This report is generated from existing offline artifacts only; it does not run live, interactive, or destructive validation.',
@@ -1153,27 +1177,36 @@ function buildExecutiveSummary(input: {
   resultCounts: InteractiveValidationResultsFile['summary'];
   likelyProductValidationFindings: FindingItem[];
   ambiguousHumanReviewFindings: FindingItem[];
+  readyForGuardedRerun: FindingItem[];
   mappingBlockedFields: FindingItem[];
   scorecardCoverage: ValidationFindingsReport['scorecardCoverage'];
 }): string[] {
+  const readyConcepts = unique(input.readyForGuardedRerun.map((finding) => finding.conceptDisplayName));
   const blockedConcepts = unique(input.mappingBlockedFields.map((finding) => finding.conceptDisplayName));
-  return [
+  const summary = [
     `${input.totalObservations} observations were reviewed across ${input.targetConcepts.length} targeted concept(s).`,
     `${input.resultCounts.passed} passed, ${input.resultCounts.failed} failed, ${input.resultCounts.warning} warned, ${input.resultCounts.manual_review} require manual review, and ${input.resultCounts.skipped} were skipped.`,
     `${input.likelyProductValidationFindings.length} likely product validation finding(s) came from trusted executed observations.`,
     `${input.ambiguousHumanReviewFindings.length} ambiguous observation(s) require human review before product-defect classification.`,
-    blockedConcepts.length > 0
-      ? `${blockedConcepts.join(', ')} remained mapping-blocked and should not be treated as product validation failure(s).`
-      : 'No mapping-blocked target concepts were present in the latest run.',
     `Merged scorecard coverage is ${input.scorecardCoverage.executedValidationCount}/${input.scorecardCoverage.expectedValidationCount} (${input.scorecardCoverage.validationCoveragePercent}%), grade ${input.scorecardCoverage.validationQualityGrade}.`,
   ];
+  if (readyConcepts.length > 0) {
+    summary.splice(4, 0, `${readyConcepts.join(', ')} are now trusted by offline calibration and ready for a guarded rerun; their latest interactive results are stale skipped observations.`);
+  }
+  summary.splice(readyConcepts.length > 0 ? 5 : 4, 0, blockedConcepts.length > 0
+    ? `${blockedConcepts.join(', ')} remained mapping-blocked after applying the latest offline calibration and should not be treated as product validation failure(s).`
+    : 'No currently mapping-blocked target concepts remain after applying the latest offline calibration.');
+  return summary;
 }
 
-function buildRecommendedToolingWork(mappingBlockedFields: FindingItem[]): string[] {
+function buildRecommendedToolingWork(mappingBlockedFields: FindingItem[], readyForGuardedRerun: FindingItem[]): string[] {
   const items = [
     'Keep mapping-not-confident, tool-mapping-suspect, ownership-suspect, and observer-ambiguous outcomes out of product-defect counts.',
     'Preserve the calibrated target handoff for Website, Email, Phone, and Date of Birth while continuing to require live verifier agreement before mutation.',
   ];
+  if (readyForGuardedRerun.length > 0) {
+    items.push('Rerun guarded interactive checks for concepts that are now trusted by offline calibration before treating the stale skipped results as remaining blockers or coverage gaps.');
+  }
   if (mappingBlockedFields.some((finding) => finding.concept === 'bank_name')) {
     items.push('Resolve Bank Name by improving live verifier evidence around the page-1 banking window; do not mutate Bank Name until a safe text/name-like candidate is unclaimed and trusted.');
     items.push('Record the Bank Name block as mapping/tool work, not a product validation finding.');
@@ -1412,10 +1445,11 @@ function renderAddressLocationFindings(lines: string[], report: ValidationFindin
   const addressObservations = report.trustedExecutedObservations.filter((finding) => isAddressLocationConcept(finding.concept));
   const addressAmbiguousFindings = report.ambiguousHumanReviewFindings.filter((finding) => isAddressLocationConcept(finding.concept));
   const addressAmbiguousByType = groupAmbiguousFindingsByType(addressAmbiguousFindings);
+  const addressReadyForGuardedRerun = report.readyForGuardedRerun.filter((finding) => isAddressLocationConcept(finding.concept));
   const addressMappingBlocked = report.mappingBlockedFields.filter((finding) => isAddressLocationConcept(finding.concept));
   const addressHumanConfirmation = addressMappingBlocked.filter((finding) => finding.humanConfirmation !== null);
 
-  if (!addressObservations.length && !addressMappingBlocked.length) {
+  if (!addressObservations.length && !addressReadyForGuardedRerun.length && !addressMappingBlocked.length) {
     return;
   }
 
@@ -1429,8 +1463,27 @@ function renderAddressLocationFindings(lines: string[], report: ValidationFindin
   renderAddressAmbiguitySection(lines, 'Address policy questions', addressAmbiguousByType.policy_question ?? []);
   renderAddressAmbiguitySection(lines, 'Matrix expectation mismatches', addressAmbiguousByType.matrix_expectation_mismatch ?? []);
   renderAddressAmbiguitySection(lines, 'Possible product validation gaps', addressAmbiguousByType.product_validation_gap_candidate ?? []);
+  renderAddressReadyForGuardedRerunSection(lines, 'Offline-calibrated targets awaiting guarded rerun', addressReadyForGuardedRerun);
   renderAddressMappingBlockedSection(lines, 'Mapping-blocked address fields', addressMappingBlocked);
   renderAddressHumanConfirmationSection(lines, 'Human visual confirmation needed', addressHumanConfirmation);
+}
+
+function renderAddressReadyForGuardedRerunSection(lines: string[], title: string, findings: FindingItem[]): void {
+  lines.push(`### ${title}`);
+  lines.push('');
+  if (findings.length === 0) {
+    lines.push('No findings in this category.');
+    lines.push('');
+    return;
+  }
+
+  lines.push('| Concept | Offline calibration | Trusted target | Next step |');
+  lines.push('|---|---|---|---|');
+  for (const finding of findings) {
+    const calibrationSummary = [finding.calibrationDecision, finding.calibrationMappingDecisionReason].filter(Boolean).join(' / ');
+    lines.push(`| ${esc(finding.conceptDisplayName)} | ${esc(calibrationSummary || 'trusted offline')} | ${esc(finding.calibrationSelectedCandidate)} | ${esc(finding.recommendation)} |`);
+  }
+  lines.push('');
 }
 
 function renderAddressObservationSection(lines: string[], title: string, findings: FindingItem[]): void {
@@ -1634,6 +1687,12 @@ function formatRecommendation(finding: FindingItem): string {
   return parts.join(' ');
 }
 
+function isReadyForGuardedRerun(finding: FindingItem): boolean {
+  return finding.status === 'skipped' &&
+    finding.outcome === 'mapping_not_confident' &&
+    (finding.calibrationDecision === 'trust_current_mapping' || finding.calibrationDecision === 'trust_likely_better_candidate');
+}
+
 function buildLiveHumanConfirmationRequest(
   result: ValidationResult,
   targetConfidenceReason: string | null,
@@ -1713,6 +1772,6 @@ if (require.main === module) {
   console.log(`Wrote ${jsonPath}`);
   // eslint-disable-next-line no-console
   console.log(
-    `Findings: product ${report.likelyProductValidationFindings.length}, ambiguous ${report.ambiguousHumanReviewFindings.length}, mapping-blocked ${report.mappingBlockedFields.length}`,
+    `Findings: product ${report.likelyProductValidationFindings.length}, ambiguous ${report.ambiguousHumanReviewFindings.length}, mapping-blocked ${report.mappingBlockedFields.length}, ready-for-rerun ${report.readyForGuardedRerun.length}`,
   );
 }

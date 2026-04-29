@@ -114,6 +114,15 @@ const BEAD_PAGE_ONE_FIELD_CELLS: BeadPageOneCellSpec[] = [
     suggestedDisplayName: 'Registered Legal Address Line 1',
   },
   {
+    ordinalOnPage: 36,
+    jsonKeyPath: 'merchantData.registeredLegalAddress.line2',
+    jsonTypeHint: 'string',
+    businessSection: 'Address',
+    sectionHeader: 'Registered Legal Address',
+    fieldLabel: 'Address Line 2',
+    suggestedDisplayName: 'Registered Legal Address Line 2',
+  },
+  {
     ordinalOnPage: 37,
     jsonKeyPath: 'merchantData.proofOfAddressType',
     jsonTypeHint: 'enum',
@@ -130,6 +139,15 @@ const BEAD_PAGE_ONE_FIELD_CELLS: BeadPageOneCellSpec[] = [
     sectionHeader: 'Registered Legal Address',
     fieldLabel: 'City',
     suggestedDisplayName: 'Registered Legal Address City',
+  },
+  {
+    ordinalOnPage: 40,
+    jsonKeyPath: 'merchantData.registeredLegalAddress.state',
+    jsonTypeHint: 'state',
+    businessSection: 'Address',
+    sectionHeader: 'Registered Legal Address',
+    fieldLabel: 'State',
+    suggestedDisplayName: 'Registered Legal Address State',
   },
   {
     ordinalOnPage: 41,
@@ -157,6 +175,15 @@ const BEAD_PAGE_ONE_FIELD_CELLS: BeadPageOneCellSpec[] = [
     sectionHeader: 'Physical Operating Address',
     fieldLabel: 'City',
     suggestedDisplayName: 'Physical Operating Address City',
+  },
+  {
+    ordinalOnPage: 50,
+    jsonKeyPath: 'merchantData.businessMailingAddress.state',
+    jsonTypeHint: 'state',
+    businessSection: 'Address',
+    sectionHeader: 'Physical Operating Address',
+    fieldLabel: 'State',
+    suggestedDisplayName: 'Physical Operating Address State',
   },
   {
     ordinalOnPage: 51,
@@ -220,6 +247,15 @@ const BEAD_PAGE_ONE_FIELD_CELLS: BeadPageOneCellSpec[] = [
     suggestedDisplayName: 'Bank Address City',
   },
   {
+    ordinalOnPage: 66,
+    jsonKeyPath: 'merchantData.bankAddress.state',
+    jsonTypeHint: 'state',
+    businessSection: 'Banking',
+    sectionHeader: 'Bank Address',
+    fieldLabel: 'State',
+    suggestedDisplayName: 'Bank Address State',
+  },
+  {
     ordinalOnPage: 67,
     jsonKeyPath: 'merchantData.bankAddress.postalCode',
     jsonTypeHint: 'postalCode',
@@ -227,6 +263,15 @@ const BEAD_PAGE_ONE_FIELD_CELLS: BeadPageOneCellSpec[] = [
     sectionHeader: 'Bank Address',
     fieldLabel: 'ZIP',
     suggestedDisplayName: 'Bank Address ZIP',
+  },
+  {
+    ordinalOnPage: 68,
+    jsonKeyPath: 'merchantData.bankAddress.country',
+    jsonTypeHint: 'country',
+    businessSection: 'Banking',
+    sectionHeader: 'Bank Address',
+    fieldLabel: 'Country',
+    suggestedDisplayName: 'Bank Address Country',
   },
 ];
 

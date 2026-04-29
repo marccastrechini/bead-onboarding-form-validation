@@ -359,6 +359,7 @@ test.describe('sample layout evidence', () => {
       mockLayoutMhtmlTab({ ordinalOnPage: 6, left: 35.2, top: 256.64, inputValue: '' }),
       mockLayoutMhtmlTab({ ordinalOnPage: 17, left: 35.2, top: 348.8, inputValue: 'Retail goods and services' }),
       mockLayoutMhtmlTab({ ordinalOnPage: 35, left: 410.88, top: 433.92, inputValue: '679 Lester Courts' }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 36, left: 348.16, top: 512.64, inputValue: '' }),
       mockLayoutMhtmlTab({ ordinalOnPage: 39, left: 35.2, top: 543.36, inputValue: 'Charlotte' }),
       mockLayoutMhtmlTab({ ordinalOnPage: 41, left: 568.32, top: 543.36, inputValue: '12345' }),
       mockLayoutMhtmlTab({ ordinalOnPage: 47, left: 35.2, top: 657.92, inputValue: '124 Uptown Blvd' }),
@@ -396,6 +397,13 @@ test.describe('sample layout evidence', () => {
       layoutSectionHeader: 'Registered Legal Address',
       layoutFieldLabel: 'Address Line 1',
       layoutValueShape: 'text_name_like',
+    });
+    expect(byKey.get('merchantData.registeredLegalAddress.line2')).toMatchObject({
+      suggestedDisplayName: 'Registered Legal Address Line 2',
+      suggestedBusinessSection: 'Address',
+      layoutSectionHeader: 'Registered Legal Address',
+      layoutFieldLabel: 'Address Line 2',
+      layoutValueShape: 'empty',
     });
     expect(byKey.get('merchantData.registeredLegalAddress.city')).toMatchObject({
       suggestedDisplayName: 'Registered Legal Address City',
@@ -654,9 +662,13 @@ test.describe('sample layout evidence', () => {
       mockLayoutMhtmlTab({ ordinalOnPage: 8, left: 37.12, top: 288.64, dataType: 'List', rawDataType: 'List', inputValue: '', ownedBySigner: false }),
       mockLayoutMhtmlTab({ ordinalOnPage: 10, left: 288, top: 287.36, dataType: 'List', rawDataType: 'List', inputValue: '', ownedBySigner: false }),
       mockLayoutMhtmlTab({ ordinalOnPage: 37, left: 663.68, top: 512.64, dataType: 'List', rawDataType: 'List', inputValue: '', ownedBySigner: false }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 40, left: 350.08, top: 544.64, dataType: 'List', rawDataType: 'List', inputValue: '', ownedBySigner: false }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 50, left: 348.8, top: 660.48, dataType: 'List', rawDataType: 'List', inputValue: '', ownedBySigner: false }),
       mockLayoutMhtmlTab({ ordinalOnPage: 53, left: 411.52, top: 713.6, dataType: 'List', rawDataType: 'List', inputValue: '', ownedBySigner: false }),
       mockLayoutMhtmlTab({ ordinalOnPage: 61, left: 536.96, top: 876.8, dataType: 'List', rawDataType: 'List', inputValue: '', ownedBySigner: false }),
       mockLayoutMhtmlTab({ ordinalOnPage: 62, left: 663.68, top: 876.8, dataType: 'List', rawDataType: 'List', inputValue: '', ownedBySigner: false }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 66, left: 288, top: 938.88, dataType: 'List', rawDataType: 'List', inputValue: '', ownedBySigner: false }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 68, left: 535.68, top: 938.88, dataType: 'List', rawDataType: 'List', inputValue: '', ownedBySigner: false }),
     ]), {
       jsonPath: 'sample.json',
       mhtmlPath: 'sample.mhtml',
@@ -688,6 +700,18 @@ test.describe('sample layout evidence', () => {
       layoutFieldLabel: 'Proof of Address Type',
       candidateDocuSignFieldFamily: 'List',
     });
+    expect(byKey.get('merchantData.registeredLegalAddress.state')).toMatchObject({
+      matchingMethod: 'layout_cell',
+      layoutSectionHeader: 'Registered Legal Address',
+      layoutFieldLabel: 'State',
+      candidateDocuSignFieldFamily: 'List',
+    });
+    expect(byKey.get('merchantData.businessMailingAddress.state')).toMatchObject({
+      matchingMethod: 'layout_cell',
+      layoutSectionHeader: 'Physical Operating Address',
+      layoutFieldLabel: 'State',
+      candidateDocuSignFieldFamily: 'List',
+    });
     expect(byKey.get('merchantData.locationBusinessType')).toMatchObject({
       matchingMethod: 'layout_cell',
       layoutSectionHeader: 'Location Details',
@@ -704,6 +728,18 @@ test.describe('sample layout evidence', () => {
       matchingMethod: 'layout_cell',
       layoutSectionHeader: 'Bank Info',
       layoutFieldLabel: 'Proof of Bank Account Type',
+      candidateDocuSignFieldFamily: 'List',
+    });
+    expect(byKey.get('merchantData.bankAddress.state')).toMatchObject({
+      matchingMethod: 'layout_cell',
+      layoutSectionHeader: 'Bank Address',
+      layoutFieldLabel: 'State',
+      candidateDocuSignFieldFamily: 'List',
+    });
+    expect(byKey.get('merchantData.bankAddress.country')).toMatchObject({
+      matchingMethod: 'layout_cell',
+      layoutSectionHeader: 'Bank Address',
+      layoutFieldLabel: 'Country',
       candidateDocuSignFieldFamily: 'List',
     });
   });
@@ -1568,6 +1604,63 @@ test.describe('validation findings export', () => {
     expect(md).toContain('Should registered_state/country be tested if display-only or not surfaced as editable controls?');
     expect(md).toContain('Should business mailing address be tested separately from registered legal address? Should physical operating address empty fields be ignored unless explicitly populated?');
     expect(md).toContain('Should bank address be tested separately from registered address? Are bank state/country editable or display-only?');
+  });
+
+  test('offline-calibrated skipped address concepts move to guarded rerun instead of mapping-blocked', () => {
+    const input = mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'registered_state',
+          conceptDisplayName: 'Registered Legal Address State',
+          validationId: 'current-option-documented',
+          testName: 'current option documented',
+          status: 'skipped',
+          outcome: 'mapping_not_confident',
+          targetConfidence: 'mapping_not_confident',
+          skippedReason: 'field is not confidently mapped in the scorecard source report',
+        }),
+        mockFindingsResult({
+          concept: 'bank_country',
+          conceptDisplayName: 'Bank Address Country',
+          validationId: 'current-option-documented',
+          testName: 'current option documented',
+          status: 'skipped',
+          outcome: 'mapping_not_confident',
+          targetConfidence: 'mapping_not_confident',
+          skippedReason: 'field is not confidently mapped in the scorecard source report',
+        }),
+      ],
+    });
+    input.calibration.rows = [
+      {
+        concept: 'registered_state',
+        conceptDisplayName: 'Registered Legal Address State',
+        currentCandidateFieldIndex: 63,
+        selectedCandidate: '#63 Registered Legal Address State Address p1 ord42 List shape=empty editable=editable layout=Registered Legal Address > State @ 350.08,544.64',
+        decision: 'trust_current_mapping',
+        calibrationReason: 'none',
+        mappingDecisionReason: 'trusted_by_label',
+      },
+      {
+        concept: 'bank_country',
+        conceptDisplayName: 'Bank Address Country',
+        currentCandidateFieldIndex: 68,
+        selectedCandidate: '#68 Bank Address Country Banking p1 ord70 List shape=empty editable=editable layout=Bank Address > Country @ 535.68,938.88',
+        decision: 'trust_current_mapping',
+        calibrationReason: 'none',
+        mappingDecisionReason: 'trusted_by_label',
+      },
+    ];
+
+    const report = buildValidationFindingsReport(input);
+
+    expect(report.readyForGuardedRerun.map((finding) => finding.concept)).toEqual(['registered_state', 'bank_country']);
+    expect(report.mappingBlockedFields).toEqual([]);
+
+    const md = renderValidationFindingsMarkdown(report);
+    expect(md).toContain('### Offline-calibrated targets awaiting guarded rerun');
+    expect(md).toContain('rerun this guarded case to replace the stale skipped result');
+    expect(md).toContain('now trusted by offline calibration and ready for a guarded rerun');
   });
 
   test('Batch 1 policy resolutions reduce resolved findings out of ambiguity', () => {
@@ -4908,6 +5001,186 @@ test.describe('interactive validation safety', () => {
     expect(row!.humanConfirmation?.requestedEvidence).toBe('On page 1 General, is Legal Entity Type an editable dropdown/list or display text?');
   });
 
+  test('physical operating address blockers ask for block visibility instead of a nearby unrelated control', () => {
+    const calibration = buildMappingCalibration({
+      report: mockValidationReport([
+        mockField({
+          index: 1,
+          section: 'Bead Onboarding Application US-02604-1.pdf Page 1 of 4.',
+          resolvedLabel: 'addressOptions › Required - addressOptions - isLegalAddress',
+          labelSource: 'aria-label',
+          labelConfidence: 'high',
+          docusignTabType: 'Radio',
+          inferredType: 'address_option',
+          pageIndex: 1,
+          ordinalOnPage: 45,
+          tabLeft: 211.2,
+          tabTop: 577.92,
+        }),
+        mockField({
+          index: 2,
+          section: 'Bead Onboarding Application US-02604-1.pdf Page 1 of 4.',
+          resolvedLabel: 'Location Name',
+          labelSource: 'aria-label',
+          labelConfidence: 'high',
+          docusignTabType: 'Text',
+          inferredType: 'unknown_manual_review',
+          pageIndex: 1,
+          ordinalOnPage: 54,
+          tabLeft: 35.2,
+          tabTop: 712.32,
+        }),
+      ]),
+      targetDiagnostics: {
+        schemaVersion: 1,
+        runStartedAt: '2026-04-28T00:00:00.000Z',
+        runFinishedAt: '2026-04-28T00:00:01.000Z',
+        summary: {
+          total: 0,
+          trusted: 0,
+          tool_mapping_suspect: 0,
+          mapping_not_confident: 0,
+          error_ownership_suspect: 0,
+          product_failure: 0,
+          observer_ambiguous: 0,
+          passed: 0,
+          skipped: 0,
+          manual_review: 0,
+        },
+        rows: [],
+      },
+      enrichment: {
+        schemaVersion: 1,
+        generatedAt: '2026-04-28T00:00:00.000Z',
+        sourceJson: 'sample.json',
+        sourceMhtml: 'sample.mhtml',
+        records: [{
+          tabGuid: 'guid-physical-line1',
+          positionalFingerprint: 'page:1|Text|ord:47',
+          tabLeft: 35.2,
+          tabTop: 627.2,
+          jsonKeyPath: 'merchantData.businessMailingAddress.line1',
+          jsonFieldFamily: 'Address',
+          jsonTypeHint: 'string',
+          docusignFieldFamily: 'Text',
+          confidence: 'high',
+          suggestedDisplayName: 'Physical Operating Address Line 1',
+          suggestedBusinessSection: 'Address',
+          layoutSectionHeader: 'Physical Operating Address',
+          layoutFieldLabel: 'Address Line 1',
+          layoutValueShape: 'text_name_like',
+          layoutEvidenceSource: 'pdf-text-sequence',
+          layoutNeighboringLabels: ['City', 'State'],
+          layoutEditability: 'editable',
+        }],
+      },
+      alignment: {
+        rows: [{
+          jsonKeyPath: 'merchantData.businessMailingAddress.line1',
+          jsonFieldFamily: 'Address',
+          jsonValueSample: '124 Uptown Blvd',
+          jsonTypeHint: 'string',
+          matchedTabGuid: 'guid-physical-line1',
+          matchedRenderedValue: '124 Uptown Blvd',
+          candidateRenderedPrompt: 'Required',
+          candidateDocuSignFieldFamily: 'Text',
+          tabPageIndex: 1,
+          tabOrdinalOnPage: 47,
+          tabLeft: 35.2,
+          tabTop: 627.2,
+          layoutSectionHeader: 'Physical Operating Address',
+          layoutFieldLabel: 'Address Line 1',
+          layoutEvidenceSource: 'pdf-text-sequence',
+          layoutValueShape: 'text_name_like',
+          layoutNeighboringLabels: ['City', 'State'],
+          layoutEditability: 'editable',
+          businessSection: 'Address',
+          confidence: 'high',
+          matchingMethod: 'layout_cell',
+          notes: 'matched using PDF/MHTML field-cell evidence (Physical Operating Address > Address Line 1)',
+        }],
+      },
+      summaryPath: 'summary.json',
+      targetDiagnosticsPath: 'diagnostics.json',
+      enrichmentPath: 'enrichment.json',
+      alignmentPath: 'alignment.json',
+    });
+    const row = calibration.rows.find((entry) => entry.concept === 'business_mailing_address_line_1');
+
+    expect(row).toBeTruthy();
+    expect(row!.missingProof).toContain('Sample layout evidence points to Physical Operating Address > Address Line 1.');
+    expect(row!.missingProof).toContain('The Physical Operating Address block may be conditionally hidden unless the signer indicates the operating address differs from the registered legal address.');
+    expect(row!.humanConfirmation?.requestedEvidence).toContain('Review a screenshot of the Physical Operating Address section');
+    expect(row!.humanConfirmation?.requestedEvidence).not.toContain('#');
+  });
+
+  test('country blockers without sample layout proof ask whether the control exists or is display-only', () => {
+    const calibration = buildMappingCalibration({
+      report: mockValidationReport([]),
+      targetDiagnostics: {
+        schemaVersion: 1,
+        runStartedAt: '2026-04-28T00:00:00.000Z',
+        runFinishedAt: '2026-04-28T00:00:01.000Z',
+        summary: {
+          total: 0,
+          trusted: 0,
+          tool_mapping_suspect: 0,
+          mapping_not_confident: 0,
+          error_ownership_suspect: 0,
+          product_failure: 0,
+          observer_ambiguous: 0,
+          passed: 0,
+          skipped: 0,
+          manual_review: 0,
+        },
+        rows: [],
+      },
+      enrichment: {
+        schemaVersion: 1,
+        generatedAt: '2026-04-28T00:00:00.000Z',
+        sourceJson: 'sample.json',
+        sourceMhtml: 'sample.mhtml',
+        records: [],
+      },
+      alignment: {
+        rows: [{
+          jsonKeyPath: 'merchantData.registeredLegalAddress.country',
+          jsonFieldFamily: 'Address',
+          jsonValueSample: 'US',
+          jsonTypeHint: 'country',
+          matchedTabGuid: null,
+          matchedRenderedValue: null,
+          candidateRenderedPrompt: null,
+          candidateDocuSignFieldFamily: null,
+          tabPageIndex: null,
+          tabOrdinalOnPage: null,
+          tabLeft: null,
+          tabTop: null,
+          layoutSectionHeader: null,
+          layoutFieldLabel: null,
+          layoutEvidenceSource: null,
+          layoutValueShape: null,
+          layoutNeighboringLabels: [],
+          layoutEditability: null,
+          businessSection: 'Address',
+          confidence: 'none',
+          matchingMethod: 'unmatched',
+          notes: 'no rendered value matched any variant',
+        }],
+      },
+      summaryPath: 'summary.json',
+      targetDiagnosticsPath: 'diagnostics.json',
+      enrichmentPath: 'enrichment.json',
+      alignmentPath: 'alignment.json',
+    });
+    const row = calibration.rows.find((entry) => entry.concept === 'registered_country');
+
+    expect(row).toBeTruthy();
+    expect(row!.missingProof).toContain('No sample PDF/MHTML layout evidence currently proves a separate Registered Legal Address Country control in this saved US flow.');
+    expect(row!.humanConfirmation?.requestedEvidence).toContain('Registered Legal Address section');
+    expect(row!.humanConfirmation?.requestedEvidence).toContain('omitted or display-only');
+  });
+
   test('controlled-choice calibration diagnostics do not emit sensitive values', () => {
     const calibration = buildMappingCalibration({
       report: mockValidationReport([
@@ -5427,18 +5700,23 @@ function mockSubmissionForLayout(): unknown {
       proofOfBankAccountType: 'colorizedVoidCheck',
       registeredLegalAddress: {
         line1: '679 Lester Courts',
+        line2: '',
         city: 'Charlotte',
+        state: 'NC',
         postalCode: '[redacted]',
       },
       businessMailingAddress: {
         line1: '124 Uptown Blvd',
         city: 'Charlotte',
+        state: 'NC',
         postalCode: '',
       },
       bankAddress: {
         line1: '456 Bank Plaza',
         city: 'Charlotte',
+        state: 'NC',
         postalCode: '[redacted]',
+        country: 'US',
       },
     },
   };
@@ -5447,10 +5725,10 @@ function mockSubmissionForLayout(): unknown {
 function beadPageOneLabelText(): string {
   return [
     'General Registered Name Registration Date DBA Name (optional) Proof of Business Type Federal Tax ID Type Legal Entity Type Business Description',
-    'Business Primary Location Registered Legal Address Proof of Address Type Address Line 1 City State ZIP',
+    'Business Primary Location Registered Legal Address Proof of Address Type Address Line 1 Address Line 2 City State ZIP',
     'Physical Operating Address Address Line 1 City State ZIP',
     'Location Details Location Name Business Type',
-    'Bank Info Account Type Proof of Bank Account Type Bank Address Line 1 Bank Address Line 2 Bank Address City State ZIP',
+    'Bank Info Account Type Proof of Bank Account Type Bank Address Line 1 Bank Address Line 2 Bank Address City State ZIP Country',
   ].join(' ');
 }
 
@@ -5759,9 +6037,21 @@ function mockFindingsInput(args: {
         conceptDisplayName: args.results.find((result) => result.concept === concept)!.conceptDisplayName,
         currentCandidateFieldIndex: 1,
         selectedCandidate: '#1 synthetic candidate',
-        decision: concept === 'bank_name' ? 'trust_likely_better_candidate' : 'trust_current_mapping',
-        calibrationReason: concept === 'bank_name' ? 'page1_anchor_drift_after_website' : 'none',
-        mappingDecisionReason: concept === 'bank_name' ? 'rejected_value_shape_mismatch' : 'trusted_by_value_shape',
+        decision: args.results.some((result) => result.concept === concept && result.outcome === 'mapping_not_confident')
+          ? 'leave_unresolved'
+          : concept === 'bank_name'
+            ? 'trust_likely_better_candidate'
+            : 'trust_current_mapping',
+        calibrationReason: args.results.some((result) => result.concept === concept && result.outcome === 'mapping_not_confident')
+          ? 'no_unclaimed_neighbor_with_expected_shape'
+          : concept === 'bank_name'
+            ? 'page1_anchor_drift_after_website'
+            : 'none',
+        mappingDecisionReason: args.results.some((result) => result.concept === concept && result.outcome === 'mapping_not_confident')
+          ? 'rejected_insufficient_label_proof'
+          : concept === 'bank_name'
+            ? 'rejected_value_shape_mismatch'
+            : 'trusted_by_value_shape',
       })),
     },
     generatedAt: '2026-04-27T00:00:02.000Z',
