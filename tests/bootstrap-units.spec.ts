@@ -1118,6 +1118,110 @@ test.describe('validation findings export', () => {
     expect(report.likelyProductValidationFindings[0].validationId).toBe('malformed-url-rejected');
   });
 
+  test('trusted state invalid and numeric acceptances render as likely product findings', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'registered_state',
+          conceptDisplayName: 'Registered Legal Address State',
+          validationId: 'invalid-state-rejected',
+          testName: 'invalid state rejected',
+          status: 'failed',
+          outcome: 'product_failure',
+          targetConfidence: 'trusted',
+          controlKind: 'native-select',
+          optionsDiscoverable: true,
+        }),
+        mockFindingsResult({
+          concept: 'registered_state',
+          conceptDisplayName: 'Registered Legal Address State',
+          validationId: 'numbers-rejected',
+          testName: 'numbers rejected',
+          status: 'failed',
+          outcome: 'product_failure',
+          targetConfidence: 'trusted',
+          controlKind: 'native-select',
+          optionsDiscoverable: true,
+        }),
+        mockFindingsResult({
+          concept: 'bank_state',
+          conceptDisplayName: 'Bank Address State',
+          validationId: 'invalid-state-rejected',
+          testName: 'invalid state rejected',
+          status: 'failed',
+          outcome: 'product_failure',
+          targetConfidence: 'trusted',
+          controlKind: 'native-select',
+          optionsDiscoverable: true,
+        }),
+        mockFindingsResult({
+          concept: 'bank_state',
+          conceptDisplayName: 'Bank Address State',
+          validationId: 'numbers-rejected',
+          testName: 'numbers rejected',
+          status: 'failed',
+          outcome: 'product_failure',
+          targetConfidence: 'trusted',
+          controlKind: 'native-select',
+          optionsDiscoverable: true,
+        }),
+      ],
+    }));
+
+    expect(report.likelyProductValidationFindings).toHaveLength(4);
+
+    const md = renderValidationFindingsMarkdown(report);
+    expect(md).toContain('| Concept | Field | Check | Why trusted | What was accepted | Why it matters | Recommended product action |');
+    expect(md).toContain('Accepted invalid non-state value.');
+    expect(md).toContain('Accepted numeric non-state value.');
+    expect(md).toContain('State should be constrained to valid state values or reject invalid state-like inputs at the field level.');
+    expect(md).toContain('Constrain Registered Legal Address State to valid state values and reject invalid or numeric entries with a field-local validation signal.');
+    expect(md).toContain('Constrain Bank Address State to valid state values and reject invalid or numeric entries with a field-local validation signal.');
+  });
+
+  test('state product findings do not expose raw attempted values', () => {
+    const rawInvalidState = 'NEVER_EXPORT_STATE_TOKEN';
+    const rawNumericState = 'NEVER_EXPORT_NUMERIC_TOKEN';
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'registered_state',
+          conceptDisplayName: 'Registered Legal Address State',
+          validationId: 'invalid-state-rejected',
+          testName: 'invalid state rejected',
+          status: 'failed',
+          outcome: 'product_failure',
+          targetConfidence: 'trusted',
+          inputValue: rawInvalidState,
+          observedValue: rawInvalidState,
+          controlKind: 'native-select',
+          optionsDiscoverable: true,
+        }),
+        mockFindingsResult({
+          concept: 'bank_state',
+          conceptDisplayName: 'Bank Address State',
+          validationId: 'numbers-rejected',
+          testName: 'numbers rejected',
+          status: 'failed',
+          outcome: 'product_failure',
+          targetConfidence: 'trusted',
+          inputValue: rawNumericState,
+          observedValue: rawNumericState,
+          controlKind: 'native-select',
+          optionsDiscoverable: true,
+        }),
+      ],
+    }));
+
+    const json = JSON.stringify(report);
+    const md = renderValidationFindingsMarkdown(report);
+
+    expect(json).not.toContain(rawInvalidState);
+    expect(json).not.toContain(rawNumericState);
+    expect(md).not.toContain(rawInvalidState);
+    expect(md).not.toContain(rawNumericState);
+  });
+
   test('mapping_not_confident appears only in mapping-blocked section', () => {
     const report = buildValidationFindingsReport(mockFindingsInput({
       results: [
@@ -1220,6 +1324,35 @@ test.describe('validation findings export', () => {
     expect(report.ambiguousHumanReviewFindings[0].concept).toBe('date_of_birth');
     expect(report.likelyProductValidationFindings).toEqual([]);
     expect(report.mappingBlockedFields).toEqual([]);
+  });
+
+  test('bank country invalid-country ambiguity remains non-product unless policy evidence is stronger', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'bank_country',
+          conceptDisplayName: 'Bank Address Country',
+          validationId: 'invalid-country-rejected',
+          testName: 'invalid country rejected or flagged',
+          status: 'warning',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          inputValue: 'NOT_A_COUNTRY',
+          observedValue: 'NOT_A_COUNTRY',
+          controlKind: 'native-select',
+          optionsDiscoverable: true,
+        }),
+      ],
+    }));
+
+    expect(report.likelyProductValidationFindings).toEqual([]);
+    expect(report.ambiguousHumanReviewFindings).toHaveLength(1);
+    expect(report.ambiguousHumanReviewFindings[0].ambiguity?.type).toBe('observer_needs_stronger_text_evidence');
+
+    const md = renderValidationFindingsMarkdown(report);
+    expect(md).toContain('### Observer needs stronger text evidence');
+    expect(md).toContain('| Bank Address Country | invalid country rejected or flagged |');
+    expect(md).not.toContain('Accepted invalid non-state value.');
   });
 
   test('controlled-choice current/default readable resolves to expected select behavior', () => {
@@ -1661,6 +1794,175 @@ test.describe('validation findings export', () => {
     expect(md).toContain('### Offline-calibrated targets awaiting guarded rerun');
     expect(md).toContain('rerun this guarded case to replace the stale skipped result');
     expect(md).toContain('now trusted by offline calibration and ready for a guarded rerun');
+  });
+
+  test('remaining unresolved calibration blockers stay separate from product findings and keep exact proof requests', () => {
+    const input = mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'registered_state',
+          conceptDisplayName: 'Registered Legal Address State',
+          validationId: 'invalid-state-rejected',
+          testName: 'invalid state rejected',
+          status: 'failed',
+          outcome: 'product_failure',
+          targetConfidence: 'trusted',
+          controlKind: 'native-select',
+          optionsDiscoverable: true,
+        }),
+      ],
+    });
+    input.calibration.rows = [
+      {
+        concept: 'registered_state',
+        conceptDisplayName: 'Registered Legal Address State',
+        currentCandidateFieldIndex: 63,
+        selectedCandidate: '#63 Registered Legal Address State Address p1 ord42 List shape=empty editable=editable layout=Registered Legal Address > State @ 350.08,544.64',
+        decision: 'trust_current_mapping',
+        calibrationReason: 'none',
+        mappingDecisionReason: 'trusted_by_label',
+      },
+      {
+        concept: 'registration_date',
+        conceptDisplayName: 'Registration Date',
+        currentCandidateFieldIndex: null,
+        selectedCandidate: null,
+        decision: 'leave_unresolved',
+        calibrationReason: 'date_anchor_mismatch',
+        mappingDecisionReason: 'rejected_value_shape_mismatch',
+        missingProof: [
+          'No unclaimed editable candidate has the expected date live value shape.',
+        ],
+        humanConfirmation: {
+          needed: true,
+          concept: 'registration_date',
+          suspectedFieldLocation: 'General > Registration Date',
+          currentBlocker: 'The current mapped candidate has a text_name_like value shape that conflicts with Registration Date.',
+          requestedEvidence: 'Review a screenshot of the General section and answer whether Registration Date is the visible editable date input in this flow.',
+          decisionImpact: 'If the screenshot confirms the editable date control, the next calibration can trust Registration Date; otherwise keep it out of product-failure counts.',
+        },
+      },
+      {
+        concept: 'registered_country',
+        conceptDisplayName: 'Registered Legal Address Country',
+        currentCandidateFieldIndex: null,
+        selectedCandidate: null,
+        decision: 'leave_unresolved',
+        calibrationReason: 'no_sample_layout_proof',
+        mappingDecisionReason: 'rejected_insufficient_label_proof',
+        missingProof: [
+          'No sample PDF/MHTML layout evidence currently proves a separate Registered Legal Address Country control in this saved US flow.',
+        ],
+        humanConfirmation: {
+          needed: true,
+          concept: 'registered_country',
+          suspectedFieldLocation: 'Registered Legal Address (Registered Legal Address Country)',
+          currentBlocker: 'The saved sample does not currently prove a separate editable Registered Legal Address Country control.',
+          requestedEvidence: 'Review a screenshot of the Registered Legal Address section and answer whether Country is exposed as an editable control in this flow, or whether it is omitted or display-only.',
+          decisionImpact: 'If the screenshot confirms one visible editable Registered Legal Address Country control, the next calibration can trust it; otherwise keep Registered Legal Address Country mapping-blocked and out of product-failure counts for this flow.',
+        },
+      },
+      {
+        concept: 'business_mailing_address_line_1',
+        conceptDisplayName: 'Business Mailing Address Line 1',
+        currentCandidateFieldIndex: null,
+        selectedCandidate: null,
+        decision: 'leave_unresolved',
+        calibrationReason: 'physical_address_block_hidden',
+        mappingDecisionReason: 'rejected_section_mismatch',
+        missingProof: [
+          'Sample layout evidence points to Physical Operating Address > Address Line 1.',
+        ],
+        humanConfirmation: {
+          needed: true,
+          concept: 'business_mailing_address_line_1',
+          suspectedFieldLocation: 'Physical Operating Address > Address Line 1',
+          currentBlocker: 'The saved sample proves Physical Operating Address > Address Line 1, but the current safe-mode report does not surface that field near the expected anchor.',
+          requestedEvidence: 'Review a screenshot of the Physical Operating Address section and answer whether Address Line 1 is currently visible/editable, or whether the section is intentionally hidden because the operating address matches the registered legal address.',
+          decisionImpact: 'If the section is visible and Address Line 1 is editable, the next calibration can trust Business Mailing Address Line 1; if the section is hidden or intentionally omitted for this flow, keep Business Mailing Address Line 1 out of product-failure counts and current batch coverage.',
+        },
+      },
+      {
+        concept: 'business_mailing_city',
+        conceptDisplayName: 'Business Mailing Address City',
+        currentCandidateFieldIndex: null,
+        selectedCandidate: null,
+        decision: 'leave_unresolved',
+        calibrationReason: 'physical_address_block_hidden',
+        mappingDecisionReason: 'rejected_section_mismatch',
+        missingProof: [
+          'Sample layout evidence points to Physical Operating Address > City.',
+        ],
+        humanConfirmation: {
+          needed: true,
+          concept: 'business_mailing_city',
+          suspectedFieldLocation: 'Physical Operating Address > City',
+          currentBlocker: 'The saved sample proves Physical Operating Address > City, but the current safe-mode report does not surface that field near the expected anchor.',
+          requestedEvidence: 'Review a screenshot of the Physical Operating Address section and answer whether City is currently visible/editable, or whether the section is intentionally hidden because the operating address matches the registered legal address.',
+          decisionImpact: 'If the section is visible and City is editable, the next calibration can trust Business Mailing Address City; if the section is hidden or intentionally omitted for this flow, keep Business Mailing Address City out of product-failure counts and current batch coverage.',
+        },
+      },
+      {
+        concept: 'business_mailing_state',
+        conceptDisplayName: 'Business Mailing Address State',
+        currentCandidateFieldIndex: null,
+        selectedCandidate: null,
+        decision: 'leave_unresolved',
+        calibrationReason: 'physical_address_block_hidden',
+        mappingDecisionReason: 'rejected_insufficient_label_proof',
+        missingProof: [
+          'Sample layout evidence points to Physical Operating Address > State.',
+        ],
+        humanConfirmation: {
+          needed: true,
+          concept: 'business_mailing_state',
+          suspectedFieldLocation: 'Physical Operating Address > State',
+          currentBlocker: 'The saved sample proves Physical Operating Address > State, but the current safe-mode report does not surface that field near the expected anchor.',
+          requestedEvidence: 'Review a screenshot of the Physical Operating Address section and answer whether State is currently visible/editable, or whether the section is intentionally hidden because the operating address matches the registered legal address.',
+          decisionImpact: 'If the section is visible and State is editable, the next calibration can trust Business Mailing Address State; if the section is hidden or intentionally omitted for this flow, keep Business Mailing Address State out of product-failure counts and current batch coverage.',
+        },
+      },
+      {
+        concept: 'business_mailing_postal_code',
+        conceptDisplayName: 'Business Mailing Address Postal Code',
+        currentCandidateFieldIndex: null,
+        selectedCandidate: null,
+        decision: 'leave_unresolved',
+        calibrationReason: 'physical_address_block_hidden',
+        mappingDecisionReason: 'rejected_value_shape_mismatch',
+        missingProof: [
+          'Sample layout evidence points to Physical Operating Address > ZIP.',
+        ],
+        humanConfirmation: {
+          needed: true,
+          concept: 'business_mailing_postal_code',
+          suspectedFieldLocation: 'Physical Operating Address > ZIP',
+          currentBlocker: 'The saved sample proves Physical Operating Address > ZIP, but the current safe-mode report does not surface that field near the expected anchor.',
+          requestedEvidence: 'Review a screenshot of the Physical Operating Address section and answer whether ZIP is currently visible/editable, or whether the section is intentionally hidden because the operating address matches the registered legal address.',
+          decisionImpact: 'If the section is visible and ZIP is editable, the next calibration can trust Business Mailing Address Postal Code; if the section is hidden or intentionally omitted for this flow, keep Business Mailing Address Postal Code out of product-failure counts and current batch coverage.',
+        },
+      },
+    ];
+
+    const report = buildValidationFindingsReport(input);
+
+    expect(report.likelyProductValidationFindings.map((finding) => finding.concept)).toEqual(['registered_state']);
+    expect(report.remainingCalibrationBlockers.map((blocker) => blocker.concept)).toEqual([
+      'registered_country',
+      'business_mailing_address_line_1',
+      'business_mailing_city',
+      'business_mailing_state',
+      'business_mailing_postal_code',
+    ]);
+
+    const md = renderValidationFindingsMarkdown(report);
+    expect(md).toContain('## Remaining Unresolved Calibration Blockers');
+    expect(md).toContain('remain unresolved calibration blockers outside this rerun scope and still need human proof; keep them separate from product validation findings.');
+    expect(md).toContain('Review a screenshot of the Registered Legal Address section and answer whether Country is exposed as an editable control in this flow, or whether it is omitted or display-only.');
+    expect(md).toContain('Review a screenshot of the Physical Operating Address section and answer whether Address Line 1 is currently visible/editable, or whether the section is intentionally hidden because the operating address matches the registered legal address.');
+    expect(md).toContain('Review a screenshot of the Physical Operating Address section and answer whether City is currently visible/editable, or whether the section is intentionally hidden because the operating address matches the registered legal address.');
+    expect(md).toContain('Review a screenshot of the Physical Operating Address section and answer whether State is currently visible/editable, or whether the section is intentionally hidden because the operating address matches the registered legal address.');
+    expect(md).toContain('Review a screenshot of the Physical Operating Address section and answer whether ZIP is currently visible/editable, or whether the section is intentionally hidden because the operating address matches the registered legal address.');
   });
 
   test('Batch 1 policy resolutions reduce resolved findings out of ambiguity', () => {

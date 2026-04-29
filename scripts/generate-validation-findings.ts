@@ -92,6 +92,7 @@ type ValidationResult = InteractiveValidationResultsFile['results'][number];
 interface FindingItem {
   concept: FieldConceptKey;
   conceptDisplayName: string;
+  fieldLabel: string | null;
   validationId: string;
   testName: string;
   status: InteractiveResultStatus;
@@ -185,6 +186,18 @@ interface RecommendedBatch {
   notes: string;
 }
 
+interface RemainingCalibrationBlocker {
+  concept: FieldConceptKey;
+  conceptDisplayName: string;
+  calibrationDecision: string;
+  calibrationReason: string;
+  mappingDecisionReason: string;
+  missingProof: string[];
+  currentBlocker: string | null;
+  requestedEvidence: string | null;
+  decisionImpact: string | null;
+}
+
 export interface ValidationFindingsReport {
   schemaVersion: 1;
   generatedAt: string;
@@ -215,6 +228,7 @@ export interface ValidationFindingsReport {
   controlledChoiceFindingsByClassification: Record<ControlledChoiceClassification, FindingItem[]>;
   readyForGuardedRerun: FindingItem[];
   mappingBlockedFields: FindingItem[];
+  remainingCalibrationBlockers: RemainingCalibrationBlocker[];
   perConceptResults: PerConceptSummary[];
   scorecardCoverage: {
     executedValidationCount: number;
@@ -350,6 +364,7 @@ export function buildValidationFindingsReport(input: {
     const finding: Omit<FindingItem, 'ambiguity' | 'controlledChoiceClassification'> = {
       concept: result.concept,
       conceptDisplayName: result.conceptDisplayName,
+      fieldLabel: result.fieldLabel ?? null,
       validationId: result.validationId,
       testName: result.testName,
       status: result.status,
@@ -408,6 +423,21 @@ export function buildValidationFindingsReport(input: {
   const mappingBlockedFields = findings.filter((finding) =>
     (finding.outcome === 'mapping_not_confident' || finding.targetConfidence === 'mapping_not_confident') && !isReadyForGuardedRerun(finding),
   );
+  const remainingCalibrationBlockers = input.calibration.rows
+    .filter((row) => isUnresolvedCalibrationDecision(row.decision))
+    .filter((row) => isAddressLocationConcept(row.concept))
+    .filter((row) => !input.results.targetConcepts.includes(row.concept))
+    .map((row) => ({
+      concept: row.concept,
+      conceptDisplayName: row.conceptDisplayName,
+      calibrationDecision: row.decision,
+      calibrationReason: row.calibrationReason,
+      mappingDecisionReason: row.mappingDecisionReason,
+      missingProof: row.missingProof ?? [],
+      currentBlocker: row.humanConfirmation?.currentBlocker ?? row.missingProof?.[0] ?? null,
+      requestedEvidence: row.humanConfirmation?.requestedEvidence ?? null,
+      decisionImpact: row.humanConfirmation?.decisionImpact ?? null,
+    }));
 
   const perConceptResults = buildPerConceptSummaries({
     findings,
@@ -440,6 +470,7 @@ export function buildValidationFindingsReport(input: {
       ambiguousHumanReviewFindings,
       readyForGuardedRerun,
       mappingBlockedFields,
+      remainingCalibrationBlockers,
       scorecardCoverage,
     }),
     runScope: {
@@ -462,9 +493,10 @@ export function buildValidationFindingsReport(input: {
     controlledChoiceFindingsByClassification,
     readyForGuardedRerun,
     mappingBlockedFields,
+    remainingCalibrationBlockers,
     perConceptResults,
     scorecardCoverage,
-    recommendedNextToolingWork: buildRecommendedToolingWork(mappingBlockedFields, readyForGuardedRerun),
+    recommendedNextToolingWork: buildRecommendedToolingWork(mappingBlockedFields, readyForGuardedRerun, remainingCalibrationBlockers),
     recommendedNextFieldExpansionBatches: buildRecommendedBatches(),
     safetyNotes: [
       'This report is generated from existing offline artifacts only; it does not run live, interactive, or destructive validation.',
@@ -496,10 +528,11 @@ export function renderValidationFindingsMarkdown(report: ValidationFindingsRepor
   lines.push('');
   renderFindingTable(lines, 'Trusted Executed Observations', report.trustedExecutedObservations);
   renderControlledChoiceFindings(lines, report);
-  renderFindingTable(lines, 'Likely Product Validation Findings', report.likelyProductValidationFindings);
+  renderLikelyProductValidationFindings(lines, report.likelyProductValidationFindings);
   renderAddressLocationFindings(lines, report);
   renderAmbiguousFindingsByType(lines, report);
   renderFindingTable(lines, 'Mapping-Blocked Fields', report.mappingBlockedFields);
+  renderRemainingCalibrationBlockers(lines, report.remainingCalibrationBlockers);
   lines.push('## Per-Concept Results');
   lines.push('');
   for (const concept of report.perConceptResults) {
@@ -1179,10 +1212,12 @@ function buildExecutiveSummary(input: {
   ambiguousHumanReviewFindings: FindingItem[];
   readyForGuardedRerun: FindingItem[];
   mappingBlockedFields: FindingItem[];
+  remainingCalibrationBlockers: RemainingCalibrationBlocker[];
   scorecardCoverage: ValidationFindingsReport['scorecardCoverage'];
 }): string[] {
   const readyConcepts = unique(input.readyForGuardedRerun.map((finding) => finding.conceptDisplayName));
   const blockedConcepts = unique(input.mappingBlockedFields.map((finding) => finding.conceptDisplayName));
+  const remainingCalibrationConcepts = unique(input.remainingCalibrationBlockers.map((blocker) => blocker.conceptDisplayName));
   const summary = [
     `${input.totalObservations} observations were reviewed across ${input.targetConcepts.length} targeted concept(s).`,
     `${input.resultCounts.passed} passed, ${input.resultCounts.failed} failed, ${input.resultCounts.warning} warned, ${input.resultCounts.manual_review} require manual review, and ${input.resultCounts.skipped} were skipped.`,
@@ -1196,10 +1231,17 @@ function buildExecutiveSummary(input: {
   summary.splice(readyConcepts.length > 0 ? 5 : 4, 0, blockedConcepts.length > 0
     ? `${blockedConcepts.join(', ')} remained mapping-blocked after applying the latest offline calibration and should not be treated as product validation failure(s).`
     : 'No currently mapping-blocked target concepts remain after applying the latest offline calibration.');
+  if (remainingCalibrationConcepts.length > 0) {
+    summary.splice(readyConcepts.length > 0 ? 6 : 5, 0, `${remainingCalibrationConcepts.join(', ')} remain unresolved calibration blockers outside this rerun scope and still need human proof; keep them separate from product validation findings.`);
+  }
   return summary;
 }
 
-function buildRecommendedToolingWork(mappingBlockedFields: FindingItem[], readyForGuardedRerun: FindingItem[]): string[] {
+function buildRecommendedToolingWork(
+  mappingBlockedFields: FindingItem[],
+  readyForGuardedRerun: FindingItem[],
+  remainingCalibrationBlockers: RemainingCalibrationBlocker[],
+): string[] {
   const items = [
     'Keep mapping-not-confident, tool-mapping-suspect, ownership-suspect, and observer-ambiguous outcomes out of product-defect counts.',
     'Preserve the calibrated target handoff for Website, Email, Phone, and Date of Birth while continuing to require live verifier agreement before mutation.',
@@ -1210,6 +1252,9 @@ function buildRecommendedToolingWork(mappingBlockedFields: FindingItem[], readyF
   if (mappingBlockedFields.some((finding) => finding.concept === 'bank_name')) {
     items.push('Resolve Bank Name by improving live verifier evidence around the page-1 banking window; do not mutate Bank Name until a safe text/name-like candidate is unclaimed and trusted.');
     items.push('Record the Bank Name block as mapping/tool work, not a product validation finding.');
+  }
+  if (remainingCalibrationBlockers.length > 0) {
+    items.push('Keep unresolved calibration blockers out of product findings until screenshots confirm whether the saved-sample controls are visible, editable, omitted, or intentionally hidden in this flow.');
   }
   items.push('Add concise exports for reviewer handoff before expanding to sensitive tax or bank-account fields.');
   return items;
@@ -1348,6 +1393,23 @@ function renderFindingTable(lines: string[], title: string, findings: FindingIte
   lines.push('');
 }
 
+function renderLikelyProductValidationFindings(lines: string[], findings: FindingItem[]): void {
+  lines.push('## Likely Product Validation Findings');
+  lines.push('');
+  if (findings.length === 0) {
+    lines.push('No findings in this category.');
+    lines.push('');
+    return;
+  }
+
+  lines.push('| Concept | Field | Check | Why trusted | What was accepted | Why it matters | Recommended product action |');
+  lines.push('|---|---|---|---|---|---|---|');
+  for (const finding of findings) {
+    lines.push(`| ${esc(finding.conceptDisplayName)} | ${esc(finding.fieldLabel ?? finding.conceptDisplayName)} | ${esc(finding.testName)} | ${esc(productFindingTrustSummary(finding))} | ${esc(productFindingAcceptedSummary(finding))} | ${esc(productFindingImpactSummary(finding))} | ${esc(productFindingActionSummary(finding))} |`);
+  }
+  lines.push('');
+}
+
 function renderControlledChoiceFindings(lines: string[], report: ValidationFindingsReport): void {
   lines.push('## Controlled-choice observations');
   lines.push('');
@@ -1468,6 +1530,23 @@ function renderAddressLocationFindings(lines: string[], report: ValidationFindin
   renderAddressHumanConfirmationSection(lines, 'Human visual confirmation needed', addressHumanConfirmation);
 }
 
+function renderRemainingCalibrationBlockers(lines: string[], blockers: RemainingCalibrationBlocker[]): void {
+  lines.push('## Remaining Unresolved Calibration Blockers');
+  lines.push('');
+  if (blockers.length === 0) {
+    lines.push('No findings in this category.');
+    lines.push('');
+    return;
+  }
+
+  lines.push('| Concept | Current blocker | Exact next proof | Decision impact |');
+  lines.push('|---|---|---|---|');
+  for (const blocker of blockers) {
+    lines.push(`| ${esc(blocker.conceptDisplayName)} | ${esc(blocker.currentBlocker ?? blocker.missingProof[0] ?? 'n/a')} | ${esc(blocker.requestedEvidence ?? 'n/a')} | ${esc(blocker.decisionImpact ?? 'n/a')} |`);
+  }
+  lines.push('');
+}
+
 function renderAddressReadyForGuardedRerunSection(lines: string[], title: string, findings: FindingItem[]): void {
   lines.push(`### ${title}`);
   lines.push('');
@@ -1575,6 +1654,49 @@ function addressMappingPolicyPrompt(concept: FieldConceptKey): string {
     default:
       return 'Review whether this address/location field should be treated as a separate editable validation target.';
   }
+}
+
+function isUnresolvedCalibrationDecision(decision: string | null | undefined): boolean {
+  return decision === 'leave_unresolved' || decision === 'downgrade_current_mapping_to_unresolved';
+}
+
+function isStateValidationProductFinding(finding: FindingItem): boolean {
+  return finding.outcome === 'product_failure' && /(^|_)state$/i.test(finding.concept);
+}
+
+function productFindingTrustSummary(finding: FindingItem): string {
+  const parts = [finding.targetConfidenceReason ?? 'Trusted executed target.'];
+  if (finding.calibrationDecision && finding.calibrationMappingDecisionReason) {
+    parts.push(`Offline calibration: ${finding.calibrationDecision} / ${finding.calibrationMappingDecisionReason}.`);
+  }
+  return parts.join(' ');
+}
+
+function productFindingAcceptedSummary(finding: FindingItem): string {
+  if (isStateValidationProductFinding(finding) && /numbers/i.test(finding.validationId + ' ' + finding.testName)) {
+    return 'Accepted numeric non-state value.';
+  }
+  if (isStateValidationProductFinding(finding) && /invalid state/i.test(finding.validationId + ' ' + finding.testName)) {
+    return 'Accepted invalid non-state value.';
+  }
+  if (finding.outcome === 'product_failure') {
+    return 'Accepted an input that should have been rejected.';
+  }
+  return finding.interpretation;
+}
+
+function productFindingImpactSummary(finding: FindingItem): string {
+  if (isStateValidationProductFinding(finding)) {
+    return 'State should be constrained to valid state values or reject invalid state-like inputs at the field level.';
+  }
+  return finding.interpretation;
+}
+
+function productFindingActionSummary(finding: FindingItem): string {
+  if (isStateValidationProductFinding(finding)) {
+    return `Constrain ${finding.fieldLabel ?? finding.conceptDisplayName} to valid state values and reject invalid or numeric entries with a field-local validation signal.`;
+  }
+  return formatRecommendation(finding);
 }
 
 function controlledChoiceClassificationLabel(classification: ControlledChoiceClassification | null): string {
