@@ -884,9 +884,11 @@ export interface EnrichmentBundle {
 
 export function buildEnrichmentBundle(report: AlignmentReport): EnrichmentBundle {
   const records: EnrichmentRecord[] = [];
+  const seenJsonKeys = new Set<string>();
   for (const r of report.rows) {
     if (!r.matchedTabGuid || r.confidence === 'none') continue;
     const fingerprint = `page:${r.tabPageIndex ?? '?'}|${r.candidateDocuSignFieldFamily ?? 'Unknown'}|ord:${r.tabOrdinalOnPage ?? '?'}`;
+    seenJsonKeys.add(r.jsonKeyPath);
     records.push({
       tabGuid: r.matchedTabGuid,
       positionalFingerprint: fingerprint,
@@ -909,6 +911,33 @@ export function buildEnrichmentBundle(report: AlignmentReport): EnrichmentBundle
       layoutEditability: r.layoutEditability,
     });
   }
+  for (const evidence of report.layoutEvidence) {
+    if (!evidence.jsonKeyPath || seenJsonKeys.has(evidence.jsonKeyPath)) continue;
+    if (!evidence.businessSection || !evidence.docusignFieldFamily) continue;
+    records.push({
+      tabGuid: evidence.tabGuid,
+      positionalFingerprint: evidence.positionalFingerprint,
+      tabLeft: evidence.tabLeft,
+      tabTop: evidence.tabTop,
+      jsonKeyPath: evidence.jsonKeyPath,
+      jsonFieldFamily: evidence.businessSection as BusinessSection,
+      jsonTypeHint: (evidence.jsonTypeHint ?? 'unknown') as NormalizedTypeHint,
+      docusignFieldFamily: evidence.docusignFieldFamily,
+      confidence: evidence.confidence,
+      suggestedDisplayName: displayNameFromLayout(
+        evidence.jsonKeyPath,
+        evidence.fieldLabel,
+        evidence.sectionHeader,
+      ),
+      suggestedBusinessSection: evidence.businessSection as BusinessSection,
+      layoutSectionHeader: evidence.sectionHeader,
+      layoutFieldLabel: evidence.fieldLabel,
+      layoutValueShape: evidence.layoutValueShape,
+      layoutEvidenceSource: evidence.evidenceSource,
+      layoutNeighboringLabels: evidence.neighboringLabels,
+      layoutEditability: evidence.editability,
+    });
+  }
   return {
     schemaVersion: 1,
     generatedAt: report.generatedAt,
@@ -921,6 +950,11 @@ export function buildEnrichmentBundle(report: AlignmentReport): EnrichmentBundle
 function displayNameFromLayout(keyPath: string, fieldLabel: string, sectionHeader: string | null): string {
   const label = fieldLabel.replace(/\s*\(optional\)\s*$/i, '').trim();
   if (/^zip$/i.test(label) && sectionHeader) return `${sectionHeader} ZIP`;
+  if (/^address\s*line\s*1$/i.test(label) && sectionHeader) return `${sectionHeader} Line 1`;
+  if (/^address\s*line\s*2$/i.test(label) && sectionHeader) return `${sectionHeader} Line 2`;
+  if (/^city$/i.test(label) && sectionHeader) return `${sectionHeader} City`;
+  if (/^state$/i.test(label) && sectionHeader) return `${sectionHeader} State`;
+  if (/^country$/i.test(label) && sectionHeader) return `${sectionHeader} Country`;
   return label || keyPathToDisplayName(keyPath);
 }
 

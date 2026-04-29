@@ -43,6 +43,7 @@ import {
 import {
   conceptKeyForJsonKeyPath,
   detectValueShape,
+  expectedFieldFamiliesForConcept,
   expectedValueShapesForConcept,
   resolveMappingClaims,
   selectBestMappingCandidate,
@@ -357,9 +358,15 @@ test.describe('sample layout evidence', () => {
       mockLayoutMhtmlTab({ ordinalOnPage: 5, left: 661.76, top: 224.64, dataType: 'Text', rawDataType: 'Text', inputValue: '2024/06/18' }),
       mockLayoutMhtmlTab({ ordinalOnPage: 6, left: 35.2, top: 256.64, inputValue: '' }),
       mockLayoutMhtmlTab({ ordinalOnPage: 17, left: 35.2, top: 348.8, inputValue: 'Retail goods and services' }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 35, left: 410.88, top: 433.92, inputValue: '679 Lester Courts' }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 39, left: 35.2, top: 543.36, inputValue: 'Charlotte' }),
       mockLayoutMhtmlTab({ ordinalOnPage: 41, left: 568.32, top: 543.36, inputValue: '12345' }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 47, left: 35.2, top: 657.92, inputValue: '124 Uptown Blvd' }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 49, left: 348.16, top: 657.92, inputValue: 'Charlotte' }),
       mockLayoutMhtmlTab({ ordinalOnPage: 51, left: 567.04, top: 657.92, inputValue: '' }),
       mockLayoutMhtmlTab({ ordinalOnPage: 52, left: 35.2, top: 712.32, inputValue: 'Location Name Value' }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 63, left: 35.2, top: 905.6, inputValue: '456 Bank Plaza' }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 64, left: 409.6, top: 905.6, inputValue: 'Charlotte' }),
       mockLayoutMhtmlTab({ ordinalOnPage: 67, left: 410.88, top: 936.32, inputValue: '54321' }),
     ]), {
       jsonPath: 'sample.json',
@@ -383,20 +390,117 @@ test.describe('sample layout evidence', () => {
       suggestedDisplayName: 'Business Description',
       layoutSectionHeader: 'General',
     });
+    expect(byKey.get('merchantData.registeredLegalAddress.line1')).toMatchObject({
+      suggestedDisplayName: 'Registered Legal Address Line 1',
+      suggestedBusinessSection: 'Address',
+      layoutSectionHeader: 'Registered Legal Address',
+      layoutFieldLabel: 'Address Line 1',
+      layoutValueShape: 'text_name_like',
+    });
+    expect(byKey.get('merchantData.registeredLegalAddress.city')).toMatchObject({
+      suggestedDisplayName: 'Registered Legal Address City',
+      layoutSectionHeader: 'Registered Legal Address',
+      layoutFieldLabel: 'City',
+      layoutValueShape: 'text_name_like',
+    });
     expect(byKey.get('merchantData.registeredLegalAddress.postalCode')).toMatchObject({
       suggestedDisplayName: 'Registered Legal Address ZIP',
       suggestedBusinessSection: 'Address',
       tabLeft: 568.32,
       layoutValueShape: 'postal_code',
     });
+    expect(byKey.get('merchantData.businessMailingAddress.line1')).toMatchObject({
+      suggestedDisplayName: 'Physical Operating Address Line 1',
+      layoutSectionHeader: 'Physical Operating Address',
+      layoutFieldLabel: 'Address Line 1',
+      layoutValueShape: 'text_name_like',
+    });
+    expect(byKey.get('merchantData.businessMailingAddress.city')).toMatchObject({
+      suggestedDisplayName: 'Physical Operating Address City',
+      layoutSectionHeader: 'Physical Operating Address',
+      layoutFieldLabel: 'City',
+      layoutValueShape: 'text_name_like',
+    });
     expect(byKey.get('merchantData.businessMailingAddress.postalCode')).toMatchObject({
       suggestedDisplayName: 'Physical Operating Address ZIP',
       layoutValueShape: 'empty',
+    });
+    expect(byKey.get('merchantData.bankAddress.line1')).toMatchObject({
+      suggestedDisplayName: 'Bank Address Line 1',
+      suggestedBusinessSection: 'Banking',
+      layoutSectionHeader: 'Bank Address',
+      layoutFieldLabel: 'Bank Address Line 1',
+      layoutValueShape: 'text_name_like',
+    });
+    expect(byKey.get('merchantData.bankAddress.city')).toMatchObject({
+      suggestedDisplayName: 'Bank Address City',
+      suggestedBusinessSection: 'Banking',
+      layoutSectionHeader: 'Bank Address',
+      layoutFieldLabel: 'Bank Address City',
+      layoutValueShape: 'text_name_like',
     });
     expect(byKey.get('merchantData.bankAddress.postalCode')).toMatchObject({
       suggestedDisplayName: 'Bank Address ZIP',
       suggestedBusinessSection: 'Banking',
     });
+  });
+
+  test('buildEnrichmentBundle preserves layout-only address rows when value matching does not produce a row', () => {
+    const bundle = buildEnrichmentBundle({
+      generatedAt: '2026-04-29T00:00:00.000Z',
+      source: {
+        jsonPath: 'sample.json',
+        mhtmlPath: 'sample.mhtml',
+        mhtmlSubject: null,
+        mhtmlSnapshotRedacted: null,
+        mhtmlPageCount: 1,
+        mhtmlTabCount: 1,
+        mhtmlCountsByType: { Text: 1 },
+      },
+      totals: {
+        jsonFields: 1,
+        matchedFields: 0,
+        unmatchedJsonFields: 1,
+        unmatchedRenderedValues: 0,
+        highConfidence: 0,
+        mediumConfidence: 0,
+        lowConfidence: 0,
+      },
+      rows: [],
+      layoutEvidence: [{
+        tabGuid: 'guid-registered-line1',
+        positionalFingerprint: 'page:1|Text|ord:35',
+        pageIndex: 1,
+        ordinalOnPage: 35,
+        tabLeft: 35.2,
+        tabTop: 512.64,
+        docusignFieldFamily: 'Text',
+        jsonKeyPath: 'merchantData.registeredLegalAddress.line1',
+        jsonTypeHint: 'string',
+        businessSection: 'Address',
+        sectionHeader: 'Registered Legal Address',
+        fieldLabel: 'Address Line 1',
+        suggestedDisplayName: 'Registered Legal Address Line 1',
+        neighboringLabels: ['Proof of Address Type', 'City'],
+        layoutValueShape: 'text_name_like',
+        editability: 'editable',
+        evidenceSource: 'pdf-text-sequence',
+        confidence: 'high',
+      }],
+      unmatchedRenderedValues: [],
+      recommendedManualConfirmations: [],
+    });
+
+    expect(bundle.records).toEqual([
+      expect.objectContaining({
+        jsonKeyPath: 'merchantData.registeredLegalAddress.line1',
+        suggestedDisplayName: 'Registered Legal Address Line 1',
+        suggestedBusinessSection: 'Address',
+        layoutSectionHeader: 'Registered Legal Address',
+        layoutFieldLabel: 'Address Line 1',
+        layoutValueShape: 'text_name_like',
+      }),
+    ]);
   });
 
   test('adds Bead PDF/MHTML field-cell anchors for controlled-choice page-1 concepts', () => {
@@ -579,6 +683,34 @@ test.describe('field validation scorecard', () => {
     expect(FIELD_CONCEPT_REGISTRY.stakeholder_phone.businessSection).toBe('Stakeholder');
     expect(expectedValueShapesForConcept('stakeholder_email')).toEqual(['email']);
     expect(expectedValueShapesForConcept('stakeholder_phone')).toEqual(['phone']);
+  });
+
+  test('scoped address and location concepts resolve exact key paths, shapes, and select families', () => {
+    expect(conceptKeyForJsonKeyPath('merchantData.locationName')).toBe('location_name');
+    expect(conceptKeyForJsonKeyPath('merchantData.registeredLegalAddress.line1')).toBe('registered_address_line_1');
+    expect(conceptKeyForJsonKeyPath('merchantData.registeredLegalAddress.line2')).toBe('registered_address_line_2');
+    expect(conceptKeyForJsonKeyPath('merchantData.registeredLegalAddress.city')).toBe('registered_city');
+    expect(conceptKeyForJsonKeyPath('merchantData.registeredLegalAddress.state')).toBe('registered_state');
+    expect(conceptKeyForJsonKeyPath('merchantData.registeredLegalAddress.country')).toBe('registered_country');
+    expect(conceptKeyForJsonKeyPath('merchantData.registeredLegalAddress.postalCode')).toBe('postal_code');
+    expect(conceptKeyForJsonKeyPath('merchantData.businessMailingAddress.line1')).toBe('business_mailing_address_line_1');
+    expect(conceptKeyForJsonKeyPath('merchantData.businessMailingAddress.city')).toBe('business_mailing_city');
+    expect(conceptKeyForJsonKeyPath('merchantData.businessMailingAddress.state')).toBe('business_mailing_state');
+    expect(conceptKeyForJsonKeyPath('merchantData.businessMailingAddress.postalCode')).toBe('business_mailing_postal_code');
+    expect(conceptKeyForJsonKeyPath('merchantData.bankAddress.line1')).toBe('bank_address_line_1');
+    expect(conceptKeyForJsonKeyPath('merchantData.bankAddress.city')).toBe('bank_city');
+    expect(conceptKeyForJsonKeyPath('merchantData.bankAddress.state')).toBe('bank_state');
+    expect(conceptKeyForJsonKeyPath('merchantData.bankAddress.postalCode')).toBe('bank_postal_code');
+    expect(conceptKeyForJsonKeyPath('merchantData.bankAddress.country')).toBe('bank_country');
+
+    expect(expectedValueShapesForConcept('location_name')).toEqual(['text_name_like']);
+    expect(expectedValueShapesForConcept('registered_address_line_1')).toEqual(['text_name_like']);
+    expect(expectedValueShapesForConcept('business_mailing_postal_code')).toEqual(['postal_code', 'numeric']);
+    expect(expectedValueShapesForConcept('bank_postal_code')).toEqual(['postal_code', 'numeric']);
+    expect(expectedFieldFamiliesForConcept('registered_state')).toEqual(['list']);
+    expect(expectedFieldFamiliesForConcept('registered_country')).toEqual(['list']);
+    expect(expectedFieldFamiliesForConcept('bank_state')).toEqual(['list']);
+    expect(expectedFieldFamiliesForConcept('bank_country')).toEqual(['list']);
   });
 
   test('scorecard output is generated from a small mock report', () => {
@@ -2733,6 +2865,31 @@ test.describe('interactive validation safety', () => {
     } as NodeJS.ProcessEnv)).toEqual([...batchOne]);
   });
 
+  test('address batch concepts are recognized by INTERACTIVE_CONCEPTS', () => {
+    const addressBatch = [
+      'location_name',
+      'registered_address_line_1',
+      'registered_address_line_2',
+      'registered_city',
+      'registered_state',
+      'registered_country',
+      'business_mailing_address_line_1',
+      'business_mailing_city',
+      'business_mailing_state',
+      'business_mailing_postal_code',
+      'bank_address_line_1',
+      'bank_city',
+      'bank_state',
+      'bank_postal_code',
+      'bank_country',
+    ] as const;
+
+    expect(INTERACTIVE_TARGET_CONCEPTS).toEqual(expect.arrayContaining([...addressBatch]));
+    expect(resolveInteractiveTargetConcepts({
+      INTERACTIVE_CONCEPTS: addressBatch.join(','),
+    } as NodeJS.ProcessEnv)).toEqual([...addressBatch]);
+  });
+
   test('select/dropdown concepts are recognized by INTERACTIVE_CONCEPTS', () => {
     expect(INTERACTIVE_TARGET_CONCEPTS).toEqual(expect.arrayContaining([
       'legal_entity_type',
@@ -2949,6 +3106,99 @@ test.describe('interactive validation safety', () => {
       reason: 'field is not confidently mapped in the scorecard source report',
     });
     expect(skippedConceptToResult(blockedPlan.skippedConcepts[0]!).outcome).toBe('mapping_not_confident');
+  });
+
+  test('address batch plan includes layout-backed concepts and skips unresolved physical operating address rows', () => {
+    const plan = buildInteractiveValidationPlan(mockValidationReport([
+      mockField({
+        index: 1,
+        section: 'Bead Onboarding Application US-02604-1.pdf Page 1 of 4.',
+        resolvedLabel: 'Location Name',
+        label: 'Location Name',
+        labelSource: 'enrichment-coordinate',
+        labelConfidence: 'medium',
+        currentValueShape: 'text_name_like',
+        pageIndex: 1,
+        ordinalOnPage: 52,
+        tabLeft: 35.2,
+        tabTop: 712.32,
+        enrichment: mockEnrichment({
+          matchedBy: 'coordinate',
+          jsonKeyPath: 'merchantData.locationName',
+          suggestedDisplayName: 'Location Name',
+          suggestedBusinessSection: 'Business Details',
+          expectedOrdinalOnPage: 52,
+          expectedTabLeft: 35.2,
+          expectedTabTop: 712.32,
+          layoutSectionHeader: 'Location Details',
+          layoutFieldLabel: 'Location Name',
+          layoutValueShape: 'text_name_like',
+          layoutEvidenceSource: 'pdf-text-sequence',
+        }),
+      }),
+      mockField({
+        index: 2,
+        section: 'Bead Onboarding Application US-02604-1.pdf Page 1 of 4.',
+        resolvedLabel: 'Bank Address City',
+        label: 'Bank Address City',
+        labelSource: 'enrichment-coordinate',
+        labelConfidence: 'medium',
+        currentValueShape: 'text_name_like',
+        pageIndex: 1,
+        ordinalOnPage: 64,
+        tabLeft: 409.6,
+        tabTop: 905.6,
+        enrichment: mockEnrichment({
+          matchedBy: 'coordinate',
+          jsonKeyPath: 'merchantData.bankAddress.city',
+          suggestedDisplayName: 'Bank Address City',
+          suggestedBusinessSection: 'Banking',
+          expectedOrdinalOnPage: 64,
+          expectedTabLeft: 409.6,
+          expectedTabTop: 905.6,
+          layoutSectionHeader: 'Bank Address',
+          layoutFieldLabel: 'Bank Address City',
+          layoutValueShape: 'text_name_like',
+          layoutEvidenceSource: 'pdf-text-sequence',
+        }),
+      }),
+      mockField({
+        index: 3,
+        section: 'Bead Onboarding Application US-02604-1.pdf Page 1 of 4.',
+        resolvedLabel: 'Physical Operating Address Line 1',
+        label: 'Physical Operating Address Line 1',
+        labelSource: 'enrichment-position',
+        labelConfidence: 'medium',
+        currentValueShape: 'empty',
+        pageIndex: 1,
+        ordinalOnPage: 47,
+        tabLeft: 35.2,
+        tabTop: 657.92,
+        enrichment: mockEnrichment({
+          matchedBy: 'position',
+          jsonKeyPath: 'merchantData.businessMailingAddress.line1',
+          suggestedDisplayName: 'Physical Operating Address Line 1',
+          suggestedBusinessSection: 'Address',
+          expectedOrdinalOnPage: 47,
+          expectedTabLeft: 35.2,
+          expectedTabTop: 657.92,
+          layoutSectionHeader: 'Physical Operating Address',
+          layoutFieldLabel: 'Address Line 1',
+          layoutValueShape: 'text_name_like',
+          layoutEvidenceSource: 'pdf-text-sequence',
+        }),
+      }),
+    ]), {
+      INTERACTIVE_CONCEPTS: 'location_name,bank_city,business_mailing_address_line_1',
+    } as NodeJS.ProcessEnv);
+
+    expect(plan.targetConcepts).toEqual(['location_name', 'bank_city', 'business_mailing_address_line_1']);
+    expect(plan.cases.some((entry) => entry.concept === 'location_name')).toBe(true);
+    expect(plan.cases.some((entry) => entry.concept === 'bank_city')).toBe(true);
+    expect(plan.cases.some((entry) => entry.concept === 'business_mailing_address_line_1')).toBe(false);
+    expect(plan.skippedConcepts).toEqual(expect.arrayContaining([
+      expect.objectContaining({ concept: 'business_mailing_address_line_1' }),
+    ]));
   });
 
   test('legal_entity_type matrix is generated only for trusted mappings', () => {
@@ -3418,6 +3668,92 @@ test.describe('interactive validation safety', () => {
     expect(bankOnly.decisionReason).toBe('rejected_section_mismatch');
   });
 
+  test('scoped address line concepts do not confuse registered and bank address blocks', () => {
+    const candidates = [
+      {
+        id: 'registered-line1',
+        resolvedLabel: 'Registered Legal Address Line 1',
+        labelSource: 'layout-cell',
+        labelConfidence: 'high',
+        businessSection: 'Address',
+        layoutSectionHeader: 'Registered Legal Address',
+        layoutFieldLabel: 'Address Line 1',
+        currentValue: '679 Lester Courts',
+        docusignTabType: 'Text',
+        pageIndex: 1,
+        ordinalOnPage: 35,
+        tabLeft: 410.88,
+        tabTop: 433.92,
+        controlCategory: 'merchant_input' as const,
+        visible: true,
+        editable: true,
+      },
+      {
+        id: 'bank-line1',
+        resolvedLabel: 'Bank Address Line 1',
+        labelSource: 'layout-cell',
+        labelConfidence: 'high',
+        businessSection: 'Banking',
+        layoutSectionHeader: 'Bank Address',
+        layoutFieldLabel: 'Bank Address Line 1',
+        currentValue: '456 Bank Plaza',
+        docusignTabType: 'Text',
+        pageIndex: 1,
+        ordinalOnPage: 63,
+        tabLeft: 35.2,
+        tabTop: 905.6,
+        controlCategory: 'merchant_input' as const,
+        visible: true,
+        editable: true,
+      },
+    ];
+
+    const registered = selectBestMappingCandidate({
+      concept: 'registered_address_line_1',
+      currentCandidateId: null,
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.registeredLegalAddress.line1',
+        businessSection: 'Address',
+        pageIndex: 1,
+        ordinalOnPage: 35,
+        tabLeft: 410.88,
+        tabTop: 433.92,
+        docusignFieldFamily: 'Text',
+      },
+      candidates,
+    });
+    const bank = selectBestMappingCandidate({
+      concept: 'bank_address_line_1',
+      currentCandidateId: null,
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.bankAddress.line1',
+        businessSection: 'Banking',
+        pageIndex: 1,
+        ordinalOnPage: 63,
+        tabLeft: 35.2,
+        tabTop: 905.6,
+        docusignFieldFamily: 'Text',
+      },
+      candidates,
+    });
+    const bankOnly = selectBestMappingCandidate({
+      concept: 'registered_address_line_1',
+      currentCandidateId: null,
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.registeredLegalAddress.line1',
+        businessSection: 'Address',
+      },
+      candidates: [candidates[1]!],
+    });
+
+    expect(registered.trusted).toBe(true);
+    expect(registered.selectedCandidateId).toBe('registered-line1');
+    expect(bank.trusted).toBe(true);
+    expect(bank.selectedCandidateId).toBe('bank-line1');
+    expect(bankOnly.trusted).toBe(false);
+    expect(bankOnly.decisionReason).toBe('rejected_section_mismatch');
+  });
+
   test('Business and DBA names require editable unambiguous name-like targets', () => {
     const businessName = selectBestMappingCandidate({
       concept: 'business_name',
@@ -3737,6 +4073,74 @@ test.describe('interactive validation safety', () => {
     expect(trusted.trusted).toBe(true);
     expect(wrongSection.trusted).toBe(false);
     expect(wrongSection.decisionReason).toBe('rejected_insufficient_label_proof');
+  });
+
+  test('scoped address state concepts require the matching address-block section proof', () => {
+    const trusted = selectBestMappingCandidate({
+      concept: 'registered_state',
+      currentCandidateId: null,
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.registeredLegalAddress.state',
+        businessSection: 'Address',
+        pageIndex: 1,
+        ordinalOnPage: 40,
+        tabLeft: 410.88,
+        tabTop: 543.36,
+        docusignFieldFamily: 'List',
+      },
+      candidates: [{
+        id: 'registered-state',
+        resolvedLabel: 'Registered Legal Address State',
+        labelSource: 'layout-cell',
+        labelConfidence: 'high',
+        businessSection: 'Address',
+        layoutSectionHeader: 'Registered Legal Address',
+        layoutFieldLabel: 'State',
+        docusignTabType: 'List',
+        pageIndex: 1,
+        ordinalOnPage: 40,
+        tabLeft: 410.88,
+        tabTop: 543.36,
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+      }],
+    });
+    const wrongSection = selectBestMappingCandidate({
+      concept: 'registered_state',
+      currentCandidateId: null,
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.registeredLegalAddress.state',
+        businessSection: 'Address',
+        pageIndex: 1,
+        ordinalOnPage: 40,
+        tabLeft: 410.88,
+        tabTop: 543.36,
+        docusignFieldFamily: 'List',
+      },
+      candidates: [{
+        id: 'bank-state',
+        resolvedLabel: 'Bank Address State',
+        labelSource: 'layout-cell',
+        labelConfidence: 'high',
+        businessSection: 'Banking',
+        layoutSectionHeader: 'Bank Address',
+        layoutFieldLabel: 'State',
+        docusignTabType: 'List',
+        pageIndex: 1,
+        ordinalOnPage: 66,
+        tabLeft: 410.88,
+        tabTop: 936.32,
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+      }],
+    });
+
+    expect(trusted.trusted).toBe(true);
+    expect(trusted.selectedCandidateId).toBe('registered-state');
+    expect(wrongSection.trusted).toBe(false);
+    expect(wrongSection.decisionReason).toBe('rejected_section_mismatch');
   });
 
   test('proof_of_address_type is not confused with the upload control', () => {
@@ -4249,13 +4653,14 @@ test.describe('interactive validation safety', () => {
     expect(report.mappingBlockedFields).toEqual([]);
   });
 
-  test('INTERACTIVE_CONCEPTS filters the interactive target set and normalizes stakeholder DOB aliases', () => {
+  test('INTERACTIVE_CONCEPTS filters the interactive target set and normalizes supported aliases', () => {
     expect(resolveInteractiveTargetConcepts({
-      INTERACTIVE_CONCEPTS: 'stakeholder_email,stakeholder_phone,stakeholder_date_of_birth,ownership_percentage',
+      INTERACTIVE_CONCEPTS: 'stakeholder_email,stakeholder_phone,stakeholder_date_of_birth,registered_postal_code,ownership_percentage',
     } as NodeJS.ProcessEnv)).toEqual([
       'stakeholder_email',
       'stakeholder_phone',
       'date_of_birth',
+      'postal_code',
       'ownership_percentage',
     ]);
   });
@@ -4629,9 +5034,21 @@ function mockSubmissionForLayout(): unknown {
       locationBusinessType: 'virtual',
       accountType: 'checking',
       proofOfBankAccountType: 'colorizedVoidCheck',
-      registeredLegalAddress: { postalCode: '[redacted]' },
-      businessMailingAddress: { postalCode: '' },
-      bankAddress: { postalCode: '[redacted]' },
+      registeredLegalAddress: {
+        line1: '679 Lester Courts',
+        city: 'Charlotte',
+        postalCode: '[redacted]',
+      },
+      businessMailingAddress: {
+        line1: '124 Uptown Blvd',
+        city: 'Charlotte',
+        postalCode: '',
+      },
+      bankAddress: {
+        line1: '456 Bank Plaza',
+        city: 'Charlotte',
+        postalCode: '[redacted]',
+      },
     },
   };
 }

@@ -5,6 +5,7 @@ export type FieldConceptKey =
   | 'dba_name'
   | 'business_description'
   | 'business_type'
+  | 'location_name'
   | 'website'
   | 'email'
   | 'stakeholder_email'
@@ -17,6 +18,20 @@ export type FieldConceptKey =
   | 'legal_entity_type'
   | 'naics'
   | 'merchant_category_code'
+  | 'registered_address_line_1'
+  | 'registered_address_line_2'
+  | 'registered_city'
+  | 'registered_state'
+  | 'registered_country'
+  | 'business_mailing_address_line_1'
+  | 'business_mailing_city'
+  | 'business_mailing_state'
+  | 'business_mailing_postal_code'
+  | 'bank_address_line_1'
+  | 'bank_city'
+  | 'bank_state'
+  | 'bank_postal_code'
+  | 'bank_country'
   | 'address_line_1'
   | 'address_line_2'
   | 'city'
@@ -115,6 +130,13 @@ const ADDRESS_TEXT_MATRIX = [
   v('punctuation-format-handling', 'Punctuation handling documented', 'Common address punctuation is accepted or normalized intentionally.', 'medium', ['punctuation'], 'Real addresses often contain punctuation, unit markers, and directional text.'),
   v('garbage-rejected-or-flagged', 'Garbage rejected or flagged', 'Obvious garbage characters are rejected or flagged.', 'medium', ['suspicious-garbage'], 'Reduces low-quality address submissions.'),
   v('excessive-length-behavior', 'Excessive length behavior', 'An excessive length address is constrained or handled intentionally.', 'medium', ['too-long', 'excessive-length'], 'Protects address systems with practical field limits.'),
+  EMPTY_REQUIRED,
+];
+
+const CITY_MATRIX = [
+  v('valid-city-accepted', 'Valid city accepted', 'A realistic city value is accepted.', 'critical', ['valid-typical'], 'Confirms normal city entry works.'),
+  v('digits-rejected-or-flagged', 'Digits rejected or flagged', 'Pure numeric city values are rejected or flagged.', 'medium', ['digits'], 'City names should generally not be numeric.'),
+  v('excessive-length-behavior', 'Excessive length behavior', 'An excessive length city is constrained or handled intentionally.', 'medium', ['too-long'], 'Prevents impractical address values.'),
   EMPTY_REQUIRED,
 ];
 
@@ -490,6 +512,216 @@ export const FIELD_CONCEPTS: FieldConceptDefinition[] = [
     notes: 'MCC values should be exactly controlled to underwriting policy.',
   },
   {
+    key: 'location_name',
+    displayName: 'Location Name',
+    businessSection: 'Business Details',
+    fieldTypes: ['business_name'],
+    labelPatterns: [/\blocation\s*name\b/i],
+    jsonKeyPatterns: [/merchantData\.locationName$/i],
+    bestPracticeValidations: TEXT_LENGTH_AND_CONTENT,
+    missingValidationSeverity: 'high',
+    weakValidationSeverity: 'medium',
+    validExamples: ['Charlotte Uptown'],
+    invalidExamples: ['', 'A', '!@#$%^&*()'],
+    notes: 'Location-specific business names should stay distinct from Registered Name and DBA Name when multiple name-like fields appear on the same page.',
+  },
+  {
+    key: 'registered_address_line_1',
+    displayName: 'Registered Legal Address Line 1',
+    businessSection: 'Address',
+    fieldTypes: ['address_line_1'],
+    labelPatterns: [/registered\s*legal\s*address.*line\s*1/i, /registered\s*address.*line\s*1/i],
+    jsonKeyPatterns: [/merchantData\.registeredLegalAddress\.line1$/i],
+    bestPracticeValidations: ADDRESS_TEXT_MATRIX,
+    missingValidationSeverity: 'high',
+    weakValidationSeverity: 'medium',
+    validExamples: ['123 Main St'],
+    invalidExamples: ['', '!@#$%^&*()'],
+    notes: 'Registered legal address rows should not borrow physical operating or bank-address fields.',
+  },
+  {
+    key: 'registered_address_line_2',
+    displayName: 'Registered Legal Address Line 2',
+    businessSection: 'Address',
+    fieldTypes: ['address_line_2'],
+    labelPatterns: [/registered\s*legal\s*address.*line\s*2/i, /registered\s*address.*line\s*2/i],
+    jsonKeyPatterns: [/merchantData\.registeredLegalAddress\.line2$/i],
+    bestPracticeValidations: ADDRESS_TEXT_MATRIX.filter((item) => item.id !== 'empty-required-behavior'),
+    missingValidationSeverity: 'medium',
+    weakValidationSeverity: 'low',
+    validExamples: ['Suite 400'],
+    invalidExamples: ['!@#$%^&*()'],
+    notes: 'Registered address line 2 is often optional, but it still needs section-specific mapping so it is not confused with other address blocks.',
+  },
+  {
+    key: 'registered_city',
+    displayName: 'Registered Legal Address City',
+    businessSection: 'Address',
+    fieldTypes: ['city'],
+    labelPatterns: [/registered\s*legal\s*address.*city/i, /registered\s*address.*city/i],
+    jsonKeyPatterns: [/merchantData\.registeredLegalAddress\.city$/i],
+    bestPracticeValidations: CITY_MATRIX,
+    missingValidationSeverity: 'high',
+    weakValidationSeverity: 'medium',
+    validExamples: ['Boston'],
+    invalidExamples: ['123', ''],
+    notes: 'Registered legal address city should stay distinct from physical operating and bank city fields.',
+  },
+  {
+    key: 'registered_state',
+    displayName: 'Registered Legal Address State',
+    businessSection: 'Address',
+    fieldTypes: ['state', 'state_region'],
+    labelPatterns: [/registered\s*legal\s*address.*(state|province|region)/i, /registered\s*address.*(state|province|region)/i],
+    jsonKeyPatterns: [/merchantData\.registeredLegalAddress\.(state|State|region|Region)$/i],
+    bestPracticeValidations: STATE_MATRIX,
+    missingValidationSeverity: 'high',
+    weakValidationSeverity: 'medium',
+    validExamples: ['MA', 'CA'],
+    invalidExamples: ['ZZ', '12'],
+    notes: 'Registered legal address state/region should only be trusted when the select/list control is anchored to the registered-address block.',
+  },
+  {
+    key: 'registered_country',
+    displayName: 'Registered Legal Address Country',
+    businessSection: 'Address',
+    fieldTypes: ['country'],
+    labelPatterns: [/registered\s*legal\s*address.*country/i, /registered\s*address.*country/i],
+    jsonKeyPatterns: [/merchantData\.registeredLegalAddress\.(country|Country)$/i],
+    bestPracticeValidations: COUNTRY_MATRIX,
+    missingValidationSeverity: 'medium',
+    weakValidationSeverity: 'medium',
+    validExamples: ['United States', 'US'],
+    invalidExamples: ['Zzzland'],
+    notes: 'Registered legal address country should remain tied to the registered-address section when repeated country selectors exist elsewhere.',
+  },
+  {
+    key: 'business_mailing_address_line_1',
+    displayName: 'Business Mailing Address Line 1',
+    businessSection: 'Address',
+    fieldTypes: ['address_line_1'],
+    labelPatterns: [/business\s*mailing\s*address.*line\s*1/i, /physical\s*operating\s*address.*line\s*1/i],
+    jsonKeyPatterns: [/merchantData\.businessMailingAddress\.line1$/i],
+    bestPracticeValidations: ADDRESS_TEXT_MATRIX,
+    missingValidationSeverity: 'high',
+    weakValidationSeverity: 'medium',
+    validExamples: ['123 Main St'],
+    invalidExamples: ['', '!@#$%^&*()'],
+    notes: 'The business-mailing block is rendered as Physical Operating Address in the sample and should not default to the registered or bank address rows.',
+  },
+  {
+    key: 'business_mailing_city',
+    displayName: 'Business Mailing Address City',
+    businessSection: 'Address',
+    fieldTypes: ['city'],
+    labelPatterns: [/business\s*mailing\s*address.*city/i, /physical\s*operating\s*address.*city/i],
+    jsonKeyPatterns: [/merchantData\.businessMailingAddress\.city$/i],
+    bestPracticeValidations: CITY_MATRIX,
+    missingValidationSeverity: 'high',
+    weakValidationSeverity: 'medium',
+    validExamples: ['Boston'],
+    invalidExamples: ['123', ''],
+    notes: 'Business-mailing city must stay distinct from the registered legal and bank city rows.',
+  },
+  {
+    key: 'business_mailing_state',
+    displayName: 'Business Mailing Address State',
+    businessSection: 'Address',
+    fieldTypes: ['state', 'state_region'],
+    labelPatterns: [/business\s*mailing\s*address.*(state|province|region)/i, /physical\s*operating\s*address.*(state|province|region)/i],
+    jsonKeyPatterns: [/merchantData\.businessMailingAddress\.(state|State|region|Region)$/i],
+    bestPracticeValidations: STATE_MATRIX,
+    missingValidationSeverity: 'high',
+    weakValidationSeverity: 'medium',
+    validExamples: ['MA', 'CA'],
+    invalidExamples: ['ZZ', '12'],
+    notes: 'Business-mailing state/region should only be trusted when the control is anchored to the physical-operating-address block.',
+  },
+  {
+    key: 'business_mailing_postal_code',
+    displayName: 'Business Mailing Address Postal Code',
+    businessSection: 'Address',
+    fieldTypes: ['zip', 'zip_postal_code'],
+    labelPatterns: [/business\s*mailing\s*address.*(postal\s*code|zip)/i, /physical\s*operating\s*address.*(postal\s*code|zip)/i],
+    jsonKeyPatterns: [/merchantData\.businessMailingAddress\.(postalCode|PostalCode|zip|Zip)$/i],
+    bestPracticeValidations: POSTAL_MATRIX,
+    missingValidationSeverity: 'high',
+    weakValidationSeverity: 'medium',
+    validExamples: ['02115', '02115-1234'],
+    invalidExamples: ['021', 'ABCDE'],
+    notes: 'Business-mailing ZIP behavior should stay separate from the registered legal ZIP and bank ZIP rows.',
+  },
+  {
+    key: 'bank_address_line_1',
+    displayName: 'Bank Address Line 1',
+    businessSection: 'Banking',
+    fieldTypes: ['address_line_1'],
+    labelPatterns: [/bank\s*address.*line\s*1/i],
+    jsonKeyPatterns: [/merchantData\.bankAddress\.line1$/i],
+    bestPracticeValidations: ADDRESS_TEXT_MATRIX,
+    missingValidationSeverity: 'high',
+    weakValidationSeverity: 'medium',
+    validExamples: ['123 Main St'],
+    invalidExamples: ['', '!@#$%^&*()'],
+    notes: 'Bank-address rows belong to Banking and should never be reused for registered or operating address validation.',
+  },
+  {
+    key: 'bank_city',
+    displayName: 'Bank Address City',
+    businessSection: 'Banking',
+    fieldTypes: ['city'],
+    labelPatterns: [/bank\s*address.*city/i],
+    jsonKeyPatterns: [/merchantData\.bankAddress\.city$/i],
+    bestPracticeValidations: CITY_MATRIX,
+    missingValidationSeverity: 'high',
+    weakValidationSeverity: 'medium',
+    validExamples: ['Boston'],
+    invalidExamples: ['123', ''],
+    notes: 'Bank city validation should stay in the bank-address block and not leak into merchant-address concepts.',
+  },
+  {
+    key: 'bank_state',
+    displayName: 'Bank Address State',
+    businessSection: 'Banking',
+    fieldTypes: ['state', 'state_region'],
+    labelPatterns: [/bank\s*address.*(state|province|region)/i],
+    jsonKeyPatterns: [/merchantData\.bankAddress\.(state|State|region|Region)$/i],
+    bestPracticeValidations: STATE_MATRIX,
+    missingValidationSeverity: 'high',
+    weakValidationSeverity: 'medium',
+    validExamples: ['MA', 'CA'],
+    invalidExamples: ['ZZ', '12'],
+    notes: 'Bank state/region should only be trusted when the select/list control is anchored to the bank-address block.',
+  },
+  {
+    key: 'bank_postal_code',
+    displayName: 'Bank Address Postal Code',
+    businessSection: 'Banking',
+    fieldTypes: ['zip', 'zip_postal_code'],
+    labelPatterns: [/bank\s*address.*(postal\s*code|zip)/i],
+    jsonKeyPatterns: [/merchantData\.bankAddress\.(postalCode|PostalCode|zip|Zip)$/i],
+    bestPracticeValidations: POSTAL_MATRIX,
+    missingValidationSeverity: 'high',
+    weakValidationSeverity: 'medium',
+    validExamples: ['02115', '02115-1234'],
+    invalidExamples: ['021', 'ABCDE'],
+    notes: 'Bank ZIP behavior should stay anchored to the bank-address row instead of reusing merchant legal-address postal controls.',
+  },
+  {
+    key: 'bank_country',
+    displayName: 'Bank Address Country',
+    businessSection: 'Banking',
+    fieldTypes: ['country'],
+    labelPatterns: [/bank\s*address.*country/i],
+    jsonKeyPatterns: [/merchantData\.bankAddress\.(country|Country)$/i],
+    bestPracticeValidations: COUNTRY_MATRIX,
+    missingValidationSeverity: 'medium',
+    weakValidationSeverity: 'medium',
+    validExamples: ['United States', 'US'],
+    invalidExamples: ['Zzzland'],
+    notes: 'Bank country should remain tied to the Banking section when other country selectors are present in the envelope.',
+  },
+  {
     key: 'address_line_1',
     displayName: 'Address Line 1',
     businessSection: 'Address',
@@ -524,12 +756,7 @@ export const FIELD_CONCEPTS: FieldConceptDefinition[] = [
     fieldTypes: ['city'],
     labelPatterns: [/\bcity\b/i, /town/i, /locality/i],
     jsonKeyPatterns: [/Address\.city$/i, /Address\.City$/i],
-    bestPracticeValidations: [
-      v('valid-city-accepted', 'Valid city accepted', 'A realistic city value is accepted.', 'critical', ['valid-typical'], 'Confirms normal city entry works.'),
-      v('digits-rejected-or-flagged', 'Digits rejected or flagged', 'Pure numeric city values are rejected or flagged.', 'medium', ['digits'], 'City names should generally not be numeric.'),
-      v('excessive-length-behavior', 'Excessive length behavior', 'An excessive length city is constrained or handled intentionally.', 'medium', ['too-long'], 'Prevents impractical address values.'),
-      EMPTY_REQUIRED,
-    ],
+    bestPracticeValidations: CITY_MATRIX,
     missingValidationSeverity: 'high',
     weakValidationSeverity: 'medium',
     validExamples: ['Boston'],

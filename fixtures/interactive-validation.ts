@@ -29,10 +29,25 @@ export const INTERACTIVE_TARGET_CONCEPTS = [
   'business_name',
   'dba_name',
   'business_description',
+  'location_name',
   'naics',
   'merchant_category_code',
   'ownership_percentage',
+  'registered_address_line_1',
+  'registered_address_line_2',
+  'registered_city',
+  'registered_state',
+  'registered_country',
   'postal_code',
+  'business_mailing_address_line_1',
+  'business_mailing_city',
+  'business_mailing_state',
+  'business_mailing_postal_code',
+  'bank_address_line_1',
+  'bank_city',
+  'bank_state',
+  'bank_postal_code',
+  'bank_country',
   'bank_name',
   'legal_entity_type',
   'business_type',
@@ -47,6 +62,7 @@ const INTERACTIVE_TARGET_ALIASES: Record<string, InteractiveTargetConcept> = {
   stakeholder_date_of_birth: 'date_of_birth',
   account_type: 'bank_account_type',
   location_business_type: 'business_type',
+  registered_postal_code: 'postal_code',
 };
 
 export type InteractiveTargetConcept = typeof INTERACTIVE_TARGET_CONCEPTS[number];
@@ -458,6 +474,11 @@ const CONTROLLED_CHOICE_CONCEPTS = new Set<FieldConceptKey>([
   'proof_of_business_type',
   'proof_of_address_type',
   'proof_of_bank_account_type',
+  'registered_state',
+  'registered_country',
+  'business_mailing_state',
+  'bank_state',
+  'bank_country',
 ]);
 
 const TEXT_FIELD_MATRIX: MatrixCaseDefinition[] = [
@@ -495,6 +516,132 @@ const TEXT_FIELD_MATRIX: MatrixCaseDefinition[] = [
     testName: 'empty required behavior observed',
     inputValue: '',
     expectedBehavior: 'reject_or_manual_review',
+  },
+];
+
+const ADDRESS_FIELD_MATRIX: MatrixCaseDefinition[] = [
+  {
+    validationId: 'normal-address-accepted',
+    caseName: 'normal-value',
+    testName: 'normal address accepted',
+    inputValue: '123 Main St',
+    expectedBehavior: 'accept',
+  },
+  {
+    validationId: 'punctuation-format-handling',
+    caseName: 'punctuation',
+    testName: 'punctuation handling observed',
+    inputValue: 'Suite #200 / East',
+    expectedBehavior: 'observe',
+  },
+  {
+    validationId: 'garbage-rejected-or-flagged',
+    caseName: 'suspicious-garbage',
+    testName: 'garbage rejected or flagged',
+    inputValue: '!@#$%^&*()',
+    expectedBehavior: 'reject_or_warn',
+  },
+  {
+    validationId: 'excessive-length-behavior',
+    caseName: 'excessive-length',
+    testName: 'excessive length behavior observed',
+    inputValue: LONG_NAME,
+    expectedBehavior: 'observe',
+  },
+  {
+    validationId: 'empty-required-behavior',
+    caseName: 'empty-required',
+    testName: 'empty required behavior observed',
+    inputValue: '',
+    expectedBehavior: 'reject_or_manual_review',
+  },
+];
+
+const CITY_FIELD_MATRIX: MatrixCaseDefinition[] = [
+  {
+    validationId: 'valid-city-accepted',
+    caseName: 'valid-typical',
+    testName: 'valid city accepted',
+    inputValue: 'Boston',
+    expectedBehavior: 'accept',
+  },
+  {
+    validationId: 'digits-rejected-or-flagged',
+    caseName: 'digits',
+    testName: 'digits rejected or flagged',
+    inputValue: '123',
+    expectedBehavior: 'reject_or_warn',
+  },
+  {
+    validationId: 'excessive-length-behavior',
+    caseName: 'too-long',
+    testName: 'excessive length behavior observed',
+    inputValue: LONG_NAME,
+    expectedBehavior: 'observe',
+  },
+  {
+    validationId: 'empty-required-behavior',
+    caseName: 'empty-required',
+    testName: 'empty required behavior observed',
+    inputValue: '',
+    expectedBehavior: 'reject_or_manual_review',
+  },
+];
+
+const STATE_FIELD_MATRIX: MatrixCaseDefinition[] = [
+  {
+    validationId: 'valid-state-accepted',
+    caseName: 'valid-two-letter',
+    testName: 'valid state accepted',
+    inputValue: 'MA',
+    expectedBehavior: 'accept',
+  },
+  {
+    validationId: 'invalid-state-rejected',
+    caseName: 'invalid-two-letter',
+    testName: 'invalid state rejected',
+    inputValue: 'ZZ',
+    expectedBehavior: 'reject',
+  },
+  {
+    validationId: 'numbers-rejected',
+    caseName: 'numbers',
+    testName: 'numbers rejected',
+    inputValue: '12',
+    expectedBehavior: 'reject',
+  },
+  {
+    validationId: 'empty-required-behavior',
+    caseName: 'empty-required',
+    testName: 'empty required behavior observed when clearing is supported',
+    inputValue: '',
+    expectedBehavior: 'reject_or_manual_review',
+    interactionKind: 'clear_if_supported',
+  },
+];
+
+const COUNTRY_FIELD_MATRIX: MatrixCaseDefinition[] = [
+  {
+    validationId: 'valid-country-accepted',
+    caseName: 'valid-us',
+    testName: 'valid country accepted',
+    inputValue: 'United States',
+    expectedBehavior: 'accept',
+  },
+  {
+    validationId: 'invalid-country-rejected',
+    caseName: 'invalid-country',
+    testName: 'invalid country rejected or flagged',
+    inputValue: 'Zzzland',
+    expectedBehavior: 'reject_or_warn',
+  },
+  {
+    validationId: 'empty-required-behavior',
+    caseName: 'empty-required',
+    testName: 'empty required behavior observed when clearing is supported',
+    inputValue: '',
+    expectedBehavior: 'reject_or_manual_review',
+    interactionKind: 'clear_if_supported',
   },
 ];
 
@@ -831,6 +978,11 @@ const MATRIX_BY_CONCEPT: Record<InteractiveTargetConcept, MatrixCaseDefinition[]
       expectedBehavior: 'reject_or_manual_review',
     },
   ],
+  location_name: TEXT_FIELD_MATRIX.map((entry) =>
+    entry.validationId === 'normal-value-accepted'
+      ? { ...entry, inputValue: 'Charlotte Uptown' }
+      : entry,
+  ),
   naics: [
     {
       validationId: 'valid-code-accepted',
@@ -891,6 +1043,11 @@ const MATRIX_BY_CONCEPT: Record<InteractiveTargetConcept, MatrixCaseDefinition[]
       expectedBehavior: 'reject_or_manual_review',
     },
   ],
+  registered_address_line_1: ADDRESS_FIELD_MATRIX,
+  registered_address_line_2: ADDRESS_FIELD_MATRIX,
+  registered_city: CITY_FIELD_MATRIX,
+  registered_state: STATE_FIELD_MATRIX,
+  registered_country: COUNTRY_FIELD_MATRIX,
   ownership_percentage: [
     {
       validationId: 'valid-percent-accepted',
@@ -958,11 +1115,78 @@ const MATRIX_BY_CONCEPT: Record<InteractiveTargetConcept, MatrixCaseDefinition[]
       expectedBehavior: 'reject_or_manual_review',
     },
   ],
+  business_mailing_address_line_1: ADDRESS_FIELD_MATRIX,
+  business_mailing_city: CITY_FIELD_MATRIX,
+  business_mailing_state: STATE_FIELD_MATRIX,
+  business_mailing_postal_code: [
+    {
+      validationId: 'valid-postal-code-accepted',
+      caseName: 'valid-5',
+      testName: 'valid ZIP accepted',
+      inputValue: '02115',
+      expectedBehavior: 'accept',
+    },
+    {
+      validationId: 'too-short-rejected',
+      caseName: 'too-short',
+      testName: 'too short rejected',
+      inputValue: '021',
+      expectedBehavior: 'reject',
+    },
+    {
+      validationId: 'letters-behavior',
+      caseName: 'letters',
+      testName: 'letters rejected',
+      inputValue: 'ABCDE',
+      expectedBehavior: 'reject',
+    },
+    {
+      validationId: 'empty-required-behavior',
+      caseName: 'empty-required',
+      testName: 'empty required behavior observed',
+      inputValue: '',
+      expectedBehavior: 'reject_or_manual_review',
+    },
+  ],
   bank_name: TEXT_FIELD_MATRIX.map((entry) =>
     entry.validationId === 'normal-value-accepted'
       ? { ...entry, inputValue: 'Bank of Example' }
       : entry,
   ),
+  bank_address_line_1: ADDRESS_FIELD_MATRIX,
+  bank_city: CITY_FIELD_MATRIX,
+  bank_state: STATE_FIELD_MATRIX,
+  bank_postal_code: [
+    {
+      validationId: 'valid-postal-code-accepted',
+      caseName: 'valid-5',
+      testName: 'valid ZIP accepted',
+      inputValue: '02115',
+      expectedBehavior: 'accept',
+    },
+    {
+      validationId: 'too-short-rejected',
+      caseName: 'too-short',
+      testName: 'too short rejected',
+      inputValue: '021',
+      expectedBehavior: 'reject',
+    },
+    {
+      validationId: 'letters-behavior',
+      caseName: 'letters',
+      testName: 'letters rejected',
+      inputValue: 'ABCDE',
+      expectedBehavior: 'reject',
+    },
+    {
+      validationId: 'empty-required-behavior',
+      caseName: 'empty-required',
+      testName: 'empty required behavior observed',
+      inputValue: '',
+      expectedBehavior: 'reject_or_manual_review',
+    },
+  ],
+  bank_country: COUNTRY_FIELD_MATRIX,
   legal_entity_type: CONTROLLED_CHOICE_MATRIX,
   business_type: CONTROLLED_CHOICE_MATRIX,
   bank_account_type: CONTROLLED_CHOICE_MATRIX,

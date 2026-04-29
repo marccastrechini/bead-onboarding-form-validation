@@ -152,6 +152,11 @@ const CONTROLLED_CHOICE_CONCEPTS = new Set<FieldConceptKey>([
   'proof_of_address_type',
   'proof_of_bank_account_type',
   'document_type',
+  'registered_state',
+  'registered_country',
+  'business_mailing_state',
+  'bank_state',
+  'bank_country',
   'state',
   'country',
 ]);
@@ -176,8 +181,18 @@ const EXPECTED_SHAPES: Partial<Record<FieldConceptKey, ValueShape[]>> = {
   business_name: ['text_name_like'],
   dba_name: ['text_name_like'],
   business_description: ['text_name_like'],
+  location_name: ['text_name_like'],
   date_of_birth: ['date'],
   registration_date: ['date'],
+  registered_address_line_1: ['text_name_like'],
+  registered_address_line_2: ['text_name_like'],
+  registered_city: ['text_name_like'],
+  business_mailing_address_line_1: ['text_name_like'],
+  business_mailing_city: ['text_name_like'],
+  business_mailing_postal_code: ['postal_code', 'numeric'],
+  bank_address_line_1: ['text_name_like'],
+  bank_city: ['text_name_like'],
+  bank_postal_code: ['postal_code', 'numeric'],
   postal_code: ['postal_code', 'numeric'],
   ownership_percentage: ['percentage', 'numeric'],
 };
@@ -191,6 +206,11 @@ const EXPECTED_FIELD_FAMILIES: Partial<Record<FieldConceptKey, string[]>> = {
   proof_of_address_type: ['list', 'radio'],
   proof_of_bank_account_type: ['list', 'radio'],
   document_type: ['list', 'radio'],
+  registered_state: ['list'],
+  registered_country: ['list'],
+  business_mailing_state: ['list'],
+  bank_state: ['list'],
+  bank_country: ['list'],
   state: ['list'],
   country: ['list'],
 };
@@ -205,8 +225,18 @@ const REJECTED_SHAPES: Partial<Record<FieldConceptKey, ValueShape[]>> = {
   business_name: ['email', 'phone', 'url', 'date', 'postal_code', 'percentage', 'numeric'],
   dba_name: ['email', 'phone', 'url', 'date', 'postal_code', 'percentage', 'numeric'],
   business_description: ['email', 'phone', 'url', 'date', 'postal_code', 'percentage', 'numeric'],
+  location_name: ['email', 'phone', 'url', 'date', 'postal_code', 'percentage', 'numeric'],
   date_of_birth: ['email', 'phone', 'url', 'text_name_like', 'postal_code', 'percentage', 'numeric'],
   registration_date: ['email', 'phone', 'url', 'text_name_like', 'postal_code', 'percentage', 'numeric'],
+  registered_address_line_1: ['email', 'phone', 'url', 'date', 'postal_code', 'percentage', 'numeric'],
+  registered_address_line_2: ['email', 'phone', 'url', 'date', 'postal_code', 'percentage', 'numeric'],
+  registered_city: ['email', 'phone', 'url', 'date', 'postal_code', 'percentage', 'numeric'],
+  business_mailing_address_line_1: ['email', 'phone', 'url', 'date', 'postal_code', 'percentage', 'numeric'],
+  business_mailing_city: ['email', 'phone', 'url', 'date', 'postal_code', 'percentage', 'numeric'],
+  business_mailing_postal_code: ['email', 'phone', 'url', 'date', 'text_name_like', 'percentage'],
+  bank_address_line_1: ['email', 'phone', 'url', 'date', 'postal_code', 'percentage', 'numeric'],
+  bank_city: ['email', 'phone', 'url', 'date', 'postal_code', 'percentage', 'numeric'],
+  bank_postal_code: ['email', 'phone', 'url', 'date', 'text_name_like', 'percentage'],
   postal_code: ['email', 'phone', 'url', 'date', 'text_name_like', 'percentage'],
   ownership_percentage: ['email', 'phone', 'url', 'date', 'postal_code', 'text_name_like'],
 };
@@ -674,6 +704,13 @@ function controlledChoiceProofMatches(input: {
       return input.labelMatches && input.sectionMatches && sectionProof && /legal\s*entity\s*type/.test(labelField);
     case 'business_type':
       return input.labelMatches && input.sectionMatches && sectionProof && /business\s*type/.test(labelField);
+    case 'registered_state':
+    case 'business_mailing_state':
+    case 'bank_state':
+      return input.labelMatches && input.sectionMatches && sectionProof && /state|province|region/.test(labelField);
+    case 'registered_country':
+    case 'bank_country':
+      return input.labelMatches && input.sectionMatches && sectionProof && /country/.test(labelField);
     case 'bank_account_type':
       return input.labelMatches && input.sectionMatches && sectionProof && /account\s*type|bank\s*account\s*type/.test(labelField);
     case 'federal_tax_id_type':
@@ -697,9 +734,17 @@ function controlledChoiceSectionTokens(concept: FieldConceptKey): string[] {
       return ['general'];
     case 'business_type':
       return ['location details'];
+    case 'registered_state':
+    case 'registered_country':
+      return ['registered legal address'];
+    case 'business_mailing_state':
+      return ['physical operating address', 'business mailing address'];
     case 'bank_account_type':
     case 'proof_of_bank_account_type':
       return ['bank info'];
+    case 'bank_state':
+    case 'bank_country':
+      return ['bank address'];
     case 'proof_of_address_type':
       return ['registered legal address'];
     default:
@@ -713,14 +758,24 @@ function controlledChoiceProofMessage(concept: FieldConceptKey): string {
       return 'missing General-section Legal Entity Type layout proof';
     case 'business_type':
       return 'missing Location Details Business Type layout proof';
+    case 'registered_state':
+      return 'missing Registered Legal Address State layout proof';
+    case 'registered_country':
+      return 'missing Registered Legal Address Country layout proof';
     case 'bank_account_type':
       return 'missing Bank Info Account Type layout proof';
     case 'federal_tax_id_type':
       return 'missing General-section Federal Tax ID Type layout proof';
+    case 'business_mailing_state':
+      return 'missing Physical Operating Address State layout proof';
     case 'proof_of_business_type':
       return 'missing General-section Proof of Business Type layout proof';
     case 'proof_of_address_type':
       return 'missing Registered Legal Address Proof of Address Type layout proof';
+    case 'bank_state':
+      return 'missing Bank Address State layout proof';
+    case 'bank_country':
+      return 'missing Bank Address Country layout proof';
     case 'proof_of_bank_account_type':
       return 'missing Bank Info Proof of Bank Account Type layout proof';
     default:
