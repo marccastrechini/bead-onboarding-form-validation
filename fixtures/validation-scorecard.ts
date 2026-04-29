@@ -320,9 +320,14 @@ function scoreConcept(
   if (calibratedMatch) {
     const existingIndex = matches.findIndex((match) => match.fieldIndex === calibratedMatch.fieldIndex);
     if (existingIndex >= 0) {
+      const preferCalibratedDisplayName =
+        CONFIDENCE_RANK[calibratedMatch.identificationConfidence] >
+        CONFIDENCE_RANK[matches[existingIndex]!.identificationConfidence];
       matches[existingIndex] = {
         ...matches[existingIndex]!,
-        displayName: matches[existingIndex]!.displayName || calibratedMatch.displayName,
+        displayName: preferCalibratedDisplayName
+          ? calibratedMatch.displayName
+          : matches[existingIndex]!.displayName || calibratedMatch.displayName,
         businessSection: matches[existingIndex]!.businessSection || calibratedMatch.businessSection,
         identificationConfidence: maxConfidence(matches[existingIndex]!.identificationConfidence, calibratedMatch.identificationConfidence),
         evidence: Array.from(new Set([...calibratedMatch.evidence, ...matches[existingIndex]!.evidence])),
@@ -1020,6 +1025,14 @@ function displayNameForField(field: FieldRecord): string {
     ?? `${field.kind} / ${field.inferredType}`;
 }
 
+function displayNameForCalibratedMatch(field: FieldRecord, concept: FieldConceptDefinition): string {
+  const assessment = conceptAssessmentForField(field, concept);
+  if (!assessment?.labelMatches) {
+    return concept.displayName;
+  }
+  return displayNameForField(field);
+}
+
 function sectionFromField(field: FieldRecord, concept: FieldConceptDefinition): string {
   return field.section ?? concept.businessSection;
 }
@@ -1125,7 +1138,7 @@ function buildCalibratedMatch(
   const field = report.fields[fieldIndex - 1]!;
   return {
     fieldIndex,
-    displayName: displayNameForField(field),
+    displayName: displayNameForCalibratedMatch(field, concept),
     businessSection: field.enrichment?.suggestedBusinessSection ?? sectionFromField(field, concept),
     controlCategory: field.controlCategory,
     inferredType: field.inferredType,

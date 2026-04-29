@@ -33,7 +33,7 @@ import {
   type InteractiveValidationResultsFile,
 } from '../fixtures/interactive-validation';
 import { buildSearchQuery, messageTargetsAddress, selectFreshestMessage, selectMailboxMessage } from '../lib/gmail-client';
-import { loadEnrichment } from '../lib/enrichment-loader';
+import { loadEnrichment, matchField } from '../lib/enrichment-loader';
 import type { MhtmlParseResult, MhtmlTab } from '../lib/mhtml-parser';
 import {
   findDirectDocusignUrls,
@@ -445,6 +445,151 @@ test.describe('sample layout evidence', () => {
     });
   });
 
+  test('repeated address cells preserve section-specific labels', () => {
+    const report = buildAlignment(mockSubmissionForLayout(), mockLayoutMhtmlParseResult([
+      mockLayoutMhtmlTab({ ordinalOnPage: 35, left: 410.88, top: 433.92, inputValue: '679 Lester Courts' }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 39, left: 35.2, top: 543.36, inputValue: 'Charlotte' }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 41, left: 568.32, top: 543.36, inputValue: '12345' }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 47, left: 35.2, top: 657.92, inputValue: '124 Uptown Blvd' }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 49, left: 348.16, top: 657.92, inputValue: 'Charlotte' }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 51, left: 567.04, top: 657.92, inputValue: '' }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 63, left: 35.2, top: 905.6, inputValue: '456 Bank Plaza' }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 64, left: 409.6, top: 905.6, inputValue: 'Charlotte' }),
+      mockLayoutMhtmlTab({ ordinalOnPage: 67, left: 410.88, top: 936.32, inputValue: '54321' }),
+    ]), {
+      jsonPath: 'sample.json',
+      mhtmlPath: 'sample.mhtml',
+      pdfText: beadPageOneLabelText(),
+    });
+
+    const bundle = buildEnrichmentBundle(report);
+    const byKey = new Map(bundle.records.map((record) => [record.jsonKeyPath, record]));
+
+    expect(byKey.get('merchantData.registeredLegalAddress.city')?.suggestedDisplayName).toBe('Registered Legal Address City');
+    expect(byKey.get('merchantData.businessMailingAddress.city')?.suggestedDisplayName).toBe('Physical Operating Address City');
+    expect(byKey.get('merchantData.bankAddress.city')?.suggestedDisplayName).toBe('Bank Address City');
+    expect(new Set([
+      byKey.get('merchantData.registeredLegalAddress.city')?.suggestedDisplayName,
+      byKey.get('merchantData.businessMailingAddress.city')?.suggestedDisplayName,
+      byKey.get('merchantData.bankAddress.city')?.suggestedDisplayName,
+    ]).size).toBe(3);
+  });
+
+  test('city and postal code are not cross-labeled when coordinates are near each other', () => {
+    const index = {
+      byGuid: new Map([
+        ['city-guid', {
+          tabGuid: 'city-guid',
+          positionalFingerprint: 'page:1|Text|ord:39',
+          tabLeft: 35.2,
+          tabTop: 543.36,
+          jsonKeyPath: 'merchantData.registeredLegalAddress.city',
+          jsonFieldFamily: 'Address',
+          jsonTypeHint: 'string',
+          docusignFieldFamily: 'Text',
+          confidence: 'high',
+          suggestedDisplayName: 'Registered Legal Address City',
+          suggestedBusinessSection: 'Address',
+        }],
+        ['postal-guid', {
+          tabGuid: 'postal-guid',
+          positionalFingerprint: 'page:1|Text|ord:41',
+          tabLeft: 568.32,
+          tabTop: 543.36,
+          jsonKeyPath: 'merchantData.registeredLegalAddress.postalCode',
+          jsonFieldFamily: 'Address',
+          jsonTypeHint: 'postalCode',
+          docusignFieldFamily: 'Text',
+          confidence: 'high',
+          suggestedDisplayName: 'Registered Legal Address ZIP',
+          suggestedBusinessSection: 'Address',
+        }],
+      ]),
+      byFingerprint: new Map([
+        ['page:1|Text|ord:39', {
+          tabGuid: 'city-guid',
+          positionalFingerprint: 'page:1|Text|ord:39',
+          tabLeft: 35.2,
+          tabTop: 543.36,
+          jsonKeyPath: 'merchantData.registeredLegalAddress.city',
+          jsonFieldFamily: 'Address',
+          jsonTypeHint: 'string',
+          docusignFieldFamily: 'Text',
+          confidence: 'high',
+          suggestedDisplayName: 'Registered Legal Address City',
+          suggestedBusinessSection: 'Address',
+        }],
+        ['page:1|Text|ord:41', {
+          tabGuid: 'postal-guid',
+          positionalFingerprint: 'page:1|Text|ord:41',
+          tabLeft: 568.32,
+          tabTop: 543.36,
+          jsonKeyPath: 'merchantData.registeredLegalAddress.postalCode',
+          jsonFieldFamily: 'Address',
+          jsonTypeHint: 'postalCode',
+          docusignFieldFamily: 'Text',
+          confidence: 'high',
+          suggestedDisplayName: 'Registered Legal Address ZIP',
+          suggestedBusinessSection: 'Address',
+        }],
+      ]),
+      records: [
+        {
+          tabGuid: 'city-guid',
+          positionalFingerprint: 'page:1|Text|ord:39',
+          tabLeft: 35.2,
+          tabTop: 543.36,
+          jsonKeyPath: 'merchantData.registeredLegalAddress.city',
+          jsonFieldFamily: 'Address',
+          jsonTypeHint: 'string',
+          docusignFieldFamily: 'Text',
+          confidence: 'high',
+          suggestedDisplayName: 'Registered Legal Address City',
+          suggestedBusinessSection: 'Address',
+        },
+        {
+          tabGuid: 'postal-guid',
+          positionalFingerprint: 'page:1|Text|ord:41',
+          tabLeft: 568.32,
+          tabTop: 543.36,
+          jsonKeyPath: 'merchantData.registeredLegalAddress.postalCode',
+          jsonFieldFamily: 'Address',
+          jsonTypeHint: 'postalCode',
+          docusignFieldFamily: 'Text',
+          confidence: 'high',
+          suggestedDisplayName: 'Registered Legal Address ZIP',
+          suggestedBusinessSection: 'Address',
+        },
+      ],
+      bundlePath: 'in-memory',
+      recordCount: 2,
+    };
+
+    const cityMatch = matchField(index as any, {
+      tabGuid: null,
+      pageIndex: 1,
+      dataType: 'Text',
+      ordinalOnPage: 41,
+      tabLeft: 35.2,
+      tabTop: 543.36,
+    });
+    const postalMatch = matchField(index as any, {
+      tabGuid: null,
+      pageIndex: 1,
+      dataType: 'Text',
+      ordinalOnPage: 43,
+      tabLeft: 568.32,
+      tabTop: 543.36,
+    });
+
+    expect(cityMatch?.record.jsonKeyPath).toBe('merchantData.registeredLegalAddress.city');
+    expect(cityMatch?.record.suggestedDisplayName).toBe('Registered Legal Address City');
+    expect(cityMatch?.matchedBy).toBe('coordinate');
+    expect(postalMatch?.record.jsonKeyPath).toBe('merchantData.registeredLegalAddress.postalCode');
+    expect(postalMatch?.record.suggestedDisplayName).toBe('Registered Legal Address ZIP');
+    expect(postalMatch?.matchedBy).toBe('coordinate');
+  });
+
   test('buildEnrichmentBundle preserves layout-only address rows when value matching does not produce a row', () => {
     const bundle = buildEnrichmentBundle({
       generatedAt: '2026-04-29T00:00:00.000Z',
@@ -624,6 +769,75 @@ test.describe('field validation scorecard', () => {
     expect(email.identifiedWithConfidence).toBe(false);
     expect(email.validationQualityGrade).toBe('Needs Mapping');
     expect(email.bestPracticeValidations[0].status).toBe('cannot_run_not_confidently_mapped');
+  });
+
+  test('calibrated matches replace stale low-confidence address labels with the concept display name', () => {
+    const report = mockValidationReport([
+      mockField({
+        index: 18,
+        label: 'registered Legal Address › Postal Code',
+        resolvedLabel: 'registered Legal Address › Postal Code',
+        labelSource: 'enrichment-position',
+        labelConfidence: 'low',
+        currentValueShape: 'text_name_like',
+        docusignTabType: 'Text',
+        pageIndex: 1,
+        ordinalOnPage: 41,
+        tabLeft: 35.2,
+        tabTop: 543.36,
+      }),
+      mockField({
+        index: 19,
+        label: null,
+        resolvedLabel: null,
+        labelSource: 'none',
+        labelConfidence: 'none',
+        currentValueShape: 'text_name_like',
+        docusignTabType: 'Text',
+        pageIndex: 1,
+        ordinalOnPage: 43,
+        tabLeft: 568.32,
+        tabTop: 543.36,
+      }),
+    ]);
+
+    const scorecard = buildValidationScorecard(report, null, {
+      schemaVersion: 1,
+      rows: [
+        {
+          concept: 'registered_city',
+          conceptDisplayName: 'Registered Legal Address City',
+          currentCandidateFieldIndex: 1,
+          selectedCandidate: '#1 Registered Legal Address City',
+          decision: 'trust_current_mapping',
+          calibrationReason: 'none',
+          mappingDecisionReason: 'trusted_by_label',
+        },
+        {
+          concept: 'postal_code',
+          conceptDisplayName: 'Postal Code',
+          currentCandidateFieldIndex: 2,
+          selectedCandidate: '#2 Postal Code',
+          decision: 'trust_current_mapping',
+          calibrationReason: 'none',
+          mappingDecisionReason: 'trusted_by_anchor_and_value_shape',
+        },
+      ],
+    } as any);
+
+    const registeredCity = scorecard.conceptScores.find((score) => score.key === 'registered_city')!;
+    const postalCode = scorecard.conceptScores.find((score) => score.key === 'postal_code')!;
+
+    expect(registeredCity.mappedFields[0]).toMatchObject({
+      fieldIndex: 1,
+      displayName: 'Registered Legal Address City',
+      identificationConfidence: 'high',
+    });
+    expect(postalCode.mappedFields[0]).toMatchObject({
+      fieldIndex: 2,
+      displayName: 'Postal Code',
+      identificationConfidence: 'high',
+    });
   });
 
   test('DOB, phone, EIN, and email matrices include expected recommended tests', () => {
@@ -1238,16 +1452,122 @@ test.describe('validation findings export', () => {
     expect(report.ambiguityTypeBreakdown.matrix_expectation_mismatch).toBe(0);
     expect(report.ambiguityTypeBreakdown.policy_question).toBe(2);
     expect(report.ambiguityTypeBreakdown.acceptable_behavior_documented).toBe(1);
-    expect(report.ambiguityTypeBreakdown.expected_lenient_behavior).toBe(1);
+    expect(report.ambiguityTypeBreakdown.expected_text_leniency).toBe(1);
     expect(report.ambiguityTypeBreakdown.product_validation_gap_candidate).toBe(1);
     expect(report.ambiguousFindingsByType.policy_question.map((finding) => finding.concept)).toEqual(['phone', 'business_name']);
 
     const md = renderValidationFindingsMarkdown(report);
-    expect(md).toContain('### Needs observer improvement');
+    expect(md).toContain('### Observer needs stronger text evidence');
     expect(md).toContain('### Policy question');
     expect(md).toContain('### Possible product validation gap');
-    expect(md).toContain('### Expected lenient behavior');
+    expect(md).toContain('### Expected text leniency');
     expect(md).toContain('### Mapping evidence issue');
+  });
+
+  test('address findings render dedicated address/location review sections', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'registered_address_line_1',
+          conceptDisplayName: 'Registered Legal Address Line 1',
+          validationId: 'punctuation-format-handling',
+          testName: 'punctuation handling observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          inputValue: 'Suite #200 / East',
+          observedValue: 'Suite #200 / East',
+        }),
+        mockFindingsResult({
+          concept: 'location_name',
+          conceptDisplayName: 'Location Name',
+          validationId: 'special-characters-behavior',
+          testName: 'special characters behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          inputValue: '!@#$%^&*()',
+          observedValue: '!@#$%^&*()',
+        }),
+        mockFindingsResult({
+          concept: 'registered_state',
+          conceptDisplayName: 'Registered Legal Address State',
+          validationId: 'current-option-documented',
+          testName: 'current option documented',
+          status: 'skipped',
+          outcome: 'mapping_not_confident',
+          targetConfidence: 'mapping_not_confident',
+          skippedReason: 'field is not confidently mapped in the scorecard source report',
+        }),
+      ],
+    }));
+
+    expect(report.ambiguousFindingsByType.expected_text_leniency.map((finding) => finding.concept)).toEqual([
+      'registered_address_line_1',
+      'location_name',
+    ]);
+
+    const md = renderValidationFindingsMarkdown(report);
+    expect(md).toContain('## Address / Location Findings');
+    expect(md).toContain('### Address/location observations');
+    expect(md).toContain('### Expected address/text leniency');
+    expect(md).toContain('### Mapping-blocked address fields');
+    expect(md).toContain('### Human visual confirmation needed');
+    expect(md).toContain('Should registered_state/country be tested if display-only or not surfaced as editable controls?');
+    expect(md).toContain('Review a screenshot around Registered Legal Address State');
+  });
+
+  test('mapping-blocked address fields include the requested human-confirmation prompts', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'registered_address_line_2',
+          conceptDisplayName: 'Registered Legal Address Line 2',
+          validationId: 'empty-required-behavior',
+          testName: 'empty required behavior observed',
+          status: 'skipped',
+          outcome: 'mapping_not_confident',
+          targetConfidence: 'mapping_not_confident',
+          skippedReason: 'field is not confidently mapped in the scorecard source report',
+        }),
+        mockFindingsResult({
+          concept: 'registered_country',
+          conceptDisplayName: 'Registered Legal Address Country',
+          validationId: 'current-option-documented',
+          testName: 'current option documented',
+          status: 'skipped',
+          outcome: 'mapping_not_confident',
+          targetConfidence: 'mapping_not_confident',
+          skippedReason: 'field is not confidently mapped in the scorecard source report',
+        }),
+        mockFindingsResult({
+          concept: 'business_mailing_address_line_1',
+          conceptDisplayName: 'Business Mailing Address Line 1',
+          validationId: 'punctuation-format-handling',
+          testName: 'punctuation handling observed',
+          status: 'skipped',
+          outcome: 'mapping_not_confident',
+          targetConfidence: 'mapping_not_confident',
+          skippedReason: 'field is not confidently mapped in the scorecard source report',
+        }),
+        mockFindingsResult({
+          concept: 'bank_country',
+          conceptDisplayName: 'Bank Address Country',
+          validationId: 'current-option-documented',
+          testName: 'current option documented',
+          status: 'skipped',
+          outcome: 'mapping_not_confident',
+          targetConfidence: 'mapping_not_confident',
+          skippedReason: 'field is not confidently mapped in the scorecard source report',
+        }),
+      ],
+    }));
+
+    const md = renderValidationFindingsMarkdown(report);
+    expect(md).toContain('Should registered_address_line_2 be tested, and is it optional?');
+    expect(md).toContain('Should registered_state/country be tested if display-only or not surfaced as editable controls?');
+    expect(md).toContain('Should business mailing address be tested separately from registered legal address? Should physical operating address empty fields be ignored unless explicitly populated?');
+    expect(md).toContain('Should bank address be tested separately from registered address? Are bank state/country editable or display-only?');
   });
 
   test('Batch 1 policy resolutions reduce resolved findings out of ambiguity', () => {
@@ -1517,6 +1837,77 @@ test.describe('validation findings export', () => {
 
     expect(report.ambiguousHumanReviewFindings[0].ambiguity?.type).toBe('product_validation_gap_candidate');
     expect(report.likelyProductValidationFindings).toEqual([]);
+  });
+
+  test('excessive-length address normalization is documented and removed from ambiguity', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'registered_city',
+          conceptDisplayName: 'Registered Legal Address City',
+          validationId: 'excessive-length-behavior',
+          testName: 'excessive length behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          inputValue: 'Validation Test ' + 'A'.repeat(120),
+          observedValue: 'Validation Test ' + 'A'.repeat(16),
+          normalizedOrReformatted: true,
+        }),
+      ],
+    }));
+
+    const resolved = report.trustedExecutedObservations.find((finding) => finding.concept === 'registered_city')!;
+    expect(resolved.status).toBe('passed');
+    expect(resolved.outcome).toBe('passed');
+    expect(report.ambiguousHumanReviewFindings).toEqual([]);
+    expect(report.likelyProductValidationFindings).toEqual([]);
+  });
+
+  test('empty optional address line 2 is not treated as a product finding', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'registered_address_line_2',
+          conceptDisplayName: 'Registered Legal Address Line 2',
+          validationId: 'empty-required-behavior',
+          testName: 'empty required behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          inputValue: '',
+          observedValue: '',
+        }),
+      ],
+    }));
+
+    const resolved = report.trustedExecutedObservations.find((finding) => finding.concept === 'registered_address_line_2')!;
+    expect(resolved.status).toBe('passed');
+    expect(resolved.outcome).toBe('passed');
+    expect(report.ambiguousHumanReviewFindings).toEqual([]);
+    expect(report.likelyProductValidationFindings).toEqual([]);
+  });
+
+  test('address findings do not write raw address values', () => {
+    const rawAddress = 'Suite #200 / East';
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'registered_address_line_1',
+          conceptDisplayName: 'Registered Legal Address Line 1',
+          validationId: 'punctuation-format-handling',
+          testName: 'punctuation handling observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          inputValue: rawAddress,
+          observedValue: rawAddress,
+        }),
+      ],
+    }));
+
+    expect(JSON.stringify(report)).not.toContain(rawAddress);
+    expect(renderValidationFindingsMarkdown(report)).not.toContain(rawAddress);
   });
 
   test('stakeholder_phone findings do not write raw phone values', () => {

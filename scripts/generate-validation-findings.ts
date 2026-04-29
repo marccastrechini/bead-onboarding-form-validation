@@ -115,11 +115,11 @@ interface FindingItem {
 }
 
 type AmbiguityType =
-  | 'observer_needs_stronger_error_ownership'
-  | 'expected_lenient_behavior'
+  | 'observer_needs_stronger_text_evidence'
+  | 'expected_text_leniency'
   | 'policy_question'
   | 'matrix_expectation_mismatch'
-  | 'mapping_evidence_insufficient'
+  | 'mapping_evidence_issue'
   | 'product_validation_gap_candidate'
   | 'acceptable_behavior_documented';
 
@@ -245,13 +245,53 @@ const NON_PRODUCT_OUTCOMES = new Set<InteractiveResultOutcome>([
 ]);
 const EMAIL_CONCEPTS = new Set<FieldConceptKey>(['email', 'stakeholder_email']);
 const PHONE_CONCEPTS = new Set<FieldConceptKey>(['phone', 'stakeholder_phone']);
+const ADDRESS_LOCATION_CONCEPTS = new Set<FieldConceptKey>([
+  'location_name',
+  'registered_address_line_1',
+  'registered_address_line_2',
+  'registered_city',
+  'registered_state',
+  'registered_country',
+  'postal_code',
+  'address_line_1',
+  'address_line_2',
+  'city',
+  'state',
+  'country',
+  'business_mailing_address_line_1',
+  'business_mailing_city',
+  'business_mailing_state',
+  'business_mailing_postal_code',
+  'bank_address_line_1',
+  'bank_city',
+  'bank_state',
+  'bank_country',
+  'bank_postal_code',
+]);
+const ADDRESS_TEXT_CONCEPTS = new Set<FieldConceptKey>([
+  'location_name',
+  'registered_address_line_1',
+  'registered_address_line_2',
+  'registered_city',
+  'address_line_1',
+  'address_line_2',
+  'city',
+  'business_mailing_address_line_1',
+  'business_mailing_city',
+  'bank_address_line_1',
+  'bank_city',
+]);
+const OPTIONAL_ADDRESS_LINE_2_CONCEPTS = new Set<FieldConceptKey>([
+  'registered_address_line_2',
+  'address_line_2',
+]);
 
 const AMBIGUITY_SECTIONS: Array<{ type: AmbiguityType; title: string }> = [
-  { type: 'observer_needs_stronger_error_ownership', title: 'Needs observer improvement' },
+  { type: 'observer_needs_stronger_text_evidence', title: 'Observer needs stronger text evidence' },
   { type: 'policy_question', title: 'Policy question' },
   { type: 'product_validation_gap_candidate', title: 'Possible product validation gap' },
-  { type: 'expected_lenient_behavior', title: 'Expected lenient behavior' },
-  { type: 'mapping_evidence_insufficient', title: 'Mapping evidence issue' },
+  { type: 'expected_text_leniency', title: 'Expected text leniency' },
+  { type: 'mapping_evidence_issue', title: 'Mapping evidence issue' },
   { type: 'matrix_expectation_mismatch', title: 'Test matrix expectation mismatch' },
   { type: 'acceptable_behavior_documented', title: 'Acceptable behavior documented' },
 ];
@@ -433,6 +473,7 @@ export function renderValidationFindingsMarkdown(report: ValidationFindingsRepor
   renderFindingTable(lines, 'Trusted Executed Observations', report.trustedExecutedObservations);
   renderControlledChoiceFindings(lines, report);
   renderFindingTable(lines, 'Likely Product Validation Findings', report.likelyProductValidationFindings);
+  renderAddressLocationFindings(lines, report);
   renderAmbiguousFindingsByType(lines, report);
   renderFindingTable(lines, 'Mapping-Blocked Fields', report.mappingBlockedFields);
   lines.push('## Per-Concept Results');
@@ -597,6 +638,26 @@ function resolveFindingForPolicy(
     };
   }
 
+  if (isAddressLengthBehaviorResolved(result, finding)) {
+    return {
+      ...finding,
+      status: 'passed',
+      outcome: 'passed',
+      interpretation: `Observed acceptable ${finding.conceptDisplayName} length enforcement through truncation or normalization.`,
+      recommendation: 'Document the enforced limit or maxlength, but do not treat this behavior as a product defect.',
+    };
+  }
+
+  if (isOptionalAddressLine2BlankAllowed(result, finding)) {
+    return {
+      ...finding,
+      status: 'passed',
+      outcome: 'passed',
+      interpretation: `Blank ${finding.conceptDisplayName} remained allowed, which matches the optional address-line-2 policy for unit, suite, and apartment details.`,
+      recommendation: 'Treat blank address line 2 as acceptable optional-field behavior unless product policy later makes it required.',
+    };
+  }
+
   if (isNameSpecialCharacterBehaviorResolved(result, finding)) {
     return {
       ...finding,
@@ -723,8 +784,13 @@ function classifyAmbiguityType(
   finding: Omit<FindingItem, 'ambiguity' | 'controlledChoiceClassification'>,
   lengthEffect: AmbiguityReview['lengthEffect'],
 ): AmbiguityType {
-  if (finding.targetConfidence !== 'trusted' || finding.outcome === 'mapping_not_confident') {
-    return 'mapping_evidence_insufficient';
+  if (
+    finding.targetConfidence !== 'trusted' ||
+    finding.outcome === 'mapping_not_confident' ||
+    finding.outcome === 'tool_mapping_suspect' ||
+    finding.outcome === 'error_ownership_suspect'
+  ) {
+    return 'mapping_evidence_issue';
   }
   if (isPhoneTooLongAcceptedWithoutSignal(result, finding)) {
     return 'product_validation_gap_candidate';
@@ -734,6 +800,9 @@ function classifyAmbiguityType(
   }
   if (isPhoneMissingPlusCase(result, finding) && !hasExplicitE164Requirement(result)) {
     return 'policy_question';
+  }
+  if (isAddressTextLeniencyCase(result, finding)) {
+    return 'expected_text_leniency';
   }
   if (hasObservedValidationFeedback(result.observation)) {
     return 'matrix_expectation_mismatch';
@@ -751,9 +820,9 @@ function classifyAmbiguityType(
     return 'policy_question';
   }
   if (/special-characters/i.test(result.validationId)) {
-    return 'expected_lenient_behavior';
+    return 'expected_text_leniency';
   }
-  return 'observer_needs_stronger_error_ownership';
+  return 'observer_needs_stronger_text_evidence';
 }
 
 function isKnownPolicyQuestion(result: ValidationResult, finding: Omit<FindingItem, 'ambiguity' | 'controlledChoiceClassification'>): boolean {
@@ -848,6 +917,41 @@ function isNameSpecialCharacterBehaviorResolved(
   return isNameConcept(finding.concept) && /special-characters/i.test(result.validationId);
 }
 
+function isAddressLocationConcept(concept: FieldConceptKey): boolean {
+  return ADDRESS_LOCATION_CONCEPTS.has(concept);
+}
+
+function isAddressTextConcept(concept: FieldConceptKey): boolean {
+  return ADDRESS_TEXT_CONCEPTS.has(concept);
+}
+
+function isAddressLengthBehaviorResolved(
+  result: ValidationResult,
+  finding: Omit<FindingItem, 'ambiguity' | 'controlledChoiceClassification'>,
+): boolean {
+  if (!isAddressTextConcept(finding.concept) || !/excessive-length/i.test(result.validationId)) return false;
+  const lengthEffect = inferLengthEffect(result);
+  return result.observation?.normalizedOrReformatted === true || lengthEffect === 'shortened';
+}
+
+function isOptionalAddressLine2BlankAllowed(
+  result: ValidationResult,
+  finding: Omit<FindingItem, 'ambiguity' | 'controlledChoiceClassification'>,
+): boolean {
+  return OPTIONAL_ADDRESS_LINE_2_CONCEPTS.has(finding.concept) &&
+    /empty-required/i.test(result.validationId) &&
+    isBlankValue(result.inputValue) &&
+    isBlankValue(result.observation?.observedValue ?? null);
+}
+
+function isAddressTextLeniencyCase(
+  result: ValidationResult,
+  finding: Omit<FindingItem, 'ambiguity' | 'controlledChoiceClassification'>,
+): boolean {
+  return isAddressTextConcept(finding.concept) &&
+    /special-characters|punctuation-format-handling/i.test(result.validationId);
+}
+
 function isNameConcept(concept: FieldConceptKey): concept is 'business_name' | 'dba_name' {
   return concept === 'business_name' || concept === 'dba_name';
 }
@@ -906,15 +1010,15 @@ function whyNotProductFinding(
   finding: Omit<FindingItem, 'ambiguity' | 'controlledChoiceClassification'>,
 ): string {
   switch (type) {
-    case 'observer_needs_stronger_error_ownership':
+    case 'observer_needs_stronger_text_evidence':
       return 'No field-local error, native validity change, or confirmed policy rule is strong enough to claim a product defect.';
-    case 'expected_lenient_behavior':
+    case 'expected_text_leniency':
       return `${finding.conceptDisplayName} accepted a value that may be legitimate leniency unless product policy says this case must be rejected.`;
     case 'policy_question':
       return 'The observed behavior depends on product or underwriting policy that is not encoded in the current matrix.';
     case 'matrix_expectation_mismatch':
       return 'The observer captured field-local validation evidence, but this matrix row is configured as observe/manual-review instead of a reject expectation.';
-    case 'mapping_evidence_insufficient':
+    case 'mapping_evidence_issue':
       return 'The target mapping is not trusted enough to connect behavior to the intended field.';
     case 'product_validation_gap_candidate':
       return 'A trusted target accepted or failed to flag the value, but policy still needs to confirm this case is mandatory at form entry.';
@@ -931,15 +1035,15 @@ function wouldBecomeProductFindingIf(
   finding: Omit<FindingItem, 'ambiguity' | 'controlledChoiceClassification'>,
 ): string {
   switch (type) {
-    case 'observer_needs_stronger_error_ownership':
+    case 'observer_needs_stronger_text_evidence':
       return 'A fresh trusted observation still shows no local error, no input prevention, and no normalization after stronger ownership capture.';
-    case 'expected_lenient_behavior':
+    case 'expected_text_leniency':
       return `Policy says ${finding.conceptDisplayName} must reject this case and a trusted rerun still accepts it without a local validation signal.`;
     case 'policy_question':
       return `A human policy decision says this ${finding.conceptDisplayName} case must be rejected at form entry, and the trusted observation still shows no rejection signal.`;
     case 'matrix_expectation_mismatch':
       return 'The matrix is updated to expect rejection and a rerun lacks field-local validation or input blocking.';
-    case 'mapping_evidence_insufficient':
+    case 'mapping_evidence_issue':
       return 'The target is later trusted and the same behavior persists without a field-local validation signal.';
     case 'product_validation_gap_candidate':
       return `Policy confirms ${finding.conceptDisplayName} is required/invalid for this case and a trusted rerun still allows it without field-local error or input prevention.`;
@@ -955,7 +1059,7 @@ function humanGuidancePromptFor(
   result: ValidationResult,
   finding: Omit<FindingItem, 'ambiguity' | 'controlledChoiceClassification'>,
 ): string | null {
-  if (type === 'mapping_evidence_insufficient') return finding.humanConfirmation?.requestedEvidence ?? null;
+  if (type === 'mapping_evidence_issue') return finding.humanConfirmation?.requestedEvidence ?? null;
   if (isPhoneMissingPlusCase(result, finding)) {
     return hasExplicitE164Requirement(result)
       ? `Field-local validation currently requires E.164. Should ${finding.conceptDisplayName} instead accept or normalize domestic phone format without a leading plus?`
@@ -988,10 +1092,13 @@ function humanGuidancePromptFor(
   if ((finding.concept === 'business_name' || finding.concept === 'dba_name') && /special-characters/i.test(result.validationId)) {
     return `Should ${finding.conceptDisplayName} allow punctuation and symbol-heavy names, normalize them, or reject them?`;
   }
+  if (isAddressTextConcept(finding.concept) && /special-characters|punctuation-format-handling/i.test(result.validationId)) {
+    return `Should ${finding.conceptDisplayName} allow punctuation or symbol-heavy text, normalize it, or reject it?`;
+  }
   if (finding.concept === 'dba_name' && /empty-required/i.test(result.validationId)) {
     return 'Should DBA Name be required, or can it be blank when the merchant has no DBA?';
   }
-  if (type === 'observer_needs_stronger_error_ownership') {
+  if (type === 'observer_needs_stronger_text_evidence') {
     return `Is there any visible field-local validation text or styling for ${finding.conceptDisplayName} that the observer missed?`;
   }
   return type === 'policy_question' || type === 'product_validation_gap_candidate'
@@ -1298,6 +1405,122 @@ function renderAmbiguousFindingsByType(lines: string[], report: ValidationFindin
       );
     }
     lines.push('');
+  }
+}
+
+function renderAddressLocationFindings(lines: string[], report: ValidationFindingsReport): void {
+  const addressObservations = report.trustedExecutedObservations.filter((finding) => isAddressLocationConcept(finding.concept));
+  const addressAmbiguousFindings = report.ambiguousHumanReviewFindings.filter((finding) => isAddressLocationConcept(finding.concept));
+  const addressAmbiguousByType = groupAmbiguousFindingsByType(addressAmbiguousFindings);
+  const addressMappingBlocked = report.mappingBlockedFields.filter((finding) => isAddressLocationConcept(finding.concept));
+  const addressHumanConfirmation = addressMappingBlocked.filter((finding) => finding.humanConfirmation !== null);
+
+  if (!addressObservations.length && !addressMappingBlocked.length) {
+    return;
+  }
+
+  lines.push('## Address / Location Findings');
+  lines.push('');
+  renderAddressObservationSection(lines, 'Address/location observations', addressObservations);
+  renderAddressAmbiguitySection(lines, 'Expected address/text leniency', [
+    ...(addressAmbiguousByType.expected_text_leniency ?? []),
+    ...(addressAmbiguousByType.acceptable_behavior_documented ?? []),
+  ]);
+  renderAddressAmbiguitySection(lines, 'Address policy questions', addressAmbiguousByType.policy_question ?? []);
+  renderAddressAmbiguitySection(lines, 'Matrix expectation mismatches', addressAmbiguousByType.matrix_expectation_mismatch ?? []);
+  renderAddressAmbiguitySection(lines, 'Possible product validation gaps', addressAmbiguousByType.product_validation_gap_candidate ?? []);
+  renderAddressMappingBlockedSection(lines, 'Mapping-blocked address fields', addressMappingBlocked);
+  renderAddressHumanConfirmationSection(lines, 'Human visual confirmation needed', addressHumanConfirmation);
+}
+
+function renderAddressObservationSection(lines: string[], title: string, findings: FindingItem[]): void {
+  lines.push(`### ${title}`);
+  lines.push('');
+  if (findings.length === 0) {
+    lines.push('No findings in this category.');
+    lines.push('');
+    return;
+  }
+
+  lines.push('| Concept | Check | Status | Outcome | Review bucket | Interpretation |');
+  lines.push('|---|---|---|---|---|---|');
+  for (const finding of findings) {
+    const reviewBucket = finding.ambiguity?.type
+      ? sectionTitle(finding.ambiguity.type)
+      : (finding.status === 'passed' ? 'Resolved / documented' : 'n/a');
+    lines.push(`| ${esc(finding.conceptDisplayName)} | ${esc(finding.testName)} | ${finding.status} | ${finding.outcome} | ${esc(reviewBucket)} | ${esc(finding.interpretation)} |`);
+  }
+  lines.push('');
+}
+
+function renderAddressAmbiguitySection(lines: string[], title: string, findings: FindingItem[]): void {
+  lines.push(`### ${title}`);
+  lines.push('');
+  if (findings.length === 0) {
+    lines.push('No findings in this category.');
+    lines.push('');
+    return;
+  }
+
+  lines.push('| Concept | Check | Why not product bug yet | Human guidance | Evidence summary |');
+  lines.push('|---|---|---|---|---|');
+  for (const finding of findings) {
+    lines.push(`| ${esc(finding.conceptDisplayName)} | ${esc(finding.testName)} | ${esc(finding.ambiguity?.whyNotProductFinding)} | ${esc(finding.ambiguity?.humanGuidanceNeeded ? finding.ambiguity.humanGuidancePrompt ?? 'Yes' : 'No')} | ${esc(formatAmbiguityEvidenceSummary(finding))} |`);
+  }
+  lines.push('');
+}
+
+function renderAddressMappingBlockedSection(lines: string[], title: string, findings: FindingItem[]): void {
+  lines.push(`### ${title}`);
+  lines.push('');
+  if (findings.length === 0) {
+    lines.push('No findings in this category.');
+    lines.push('');
+    return;
+  }
+
+  lines.push('| Concept | Policy prompt | Current blocker | Requested evidence | Decision impact |');
+  lines.push('|---|---|---|---|---|');
+  for (const finding of findings) {
+    lines.push(`| ${esc(finding.conceptDisplayName)} | ${esc(addressMappingPolicyPrompt(finding.concept))} | ${esc(finding.humanConfirmation?.currentBlocker ?? finding.targetConfidenceReason ?? 'n/a')} | ${esc(finding.humanConfirmation?.requestedEvidence ?? finding.recommendation)} | ${esc(finding.humanConfirmation?.decisionImpact ?? 'n/a')} |`);
+  }
+  lines.push('');
+}
+
+function renderAddressHumanConfirmationSection(lines: string[], title: string, findings: FindingItem[]): void {
+  lines.push(`### ${title}`);
+  lines.push('');
+  if (findings.length === 0) {
+    lines.push('No findings in this category.');
+    lines.push('');
+    return;
+  }
+
+  lines.push('| Concept | Policy prompt | Human confirmation prompt | Decision impact |');
+  lines.push('|---|---|---|---|');
+  for (const finding of findings) {
+    lines.push(`| ${esc(finding.conceptDisplayName)} | ${esc(addressMappingPolicyPrompt(finding.concept))} | ${esc(finding.humanConfirmation?.requestedEvidence)} | ${esc(finding.humanConfirmation?.decisionImpact)} |`);
+  }
+  lines.push('');
+}
+
+function addressMappingPolicyPrompt(concept: FieldConceptKey): string {
+  switch (concept) {
+    case 'registered_address_line_2':
+      return 'Should registered_address_line_2 be tested, and is it optional?';
+    case 'registered_state':
+    case 'registered_country':
+      return 'Should registered_state/country be tested if display-only or not surfaced as editable controls?';
+    case 'business_mailing_address_line_1':
+    case 'business_mailing_city':
+    case 'business_mailing_state':
+    case 'business_mailing_postal_code':
+      return 'Should business mailing address be tested separately from registered legal address? Should physical operating address empty fields be ignored unless explicitly populated?';
+    case 'bank_state':
+    case 'bank_country':
+      return 'Should bank address be tested separately from registered address? Are bank state/country editable or display-only?';
+    default:
+      return 'Review whether this address/location field should be treated as a separate editable validation target.';
   }
 }
 
