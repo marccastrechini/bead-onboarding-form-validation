@@ -1,12 +1,13 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type {
+  InteractiveControlKind,
   InteractiveResultOutcome,
   InteractiveResultStatus,
   InteractiveTargetConfidence,
   InteractiveValidationResultsFile,
 } from '../fixtures/interactive-validation';
-import type { FieldConceptKey } from '../fixtures/field-concepts';
+import { FIELD_CONCEPT_REGISTRY, type FieldConceptKey } from '../fixtures/field-concepts';
 import type { MappingCalibrationFile } from '../fixtures/validation-scorecard';
 import { detectValueShape, type ValueShape } from '../lib/mapping-calibration';
 
@@ -102,6 +103,12 @@ interface FindingItem {
   mappingShiftReason: string | null;
   mappingMissingProof: string[];
   humanConfirmation: HumanConfirmationRequest | null;
+  controlKind: InteractiveControlKind | null;
+  optionsDiscoverable: boolean | null;
+  freeTextEntryImpossible: boolean | null;
+  restoreSucceeded: boolean | null;
+  currentValueReadable: boolean | null;
+  controlledChoiceClassification: ControlledChoiceClassification | null;
   ambiguity: AmbiguityReview | null;
   interpretation: string;
   recommendation: string;
@@ -113,6 +120,15 @@ type AmbiguityType =
   | 'policy_question'
   | 'matrix_expectation_mismatch'
   | 'mapping_evidence_insufficient'
+  | 'product_validation_gap_candidate'
+  | 'acceptable_behavior_documented';
+
+type ControlledChoiceClassification =
+  | 'expected_select_behavior'
+  | 'options_not_discoverable'
+  | 'restore_behavior_documented'
+  | 'policy_question'
+  | 'observer_needs_better_select_evidence'
   | 'product_validation_gap_candidate'
   | 'acceptable_behavior_documented';
 
@@ -190,6 +206,9 @@ export interface ValidationFindingsReport {
   ambiguousHumanReviewFindings: FindingItem[];
   ambiguityTypeBreakdown: Record<AmbiguityType, number>;
   ambiguousFindingsByType: Record<AmbiguityType, FindingItem[]>;
+  controlledChoiceFindings: FindingItem[];
+  controlledChoiceBreakdown: Record<ControlledChoiceClassification, number>;
+  controlledChoiceFindingsByClassification: Record<ControlledChoiceClassification, FindingItem[]>;
   mappingBlockedFields: FindingItem[];
   perConceptResults: PerConceptSummary[];
   scorecardCoverage: {
@@ -237,6 +256,16 @@ const AMBIGUITY_SECTIONS: Array<{ type: AmbiguityType; title: string }> = [
   { type: 'acceptable_behavior_documented', title: 'Acceptable behavior documented' },
 ];
 
+const CONTROLLED_CHOICE_CLASSIFICATIONS: Array<{ type: ControlledChoiceClassification; title: string }> = [
+  { type: 'expected_select_behavior', title: 'Controlled-choice observations' },
+  { type: 'options_not_discoverable', title: 'Options not discoverable' },
+  { type: 'restore_behavior_documented', title: 'Restore behavior' },
+  { type: 'policy_question', title: 'Policy questions' },
+  { type: 'observer_needs_better_select_evidence', title: 'Controlled-choice observations' },
+  { type: 'product_validation_gap_candidate', title: 'Possible product validation gaps' },
+  { type: 'acceptable_behavior_documented', title: 'Acceptable behavior documented' },
+];
+
 export function buildValidationFindingsReport(input: {
   results: InteractiveValidationResultsFile;
   diagnostics: DiagnosticsFile;
@@ -265,7 +294,7 @@ export function buildValidationFindingsReport(input: {
     const humanConfirmation = includeMappingProof
       ? calibration?.humanConfirmation ?? buildLiveHumanConfirmationRequest(result, targetConfidenceReason, mappingFlags)
       : null;
-    const finding: Omit<FindingItem, 'ambiguity'> = {
+    const finding: Omit<FindingItem, 'ambiguity' | 'controlledChoiceClassification'> = {
       concept: result.concept,
       conceptDisplayName: result.conceptDisplayName,
       validationId: result.validationId,
@@ -279,12 +308,20 @@ export function buildValidationFindingsReport(input: {
       mappingShiftReason: result.targetDiagnostics?.mappingShiftReason ?? diagnostic?.mappingShiftReason ?? null,
       mappingMissingProof: includeMappingProof ? calibration?.missingProof ?? [] : [],
       humanConfirmation,
+      controlKind: result.observation?.controlKind ?? null,
+      optionsDiscoverable: result.observation?.optionsDiscoverable ?? null,
+      freeTextEntryImpossible: result.observation?.freeTextEntryImpossible ?? null,
+      restoreSucceeded: result.targetDiagnostics?.restoreSucceeded ?? null,
+      currentValueReadable: isControlledChoiceCurrentObservation(result)
+        ? hasReadableControlledChoiceCurrentValue(result)
+        : null,
       interpretation: result.interpretation,
       recommendation: result.recommendation,
     };
     const resolvedFinding = resolveFindingForPolicy(result, finding);
     return {
       ...resolvedFinding,
+      controlledChoiceClassification: classifyControlledChoiceFinding(result, resolvedFinding),
       ambiguity: buildAmbiguityReview(result, resolvedFinding),
     };
   };
@@ -301,6 +338,11 @@ export function buildValidationFindingsReport(input: {
   const ambiguityTypeBreakdown = Object.fromEntries(
     AMBIGUITY_SECTIONS.map((section) => [section.type, ambiguousFindingsByType[section.type].length]),
   ) as Record<AmbiguityType, number>;
+  const controlledChoiceFindings = findings.filter((finding) => finding.controlledChoiceClassification !== null);
+  const controlledChoiceFindingsByClassification = groupControlledChoiceFindingsByClassification(controlledChoiceFindings);
+  const controlledChoiceBreakdown = Object.fromEntries(
+    CONTROLLED_CHOICE_CLASSIFICATIONS.map((section) => [section.type, controlledChoiceFindingsByClassification[section.type].length]),
+  ) as Record<ControlledChoiceClassification, number>;
   const mappingBlockedFields = findings.filter((finding) =>
     finding.outcome === 'mapping_not_confident' || finding.targetConfidence === 'mapping_not_confident',
   );
@@ -352,6 +394,9 @@ export function buildValidationFindingsReport(input: {
     ambiguousHumanReviewFindings,
     ambiguityTypeBreakdown,
     ambiguousFindingsByType,
+    controlledChoiceFindings,
+    controlledChoiceBreakdown,
+    controlledChoiceFindingsByClassification,
     mappingBlockedFields,
     perConceptResults,
     scorecardCoverage,
@@ -386,6 +431,7 @@ export function renderValidationFindingsMarkdown(report: ValidationFindingsRepor
   lines.push(`- Scorecard coverage: ${report.runScope.scorecardCoverage}`);
   lines.push('');
   renderFindingTable(lines, 'Trusted Executed Observations', report.trustedExecutedObservations);
+  renderControlledChoiceFindings(lines, report);
   renderFindingTable(lines, 'Likely Product Validation Findings', report.likelyProductValidationFindings);
   renderAmbiguousFindingsByType(lines, report);
   renderFindingTable(lines, 'Mapping-Blocked Fields', report.mappingBlockedFields);
@@ -482,11 +528,34 @@ function groupAmbiguousFindingsByType(findings: FindingItem[]): Record<Ambiguity
   return grouped;
 }
 
+function groupControlledChoiceFindingsByClassification(
+  findings: FindingItem[],
+): Record<ControlledChoiceClassification, FindingItem[]> {
+  const grouped = Object.fromEntries(
+    CONTROLLED_CHOICE_CLASSIFICATIONS.map((section) => [section.type, []]),
+  ) as Record<ControlledChoiceClassification, FindingItem[]>;
+  for (const finding of findings) {
+    if (!finding.controlledChoiceClassification) continue;
+    grouped[finding.controlledChoiceClassification].push(finding);
+  }
+  return grouped;
+}
+
 function resolveFindingForPolicy(
   result: ValidationResult,
-  finding: Omit<FindingItem, 'ambiguity'>,
-): Omit<FindingItem, 'ambiguity'> {
+  finding: Omit<FindingItem, 'ambiguity' | 'controlledChoiceClassification'>,
+): Omit<FindingItem, 'ambiguity' | 'controlledChoiceClassification'> {
   if (finding.targetConfidence !== 'trusted') return finding;
+
+  if (hasReadableControlledChoiceCurrentValue(result)) {
+    return {
+      ...finding,
+      status: 'passed',
+      outcome: 'passed',
+      interpretation: `Current/default ${finding.conceptDisplayName} selection was readable through the controlled-choice state without disclosing the raw option value.`,
+      recommendation: 'Treat this as expected select behavior and keep raw selected values out of the exported findings.',
+    };
+  }
 
   if (finding.concept === 'postal_code' && /letters-behavior/i.test(result.validationId) && hasObservedValidationFeedback(result.observation)) {
     return {
@@ -541,9 +610,88 @@ function resolveFindingForPolicy(
   return finding;
 }
 
+function isControlledChoiceConcept(concept: FieldConceptKey): boolean {
+  return FIELD_CONCEPT_REGISTRY[concept]?.bestPracticeValidations.some((validation) =>
+    validation.id === 'current-option-documented'
+  ) ?? false;
+}
+
+function isControlledChoiceCurrentObservation(result: ValidationResult): boolean {
+  return isControlledChoiceConcept(result.concept) && /current-option-documented/i.test(result.validationId);
+}
+
+function isSelectLikeControl(result: ValidationResult): boolean {
+  return result.observation?.controlKind === 'native-select' ||
+    result.targetDiagnostics?.actualElement?.tagName?.toLowerCase() === 'select' ||
+    result.targetDiagnostics?.docusignTabType === 'List' ||
+    Boolean(result.targetDiagnostics?.actualFieldSignature?.includes('tag=select'));
+}
+
+function hasReadableControlledChoiceCurrentValue(result: ValidationResult): boolean {
+  return isControlledChoiceCurrentObservation(result) &&
+    isSelectLikeControl(result) &&
+    result.targetDiagnostics?.actualValueBeforeTest !== undefined &&
+    result.targetDiagnostics?.actualValueBeforeTest !== null;
+}
+
+function controlledChoiceOptionsNotDiscoverable(result: ValidationResult): boolean {
+  const haystack = `${result.skippedReason ?? ''} ${result.evidence ?? ''} ${result.recommendation ?? ''}`;
+  return isControlledChoiceConcept(result.concept) && (
+    result.observation?.optionsDiscoverable === false ||
+    /options not discoverable/i.test(haystack)
+  );
+}
+
+function controlledChoiceCannotSafelyClear(result: ValidationResult): boolean {
+  const haystack = `${result.skippedReason ?? ''} ${result.evidence ?? ''} ${result.recommendation ?? ''}`;
+  return isControlledChoiceConcept(result.concept) &&
+    /empty-required/i.test(result.validationId) &&
+    /cannot safely clear/i.test(haystack);
+}
+
+function controlledChoiceEmptyAcceptedWithoutValidation(result: ValidationResult): boolean {
+  return isControlledChoiceConcept(result.concept) &&
+    /empty-required/i.test(result.validationId) &&
+    Boolean(result.observation) &&
+    !hasObservedValidationFeedback(result.observation) &&
+    !result.observation?.inputPrevented &&
+    (result.observation?.observedValue ?? null) === '';
+}
+
+function classifyControlledChoiceFinding(
+  result: ValidationResult,
+  finding: Omit<FindingItem, 'ambiguity' | 'controlledChoiceClassification'>,
+): ControlledChoiceClassification | null {
+  if (!isControlledChoiceConcept(finding.concept)) return null;
+  if (controlledChoiceOptionsNotDiscoverable(result)) return 'options_not_discoverable';
+  if (result.targetDiagnostics?.restoreSucceeded === false) return 'restore_behavior_documented';
+  if (isControlledChoiceCurrentObservation(result)) {
+    return hasReadableControlledChoiceCurrentValue(result)
+      ? 'expected_select_behavior'
+      : 'observer_needs_better_select_evidence';
+  }
+  if (/valid-option-accepted/i.test(result.validationId)) {
+    return 'restore_behavior_documented';
+  }
+  if (/invalid-freeform/i.test(result.validationId)) {
+    return result.observation?.freeTextEntryImpossible
+      ? 'acceptable_behavior_documented'
+      : 'observer_needs_better_select_evidence';
+  }
+  if (/empty-required/i.test(result.validationId)) {
+    if (controlledChoiceCannotSafelyClear(result)) return 'acceptable_behavior_documented';
+    if (controlledChoiceEmptyAcceptedWithoutValidation(result)) return 'product_validation_gap_candidate';
+    if (finding.status === 'passed') return 'acceptable_behavior_documented';
+    return 'policy_question';
+  }
+  return finding.status === 'manual_review'
+    ? 'observer_needs_better_select_evidence'
+    : 'expected_select_behavior';
+}
+
 function buildAmbiguityReview(
   result: ValidationResult,
-  finding: Omit<FindingItem, 'ambiguity'>,
+  finding: Omit<FindingItem, 'ambiguity' | 'controlledChoiceClassification'>,
 ): AmbiguityReview | null {
   if (finding.outcome !== 'observer_ambiguous' && finding.status !== 'manual_review') return null;
 
@@ -572,7 +720,7 @@ function buildAmbiguityReview(
 
 function classifyAmbiguityType(
   result: ValidationResult,
-  finding: Omit<FindingItem, 'ambiguity'>,
+  finding: Omit<FindingItem, 'ambiguity' | 'controlledChoiceClassification'>,
   lengthEffect: AmbiguityReview['lengthEffect'],
 ): AmbiguityType {
   if (finding.targetConfidence !== 'trusted' || finding.outcome === 'mapping_not_confident') {
@@ -608,7 +756,7 @@ function classifyAmbiguityType(
   return 'observer_needs_stronger_error_ownership';
 }
 
-function isKnownPolicyQuestion(result: ValidationResult, finding: Omit<FindingItem, 'ambiguity'>): boolean {
+function isKnownPolicyQuestion(result: ValidationResult, finding: Omit<FindingItem, 'ambiguity' | 'controlledChoiceClassification'>): boolean {
   const haystack = `${result.validationId} ${result.testName}`;
   return (finding.concept === 'website' && /protocol|missing/i.test(haystack)) ||
     (PHONE_CONCEPTS.has(finding.concept) && /plus|domestic|format/i.test(haystack)) ||
@@ -640,14 +788,14 @@ function isBlankValue(value: string | null | undefined): boolean {
 
 function isPhoneMissingPlusCase(
   result: ValidationResult,
-  finding: Omit<FindingItem, 'ambiguity'>,
+  finding: Omit<FindingItem, 'ambiguity' | 'controlledChoiceClassification'>,
 ): boolean {
   return PHONE_CONCEPTS.has(finding.concept) && /plus|domestic|format/i.test(`${result.validationId} ${result.testName}`);
 }
 
 function isPhoneTooLongCase(
   result: ValidationResult,
-  finding: Omit<FindingItem, 'ambiguity'>,
+  finding: Omit<FindingItem, 'ambiguity' | 'controlledChoiceClassification'>,
 ): boolean {
   return PHONE_CONCEPTS.has(finding.concept) && /too-long/i.test(result.validationId);
 }
@@ -665,7 +813,7 @@ function hasExplicitE164Requirement(result: ValidationResult): boolean {
 
 function isPhoneTooLongBehaviorResolved(
   result: ValidationResult,
-  finding: Omit<FindingItem, 'ambiguity'>,
+  finding: Omit<FindingItem, 'ambiguity' | 'controlledChoiceClassification'>,
 ): boolean {
   if (!isPhoneTooLongCase(result, finding)) return false;
   return result.observation?.normalizedOrReformatted === true ||
@@ -675,7 +823,7 @@ function isPhoneTooLongBehaviorResolved(
 
 function isPhoneTooLongAcceptedWithoutSignal(
   result: ValidationResult,
-  finding: Omit<FindingItem, 'ambiguity'>,
+  finding: Omit<FindingItem, 'ambiguity' | 'controlledChoiceClassification'>,
 ): boolean {
   if (!isPhoneTooLongCase(result, finding) || !result.observation) return false;
   if (result.observation.normalizedOrReformatted || result.observation.inputPrevented || hasObservedValidationFeedback(result.observation)) {
@@ -686,7 +834,7 @@ function isPhoneTooLongAcceptedWithoutSignal(
 
 function isNameLengthBehaviorResolved(
   result: ValidationResult,
-  finding: Omit<FindingItem, 'ambiguity'>,
+  finding: Omit<FindingItem, 'ambiguity' | 'controlledChoiceClassification'>,
 ): boolean {
   if (!isNameConcept(finding.concept) || !/excessive-length/i.test(result.validationId)) return false;
   const lengthEffect = inferLengthEffect(result);
@@ -695,7 +843,7 @@ function isNameLengthBehaviorResolved(
 
 function isNameSpecialCharacterBehaviorResolved(
   result: ValidationResult,
-  finding: Omit<FindingItem, 'ambiguity'>,
+  finding: Omit<FindingItem, 'ambiguity' | 'controlledChoiceClassification'>,
 ): boolean {
   return isNameConcept(finding.concept) && /special-characters/i.test(result.validationId);
 }
@@ -755,7 +903,7 @@ function summarizeEvidenceSources(result: ValidationResult): string {
 function whyNotProductFinding(
   type: AmbiguityType,
   result: ValidationResult,
-  finding: Omit<FindingItem, 'ambiguity'>,
+  finding: Omit<FindingItem, 'ambiguity' | 'controlledChoiceClassification'>,
 ): string {
   switch (type) {
     case 'observer_needs_stronger_error_ownership':
@@ -780,7 +928,7 @@ function whyNotProductFinding(
 function wouldBecomeProductFindingIf(
   type: AmbiguityType,
   result: ValidationResult,
-  finding: Omit<FindingItem, 'ambiguity'>,
+  finding: Omit<FindingItem, 'ambiguity' | 'controlledChoiceClassification'>,
 ): string {
   switch (type) {
     case 'observer_needs_stronger_error_ownership':
@@ -805,7 +953,7 @@ function wouldBecomeProductFindingIf(
 function humanGuidancePromptFor(
   type: AmbiguityType,
   result: ValidationResult,
-  finding: Omit<FindingItem, 'ambiguity'>,
+  finding: Omit<FindingItem, 'ambiguity' | 'controlledChoiceClassification'>,
 ): string | null {
   if (type === 'mapping_evidence_insufficient') return finding.humanConfirmation?.requestedEvidence ?? null;
   if (isPhoneMissingPlusCase(result, finding)) {
@@ -1060,6 +1208,62 @@ function renderFindingTable(lines: string[], title: string, findings: FindingIte
   lines.push('');
 }
 
+function renderControlledChoiceFindings(lines: string[], report: ValidationFindingsReport): void {
+  lines.push('## Controlled-choice observations');
+  lines.push('');
+  if (report.controlledChoiceFindings.length === 0) {
+    lines.push('No findings in this category.');
+    lines.push('');
+    return;
+  }
+
+  lines.push('| Classification | Count |');
+  lines.push('|---|---|');
+  lines.push(`| Expected select behavior | ${report.controlledChoiceBreakdown.expected_select_behavior} |`);
+  lines.push(`| Observer needs better select evidence | ${report.controlledChoiceBreakdown.observer_needs_better_select_evidence} |`);
+  lines.push(`| Options not discoverable | ${report.controlledChoiceBreakdown.options_not_discoverable} |`);
+  lines.push(`| Restore behavior documented | ${report.controlledChoiceBreakdown.restore_behavior_documented} |`);
+  lines.push(`| Acceptable behavior documented | ${report.controlledChoiceBreakdown.acceptable_behavior_documented} |`);
+  lines.push(`| Policy question | ${report.controlledChoiceBreakdown.policy_question} |`);
+  lines.push(`| Possible product validation gap | ${report.controlledChoiceBreakdown.product_validation_gap_candidate} |`);
+  lines.push('');
+
+  const overview = [
+    ...(report.controlledChoiceFindingsByClassification.expected_select_behavior ?? []),
+    ...(report.controlledChoiceFindingsByClassification.observer_needs_better_select_evidence ?? []),
+  ];
+  renderControlledChoiceSection(lines, 'Controlled-choice observations', overview);
+  renderControlledChoiceSection(lines, 'Options not discoverable', report.controlledChoiceFindingsByClassification.options_not_discoverable ?? []);
+  renderControlledChoiceSection(lines, 'Free-text impossible by design', report.controlledChoiceFindings.filter((finding) =>
+    finding.controlledChoiceClassification === 'acceptable_behavior_documented' &&
+    /invalid-freeform/i.test(finding.validationId) &&
+    finding.freeTextEntryImpossible === true,
+  ));
+  renderControlledChoiceSection(lines, 'Clear/empty behavior not supported', report.controlledChoiceFindings.filter((finding) =>
+    /empty-required/i.test(finding.validationId) && finding.status !== 'passed',
+  ));
+  renderControlledChoiceSection(lines, 'Restore behavior', report.controlledChoiceFindingsByClassification.restore_behavior_documented ?? []);
+  renderControlledChoiceSection(lines, 'Policy questions', report.controlledChoiceFindingsByClassification.policy_question ?? []);
+  renderControlledChoiceSection(lines, 'Possible product validation gaps', report.controlledChoiceFindingsByClassification.product_validation_gap_candidate ?? []);
+}
+
+function renderControlledChoiceSection(lines: string[], title: string, findings: FindingItem[]): void {
+  lines.push(`### ${title}`);
+  lines.push('');
+  if (findings.length === 0) {
+    lines.push('No findings in this category.');
+    lines.push('');
+    return;
+  }
+
+  lines.push('| Concept | Check | Classification | Status | Outcome | Control | Why not product finding yet | Would convert to product finding if | Human guidance |');
+  lines.push('|---|---|---|---|---|---|---|---|---|');
+  for (const finding of findings) {
+    lines.push(`| ${esc(finding.conceptDisplayName)} | ${esc(finding.testName)} | ${esc(controlledChoiceClassificationLabel(finding.controlledChoiceClassification))} | ${finding.status} | ${finding.outcome} | ${esc(finding.controlKind ?? 'n/a')} | ${esc(controlledChoiceWhyNotProductFinding(finding))} | ${esc(controlledChoiceWouldBecomeProductFindingIf(finding))} | ${esc(controlledChoiceHumanGuidance(finding))} |`);
+  }
+  lines.push('');
+}
+
 function renderAmbiguousFindingsByType(lines: string[], report: ValidationFindingsReport): void {
   lines.push('## Ambiguous / Human Review Findings');
   lines.push('');
@@ -1095,6 +1299,96 @@ function renderAmbiguousFindingsByType(lines: string[], report: ValidationFindin
     }
     lines.push('');
   }
+}
+
+function controlledChoiceClassificationLabel(classification: ControlledChoiceClassification | null): string {
+  switch (classification) {
+    case 'expected_select_behavior':
+      return 'expected_select_behavior';
+    case 'options_not_discoverable':
+      return 'options_not_discoverable';
+    case 'restore_behavior_documented':
+      return 'restore_behavior_documented';
+    case 'policy_question':
+      return 'policy_question';
+    case 'observer_needs_better_select_evidence':
+      return 'observer_needs_better_select_evidence';
+    case 'product_validation_gap_candidate':
+      return 'product_validation_gap_candidate';
+    case 'acceptable_behavior_documented':
+      return 'acceptable_behavior_documented';
+    default:
+      return 'n/a';
+  }
+}
+
+function controlledChoiceWhyNotProductFinding(finding: FindingItem): string {
+  switch (finding.controlledChoiceClassification) {
+    case 'expected_select_behavior':
+      return 'The current/select state was readable from the recorded control state without exposing the raw option value in findings output.';
+    case 'options_not_discoverable':
+      return 'The observer could not enumerate safe options, which is a tooling-evidence gap rather than a product defect by itself.';
+    case 'restore_behavior_documented':
+      return finding.restoreSucceeded === false
+        ? 'Restore safety is documented as a tooling risk and does not prove a product defect.'
+        : 'The exercised alternate selection restored cleanly, so this documents safe select behavior rather than a defect.';
+    case 'policy_question':
+      return 'Clearability or allowed-option policy is not specific enough to classify this as a product issue yet.';
+    case 'observer_needs_better_select_evidence':
+      return 'The select control was trusted, but the observer did not capture enough non-sensitive evidence to certify the current option.';
+    case 'product_validation_gap_candidate':
+      return 'The controlled choice appears clearable without a local validation signal, but policy still needs to confirm that the empty state is truly invalid.';
+    case 'acceptable_behavior_documented':
+      return finding.freeTextEntryImpossible
+        ? 'Free-text entry is impossible by design on this controlled select, which is acceptable behavior for a fixed option set.'
+        : 'The UI either prevented the unsupported empty state or handled it in an acceptable documented way.';
+    default:
+      return 'n/a';
+  }
+}
+
+function controlledChoiceWouldBecomeProductFindingIf(finding: FindingItem): string {
+  switch (finding.controlledChoiceClassification) {
+    case 'expected_select_behavior':
+      return 'A trusted rerun shows the control cannot surface its current selection at all, or that a required select accepts an invalid state without local validation.';
+    case 'options_not_discoverable':
+      return 'The options become discoverable and the same select still accepts an invalid or empty state without field-local validation.';
+    case 'restore_behavior_documented':
+      return finding.restoreSucceeded === false
+        ? 'A future trusted run shows restore loss is caused by product-side behavior rather than harness safety handling.'
+        : 'A future trusted run loses the original selection or fails to restore after a valid alternate choice.';
+    case 'policy_question':
+      return 'Product policy explicitly requires different select behavior and a trusted run still shows no local validation or input blocking.';
+    case 'observer_needs_better_select_evidence':
+      return 'Stronger select readback still fails to document the current option, leaving the control unreadable to the signer and reviewer.';
+    case 'product_validation_gap_candidate':
+      return 'Policy confirms the empty or invalid state must be blocked at form entry and the trusted control still accepts it without local validation.';
+    case 'acceptable_behavior_documented':
+      return 'Policy later requires a stricter visible error instead of the currently documented blocked or unsupported behavior.';
+    default:
+      return 'n/a';
+  }
+}
+
+function controlledChoiceHumanGuidance(finding: FindingItem): string {
+  if (finding.controlledChoiceClassification === 'policy_question' || finding.controlledChoiceClassification === 'product_validation_gap_candidate') {
+    switch (finding.concept) {
+      case 'legal_entity_type':
+        return 'Should Legal Entity Type allow clearing, or is one option always required?';
+      case 'proof_of_business_type':
+      case 'proof_of_address_type':
+      case 'proof_of_bank_account_type':
+        return 'Should proof type dropdowns be clearable, or always selected from the provided application data?';
+      case 'bank_account_type':
+        return 'Should Account Type allow only checking/savings, and should free text be impossible?';
+      default:
+        return `What is the expected product policy for ${finding.conceptDisplayName}: ${finding.testName}?`;
+    }
+  }
+  if (finding.controlledChoiceClassification === 'observer_needs_better_select_evidence') {
+    return `Is there any visible field-local validation text or styling for ${finding.conceptDisplayName} that the select observer missed?`;
+  }
+  return 'No';
 }
 
 function formatAmbiguityEvidenceSummary(finding: FindingItem): string {

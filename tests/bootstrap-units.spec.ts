@@ -840,6 +840,210 @@ test.describe('validation findings export', () => {
     expect(report.mappingBlockedFields).toEqual([]);
   });
 
+  test('controlled-choice current/default readable resolves to expected select behavior', () => {
+    const rawSelectedValue = 'SECRET_SELECTED_OPTION';
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'legal_entity_type',
+          conceptDisplayName: 'Legal Entity Type',
+          validationId: 'current-option-documented',
+          testName: 'current/default value observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          observedValue: null,
+          controlKind: 'native-select',
+          optionsDiscoverable: true,
+          actualValueBeforeTest: rawSelectedValue,
+          actualValueAfterBlur: rawSelectedValue,
+          actualElementTagName: 'select',
+        }),
+      ],
+    }));
+
+    const finding = report.trustedExecutedObservations[0]!;
+    expect(finding.status).toBe('passed');
+    expect(finding.outcome).toBe('passed');
+    expect(finding.controlledChoiceClassification).toBe('expected_select_behavior');
+    expect(report.ambiguousHumanReviewFindings).toEqual([]);
+
+    const markdown = renderValidationFindingsMarkdown(report);
+    expect(markdown).toContain('## Controlled-choice observations');
+    expect(markdown).toContain('expected_select_behavior');
+    expect(JSON.stringify(report)).not.toContain(rawSelectedValue);
+    expect(markdown).not.toContain(rawSelectedValue);
+  });
+
+  test('controlled-choice free-text impossible is acceptable_behavior_documented', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'bank_account_type',
+          conceptDisplayName: 'Bank Account Type',
+          validationId: 'invalid-freeform-rejected',
+          testName: 'invalid free-text entry rejected or impossible',
+          status: 'passed',
+          outcome: 'passed',
+          targetConfidence: 'trusted',
+          controlKind: 'native-select',
+          optionsDiscoverable: true,
+          freeTextEntryImpossible: true,
+        }),
+      ],
+    }));
+
+    expect(report.controlledChoiceFindings[0].controlledChoiceClassification).toBe('acceptable_behavior_documented');
+    expect(report.likelyProductValidationFindings).toEqual([]);
+    expect(renderValidationFindingsMarkdown(report)).toContain('### Free-text impossible by design');
+  });
+
+  test('controlled-choice options not discoverable is not product_failure', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'proof_of_business_type',
+          conceptDisplayName: 'Proof Of Business Type',
+          validationId: 'valid-option-accepted',
+          testName: 'valid alternate option selected and retained',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          controlKind: 'combobox',
+          optionsDiscoverable: false,
+        }),
+      ],
+    }));
+
+    expect(report.controlledChoiceFindings[0].controlledChoiceClassification).toBe('options_not_discoverable');
+    expect(report.likelyProductValidationFindings).toEqual([]);
+    expect(renderValidationFindingsMarkdown(report)).toContain('### Options not discoverable');
+  });
+
+  test('controlled-choice restore failure does not become product_failure', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'proof_of_address_type',
+          conceptDisplayName: 'Proof Of Address Type',
+          validationId: 'valid-option-accepted',
+          testName: 'valid alternate option selected and retained',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          controlKind: 'native-select',
+          optionsDiscoverable: true,
+          restoreSucceeded: false,
+        }),
+      ],
+    }));
+
+    expect(report.controlledChoiceFindings[0].controlledChoiceClassification).toBe('restore_behavior_documented');
+    expect(report.likelyProductValidationFindings).toEqual([]);
+    expect(renderValidationFindingsMarkdown(report)).toContain('### Restore behavior');
+  });
+
+  test('controlled-choice cannot safely clear is not product_failure', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'legal_entity_type',
+          conceptDisplayName: 'Legal Entity Type',
+          validationId: 'empty-required-behavior',
+          testName: 'empty required behavior observed when clearing is supported',
+          status: 'skipped',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          controlKind: 'native-select',
+          optionsDiscoverable: true,
+          skippedReason: 'cannot safely clear Legal Entity Type; empty required behavior was not exercised',
+          evidence: 'cannot safely clear Legal Entity Type; empty required behavior was not exercised',
+        }),
+      ],
+    }));
+
+    expect(report.controlledChoiceFindings[0].controlledChoiceClassification).toBe('acceptable_behavior_documented');
+    expect(report.likelyProductValidationFindings).toEqual([]);
+    expect(renderValidationFindingsMarkdown(report)).toContain('### Clear/empty behavior not supported');
+  });
+
+  test('controlled-choice required empty behavior only becomes product_validation_gap_candidate when clearing is possible and accepted without local validation', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'proof_of_bank_account_type',
+          conceptDisplayName: 'Proof Of Bank Account Type',
+          validationId: 'empty-required-behavior',
+          testName: 'empty required behavior observed when clearing is supported',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          observedValue: '',
+          controlKind: 'native-select',
+          optionsDiscoverable: true,
+          inputPrevented: false,
+        }),
+      ],
+    }));
+
+    expect(report.controlledChoiceFindings[0].controlledChoiceClassification).toBe('product_validation_gap_candidate');
+    expect(report.likelyProductValidationFindings).toEqual([]);
+    expect(renderValidationFindingsMarkdown(report)).toContain('### Possible product validation gaps');
+  });
+
+  test('controlled-choice ambiguity appears in controlled-choice findings section', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'business_type',
+          conceptDisplayName: 'Business Type',
+          validationId: 'current-option-documented',
+          testName: 'current/default value observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          observedValue: null,
+          controlKind: 'native-select',
+          optionsDiscoverable: true,
+          actualValueBeforeTest: null,
+          actualValueAfterBlur: null,
+          actualElementTagName: 'select',
+        }),
+      ],
+    }));
+
+    expect(report.controlledChoiceFindings[0].controlledChoiceClassification).toBe('observer_needs_better_select_evidence');
+    const markdown = renderValidationFindingsMarkdown(report);
+    expect(markdown).toContain('## Controlled-choice observations');
+    expect(markdown).toContain('observer_needs_better_select_evidence');
+  });
+
+  test('controlled-choice findings do not write raw selected values', () => {
+    const rawSelectedValue = 'VERY_SECRET_SELECTED_OPTION';
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'proof_of_business_type',
+          conceptDisplayName: 'Proof Of Business Type',
+          validationId: 'current-option-documented',
+          testName: 'current/default value observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          observedValue: null,
+          controlKind: 'native-select',
+          optionsDiscoverable: true,
+          actualValueBeforeTest: rawSelectedValue,
+          actualValueAfterBlur: rawSelectedValue,
+          actualElementTagName: 'select',
+        }),
+      ],
+    }));
+
+    expect(JSON.stringify(report)).not.toContain(rawSelectedValue);
+    expect(renderValidationFindingsMarkdown(report)).not.toContain(rawSelectedValue);
+  });
+
   test('ambiguous findings are grouped by ambiguity type', () => {
     const report = buildValidationFindingsReport(mockFindingsInput({
       results: [
@@ -4552,6 +4756,15 @@ function mockFindingsResult(input: {
   invalidIndicators?: string[];
   normalizedOrReformatted?: boolean;
   inputPrevented?: boolean;
+  controlKind?: 'native-select' | 'combobox' | 'checkbox' | 'radio' | 'text' | 'unsupported';
+  optionsDiscoverable?: boolean;
+  freeTextEntryImpossible?: boolean;
+  restoreSucceeded?: boolean | null;
+  actualValueBeforeTest?: string | null;
+  actualValueAfterBlur?: string | null;
+  actualElementTagName?: string | null;
+  evidence?: string;
+  skippedReason?: string;
 }): InteractiveValidationResultsFile['results'][number] {
   const inputValue = input.inputValue ?? 'synthetic-value';
   const observedValue = input.observedValue === undefined ? inputValue : input.observedValue;
@@ -4564,7 +4777,6 @@ function mockFindingsResult(input: {
     testName: input.testName,
     status: input.status,
     outcome: input.outcome,
-    evidence: `${input.testName} evidence`,
     targetField: {
       primary: 'live-discovery-field-index',
       fieldIndex: 1,
@@ -4595,11 +4807,31 @@ function mockFindingsResult(input: {
       observedValue,
       normalizedOrReformatted: input.normalizedOrReformatted ?? false,
       inputPrevented: input.inputPrevented ?? false,
+      controlKind: input.controlKind,
+      optionsDiscoverable: input.optionsDiscoverable,
+      freeTextEntryImpossible: input.freeTextEntryImpossible,
     },
     targetDiagnostics: {
       targetConfidence: input.targetConfidence,
       mappingDecisionReason: input.mappingDecisionReason ?? (input.targetConfidence === 'trusted' ? 'trusted_by_value_shape' : 'not_trusted_by_value_shape'),
       mappingShiftReason: input.mappingShiftReason ?? null,
+      actualValueBeforeTest: input.actualValueBeforeTest === undefined ? inputValue : input.actualValueBeforeTest,
+      actualValueAfterBlur: input.actualValueAfterBlur === undefined ? observedValue : input.actualValueAfterBlur,
+      restoreSucceeded: input.restoreSucceeded ?? null,
+      actualElement: {
+        id: null,
+        name: null,
+        ariaLabel: null,
+        title: null,
+        role: null,
+        tagName: input.actualElementTagName ?? null,
+        type: null,
+        inputMode: null,
+        autocomplete: null,
+        placeholder: null,
+        docusignTabType: null,
+      },
+      actualFieldSignature: input.actualElementTagName ? `tag=${input.actualElementTagName}` : 'n/a',
       activeCandidate: null,
       selectedCandidate: null,
       neighborCandidates: [],
@@ -4608,6 +4840,8 @@ function mockFindingsResult(input: {
     recommendation: 'Review the observed behavior.',
     cleanupStrategy: 'restore_original_value_then_blur',
     safetyNotes: ['Synthetic offline fixture.'],
+    evidence: input.evidence ?? `${input.testName} evidence`,
+    skippedReason: input.skippedReason,
   };
 }
 
