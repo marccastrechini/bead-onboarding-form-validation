@@ -120,6 +120,9 @@ export interface InteractiveTargetProfile {
   intendedFieldDisplayName: string;
   intendedBusinessSection: string | null;
   intendedSectionName: string | null;
+  layoutSectionHeader: string | null;
+  layoutFieldLabel: string | null;
+  layoutEvidenceSource: string | null;
   jsonKeyPath: string | null;
   enrichmentMatchedBy: 'guid' | 'position' | 'coordinate' | null;
   enrichmentPositionalFingerprint: string | null;
@@ -1460,6 +1463,9 @@ function toInteractiveCase(
       intendedFieldDisplayName: match.displayName,
       intendedBusinessSection: match.businessSection,
       intendedSectionName: sourceField.section,
+      layoutSectionHeader: sourceField.enrichment?.layoutSectionHeader ?? null,
+      layoutFieldLabel: sourceField.enrichment?.layoutFieldLabel ?? null,
+      layoutEvidenceSource: sourceField.enrichment?.layoutEvidenceSource ?? null,
       jsonKeyPath: sourceField.enrichment?.jsonKeyPath ?? null,
       enrichmentMatchedBy: sourceField.enrichment?.matchedBy ?? null,
       enrichmentPositionalFingerprint: sourceField.enrichment?.positionalFingerprint ?? null,
@@ -2414,15 +2420,27 @@ function resolveInteractiveTargetField(
     return index >= 0 ? index + 1 : candidate.index + 1;
   };
 
-  const selection = selectBestMappingCandidate({
-    concept: testCase.concept,
-    currentCandidateId: String(sourceFieldIndex(field)),
-    candidates: candidates.map((candidate) => ({
-      id: String(sourceFieldIndex(candidate)),
-      resolvedLabel: candidate.resolvedLabel,
-      labelSource: candidate.labelSource,
-      labelConfidence: candidate.labelConfidence,
+  const currentCandidateId = String(sourceFieldIndex(field));
+  const intendedGuid = testCase.targetProfile.tabGuid?.toLowerCase() ?? null;
+
+  const toMappingCandidate = (candidate: DiscoveredField) => {
+    const candidateId = String(sourceFieldIndex(candidate));
+    const sameTabGuid = Boolean(intendedGuid && candidate.tabGuid?.toLowerCase() === intendedGuid);
+    const isCurrentTarget = candidateId === currentCandidateId || sameTabGuid;
+    const layoutBacked = isCurrentTarget && Boolean(testCase.targetProfile.layoutSectionHeader && testCase.targetProfile.layoutFieldLabel);
+
+    return {
+      id: candidateId,
+      resolvedLabel: layoutBacked
+        ? (testCase.targetProfile.layoutFieldLabel ?? testCase.targetProfile.intendedFieldDisplayName)
+        : candidate.resolvedLabel,
+      labelSource: layoutBacked ? 'layout-cell' : candidate.labelSource,
+      labelConfidence: layoutBacked ? 'high' : candidate.labelConfidence,
+      businessSection: isCurrentTarget ? testCase.targetProfile.intendedBusinessSection : null,
       sectionName: candidate.sectionName,
+      layoutSectionHeader: layoutBacked ? testCase.targetProfile.layoutSectionHeader : null,
+      layoutFieldLabel: layoutBacked ? testCase.targetProfile.layoutFieldLabel : null,
+      layoutEvidenceSource: layoutBacked ? testCase.targetProfile.layoutEvidenceSource : null,
       inferredType: typeof candidate.inferredType === 'string' ? candidate.inferredType : candidate.inferredType.type,
       docusignTabType: candidate.docusignTabType,
       pageIndex: candidate.pageIndex,
@@ -2434,7 +2452,25 @@ function resolveInteractiveTargetField(
       controlCategory: candidate.controlCategory,
       visible: candidate.visible,
       editable: candidate.editable,
-    })),
+      enrichment: isCurrentTarget && testCase.targetProfile.jsonKeyPath ? {
+        jsonKeyPath: testCase.targetProfile.jsonKeyPath,
+        matchedBy: testCase.targetProfile.enrichmentMatchedBy,
+        confidence: testCase.targetProfile.mappingConfidence === 'high'
+          ? 'high'
+          : testCase.targetProfile.mappingConfidence === 'medium'
+            ? 'medium'
+            : 'low',
+        suggestedDisplayName: testCase.targetProfile.intendedFieldDisplayName,
+        suggestedBusinessSection: testCase.targetProfile.intendedBusinessSection,
+        positionalFingerprint: testCase.targetProfile.enrichmentPositionalFingerprint,
+      } : null,
+    };
+  };
+
+  const selection = selectBestMappingCandidate({
+    concept: testCase.concept,
+    currentCandidateId,
+    candidates: candidates.map(toMappingCandidate),
     expectedAnchor,
   });
 
@@ -2448,7 +2484,7 @@ function resolveInteractiveTargetField(
   };
 }
 
-function buildExpectedAnchor(testCase: InteractiveValidationCase): {
+export function buildExpectedAnchor(testCase: InteractiveValidationCase): {
   jsonKeyPath: string | null;
   displayName: string | null;
   businessSection: string | null;
@@ -2463,11 +2499,13 @@ function buildExpectedAnchor(testCase: InteractiveValidationCase): {
     jsonKeyPath: testCase.targetProfile.jsonKeyPath,
     displayName: testCase.targetProfile.intendedFieldDisplayName,
     businessSection: testCase.targetProfile.intendedBusinessSection,
-    pageIndex: testCase.targetProfile.expectedPageIndex ?? fingerprint?.pageIndex ?? testCase.targetProfile.pageIndex,
-    ordinalOnPage: testCase.targetProfile.expectedOrdinalOnPage ?? fingerprint?.ordinalOnPage ?? testCase.targetProfile.ordinalOnPage,
+    // Prefer the live source report anchor first; sample enrichment is a fallback when the
+    // live report lacks page/ordinal data or only carries a stale sample fingerprint.
+    pageIndex: testCase.targetProfile.pageIndex ?? testCase.targetProfile.expectedPageIndex ?? fingerprint?.pageIndex,
+    ordinalOnPage: testCase.targetProfile.ordinalOnPage ?? testCase.targetProfile.expectedOrdinalOnPage ?? fingerprint?.ordinalOnPage,
     tabLeft: testCase.targetProfile.expectedCoordinates.left,
     tabTop: testCase.targetProfile.expectedCoordinates.top,
-    docusignFieldFamily: testCase.targetProfile.expectedDocusignFieldFamily ?? fingerprint?.family ?? testCase.targetProfile.docusignTabType,
+    docusignFieldFamily: testCase.targetProfile.docusignTabType ?? testCase.targetProfile.expectedDocusignFieldFamily ?? fingerprint?.family,
   };
 }
 

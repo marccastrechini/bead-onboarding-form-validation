@@ -20,6 +20,7 @@ import {
 import {
   applyRestoreSafetyGate,
   assertInteractiveValidationGuards,
+  buildExpectedAnchor,
   buildInteractiveValidationPlan,
   extractFieldLocalValidationDiagnostics,
   INTERACTIVE_TARGET_CONCEPTS,
@@ -2859,6 +2860,74 @@ test.describe('interactive validation safety', () => {
     expect('detail' in undiscoverable && undiscoverable.detail).toMatch(/options not discoverable/i);
     expect('status' in uncleareable && uncleareable.status).toBe('skipped');
     expect('detail' in uncleareable && uncleareable.detail).toMatch(/cannot safely clear/i);
+  });
+
+  test('controlled-choice interactive anchors prefer live report ordinal over stale enrichment ordinal', () => {
+    const anchor = buildExpectedAnchor({
+      targetProfile: {
+        jsonKeyPath: 'merchantData.legalEntityType',
+        intendedFieldDisplayName: 'Legal Entity Type',
+        intendedBusinessSection: 'Business Details',
+        intendedSectionName: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
+        enrichmentMatchedBy: 'coordinate',
+        enrichmentPositionalFingerprint: 'page:1|List|ord:10',
+        inferredType: 'legal_entity_type',
+        labelSource: 'enrichment-coordinate',
+        labelConfidence: 'medium',
+        mappingConfidence: 'high',
+        tabGuid: 'guid-legal-entity',
+        docusignTabType: 'List',
+        pageIndex: 1,
+        ordinalOnPage: 11,
+        expectedPageIndex: 1,
+        expectedOrdinalOnPage: 10,
+        expectedDocusignFieldFamily: 'List',
+        coordinates: {
+          left: 288,
+          top: 287.36,
+          width: null,
+          height: null,
+        },
+        expectedCoordinates: {
+          left: 288,
+          top: 287.36,
+        },
+      },
+    } as any);
+
+    expect(anchor.pageIndex).toBe(1);
+    expect(anchor.ordinalOnPage).toBe(11);
+    expect(anchor.docusignFieldFamily).toBe('List');
+
+    const selection = selectBestMappingCandidate({
+      concept: 'legal_entity_type',
+      currentCandidateId: '61',
+      expectedAnchor: anchor,
+      candidates: [{
+        id: '61',
+        resolvedLabel: 'Legal Entity Type',
+        labelSource: 'layout-cell',
+        labelConfidence: 'high',
+        businessSection: 'Business Details',
+        sectionName: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
+        layoutSectionHeader: 'General',
+        layoutFieldLabel: 'Legal Entity Type',
+        inferredType: 'legal_entity_type',
+        docusignTabType: 'List',
+        pageIndex: 1,
+        ordinalOnPage: 11,
+        tabLeft: 288,
+        tabTop: 287.36,
+        currentValue: 'Llc',
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+      }],
+    });
+
+    expect(selection.trusted).toBe(true);
+    expect(selection.decisionReason).toBe('trusted_by_label');
+    expect(selection.shiftReason).toBe('none');
   });
 
   test('restore-original-value failure prevents product finding', () => {
