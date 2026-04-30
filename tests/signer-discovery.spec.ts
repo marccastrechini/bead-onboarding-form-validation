@@ -19,6 +19,7 @@ import {
   sectionPriorityRank,
   type DiscoveredField,
 } from '../fixtures/field-discovery';
+import { maybeExpandPhysicalOperatingAddressSection } from '../fixtures/conditional-discovery';
 import { ReportBuilder, type CheckResult, type CheckStatus } from '../fixtures/validation-report';
 import { loadEnrichment } from '../lib/enrichment-loader';
 import type { ValidationCase } from '../fixtures/validation-rules';
@@ -73,7 +74,24 @@ test.describe('Bead Onboarding – Field Discovery Sweep', () => {
     }
     report.absorbSignerDiagnostics(diagnostics);
 
-    const fields = await discoverFields(frame);
+    let fields = await discoverFields(frame);
+    testInfo.annotations.push({
+      type: 'diagnostic',
+      description: `discovery phase: initial field discovery complete (${fields.length} fields)`,
+    });
+
+    const expansion = await maybeExpandPhysicalOperatingAddressSection(frame, fields);
+    for (const diagnostic of expansion.diagnostics) {
+      report.noteFragileSelector(diagnostic);
+      testInfo.annotations.push({ type: 'diagnostic', description: diagnostic });
+    }
+    fields = expansion.fields;
+    testInfo.annotations.push({
+      type: 'diagnostic',
+      description:
+        `discovery phase: ${expansion.expanded ? 'guarded physical operating address expansion complete' : 'guarded physical operating address expansion skipped'} (${fields.length} fields)`,
+    });
+
     expect(
       fields.length,
       'no fields discovered – iframe selector is likely wrong',

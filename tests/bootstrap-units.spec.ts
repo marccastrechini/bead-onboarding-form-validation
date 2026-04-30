@@ -9,6 +9,10 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { buildResendUrl, normalizeResendMethod } from '../lib/bead-client';
+import {
+  findPhysicalOperatingAddressToggle,
+  guardedPhysicalOperatingAddressDiscoveryEnabled,
+} from '../fixtures/conditional-discovery';
 import { ReportBuilder } from '../fixtures/validation-report';
 import type { FieldRecord, ValidationReport } from '../fixtures/validation-report';
 import { FIELD_CONCEPT_REGISTRY } from '../fixtures/field-concepts';
@@ -3985,6 +3989,97 @@ test.describe('interactive validation safety', () => {
     expect(plan.skippedConcepts).toEqual(expect.arrayContaining([
       expect.objectContaining({ concept: 'business_mailing_address_line_1' }),
     ]));
+  });
+
+  test('guarded physical address discovery selects the unique isOperatingAddress radio', () => {
+    const candidate = findPhysicalOperatingAddressToggle([
+      {
+        kind: 'radio',
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+        sectionName: 'addressOptions',
+        label: 'addressOptions',
+        resolvedLabel: 'addressOptions',
+        rawCandidateLabels: [
+          { source: 'preceding-text', value: 'addressOptions' },
+        ],
+        groupName: 'addressOptions_group',
+        inferredType: { type: 'address_option' },
+      },
+      {
+        kind: 'radio',
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+        sectionName: 'addressOptions',
+        label: 'addressOptions › Required - addressOptions - isLegalAddress',
+        resolvedLabel: 'addressOptions › Required - addressOptions - isLegalAddress',
+        rawCandidateLabels: [
+          { source: 'section+row', value: 'addressOptions › Required - addressOptions - isLegalAddress' },
+        ],
+        groupName: 'addressOptions_group',
+        inferredType: { type: 'address_option' },
+      },
+      {
+        kind: 'radio',
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+        sectionName: 'addressOptions',
+        label: 'addressOptions › Required - addressOptions - isOperatingAddress',
+        resolvedLabel: 'addressOptions › Required - addressOptions - isOperatingAddress',
+        rawCandidateLabels: [
+          { source: 'section+row', value: 'addressOptions › Required - addressOptions - isOperatingAddress' },
+        ],
+        groupName: 'addressOptions_group',
+        inferredType: { type: 'address_option' },
+      },
+    ] as any);
+
+    expect(candidate?.resolvedLabel).toContain('isOperatingAddress');
+  });
+
+  test('guarded physical address discovery stays opt-in and refuses unsafe candidates', () => {
+    expect(guardedPhysicalOperatingAddressDiscoveryEnabled({
+      SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS: '1',
+    } as NodeJS.ProcessEnv)).toBe(true);
+    expect(guardedPhysicalOperatingAddressDiscoveryEnabled({
+      SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS: '0',
+    } as NodeJS.ProcessEnv)).toBe(false);
+
+    const candidate = findPhysicalOperatingAddressToggle([
+      {
+        kind: 'radio',
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: false,
+        sectionName: 'addressOptions',
+        label: 'addressOptions › Required - addressOptions - isOperatingAddress',
+        resolvedLabel: 'addressOptions › Required - addressOptions - isOperatingAddress',
+        rawCandidateLabels: [
+          { source: 'section+row', value: 'addressOptions › Required - addressOptions - isOperatingAddress' },
+        ],
+        groupName: 'addressOptions_group',
+        inferredType: { type: 'address_option' },
+      },
+      {
+        kind: 'radio',
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+        sectionName: 'addressOptions',
+        label: 'addressOptions › Required - addressOptions - isLegalAddress',
+        resolvedLabel: 'addressOptions › Required - addressOptions - isLegalAddress',
+        rawCandidateLabels: [
+          { source: 'section+row', value: 'addressOptions › Required - addressOptions - isLegalAddress' },
+        ],
+        groupName: 'addressOptions_group',
+        inferredType: { type: 'address_option' },
+      },
+    ] as any);
+
+    expect(candidate).toBeNull();
   });
 
   test('legal_entity_type matrix is generated only for trusted mappings', () => {
