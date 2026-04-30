@@ -45,6 +45,21 @@ type CalibrationReason =
   | 'no_unclaimed_neighbor_with_expected_shape'
   | 'none';
 
+type AppliedHumanProofStatus =
+  | 'confirmed_editable'
+  | 'confirmed_editable_dropdown'
+  | 'confirmed_omitted_or_hidden';
+
+export interface AppliedHumanProof {
+  status: AppliedHumanProofStatus;
+  summary: string;
+}
+
+export interface HumanProofAnswers {
+  byConcept: Partial<Record<FieldConceptKey, AppliedHumanProof>>;
+  inferMissingCountryFromOtherDropdowns: boolean;
+}
+
 interface CalibrationCandidateSummary {
   fieldIndex: number;
   label: string;
@@ -96,6 +111,7 @@ export interface MappingCalibrationRow {
   suspectedShiftReason: MappingShiftReason;
   blockedCandidateIds: string[];
   missingProof: string[];
+  appliedHumanProof: AppliedHumanProof | null;
   humanConfirmation: HumanConfirmationRequest | null;
   explanation: string;
   neighborWindow: NeighborWindowEntry[];
@@ -118,6 +134,7 @@ export interface MappingCalibrationFile {
     targetDiagnosticsPath: string;
     enrichmentPath: string;
     alignmentPath: string;
+    humanProofPath: string | null;
   };
   summary: {
     totalConcepts: number;
@@ -150,6 +167,8 @@ interface ConceptCalibrationContext {
   currentValueShape: ValueShape;
   nearbyFields: FieldRecord[];
   sourceFieldIndexByField: Map<FieldRecord, number>;
+  humanProof: AppliedHumanProof | null;
+  inferMissingCountryFromOtherDropdowns: boolean;
 }
 
 const artifactsDir = path.resolve(__dirname, '..', 'artifacts');
@@ -173,6 +192,7 @@ interface CalibrationCliPaths {
   targetDiagnosticsPath: string;
   enrichmentPath: string;
   alignmentPath: string;
+  humanProofPath: string;
   outDir: string;
 }
 
@@ -182,7 +202,8 @@ function resolveCliPaths(argv: string[] = process.argv): CalibrationCliPaths {
     targetDiagnosticsPath: path.resolve(argv[3] ?? path.join(artifactsDir, 'latest-interactive-target-diagnostics.json')),
     enrichmentPath: path.resolve(argv[4] ?? path.join(artifactsDir, 'sample-field-enrichment.json')),
     alignmentPath: path.resolve(argv[5] ?? path.join(artifactsDir, 'sample-field-alignment.json')),
-    outDir: path.resolve(argv[6] ?? artifactsDir),
+    humanProofPath: path.resolve(argv[6] ?? path.join(__dirname, '..', 'samples', 'private', 'human-proof-answers.md')),
+    outDir: path.resolve(argv[7] ?? artifactsDir),
   };
 }
 
@@ -201,16 +222,19 @@ export function runMappingCalibrationCli(argv: string[] = process.argv): Mapping
   const targetDiagnostics = loadJson<InteractiveTargetDiagnosticsFile>(paths.targetDiagnosticsPath);
   const enrichment = loadJson<EnrichmentBundle>(paths.enrichmentPath);
   const alignment = loadJson<SampleAlignmentArtifact>(paths.alignmentPath);
+  const humanProof = loadHumanProofAnswers(paths.humanProofPath);
 
   const calibration = buildMappingCalibration({
     report,
     targetDiagnostics,
     enrichment,
     alignment,
+    humanProof,
     summaryPath: paths.summaryPath,
     targetDiagnosticsPath: paths.targetDiagnosticsPath,
     enrichmentPath: paths.enrichmentPath,
     alignmentPath: paths.alignmentPath,
+    humanProofPath: humanProof ? paths.humanProofPath : null,
   });
 
   const { jsonPath, mdPath } = writeMappingCalibrationArtifacts(calibration, paths.outDir);
@@ -227,10 +251,12 @@ export function buildMappingCalibration(input: {
   targetDiagnostics: InteractiveTargetDiagnosticsFile;
   enrichment: EnrichmentBundle;
   alignment: SampleAlignmentArtifact;
+  humanProof?: HumanProofAnswers | null;
   summaryPath: string;
   targetDiagnosticsPath: string;
   enrichmentPath: string;
   alignmentPath: string;
+  humanProofPath?: string | null;
 }): MappingCalibrationFile {
   const contexts = buildConceptContexts(input);
   const resolutions = resolveMappingClaims(contexts.map((context) => ({
@@ -258,6 +284,7 @@ export function buildMappingCalibration(input: {
       targetDiagnosticsPath: input.targetDiagnosticsPath,
       enrichmentPath: input.enrichmentPath,
       alignmentPath: input.alignmentPath,
+      humanProofPath: input.humanProofPath ?? null,
     },
     summary: {
       totalConcepts: rows.length,
@@ -276,6 +303,7 @@ function buildConceptContexts(input: {
   targetDiagnostics: InteractiveTargetDiagnosticsFile;
   enrichment: EnrichmentBundle;
   alignment: SampleAlignmentArtifact;
+  humanProof?: HumanProofAnswers | null;
 }): ConceptCalibrationContext[] {
   const sourceFieldIndexByField = new Map(input.report.fields.map((field, index) => [field, index + 1]));
   const diagnosticsByConcept = new Map<FieldConceptKey, InteractiveTargetDiagnosticsFile['rows'][number]>();
@@ -382,6 +410,8 @@ function buildConceptContexts(input: {
         currentValueShape,
         nearbyFields,
         sourceFieldIndexByField,
+        humanProof: input.humanProof?.byConcept[concept] ?? null,
+        inferMissingCountryFromOtherDropdowns: input.humanProof?.inferMissingCountryFromOtherDropdowns ?? true,
       };
       context.currentSignature = diagnosticsRow?.actualFieldSignature ?? (currentField ? formatCandidateSummary(summarizeField(context, currentField)) : 'n/a');
       return [context];
@@ -476,9 +506,10 @@ function buildConceptRow(
   resolution: ReturnType<typeof resolveMappingClaims>[number],
 ): MappingCalibrationRow {
   const selection = resolution.selection;
-  const selectedField = selection.selectedCandidateId
+  const initialSelectedField = selection.selectedCandidateId
     ? context.nearbyFields.find((field) => String(sourceFieldIndex(context, field)) === selection.selectedCandidateId) ?? null
     : null;
+  let selectedField = initialSelectedField;
   const nearestShapeMatch = pickNearestField(context, selection, (assessment) =>
     assessment.valueShapeMatches && !assessment.valueShapeMismatch,
   );
@@ -486,10 +517,27 @@ function buildConceptRow(
     assessment.labelMatches || assessment.sectionMatches || assessment.enrichmentMatches,
   );
 
-  const decision = decideCalibrationOutcome(context, selection, context.currentField, selectedField);
-  const calibrationReason = deriveCalibrationReason(context, selection, selectedField, nearestShapeMatch);
-  const missingProof = missingProofForSelection(context, selection, selectedField, nearestShapeMatch);
-  const humanConfirmation = buildHumanConfirmationRequest(context, selection, selectedField, nearestShapeMatch, missingProof);
+  let decision = decideCalibrationOutcome(context, selection, context.currentField, selectedField);
+  let calibrationReason = deriveCalibrationReason(context, selection, selectedField, nearestShapeMatch);
+  let mappingDecisionReason = selection.decisionReason;
+  let missingProof = missingProofForSelection(context, selection, selectedField, nearestShapeMatch);
+  let humanConfirmation = buildHumanConfirmationRequest(context, selection, selectedField, nearestShapeMatch, missingProof);
+
+  const proofPromotionField = proofPromotableField(context, resolution.blockedCandidateIds);
+  const proofPromoted = shouldPromoteWithHumanProof(context, proofPromotionField);
+  if (proofPromoted && proofPromotionField) {
+    selectedField = proofPromotionField;
+    decision = context.currentField && sourceFieldIndex(context, context.currentField) === sourceFieldIndex(context, selectedField)
+      ? 'trust_current_mapping'
+      : 'trust_likely_better_candidate';
+    calibrationReason = 'none';
+    mappingDecisionReason = 'trusted_by_label';
+    missingProof = [];
+    humanConfirmation = null;
+  } else if (context.humanProof && decision === 'leave_unresolved') {
+    missingProof = rewriteMissingProofFromHumanProof(context, missingProof, context.humanProof);
+    humanConfirmation = null;
+  }
 
   return {
     concept: context.concept,
@@ -512,12 +560,13 @@ function buildConceptRow(
     selectedCandidate: selectedField ? formatCandidateSummary(summarizeField(context, selectedField)) : null,
     decision,
     calibrationReason,
-    mappingDecisionReason: selection.decisionReason,
+    mappingDecisionReason,
     suspectedShiftReason: selection.shiftReason,
     blockedCandidateIds: resolution.blockedCandidateIds,
     missingProof,
+    appliedHumanProof: context.humanProof,
     humanConfirmation,
-    explanation: explainDecision(context, selection, selectedField, nearestShapeMatch, calibrationReason),
+    explanation: explainDecision(context, selection, selectedField, nearestShapeMatch, calibrationReason, context.humanProof, proofPromoted),
     neighborWindow: context.nearbyFields.map((field) => {
       const summary = summarizeField(context, field);
       return {
@@ -584,6 +633,58 @@ function sampleLayoutTarget(context: ConceptCalibrationContext): { sectionHeader
 
 function liveFieldMatchingSampleLayout(context: ConceptCalibrationContext): FieldRecord | null {
   return context.nearbyFields.find((field) => matchingLayoutRecord(context.enrichmentRecord, field)) ?? null;
+}
+
+function proofPromotableField(context: ConceptCalibrationContext, blockedCandidateIds: string[]): FieldRecord | null {
+  const matchedLayoutField = liveFieldMatchingSampleLayout(context);
+  if (!matchedLayoutField || matchedLayoutField.controlCategory !== 'merchant_input') return null;
+  if (blockedCandidateIds.includes(String(sourceFieldIndex(context, matchedLayoutField)))) return null;
+  if (context.concept === 'business_mailing_state' && !isTrustedControlledChoiceFamily(matchedLayoutField.docusignTabType)) {
+    return null;
+  }
+  if ((context.concept === 'business_mailing_address_line_1' || context.concept === 'business_mailing_city' || context.concept === 'business_mailing_postal_code')
+    && isTrustedControlledChoiceFamily(matchedLayoutField.docusignTabType)) {
+    return null;
+  }
+  return matchedLayoutField;
+}
+
+function shouldPromoteWithHumanProof(context: ConceptCalibrationContext, matchedLayoutField: FieldRecord | null): boolean {
+  if (!matchedLayoutField || !context.humanProof) return false;
+  switch (context.concept) {
+    case 'business_mailing_address_line_1':
+    case 'business_mailing_city':
+    case 'business_mailing_postal_code':
+      return context.humanProof.status === 'confirmed_editable';
+    case 'business_mailing_state':
+      return context.humanProof.status === 'confirmed_editable_dropdown';
+    default:
+      return false;
+  }
+}
+
+function rewriteMissingProofFromHumanProof(
+  context: ConceptCalibrationContext,
+  missingProof: string[],
+  humanProof: AppliedHumanProof,
+): string[] {
+  if (humanProof.status === 'confirmed_omitted_or_hidden') {
+    const rewritten = [
+      humanProof.summary,
+      'No sample PDF/MHTML layout evidence currently proves a separate Registered Legal Address Country control in this saved US flow.',
+    ];
+    if (!context.inferMissingCountryFromOtherDropdowns) {
+      rewritten.push('Do not infer this missing country field from other visible country dropdowns in the flow.');
+    }
+    return unique(rewritten);
+  }
+
+  const rewritten = missingProof.filter((entry) =>
+    entry !== 'The Physical Operating Address block may be conditionally hidden unless the signer indicates the operating address differs from the registered legal address.' &&
+    !entry.startsWith('A human screenshot is needed to confirm'),
+  );
+  rewritten.push(`${humanProof.summary} The saved safe-mode report still does not surface a matching field-local Physical Operating Address target.`);
+  return unique(rewritten);
 }
 
 function lacksSampleLayoutProof(context: ConceptCalibrationContext): boolean {
@@ -763,6 +864,7 @@ function buildHumanConfirmationRequest(
   nearestShapeMatch: FieldRecord | null,
   missingProof: string[],
 ): HumanConfirmationRequest | null {
+  if (context.humanProof) return null;
   if (selection.trusted || missingProof.length === 0) return null;
 
   const layoutTarget = sampleLayoutTarget(context);
@@ -843,6 +945,8 @@ function explainDecision(
   selectedField: FieldRecord | null,
   nearestShapeMatch: FieldRecord | null,
   calibrationReason: CalibrationReason,
+  appliedHumanProof: AppliedHumanProof | null,
+  proofPromoted: boolean,
 ): string {
   const parts: string[] = [];
 
@@ -863,6 +967,12 @@ function explainDecision(
   }
   if (calibrationReason !== 'none') {
     parts.push(`Calibration reason: ${calibrationReason}.`);
+  }
+  if (appliedHumanProof) {
+    parts.push(`Human proof: ${appliedHumanProof.summary}`);
+  }
+  if (proofPromoted) {
+    parts.push('Human proof plus a matching live layout target are strong enough to trust this field conservatively.');
   }
   parts.push(`Decision reason: ${selection.decisionReason}.`);
 
@@ -1081,6 +1191,18 @@ function buildFindings(rows: MappingCalibrationRow[]): string[] {
   if (dob?.decision === 'trust_current_mapping') {
     findings.push('Date of Birth remains trusted: the live field still has date type, date-shaped value, and stakeholder-context alignment.');
   }
+  const omitted = rows.filter((row) => row.appliedHumanProof?.status === 'confirmed_omitted_or_hidden');
+  if (omitted.length > 0) {
+    findings.push(`${omitted.map((row) => row.conceptDisplayName).join(', ')} are confirmed as omitted or not signer-editable in this flow and stay out of trusted mutation coverage.`);
+  }
+  const proofRecordedButBlocked = rows.filter((row) =>
+    row.decision === 'leave_unresolved' &&
+    row.appliedHumanProof !== null &&
+    row.appliedHumanProof.status !== 'confirmed_omitted_or_hidden',
+  );
+  if (proofRecordedButBlocked.length > 0) {
+    findings.push(`${proofRecordedButBlocked.map((row) => row.conceptDisplayName).join(', ')} have operator proof recorded, but the saved safe-mode report still lacks a matching field-local live target.`);
+  }
   return findings;
 }
 
@@ -1132,6 +1254,9 @@ function renderMappingCalibrationMarkdown(file: MappingCalibrationFile): string 
     }
     if (row.missingProof.length > 0) {
       lines.push(`- Missing proof: ${row.missingProof.join('; ')}`);
+    }
+    if (row.appliedHumanProof) {
+      lines.push(`- Applied human proof: ${row.appliedHumanProof.status} - ${row.appliedHumanProof.summary}`);
     }
     if (row.humanConfirmation) {
       lines.push(`- Human confirmation requested: ${row.humanConfirmation.requestedEvidence}`);
@@ -1225,6 +1350,36 @@ function controlOptionsAreDiscoverable(field: FieldRecord): boolean {
   ].join(' | ').toLowerCase();
   return haystack.includes('-- select --') ||
     /\bchecking\b|\bsavings\b|articles of incorporation|business license|utility bill|bank statement|void check|ein|ssn/.test(haystack);
+}
+
+function loadHumanProofAnswers(filePath: string): HumanProofAnswers | null {
+  if (!fs.existsSync(filePath)) return null;
+  const raw = fs.readFileSync(filePath, 'utf8');
+  const byConcept: Partial<Record<FieldConceptKey, AppliedHumanProof>> = {};
+  let inferMissingCountryFromOtherDropdowns = true;
+
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (/^- infer_missing_country_from_other_dropdowns:\s*false$/i.test(trimmed)) {
+      inferMissingCountryFromOtherDropdowns = false;
+      continue;
+    }
+
+    const conceptMatch = /^- ([a-z0-9_]+):\s+(confirmed_[a-z_]+)\s*\|\s*(.+)$/.exec(trimmed);
+    if (!conceptMatch) continue;
+
+    const concept = conceptMatch[1] as FieldConceptKey;
+    const status = conceptMatch[2] as AppliedHumanProofStatus;
+    const summary = conceptMatch[3].trim();
+    if (!(concept in FIELD_CONCEPT_REGISTRY)) continue;
+    if (!['confirmed_editable', 'confirmed_editable_dropdown', 'confirmed_omitted_or_hidden'].includes(status)) continue;
+    byConcept[concept] = { status, summary };
+  }
+
+  return {
+    byConcept,
+    inferMissingCountryFromOtherDropdowns,
+  };
 }
 
 function loadJson<T>(filePath: string): T {

@@ -5416,6 +5416,246 @@ test.describe('interactive validation safety', () => {
     expect(row!.humanConfirmation?.requestedEvidence).not.toContain('#');
   });
 
+  test('physical operating address fields promote only when human proof and an exact live layout target agree', () => {
+    const concepts = [
+      {
+        concept: 'business_mailing_address_line_1',
+        conceptDisplayName: 'Business Mailing Address Line 1',
+        proofStatus: 'confirmed_editable',
+        proofSummary: 'Operator confirmed Physical Operating Address > Address Line 1 is visible and editable.',
+        jsonKeyPath: 'merchantData.businessMailingAddress.line1',
+        fieldLabel: 'Address Line 1',
+        suggestedDisplayName: 'Physical Operating Address Line 1',
+        tabType: 'Text',
+        ordinalOnPage: 47,
+        tabLeft: 35.2,
+        tabTop: 627.2,
+        layoutValueShape: 'text_name_like',
+        jsonValueSample: '124 Uptown Blvd',
+      },
+      {
+        concept: 'business_mailing_city',
+        conceptDisplayName: 'Business Mailing Address City',
+        proofStatus: 'confirmed_editable',
+        proofSummary: 'Operator confirmed Physical Operating Address > City is visible and editable.',
+        jsonKeyPath: 'merchantData.businessMailingAddress.city',
+        fieldLabel: 'City',
+        suggestedDisplayName: 'Physical Operating Address City',
+        tabType: 'Text',
+        ordinalOnPage: 49,
+        tabLeft: 35.2,
+        tabTop: 657.92,
+        layoutValueShape: 'text_name_like',
+        jsonValueSample: 'Charlotte',
+      },
+      {
+        concept: 'business_mailing_state',
+        conceptDisplayName: 'Business Mailing Address State',
+        proofStatus: 'confirmed_editable_dropdown',
+        proofSummary: 'Operator confirmed Physical Operating Address > State is visible and editable as a dropdown/list.',
+        jsonKeyPath: 'merchantData.businessMailingAddress.state',
+        fieldLabel: 'State',
+        suggestedDisplayName: 'Physical Operating Address State',
+        tabType: 'List',
+        ordinalOnPage: 50,
+        tabLeft: 348.8,
+        tabTop: 660.48,
+        layoutValueShape: 'empty',
+        jsonValueSample: 'NC',
+      },
+      {
+        concept: 'business_mailing_postal_code',
+        conceptDisplayName: 'Business Mailing Address Postal Code',
+        proofStatus: 'confirmed_editable',
+        proofSummary: 'Operator confirmed Physical Operating Address > ZIP is visible and editable.',
+        jsonKeyPath: 'merchantData.businessMailingAddress.postalCode',
+        fieldLabel: 'ZIP',
+        suggestedDisplayName: 'Physical Operating Address ZIP',
+        tabType: 'Text',
+        ordinalOnPage: 51,
+        tabLeft: 567.04,
+        tabTop: 657.92,
+        layoutValueShape: 'postal_code',
+        jsonValueSample: '28202',
+      },
+    ] as const;
+
+    const baseInput = {
+      report: mockValidationReport(concepts.map((entry, index) =>
+        mockField({
+          index: index + 1,
+          section: 'Bead Onboarding Application US-02604-1.pdf Page 1 of 4.',
+          resolvedLabel: null,
+          labelSource: 'none',
+          labelConfidence: 'none',
+          docusignTabType: entry.tabType,
+          inferredType: entry.tabType === 'List' ? 'state' : 'unknown_manual_review',
+          pageIndex: 1,
+          ordinalOnPage: entry.ordinalOnPage,
+          tabLeft: entry.tabLeft,
+          tabTop: entry.tabTop,
+          visible: false,
+          editable: false,
+          observedValueLikeTextNearControl: null,
+        }),
+      )),
+      targetDiagnostics: {
+        schemaVersion: 1,
+        runStartedAt: '2026-04-28T00:00:00.000Z',
+        runFinishedAt: '2026-04-28T00:00:01.000Z',
+        summary: {
+          total: 0,
+          trusted: 0,
+          tool_mapping_suspect: 0,
+          mapping_not_confident: 0,
+          error_ownership_suspect: 0,
+          product_failure: 0,
+          observer_ambiguous: 0,
+          passed: 0,
+          skipped: 0,
+          manual_review: 0,
+        },
+        rows: [],
+      },
+      enrichment: {
+        schemaVersion: 1,
+        generatedAt: '2026-04-28T00:00:00.000Z',
+        sourceJson: 'sample.json',
+        sourceMhtml: 'sample.mhtml',
+        records: concepts.map((entry) => ({
+          tabGuid: `guid-${entry.concept}`,
+          positionalFingerprint: `page:1|${entry.tabType}|ord:${entry.ordinalOnPage}`,
+          tabLeft: entry.tabLeft,
+          tabTop: entry.tabTop,
+          jsonKeyPath: entry.jsonKeyPath,
+          jsonFieldFamily: 'Address',
+          jsonTypeHint: entry.concept === 'business_mailing_state' ? 'state' : 'string',
+          docusignFieldFamily: entry.tabType,
+          confidence: 'high',
+          suggestedDisplayName: entry.suggestedDisplayName,
+          suggestedBusinessSection: 'Address',
+          layoutSectionHeader: 'Physical Operating Address',
+          layoutFieldLabel: entry.fieldLabel,
+          layoutValueShape: entry.layoutValueShape,
+          layoutEvidenceSource: 'pdf-text-sequence',
+          layoutNeighboringLabels: ['Address Line 1', 'City', 'State', 'ZIP'],
+          layoutEditability: 'editable',
+        })),
+      },
+      alignment: {
+        rows: concepts.map((entry) => ({
+          jsonKeyPath: entry.jsonKeyPath,
+          jsonFieldFamily: 'Address',
+          jsonValueSample: entry.jsonValueSample,
+          jsonTypeHint: entry.concept === 'business_mailing_state' ? 'state' : 'string',
+          matchedTabGuid: `guid-${entry.concept}`,
+          matchedRenderedValue: entry.tabType === 'Text' ? entry.jsonValueSample : null,
+          candidateRenderedPrompt: 'Required',
+          candidateDocuSignFieldFamily: entry.tabType,
+          tabPageIndex: 1,
+          tabOrdinalOnPage: entry.ordinalOnPage,
+          tabLeft: entry.tabLeft,
+          tabTop: entry.tabTop,
+          layoutSectionHeader: 'Physical Operating Address',
+          layoutFieldLabel: entry.fieldLabel,
+          layoutEvidenceSource: 'pdf-text-sequence',
+          layoutValueShape: entry.layoutValueShape,
+          layoutNeighboringLabels: ['Address Line 1', 'City', 'State', 'ZIP'],
+          layoutEditability: 'editable',
+          businessSection: 'Address',
+          confidence: 'high',
+          matchingMethod: 'layout_cell',
+          notes: `matched using PDF/MHTML field-cell evidence (Physical Operating Address > ${entry.fieldLabel})`,
+        })),
+      },
+      summaryPath: 'summary.json',
+      targetDiagnosticsPath: 'diagnostics.json',
+      enrichmentPath: 'enrichment.json',
+      alignmentPath: 'alignment.json',
+    };
+
+    const withoutProof = buildMappingCalibration(baseInput);
+    for (const entry of concepts) {
+      const row = withoutProof.rows.find((candidate) => candidate.concept === entry.concept);
+      expect(row).toBeTruthy();
+      expect(row!.decision).toBe('downgrade_current_mapping_to_unresolved');
+      expect(row!.humanConfirmation).not.toBeNull();
+    }
+
+    const withProof = buildMappingCalibration({
+      ...baseInput,
+      humanProof: {
+        byConcept: {
+          business_mailing_address_line_1: {
+            status: 'confirmed_editable',
+            summary: 'Operator confirmed Physical Operating Address > Address Line 1 is visible and editable.',
+          },
+          business_mailing_city: {
+            status: 'confirmed_editable',
+            summary: 'Operator confirmed Physical Operating Address > City is visible and editable.',
+          },
+          business_mailing_state: {
+            status: 'confirmed_editable_dropdown',
+            summary: 'Operator confirmed Physical Operating Address > State is visible and editable as a dropdown/list.',
+          },
+          business_mailing_postal_code: {
+            status: 'confirmed_editable',
+            summary: 'Operator confirmed Physical Operating Address > ZIP is visible and editable.',
+          },
+        },
+        inferMissingCountryFromOtherDropdowns: false,
+      },
+    });
+    for (const entry of concepts) {
+      const row = withProof.rows.find((candidate) => candidate.concept === entry.concept);
+      expect(row).toBeTruthy();
+      expect(row!.decision).toBe('trust_current_mapping');
+      expect(row!.appliedHumanProof?.status).toBe(entry.proofStatus);
+      expect(row!.humanConfirmation).toBeNull();
+    }
+
+    const mismatchOnly = buildMappingCalibration({
+      ...baseInput,
+      report: mockValidationReport([
+        mockField({
+          index: 1,
+          section: 'Bead Onboarding Application US-02604-1.pdf Page 1 of 4.',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 47,
+          tabLeft: 35.2,
+          tabTop: 640,
+          visible: false,
+          editable: false,
+        }),
+      ]),
+      enrichment: {
+        schemaVersion: 1,
+        generatedAt: '2026-04-28T00:00:00.000Z',
+        sourceJson: 'sample.json',
+        sourceMhtml: 'sample.mhtml',
+        records: [baseInput.enrichment.records[0]!],
+      },
+      alignment: {
+        rows: [baseInput.alignment.rows[0]!],
+      },
+      humanProof: {
+        byConcept: {
+          business_mailing_address_line_1: {
+            status: 'confirmed_editable',
+            summary: 'Operator confirmed Physical Operating Address > Address Line 1 is visible and editable.',
+          },
+        },
+        inferMissingCountryFromOtherDropdowns: false,
+      },
+    });
+    const mismatchRow = mismatchOnly.rows.find((candidate) => candidate.concept === 'business_mailing_address_line_1');
+
+    expect(mismatchRow).toBeTruthy();
+    expect(mismatchRow!.decision).not.toMatch(/^trust_/);
+    expect(mismatchRow!.missingProof).toContain('Operator confirmed Physical Operating Address > Address Line 1 is visible and editable. The saved safe-mode report still does not surface a matching field-local Physical Operating Address target.');
+  });
+
   test('country blockers without sample layout proof ask whether the control exists or is display-only', () => {
     const calibration = buildMappingCalibration({
       report: mockValidationReport([]),
@@ -5481,6 +5721,163 @@ test.describe('interactive validation safety', () => {
     expect(row!.missingProof).toContain('No sample PDF/MHTML layout evidence currently proves a separate Registered Legal Address Country control in this saved US flow.');
     expect(row!.humanConfirmation?.requestedEvidence).toContain('Registered Legal Address section');
     expect(row!.humanConfirmation?.requestedEvidence).toContain('omitted or display-only');
+  });
+
+  test('registered country omission proof keeps the field omitted and does not infer it from other visible dropdowns', () => {
+    const calibration = buildMappingCalibration({
+      report: mockValidationReport([]),
+      targetDiagnostics: {
+        schemaVersion: 1,
+        runStartedAt: '2026-04-28T00:00:00.000Z',
+        runFinishedAt: '2026-04-28T00:00:01.000Z',
+        summary: {
+          total: 0,
+          trusted: 0,
+          tool_mapping_suspect: 0,
+          mapping_not_confident: 0,
+          error_ownership_suspect: 0,
+          product_failure: 0,
+          observer_ambiguous: 0,
+          passed: 0,
+          skipped: 0,
+          manual_review: 0,
+        },
+        rows: [],
+      },
+      enrichment: {
+        schemaVersion: 1,
+        generatedAt: '2026-04-28T00:00:00.000Z',
+        sourceJson: 'sample.json',
+        sourceMhtml: 'sample.mhtml',
+        records: [],
+      },
+      alignment: {
+        rows: [{
+          jsonKeyPath: 'merchantData.registeredLegalAddress.country',
+          jsonFieldFamily: 'Address',
+          jsonValueSample: 'US',
+          jsonTypeHint: 'country',
+          matchedTabGuid: null,
+          matchedRenderedValue: null,
+          candidateRenderedPrompt: null,
+          candidateDocuSignFieldFamily: null,
+          tabPageIndex: null,
+          tabOrdinalOnPage: null,
+          tabLeft: null,
+          tabTop: null,
+          layoutSectionHeader: null,
+          layoutFieldLabel: null,
+          layoutEvidenceSource: null,
+          layoutValueShape: null,
+          layoutNeighboringLabels: [],
+          layoutEditability: null,
+          businessSection: 'Address',
+          confidence: 'none',
+          matchingMethod: 'unmatched',
+          notes: 'no rendered value matched any variant',
+        }],
+      },
+      humanProof: {
+        byConcept: {
+          registered_country: {
+            status: 'confirmed_omitted_or_hidden',
+            summary: 'Operator confirmed Registered Legal Address Country is omitted or not signer-editable in this flow.',
+          },
+        },
+        inferMissingCountryFromOtherDropdowns: false,
+      },
+      summaryPath: 'summary.json',
+      targetDiagnosticsPath: 'diagnostics.json',
+      enrichmentPath: 'enrichment.json',
+      alignmentPath: 'alignment.json',
+    });
+    const row = calibration.rows.find((entry) => entry.concept === 'registered_country');
+
+    expect(row).toBeTruthy();
+    expect(row!.decision).toBe('leave_unresolved');
+    expect(row!.appliedHumanProof?.status).toBe('confirmed_omitted_or_hidden');
+    expect(row!.humanConfirmation).toBeNull();
+    expect(row!.missingProof).toContain('Do not infer this missing country field from other visible country dropdowns in the flow.');
+  });
+
+  test('proof-confirmed omitted and still-blocked address fields stay separate from product findings', () => {
+    const input = mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'registered_state',
+          conceptDisplayName: 'Registered Legal Address State',
+          validationId: 'invalid-state-rejected',
+          testName: 'invalid state rejected',
+          status: 'failed',
+          outcome: 'product_failure',
+          targetConfidence: 'trusted',
+          controlKind: 'native-select',
+          optionsDiscoverable: true,
+        }),
+      ],
+    });
+    input.calibration.rows = [
+      {
+        concept: 'registered_state',
+        conceptDisplayName: 'Registered Legal Address State',
+        currentCandidateFieldIndex: 63,
+        selectedCandidate: '#63 Registered Legal Address State',
+        decision: 'trust_current_mapping',
+        calibrationReason: 'none',
+        mappingDecisionReason: 'trusted_by_label',
+      },
+      {
+        concept: 'registered_country',
+        conceptDisplayName: 'Registered Legal Address Country',
+        currentCandidateFieldIndex: null,
+        selectedCandidate: null,
+        decision: 'leave_unresolved',
+        calibrationReason: 'no_unclaimed_neighbor_with_expected_shape',
+        mappingDecisionReason: 'rejected_insufficient_label_proof',
+        missingProof: [
+          'Operator confirmed Registered Legal Address Country is omitted or not signer-editable in this flow.',
+          'Do not infer this missing country field from other visible country dropdowns in the flow.',
+        ],
+        appliedHumanProof: {
+          status: 'confirmed_omitted_or_hidden',
+          summary: 'Operator confirmed Registered Legal Address Country is omitted or not signer-editable in this flow.',
+        },
+        humanConfirmation: null,
+      },
+      {
+        concept: 'business_mailing_city',
+        conceptDisplayName: 'Business Mailing Address City',
+        currentCandidateFieldIndex: null,
+        selectedCandidate: null,
+        decision: 'leave_unresolved',
+        calibrationReason: 'none',
+        mappingDecisionReason: 'rejected_section_mismatch',
+        missingProof: [
+          'Sample layout evidence points to Physical Operating Address > City.',
+          'Operator confirmed Physical Operating Address > City is visible and editable. The saved safe-mode report still does not surface a matching field-local Physical Operating Address target.',
+        ],
+        appliedHumanProof: {
+          status: 'confirmed_editable',
+          summary: 'Operator confirmed Physical Operating Address > City is visible and editable.',
+        },
+        humanConfirmation: null,
+      },
+    ];
+
+    const report = buildValidationFindingsReport(input);
+    const markdown = renderValidationFindingsMarkdown(report);
+
+    expect(report.likelyProductValidationFindings.map((finding) => finding.concept)).toEqual(['registered_state']);
+    expect(report.remainingCalibrationBlockers.map((blocker) => blocker.concept)).toEqual([
+      'registered_country',
+      'business_mailing_city',
+    ]);
+    expect(report.executiveSummary.join(' ')).toContain('intentionally omitted or not signer-editable in this flow');
+    expect(report.executiveSummary.join(' ')).toContain('have operator proof recorded, but the saved safe-mode report still lacks a matching field-local live target');
+    expect(report.executiveSummary.join(' ')).not.toContain('Registered Legal Address Country remain unresolved calibration blockers outside this rerun scope and still need human proof');
+    expect(markdown).toContain('Flow omission confirmed');
+    expect(markdown).toContain('Human proof recorded; live mapping still insufficient');
+    expect(markdown).toContain('do not infer it from other visible country dropdowns');
   });
 
   test('controlled-choice calibration diagnostics do not emit sensitive values', () => {

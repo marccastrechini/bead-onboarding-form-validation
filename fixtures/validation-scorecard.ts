@@ -168,6 +168,10 @@ export interface MappingCalibrationRow {
   calibrationReason: string;
   mappingDecisionReason: string;
   missingProof?: string[];
+  appliedHumanProof?: {
+    status: string;
+    summary: string;
+  } | null;
   humanConfirmation?: {
     needed: true;
     concept: FieldConceptKey;

@@ -193,6 +193,8 @@ interface RemainingCalibrationBlocker {
   calibrationReason: string;
   mappingDecisionReason: string;
   missingProof: string[];
+  appliedHumanProofStatus: string | null;
+  appliedHumanProofSummary: string | null;
   currentBlocker: string | null;
   requestedEvidence: string | null;
   decisionImpact: string | null;
@@ -434,6 +436,8 @@ export function buildValidationFindingsReport(input: {
       calibrationReason: row.calibrationReason,
       mappingDecisionReason: row.mappingDecisionReason,
       missingProof: row.missingProof ?? [],
+      appliedHumanProofStatus: row.appliedHumanProof?.status ?? null,
+      appliedHumanProofSummary: row.appliedHumanProof?.summary ?? null,
       currentBlocker: row.humanConfirmation?.currentBlocker ?? row.missingProof?.[0] ?? null,
       requestedEvidence: row.humanConfirmation?.requestedEvidence ?? null,
       decisionImpact: row.humanConfirmation?.decisionImpact ?? null,
@@ -1217,7 +1221,21 @@ function buildExecutiveSummary(input: {
 }): string[] {
   const readyConcepts = unique(input.readyForGuardedRerun.map((finding) => finding.conceptDisplayName));
   const blockedConcepts = unique(input.mappingBlockedFields.map((finding) => finding.conceptDisplayName));
-  const remainingCalibrationConcepts = unique(input.remainingCalibrationBlockers.map((blocker) => blocker.conceptDisplayName));
+  const pendingHumanProofConcepts = unique(
+    input.remainingCalibrationBlockers
+      .filter((blocker) => blocker.appliedHumanProofStatus === null)
+      .map((blocker) => blocker.conceptDisplayName),
+  );
+  const proofRecordedButBlockedConcepts = unique(
+    input.remainingCalibrationBlockers
+      .filter((blocker) => blocker.appliedHumanProofStatus !== null && blocker.appliedHumanProofStatus !== 'confirmed_omitted_or_hidden')
+      .map((blocker) => blocker.conceptDisplayName),
+  );
+  const omittedFlowConcepts = unique(
+    input.remainingCalibrationBlockers
+      .filter((blocker) => blocker.appliedHumanProofStatus === 'confirmed_omitted_or_hidden')
+      .map((blocker) => blocker.conceptDisplayName),
+  );
   const summary = [
     `${input.totalObservations} observations were reviewed across ${input.targetConcepts.length} targeted concept(s).`,
     `${input.resultCounts.passed} passed, ${input.resultCounts.failed} failed, ${input.resultCounts.warning} warned, ${input.resultCounts.manual_review} require manual review, and ${input.resultCounts.skipped} were skipped.`,
@@ -1231,8 +1249,17 @@ function buildExecutiveSummary(input: {
   summary.splice(readyConcepts.length > 0 ? 5 : 4, 0, blockedConcepts.length > 0
     ? `${blockedConcepts.join(', ')} remained mapping-blocked after applying the latest offline calibration and should not be treated as product validation failure(s).`
     : 'No currently mapping-blocked target concepts remain after applying the latest offline calibration.');
-  if (remainingCalibrationConcepts.length > 0) {
-    summary.splice(readyConcepts.length > 0 ? 6 : 5, 0, `${remainingCalibrationConcepts.join(', ')} remain unresolved calibration blockers outside this rerun scope and still need human proof; keep them separate from product validation findings.`);
+  let summaryInsertIndex = readyConcepts.length > 0 ? 6 : 5;
+  if (proofRecordedButBlockedConcepts.length > 0) {
+    summary.splice(summaryInsertIndex, 0, `${proofRecordedButBlockedConcepts.join(', ')} have operator proof recorded, but the saved safe-mode report still lacks a matching field-local live target; keep them separate from product validation findings.`);
+    summaryInsertIndex += 1;
+  }
+  if (omittedFlowConcepts.length > 0) {
+    summary.splice(summaryInsertIndex, 0, `${omittedFlowConcepts.join(', ')} are intentionally omitted or not signer-editable in this flow and remain out of product validation findings.`);
+    summaryInsertIndex += 1;
+  }
+  if (pendingHumanProofConcepts.length > 0) {
+    summary.splice(summaryInsertIndex, 0, `${pendingHumanProofConcepts.join(', ')} remain unresolved calibration blockers outside this rerun scope and still need human proof; keep them separate from product validation findings.`);
   }
   return summary;
 }
@@ -1253,8 +1280,14 @@ function buildRecommendedToolingWork(
     items.push('Resolve Bank Name by improving live verifier evidence around the page-1 banking window; do not mutate Bank Name until a safe text/name-like candidate is unclaimed and trusted.');
     items.push('Record the Bank Name block as mapping/tool work, not a product validation finding.');
   }
-  if (remainingCalibrationBlockers.length > 0) {
+  if (remainingCalibrationBlockers.some((blocker) => blocker.appliedHumanProofStatus === null)) {
     items.push('Keep unresolved calibration blockers out of product findings until screenshots confirm whether the saved-sample controls are visible, editable, omitted, or intentionally hidden in this flow.');
+  }
+  if (remainingCalibrationBlockers.some((blocker) => blocker.appliedHumanProofStatus !== null && blocker.appliedHumanProofStatus !== 'confirmed_omitted_or_hidden')) {
+    items.push('Keep proof-confirmed but live-unresolved calibration blockers out of product findings until a safe-mode capture or guarded rerun surfaces the same field-local target.');
+  }
+  if (remainingCalibrationBlockers.some((blocker) => blocker.appliedHumanProofStatus === 'confirmed_omitted_or_hidden')) {
+    items.push('Treat proof-confirmed omitted or hidden address fields as flow omissions, not rerun candidates or product defects.');
   }
   items.push('Add concise exports for reviewer handoff before expanding to sensitive tax or bank-account fields.');
   return items;
@@ -1539,12 +1572,42 @@ function renderRemainingCalibrationBlockers(lines: string[], blockers: Remaining
     return;
   }
 
-  lines.push('| Concept | Current blocker | Exact next proof | Decision impact |');
-  lines.push('|---|---|---|---|');
+  lines.push('| Concept | Disposition | Current blocker | Exact next step | Decision impact |');
+  lines.push('|---|---|---|---|---|');
   for (const blocker of blockers) {
-    lines.push(`| ${esc(blocker.conceptDisplayName)} | ${esc(blocker.currentBlocker ?? blocker.missingProof[0] ?? 'n/a')} | ${esc(blocker.requestedEvidence ?? 'n/a')} | ${esc(blocker.decisionImpact ?? 'n/a')} |`);
+    lines.push(`| ${esc(blocker.conceptDisplayName)} | ${esc(blockerDisposition(blocker))} | ${esc(blocker.currentBlocker ?? blocker.appliedHumanProofSummary ?? blocker.missingProof[0] ?? 'n/a')} | ${esc(blockerNextStep(blocker))} | ${esc(blockerDecisionImpact(blocker))} |`);
   }
   lines.push('');
+}
+
+function blockerDisposition(blocker: RemainingCalibrationBlocker): string {
+  if (blocker.appliedHumanProofStatus === 'confirmed_omitted_or_hidden') {
+    return 'Flow omission confirmed';
+  }
+  if (blocker.appliedHumanProofStatus) {
+    return 'Human proof recorded; live mapping still insufficient';
+  }
+  return 'Human proof still needed';
+}
+
+function blockerNextStep(blocker: RemainingCalibrationBlocker): string {
+  if (blocker.appliedHumanProofStatus === 'confirmed_omitted_or_hidden') {
+    return 'No additional human proof requested. Keep this concept non-product and do not infer it from other visible country dropdowns.';
+  }
+  if (blocker.appliedHumanProofStatus) {
+    return `Need a safe-mode capture or guarded rerun that surfaces ${blocker.conceptDisplayName} as the same field-local target proven by the saved sample.`;
+  }
+  return blocker.requestedEvidence ?? 'n/a';
+}
+
+function blockerDecisionImpact(blocker: RemainingCalibrationBlocker): string {
+  if (blocker.appliedHumanProofStatus === 'confirmed_omitted_or_hidden') {
+    return 'Keep this concept out of product findings and do not promote it to trusted for this flow.';
+  }
+  if (blocker.appliedHumanProofStatus) {
+    return 'Keep this concept out of product findings until stronger live mapping evidence agrees with the recorded human proof.';
+  }
+  return blocker.decisionImpact ?? 'n/a';
 }
 
 function renderAddressReadyForGuardedRerunSection(lines: string[], title: string, findings: FindingItem[]): void {
