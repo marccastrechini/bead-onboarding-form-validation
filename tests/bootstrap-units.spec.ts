@@ -4030,6 +4030,7 @@ test.describe('interactive validation safety', () => {
         label: 'addressOptions › Required - addressOptions - isOperatingAddress',
         resolvedLabel: 'addressOptions › Required - addressOptions - isOperatingAddress',
         rawCandidateLabels: [
+          { source: 'label-for', value: 'Required - addressOptions - isVirtualAddress' },
           { source: 'section+row', value: 'addressOptions › Required - addressOptions - isOperatingAddress' },
         ],
         groupName: 'addressOptions_group',

@@ -38,8 +38,27 @@ function fieldTextFragments(field: GuardedToggleField): string[] {
   return Array.from(new Set(fragments));
 }
 
+function fieldResolvedFragments(field: GuardedToggleField): string[] {
+  const fragments = [
+    field.sectionName,
+    field.label,
+    field.resolvedLabel,
+    ...field.rawCandidateLabels
+      .filter((candidate) => candidate.source === 'section+row' || candidate.source === 'preceding-text')
+      .map((candidate) => candidate.value),
+  ]
+    .map(normalizeText)
+    .filter((value): value is string => Boolean(value));
+
+  return Array.from(new Set(fragments));
+}
+
 function fieldMentions(field: GuardedToggleField, pattern: RegExp): boolean {
   return fieldTextFragments(field).some((value) => pattern.test(value));
+}
+
+function fieldResolvedMentions(field: GuardedToggleField, pattern: RegExp): boolean {
+  return fieldResolvedFragments(field).some((value) => pattern.test(value));
 }
 
 function isEligibleAddressOptionRadio(field: GuardedToggleField): boolean {
@@ -61,10 +80,10 @@ export function guardedPhysicalOperatingAddressDiscoveryEnabled(env: NodeJS.Proc
 export function findPhysicalOperatingAddressToggle<T extends GuardedToggleField>(fields: T[]): T | null {
   const matches = fields.filter((field) =>
     isEligibleAddressOptionRadio(field)
-    && fieldMentions(field, ADDRESS_OPTIONS_RE)
-    && fieldMentions(field, OPERATING_ADDRESS_RE)
-    && !fieldMentions(field, LEGAL_ADDRESS_RE)
-    && !fieldMentions(field, VIRTUAL_ADDRESS_RE),
+    && fieldResolvedMentions(field, ADDRESS_OPTIONS_RE)
+    && fieldResolvedMentions(field, OPERATING_ADDRESS_RE)
+    && !fieldResolvedMentions(field, LEGAL_ADDRESS_RE)
+    && !fieldResolvedMentions(field, VIRTUAL_ADDRESS_RE),
   );
 
   return matches.length === 1 ? matches[0] : null;
@@ -122,10 +141,7 @@ export async function maybeExpandPhysicalOperatingAddressSection(
 
   if (alreadyChecked !== true) {
     await toggleField.locator.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
-    const checked = await toggleField.locator.check({ timeout: 3_000 }).then(() => true).catch(() => false);
-    if (!checked) {
-      await toggleField.locator.click({ timeout: 3_000 });
-    }
+    await toggleField.locator.check({ timeout: 3_000, force: true });
     diagnostics.push('physical-operating-address discovery toggle action: selected isOperatingAddress radio');
     await waitForSectionSettle(toggleField);
   } else {
