@@ -10,6 +10,10 @@ import type {
 import { FIELD_CONCEPT_REGISTRY, type FieldConceptKey } from '../fixtures/field-concepts';
 import type { MappingCalibrationFile } from '../fixtures/validation-scorecard';
 import { detectValueShape, type ValueShape } from '../lib/mapping-calibration';
+import {
+  PHYSICAL_ADDRESS_PROBE_CAPTURE_RECOMMENDATION,
+  PHYSICAL_ADDRESS_PROBE_GENERIC_CONTROLS_PREFIX,
+} from './generate-mapping-calibration';
 
 interface DiagnosticsFile {
   schemaVersion: 1;
@@ -1226,9 +1230,16 @@ function buildExecutiveSummary(input: {
       .filter((blocker) => blocker.appliedHumanProofStatus === null)
       .map((blocker) => blocker.conceptDisplayName),
   );
+  const probeGenericBlockedConcepts = unique(
+    input.remainingCalibrationBlockers
+      .filter((blocker) => blocker.appliedHumanProofStatus !== null && blocker.appliedHumanProofStatus !== 'confirmed_omitted_or_hidden')
+      .filter((blocker) => hasPhysicalAddressProbeAmbiguity(blocker))
+      .map((blocker) => blocker.conceptDisplayName),
+  );
   const proofRecordedButBlockedConcepts = unique(
     input.remainingCalibrationBlockers
       .filter((blocker) => blocker.appliedHumanProofStatus !== null && blocker.appliedHumanProofStatus !== 'confirmed_omitted_or_hidden')
+      .filter((blocker) => !hasPhysicalAddressProbeAmbiguity(blocker))
       .map((blocker) => blocker.conceptDisplayName),
   );
   const omittedFlowConcepts = unique(
@@ -1250,6 +1261,10 @@ function buildExecutiveSummary(input: {
     ? `${blockedConcepts.join(', ')} remained mapping-blocked after applying the latest offline calibration and should not be treated as product validation failure(s).`
     : 'No currently mapping-blocked target concepts remain after applying the latest offline calibration.');
   let summaryInsertIndex = readyConcepts.length > 0 ? 6 : 5;
+  if (probeGenericBlockedConcepts.length > 0) {
+    summary.splice(summaryInsertIndex, 0, `${probeGenericBlockedConcepts.join(', ')} have operator proof recorded, but the guarded post-toggle DOM probe still exposed only generic unlabeled controls after isOperatingAddress; keep them separate from product validation findings until a screenshot/MHTML capture or narrower selector recovers the same field-local target.`);
+    summaryInsertIndex += 1;
+  }
   if (proofRecordedButBlockedConcepts.length > 0) {
     summary.splice(summaryInsertIndex, 0, `${proofRecordedButBlockedConcepts.join(', ')} have operator proof recorded, but the saved safe-mode report still lacks a matching field-local live target; keep them separate from product validation findings.`);
     summaryInsertIndex += 1;
@@ -1283,7 +1298,10 @@ function buildRecommendedToolingWork(
   if (remainingCalibrationBlockers.some((blocker) => blocker.appliedHumanProofStatus === null)) {
     items.push('Keep unresolved calibration blockers out of product findings until screenshots confirm whether the saved-sample controls are visible, editable, omitted, or intentionally hidden in this flow.');
   }
-  if (remainingCalibrationBlockers.some((blocker) => blocker.appliedHumanProofStatus !== null && blocker.appliedHumanProofStatus !== 'confirmed_omitted_or_hidden')) {
+  if (remainingCalibrationBlockers.some((blocker) => blocker.appliedHumanProofStatus !== null && blocker.appliedHumanProofStatus !== 'confirmed_omitted_or_hidden' && hasPhysicalAddressProbeAmbiguity(blocker))) {
+    items.push(`For proof-recorded Physical Operating Address blockers, ${PHYSICAL_ADDRESS_PROBE_CAPTURE_RECOMMENDATION}`);
+  }
+  if (remainingCalibrationBlockers.some((blocker) => blocker.appliedHumanProofStatus !== null && blocker.appliedHumanProofStatus !== 'confirmed_omitted_or_hidden' && !hasPhysicalAddressProbeAmbiguity(blocker))) {
     items.push('Keep proof-confirmed but live-unresolved calibration blockers out of product findings until a safe-mode capture or guarded rerun surfaces the same field-local target.');
   }
   if (remainingCalibrationBlockers.some((blocker) => blocker.appliedHumanProofStatus === 'confirmed_omitted_or_hidden')) {
@@ -1575,9 +1593,17 @@ function renderRemainingCalibrationBlockers(lines: string[], blockers: Remaining
   lines.push('| Concept | Disposition | Current blocker | Exact next step | Decision impact |');
   lines.push('|---|---|---|---|---|');
   for (const blocker of blockers) {
-    lines.push(`| ${esc(blocker.conceptDisplayName)} | ${esc(blockerDisposition(blocker))} | ${esc(blocker.currentBlocker ?? blocker.appliedHumanProofSummary ?? blocker.missingProof[0] ?? 'n/a')} | ${esc(blockerNextStep(blocker))} | ${esc(blockerDecisionImpact(blocker))} |`);
+    lines.push(`| ${esc(blocker.conceptDisplayName)} | ${esc(blockerDisposition(blocker))} | ${esc(blockerCurrentBlocker(blocker))} | ${esc(blockerNextStep(blocker))} | ${esc(blockerDecisionImpact(blocker))} |`);
   }
   lines.push('');
+}
+
+function blockerCurrentBlocker(blocker: RemainingCalibrationBlocker): string {
+  return blocker.missingProof.find((entry) => entry.startsWith(PHYSICAL_ADDRESS_PROBE_GENERIC_CONTROLS_PREFIX))
+    ?? blocker.currentBlocker
+    ?? blocker.appliedHumanProofSummary
+    ?? blocker.missingProof[0]
+    ?? 'n/a';
 }
 
 function blockerDisposition(blocker: RemainingCalibrationBlocker): string {
@@ -1594,6 +1620,9 @@ function blockerNextStep(blocker: RemainingCalibrationBlocker): string {
   if (blocker.appliedHumanProofStatus === 'confirmed_omitted_or_hidden') {
     return 'No additional human proof requested. Keep this concept non-product and do not infer it from other visible country dropdowns.';
   }
+  if (blocker.appliedHumanProofStatus && hasPhysicalAddressProbeAmbiguity(blocker)) {
+    return PHYSICAL_ADDRESS_PROBE_CAPTURE_RECOMMENDATION;
+  }
   if (blocker.appliedHumanProofStatus) {
     return `Need a safe-mode capture or guarded rerun that surfaces ${blocker.conceptDisplayName} as the same field-local target proven by the saved sample.`;
   }
@@ -1608,6 +1637,10 @@ function blockerDecisionImpact(blocker: RemainingCalibrationBlocker): string {
     return 'Keep this concept out of product findings until stronger live mapping evidence agrees with the recorded human proof.';
   }
   return blocker.decisionImpact ?? 'n/a';
+}
+
+function hasPhysicalAddressProbeAmbiguity(blocker: Pick<RemainingCalibrationBlocker, 'missingProof'>): boolean {
+  return blocker.missingProof.some((entry) => entry.startsWith(PHYSICAL_ADDRESS_PROBE_GENERIC_CONTROLS_PREFIX));
 }
 
 function renderAddressReadyForGuardedRerunSection(lines: string[], title: string, findings: FindingItem[]): void {

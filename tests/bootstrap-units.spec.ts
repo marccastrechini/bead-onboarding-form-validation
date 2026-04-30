@@ -74,7 +74,11 @@ import {
   renderValidationFindingsMarkdown,
   writeValidationFindingsArtifacts,
 } from '../scripts/generate-validation-findings';
-import { buildMappingCalibration } from '../scripts/generate-mapping-calibration';
+import {
+  buildMappingCalibration,
+  PHYSICAL_ADDRESS_PROBE_CAPTURE_RECOMMENDATION,
+  PHYSICAL_ADDRESS_PROBE_GENERIC_CONTROLS_PREFIX,
+} from '../scripts/generate-mapping-calibration';
 
 test.describe('bead-client: buildResendUrl', () => {
   test('substitutes {applicationId} and joins base + path', () => {
@@ -5922,12 +5926,196 @@ test.describe('interactive validation safety', () => {
         },
         inferMissingCountryFromOtherDropdowns: false,
       },
+      physicalAddressProbe: {
+        generatedAt: '2026-04-28T00:00:02.000Z',
+        toggleCandidateLabel: 'Required - addressOptions - isOperatingAddress',
+        toggleAction: 'selected',
+        discoveryCounts: {
+          discoveredFieldsBefore: 102,
+          discoveredFieldsAfter: 100,
+          labeledPhysicalAddressFieldsBefore: 0,
+          labeledPhysicalAddressFieldsAfter: 0,
+        },
+        snapshots: [{
+          stage: 'after-toggle',
+          capturedAt: '2026-04-28T00:00:02.000Z',
+          anchorLabel: 'Required - addressOptions - isOperatingAddress',
+          counts: {
+            candidateDocTabs: 1,
+            visibleInputs: 7,
+            visibleControlCandidates: 7,
+            visibleControlsOutsideDocTab: 0,
+            physicalOperatingAddressMentionControls: 0,
+          },
+          nearbyText: [],
+          keywordText: [{
+            text: 'Required - addressOptions - isOperatingAddress',
+            keywords: ['isOperatingAddress'],
+            source: 'nearby',
+            left: 599.44,
+            top: 611.91,
+          }],
+          nearbyControls: [
+            {
+              tagName: 'INPUT',
+              inputType: 'radio',
+              role: 'radio',
+              ariaLabel: null,
+              ariaLabelledBy: null,
+              name: 'addressOptions',
+              dataType: 'Radio',
+              left: 599.44,
+              top: 611.91,
+              width: 18,
+              height: 18,
+              visible: true,
+              editable: true,
+              checked: true,
+              withinDocTab: true,
+              nearestSectionText: 'Required - addressOptions - isOperatingAddress',
+              labelText: 'addressOptions',
+              keywordMatches: [],
+              valueShape: 'checked',
+            },
+            {
+              tagName: 'INPUT',
+              inputType: 'text',
+              role: 'textbox',
+              ariaLabel: null,
+              ariaLabelledBy: null,
+              name: null,
+              dataType: 'Text',
+              left: 233.44,
+              top: 747.31,
+              width: 376,
+              height: 22,
+              visible: true,
+              editable: true,
+              checked: null,
+              withinDocTab: true,
+              nearestSectionText: 'addressOptions',
+              labelText: 'Text',
+              keywordMatches: [],
+              valueShape: 'text_like',
+            },
+            {
+              tagName: 'SELECT',
+              inputType: null,
+              role: 'combobox',
+              ariaLabel: null,
+              ariaLabelledBy: null,
+              name: null,
+              dataType: 'List',
+              left: 609.77,
+              top: 748.59,
+              width: 69,
+              height: 17,
+              visible: true,
+              editable: true,
+              checked: null,
+              withinDocTab: true,
+              nearestSectionText: 'addressOptions',
+              labelText: 'List',
+              keywordMatches: [],
+              valueShape: 'selected',
+            },
+            {
+              tagName: 'INPUT',
+              inputType: 'text',
+              role: 'textbox',
+              ariaLabel: null,
+              ariaLabelledBy: null,
+              name: null,
+              dataType: 'Text',
+              left: 797.28,
+              top: 747.31,
+              width: 188,
+              height: 20,
+              visible: true,
+              editable: true,
+              checked: null,
+              withinDocTab: true,
+              nearestSectionText: 'addressOptions',
+              labelText: 'Text',
+              keywordMatches: [],
+              valueShape: 'blank',
+            },
+            {
+              tagName: 'INPUT',
+              inputType: 'text',
+              role: 'textbox',
+              ariaLabel: null,
+              ariaLabelledBy: null,
+              name: null,
+              dataType: 'Text',
+              left: 233.44,
+              top: 801.08,
+              width: 374,
+              height: 22,
+              visible: true,
+              editable: true,
+              checked: null,
+              withinDocTab: true,
+              nearestSectionText: 'addressOptions',
+              labelText: 'Text',
+              keywordMatches: [],
+              valueShape: 'text_like',
+            },
+            {
+              tagName: 'INPUT',
+              inputType: 'text',
+              role: 'textbox',
+              ariaLabel: null,
+              ariaLabelledBy: null,
+              name: null,
+              dataType: 'Text',
+              left: 609.13,
+              top: 801.08,
+              width: 308.25,
+              height: 22,
+              visible: true,
+              editable: true,
+              checked: null,
+              withinDocTab: true,
+              nearestSectionText: 'addressOptions',
+              labelText: 'Text',
+              keywordMatches: [],
+              valueShape: 'text_like',
+            },
+            {
+              tagName: 'INPUT',
+              inputType: 'text',
+              role: 'textbox',
+              ariaLabel: null,
+              ariaLabelledBy: null,
+              name: null,
+              dataType: 'Text',
+              left: 861.28,
+              top: 801.08,
+              width: 122,
+              height: 22,
+              visible: true,
+              editable: true,
+              checked: null,
+              withinDocTab: true,
+              nearestSectionText: 'addressOptions',
+              labelText: 'Text',
+              keywordMatches: [],
+              valueShape: 'text_like',
+            },
+          ],
+          matchingControls: [],
+        }],
+        observations: [],
+      },
     });
     const mismatchRow = mismatchOnly.rows.find((candidate) => candidate.concept === 'business_mailing_address_line_1');
 
     expect(mismatchRow).toBeTruthy();
     expect(mismatchRow!.decision).not.toMatch(/^trust_/);
+    expect(mismatchRow!.missingProof.some((entry) => entry.includes(PHYSICAL_ADDRESS_PROBE_GENERIC_CONTROLS_PREFIX))).toBe(true);
     expect(mismatchRow!.missingProof).toContain('Operator confirmed Physical Operating Address > Address Line 1 is visible and editable. The saved safe-mode report still does not surface a matching field-local Physical Operating Address target.');
+    expect(mismatchOnly.findings.join(' ')).toContain(PHYSICAL_ADDRESS_PROBE_CAPTURE_RECOMMENDATION);
   });
 
   test('country blockers without sample layout proof ask whether the control exists or is display-only', () => {
@@ -6152,6 +6340,61 @@ test.describe('interactive validation safety', () => {
     expect(markdown).toContain('Flow omission confirmed');
     expect(markdown).toContain('Human proof recorded; live mapping still insufficient');
     expect(markdown).toContain('do not infer it from other visible country dropdowns');
+  });
+
+  test('probe-observed physical operating blockers ask for a post-toggle capture instead of geometry promotion', () => {
+    const input = mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'registered_state',
+          conceptDisplayName: 'Registered Legal Address State',
+          validationId: 'invalid-state-rejected',
+          testName: 'invalid state rejected',
+          status: 'failed',
+          outcome: 'product_failure',
+          targetConfidence: 'trusted',
+          controlKind: 'native-select',
+          optionsDiscoverable: true,
+        }),
+      ],
+    });
+    input.calibration.rows = [
+      {
+        concept: 'registered_state',
+        conceptDisplayName: 'Registered Legal Address State',
+        currentCandidateFieldIndex: 63,
+        selectedCandidate: '#63 Registered Legal Address State',
+        decision: 'trust_current_mapping',
+        calibrationReason: 'none',
+        mappingDecisionReason: 'trusted_by_label',
+      },
+      {
+        concept: 'business_mailing_city',
+        conceptDisplayName: 'Business Mailing Address City',
+        currentCandidateFieldIndex: null,
+        selectedCandidate: null,
+        decision: 'leave_unresolved',
+        calibrationReason: 'none',
+        mappingDecisionReason: 'rejected_section_mismatch',
+        missingProof: [
+          `${PHYSICAL_ADDRESS_PROBE_GENERIC_CONTROLS_PREFIX} (first row: Text / List / Text; next row: Text / Text / Text) and found no direct Physical Operating Address / Address Line 1 / City / State / ZIP keyword matches.`,
+          'Operator confirmed Physical Operating Address > City is visible and editable. The saved safe-mode report still does not surface a matching field-local Physical Operating Address target.',
+        ],
+        appliedHumanProof: {
+          status: 'confirmed_editable',
+          summary: 'Operator confirmed Physical Operating Address > City is visible and editable.',
+        },
+        humanConfirmation: null,
+      },
+    ];
+
+    const report = buildValidationFindingsReport(input);
+    const markdown = renderValidationFindingsMarkdown(report);
+
+    expect(report.executiveSummary.join(' ')).toContain('guarded post-toggle DOM probe still exposed only generic unlabeled controls after isOperatingAddress');
+    expect(report.recommendedNextToolingWork).toContain(`For proof-recorded Physical Operating Address blockers, ${PHYSICAL_ADDRESS_PROBE_CAPTURE_RECOMMENDATION}`);
+    expect(markdown).toContain(PHYSICAL_ADDRESS_PROBE_GENERIC_CONTROLS_PREFIX);
+    expect(markdown).toContain(PHYSICAL_ADDRESS_PROBE_CAPTURE_RECOMMENDATION);
   });
 
   test('controlled-choice calibration diagnostics do not emit sensitive values', () => {
