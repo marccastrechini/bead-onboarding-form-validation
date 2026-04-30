@@ -20,6 +20,7 @@ import {
   type DiscoveredField,
 } from '../fixtures/field-discovery';
 import { maybeExpandPhysicalOperatingAddressSection } from '../fixtures/conditional-discovery';
+import { writePhysicalOperatingAddressDomProbeArtifacts } from '../fixtures/physical-address-dom-probe';
 import { ReportBuilder, type CheckResult, type CheckStatus } from '../fixtures/validation-report';
 import { loadEnrichment } from '../lib/enrichment-loader';
 import type { ValidationCase } from '../fixtures/validation-rules';
@@ -85,6 +86,26 @@ test.describe('Bead Onboarding – Field Discovery Sweep', () => {
       report.noteFragileSelector(diagnostic);
       testInfo.annotations.push({ type: 'diagnostic', description: diagnostic });
     }
+
+    if (expansion.probeReport) {
+      const { jsonPath, mdPath } = writePhysicalOperatingAddressDomProbeArtifacts(expansion.probeReport, ARTIFACTS_DIR);
+      report.noteFragileSelector(
+        `physical-operating-address dom probe artifacts: ${path.basename(jsonPath)}, ${path.basename(mdPath)}`,
+      );
+      testInfo.annotations.push({
+        type: 'diagnostic',
+        description: 'physical-operating-address dom probe artifacts written',
+      });
+      await testInfo.attach('physical-operating-address-dom-probe.json', {
+        path: jsonPath,
+        contentType: 'application/json',
+      });
+      await testInfo.attach('physical-operating-address-dom-probe.md', {
+        path: mdPath,
+        contentType: 'text/markdown',
+      });
+    }
+
     fields = expansion.fields;
     testInfo.annotations.push({
       type: 'diagnostic',

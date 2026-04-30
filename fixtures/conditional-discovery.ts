@@ -1,4 +1,10 @@
 import { discoverFields, type DiscoveredField } from './field-discovery';
+import {
+  buildPhysicalOperatingAddressDomProbeReport,
+  capturePhysicalOperatingAddressDomProbeSnapshot,
+  guardedPhysicalOperatingAddressDomProbeEnabled,
+  type PhysicalOperatingAddressDomProbeReport,
+} from './physical-address-dom-probe';
 import type { FrameHost } from './signer-helpers';
 
 export const SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS_ENV = 'SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS';
@@ -12,6 +18,7 @@ export interface GuardedPhysicalOperatingAddressDiscoveryResult {
   fields: DiscoveredField[];
   diagnostics: string[];
   expanded: boolean;
+  probeReport: PhysicalOperatingAddressDomProbeReport | null;
 }
 
 const ADDRESS_OPTIONS_RE = /\baddressoptions\b/i;
@@ -122,22 +129,27 @@ export async function maybeExpandPhysicalOperatingAddressSection(
 
   if (!guardedPhysicalOperatingAddressDiscoveryEnabled(env)) {
     diagnostics.push('physical-operating-address discovery toggle: disabled');
-    return { fields: initialFields, diagnostics, expanded: false };
+    return { fields: initialFields, diagnostics, expanded: false, probeReport: null };
   }
 
   const toggleField = findPhysicalOperatingAddressToggle(initialFields);
   if (!toggleField) {
     diagnostics.push('physical-operating-address discovery toggle: no unique visible isOperatingAddress radio candidate found');
-    return { fields: initialFields, diagnostics, expanded: false };
+    return { fields: initialFields, diagnostics, expanded: false, probeReport: null };
   }
 
   const toggleLabel = normalizeText(toggleField.resolvedLabel ?? toggleField.label) ?? '(unlabelled radio)';
   const alreadyChecked = await readCheckedState(toggleField);
+  const probeEnabled = guardedPhysicalOperatingAddressDomProbeEnabled(env);
 
   diagnostics.push(`physical-operating-address discovery toggle candidate: ${toggleLabel}`);
   diagnostics.push(
     `physical-operating-address discovery toggle already selected: ${alreadyChecked === true ? 'yes' : alreadyChecked === false ? 'no' : 'unknown'}`,
   );
+
+  const beforeProbeSnapshot = probeEnabled
+    ? await capturePhysicalOperatingAddressDomProbeSnapshot(frame, 'before-toggle')
+    : null;
 
   if (alreadyChecked !== true) {
     await toggleField.locator.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
@@ -148,11 +160,33 @@ export async function maybeExpandPhysicalOperatingAddressSection(
     diagnostics.push('physical-operating-address discovery toggle action: skipped (already selected)');
   }
 
+  const afterProbeSnapshot = probeEnabled
+    ? await capturePhysicalOperatingAddressDomProbeSnapshot(frame, 'after-toggle')
+    : null;
+
   const fields = await discoverFields(frame);
   diagnostics.push(`physical-operating-address discovery fields: before=${initialFields.length}; after=${fields.length}`);
+  const labeledBefore = countPhysicalOperatingAddressFields(initialFields);
+  const labeledAfter = countPhysicalOperatingAddressFields(fields);
   diagnostics.push(
-    `physical-operating-address labeled fields: before=${countPhysicalOperatingAddressFields(initialFields)}; after=${countPhysicalOperatingAddressFields(fields)}`,
+    `physical-operating-address labeled fields: before=${labeledBefore}; after=${labeledAfter}`,
   );
 
-  return { fields, diagnostics, expanded: true };
+  const probeReport = beforeProbeSnapshot && afterProbeSnapshot
+    ? buildPhysicalOperatingAddressDomProbeReport({
+      toggleCandidateLabel: toggleLabel,
+      toggleAction: alreadyChecked === true ? 'already_selected' : 'selected',
+      discoveredFieldsBefore: initialFields.length,
+      discoveredFieldsAfter: fields.length,
+      labeledPhysicalAddressFieldsBefore: labeledBefore,
+      labeledPhysicalAddressFieldsAfter: labeledAfter,
+      snapshots: [beforeProbeSnapshot, afterProbeSnapshot],
+    })
+    : null;
+
+  if (probeReport) {
+    diagnostics.push('physical-operating-address dom probe: captured before/after structural snapshots');
+  }
+
+  return { fields, diagnostics, expanded: true, probeReport };
 }

@@ -13,6 +13,14 @@ import {
   findPhysicalOperatingAddressToggle,
   guardedPhysicalOperatingAddressDiscoveryEnabled,
 } from '../fixtures/conditional-discovery';
+import {
+  buildPhysicalOperatingAddressDomProbeReport,
+  collectPhysicalOperatingAddressProbeTextFragments,
+  guardedPhysicalOperatingAddressDomProbeEnabled,
+  sanitizePhysicalOperatingAddressProbeControl,
+  selectPhysicalOperatingAddressDomProbeAnchor,
+  writePhysicalOperatingAddressDomProbeArtifacts,
+} from '../fixtures/physical-address-dom-probe';
 import { ReportBuilder } from '../fixtures/validation-report';
 import type { FieldRecord, ValidationReport } from '../fixtures/validation-report';
 import { FIELD_CONCEPT_REGISTRY } from '../fixtures/field-concepts';
@@ -4081,6 +4089,176 @@ test.describe('interactive validation safety', () => {
     ] as any);
 
     expect(candidate).toBeNull();
+  });
+
+  test('physical address DOM probe stays opt-in and does not enable guarded discovery by itself', () => {
+    expect(guardedPhysicalOperatingAddressDomProbeEnabled({} as NodeJS.ProcessEnv)).toBe(false);
+    expect(guardedPhysicalOperatingAddressDomProbeEnabled({
+      SAFE_DISCOVERY_PROBE_PHYSICAL_ADDRESS: '1',
+    } as NodeJS.ProcessEnv)).toBe(true);
+    expect(guardedPhysicalOperatingAddressDiscoveryEnabled({
+      SAFE_DISCOVERY_PROBE_PHYSICAL_ADDRESS: '1',
+    } as NodeJS.ProcessEnv)).toBe(false);
+  });
+
+  test('physical address DOM probe redacts raw values into shapes', () => {
+    const sanitized = sanitizePhysicalOperatingAddressProbeControl({
+      tagName: 'INPUT',
+      inputType: 'text',
+      role: 'textbox',
+      ariaLabel: 'Physical Operating Address ZIP',
+      ariaLabelledBy: 'zip-field-label',
+      name: 'physicalAddressZip',
+      dataType: 'Text',
+      left: 567.04,
+      top: 657.92,
+      width: 160,
+      height: 24,
+      visible: true,
+      editable: true,
+      checked: null,
+      withinDocTab: true,
+      nearestSectionText: 'Physical Operating Address',
+      labelText: 'ZIP',
+      currentValue: '28202',
+    });
+
+    expect(sanitized.valueShape).toBe('postal_like');
+    expect((sanitized as Record<string, unknown>).currentValue).toBeUndefined();
+  });
+
+  test('physical address DOM probe identifies address text fragments', () => {
+    const fragments = collectPhysicalOperatingAddressProbeTextFragments([
+      {
+        text: 'addressOptions › Required - addressOptions - isOperatingAddress',
+        source: 'nearby',
+        left: 403.2,
+        top: 577.92,
+      },
+      {
+        text: 'Physical Operating Address',
+        source: 'frame',
+        left: 35.2,
+        top: 627.2,
+      },
+      {
+        text: 'completely unrelated text',
+        source: 'frame',
+      },
+    ]);
+
+    expect(fragments).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        text: 'addressOptions › Required - addressOptions - isOperatingAddress',
+        keywords: expect.arrayContaining(['addressOptions', 'isOperatingAddress']),
+      }),
+      expect.objectContaining({
+        text: 'Physical Operating Address',
+        keywords: expect.arrayContaining(['Physical Operating Address']),
+      }),
+    ]));
+    expect(fragments).toHaveLength(2);
+  });
+
+  test('physical address DOM probe keeps section text separate from direct control keyword matches', () => {
+    const sanitized = sanitizePhysicalOperatingAddressProbeControl({
+      tagName: 'INPUT',
+      inputType: 'text',
+      role: 'textbox',
+      ariaLabel: null,
+      ariaLabelledBy: null,
+      name: null,
+      dataType: 'Text',
+      left: 797.28,
+      top: 895.47,
+      width: 164,
+      height: 22,
+      visible: true,
+      editable: true,
+      checked: null,
+      withinDocTab: false,
+      nearestSectionText: 'addressOptions Required - addressOptions - isLegalAddress Required - addressOptions - isOperatingAddress Required - addressOptions - isVirtualAddress',
+      labelText: 'Text',
+      currentValue: '',
+    });
+
+    expect(sanitized.keywordMatches).toEqual([]);
+    expect(sanitized.nearestSectionText).toContain('isOperatingAddress');
+  });
+
+  test('physical address DOM probe falls back to visible isOperatingAddress text when radios are unlabeled', () => {
+    const anchor = selectPhysicalOperatingAddressDomProbeAnchor([], [
+      {
+        text: 'Required - addressOptions - isOperatingAddress',
+        keywords: ['isOperatingAddress', 'addressOptions'],
+        source: 'frame',
+        left: 407.44,
+        top: 650.91,
+      },
+    ]);
+
+    expect(anchor).toEqual({
+      label: 'Required - addressOptions - isOperatingAddress',
+      left: 407.44,
+      top: 650.91,
+    });
+  });
+
+  test('physical address DOM probe output is artifact-only', () => {
+    const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bead-physical-address-probe-'));
+    const report = buildPhysicalOperatingAddressDomProbeReport({
+      toggleCandidateLabel: 'addressOptions › Required - addressOptions - isOperatingAddress',
+      toggleAction: 'selected',
+      discoveredFieldsBefore: 100,
+      discoveredFieldsAfter: 98,
+      labeledPhysicalAddressFieldsBefore: 0,
+      labeledPhysicalAddressFieldsAfter: 0,
+      snapshots: [
+        {
+          stage: 'before-toggle',
+          capturedAt: '2026-04-30T14:00:00.000Z',
+          anchorLabel: 'addressOptions › Required - addressOptions - isOperatingAddress',
+          counts: {
+            candidateDocTabs: 100,
+            visibleInputs: 84,
+            visibleControlCandidates: 98,
+            visibleControlsOutsideDocTab: 0,
+            physicalOperatingAddressMentionControls: 0,
+          },
+          nearbyText: [],
+          keywordText: [],
+          nearbyControls: [],
+          matchingControls: [],
+        },
+        {
+          stage: 'after-toggle',
+          capturedAt: '2026-04-30T14:00:01.000Z',
+          anchorLabel: 'addressOptions › Required - addressOptions - isOperatingAddress',
+          counts: {
+            candidateDocTabs: 98,
+            visibleInputs: 82,
+            visibleControlCandidates: 96,
+            visibleControlsOutsideDocTab: 0,
+            physicalOperatingAddressMentionControls: 0,
+          },
+          nearbyText: [],
+          keywordText: [],
+          nearbyControls: [],
+          matchingControls: [],
+        },
+      ],
+    });
+    const original = JSON.parse(JSON.stringify(report));
+
+    const { jsonPath, mdPath } = writePhysicalOperatingAddressDomProbeArtifacts(report, outDir);
+
+    expect(path.basename(jsonPath)).toBe('latest-physical-operating-address-dom-probe.json');
+    expect(path.basename(mdPath)).toBe('latest-physical-operating-address-dom-probe.md');
+    expect(fs.readdirSync(outDir).sort()).toEqual([
+      'latest-physical-operating-address-dom-probe.json',
+      'latest-physical-operating-address-dom-probe.md',
+    ]);
+    expect(report).toEqual(original);
   });
 
   test('legal_entity_type matrix is generated only for trusted mappings', () => {
