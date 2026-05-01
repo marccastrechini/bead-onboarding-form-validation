@@ -2460,6 +2460,25 @@ test.describe('validation findings export', () => {
       .toContain('not a product validation finding');
   });
 
+  test('Bank Name trusted execution does not keep the blocked-only note', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'bank_name',
+          conceptDisplayName: 'Bank Name',
+          validationId: 'normal-value-accepted',
+          testName: 'normal value accepted',
+          status: 'passed',
+          outcome: 'passed',
+          targetConfidence: 'trusted',
+        }),
+      ],
+    }));
+
+    expect(report.perConceptResults.find((concept) => concept.concept === 'bank_name')!.notes.join(' '))
+      .not.toContain('did not mutate Bank Name');
+  });
+
   test('findings report can generate from a small mock artifact set', () => {
     const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bead-findings-'));
     try {

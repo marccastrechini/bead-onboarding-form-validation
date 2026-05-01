@@ -1408,7 +1408,7 @@ function conceptNotes(
   if (concept === 'dba_name' && findings.some((finding) => /empty-required/i.test(finding.validationId) && finding.outcome === 'passed')) {
     notes.push('Blank DBA Name is treated as acceptable when the merchant has no separate trade name.');
   }
-  if (concept === 'bank_name') {
+  if (concept === 'bank_name' && !hasTrustedExecutedFinding) {
     notes.push('The tool did not mutate Bank Name because the resolved live target did not have safe bank-name-shaped evidence and no unclaimed neighboring candidate was safe enough.');
     notes.push('This is not a product validation finding yet.');
   }
