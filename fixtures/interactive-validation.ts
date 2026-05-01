@@ -67,6 +67,9 @@ const INTERACTIVE_TARGET_ALIASES: Record<string, InteractiveTargetConcept> = {
   account_type: 'bank_account_type',
   location_business_type: 'business_type',
   registered_postal_code: 'postal_code',
+  legal_name: 'business_name',
+  registered_name: 'business_name',
+  description_of_services: 'business_description',
   gross_annual_revenue: 'annual_revenue',
   average_ticket_size: 'average_ticket',
   maximum_ticket_size: 'max_ticket',
@@ -508,6 +511,51 @@ const TEXT_FIELD_MATRIX: MatrixCaseDefinition[] = [
     testName: 'very short value behavior observed',
     inputValue: 'A',
     expectedBehavior: 'reject_or_manual_review',
+  },
+  {
+    validationId: 'excessive-length-behavior',
+    caseName: 'excessive-length',
+    testName: 'excessive length behavior observed',
+    inputValue: LONG_NAME,
+    expectedBehavior: 'observe',
+  },
+  {
+    validationId: 'special-characters-behavior',
+    caseName: 'suspicious-garbage',
+    testName: 'special characters behavior observed',
+    inputValue: '!@#$%^&*()',
+    expectedBehavior: 'observe',
+  },
+  {
+    validationId: 'empty-required-behavior',
+    caseName: 'empty-required',
+    testName: 'empty required behavior observed',
+    inputValue: '',
+    expectedBehavior: 'reject_or_manual_review',
+  },
+];
+
+const BANK_NAME_FIELD_MATRIX: MatrixCaseDefinition[] = [
+  {
+    validationId: 'normal-value-accepted',
+    caseName: 'normal-value',
+    testName: 'normal value accepted',
+    inputValue: 'Bank of Example',
+    expectedBehavior: 'accept',
+  },
+  {
+    validationId: 'very-short-behavior',
+    caseName: 'single-char',
+    testName: 'very short value behavior observed',
+    inputValue: 'A',
+    expectedBehavior: 'reject_or_manual_review',
+  },
+  {
+    validationId: 'numeric-only-behavior',
+    caseName: 'numeric-only',
+    testName: 'numeric-only behavior observed',
+    inputValue: '123456789',
+    expectedBehavior: 'observe',
   },
   {
     validationId: 'excessive-length-behavior',
@@ -1253,11 +1301,7 @@ const MATRIX_BY_CONCEPT: Record<InteractiveTargetConcept, MatrixCaseDefinition[]
       expectedBehavior: 'reject_or_manual_review',
     },
   ],
-  bank_name: TEXT_FIELD_MATRIX.map((entry) =>
-    entry.validationId === 'normal-value-accepted'
-      ? { ...entry, inputValue: 'Bank of Example' }
-      : entry,
-  ),
+  bank_name: BANK_NAME_FIELD_MATRIX,
   bank_address_line_1: ADDRESS_FIELD_MATRIX,
   bank_city: CITY_FIELD_MATRIX,
   bank_state: STATE_FIELD_MATRIX,

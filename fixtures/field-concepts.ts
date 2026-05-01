@@ -110,6 +110,12 @@ const TEXT_LENGTH_AND_CONTENT = [
   EMPTY_REQUIRED,
 ];
 
+const BANK_NAME_MATRIX = [
+  ...TEXT_LENGTH_AND_CONTENT.slice(0, 2),
+  v('numeric-only-behavior', 'Numeric-only behavior', 'A numeric-only value is rejected, flagged, or explicitly documented for reviewer follow-up.', 'medium', ['numeric-only'], 'Helps distinguish bank-name fields from routing numbers, account numbers, and nearby controlled banking selectors.'),
+  ...TEXT_LENGTH_AND_CONTENT.slice(2),
+];
+
 const FREE_TEXT_MATRIX = [
   v('normal-text-accepted', 'Normal text accepted', 'A realistic free-text value is accepted.', 'critical', ['valid-typical', 'normal-value'], 'Confirms that legitimate descriptive text can be entered.'),
   v('very-short-behavior', 'Very short value behavior', 'A suspiciously short free-text value is rejected, flagged, or explicitly allowed.', 'medium', ['single-char', 'too-short'], 'Short descriptions often indicate incomplete onboarding data.'),
@@ -320,7 +326,7 @@ export const FIELD_CONCEPTS: FieldConceptDefinition[] = [
     displayName: 'Business Description',
     businessSection: 'Business Details',
     fieldTypes: ['business_description'],
-    labelPatterns: [/business\s*description/i, /nature\s*of\s*business/i, /describe\s*(your|the)\s*business/i],
+    labelPatterns: [/business\s*description/i, /nature\s*of\s*business/i, /describe\s*(your|the)\s*business/i, /description\s*of\s*services?/i],
     jsonKeyPatterns: [/merchantData\.businessDescription$/i],
     bestPracticeValidations: FREE_TEXT_MATRIX,
     missingValidationSeverity: 'medium',
@@ -812,12 +818,12 @@ export const FIELD_CONCEPTS: FieldConceptDefinition[] = [
     fieldTypes: ['bank_name'],
     labelPatterns: [/bank\s*name/i, /financial\s*institution/i, /name\s*of\s*bank/i],
     jsonKeyPatterns: [/merchantData\.bankName$/i],
-    bestPracticeValidations: TEXT_LENGTH_AND_CONTENT,
+    bestPracticeValidations: BANK_NAME_MATRIX,
     missingValidationSeverity: 'high',
     weakValidationSeverity: 'medium',
     validExamples: ['Bank of Example'],
-    invalidExamples: ['', '!@#$%^&*()'],
-    notes: 'Bank name supports payout setup review and should reject obvious garbage.',
+    invalidExamples: ['', '!@#$%^&*()', '123456789'],
+    notes: 'Bank name supports payout setup review and should reject obvious garbage without being confused with routing numbers, account numbers, account type, or deposit-method controls.',
   },
   {
     key: 'routing_number',

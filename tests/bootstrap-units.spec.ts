@@ -2153,6 +2153,28 @@ test.describe('validation findings export', () => {
     expect(report.likelyProductValidationFindings.map((finding) => finding.concept)).toEqual(['ownership_percentage']);
   });
 
+  test('bank name numeric-only behavior stays separate from product findings', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'bank_name',
+          conceptDisplayName: 'Bank Name',
+          validationId: 'numeric-only-behavior',
+          testName: 'numeric-only behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          inputValue: '123456789',
+          observedValue: '123456789',
+        }),
+      ],
+    }));
+
+    expect(report.likelyProductValidationFindings).toEqual([]);
+    expect(report.ambiguousHumanReviewFindings).toHaveLength(1);
+    expect(report.ambiguousHumanReviewFindings[0].ambiguity?.type).toBe('observer_needs_stronger_text_evidence');
+  });
+
   test('findings report includes human-guidance prompt when policy is required', () => {
     const report = buildValidationFindingsReport(mockFindingsInput({
       results: [
@@ -3371,6 +3393,53 @@ test.describe('interactive validation safety', () => {
     expect(result.selectedCandidateId).toBe('29');
   });
 
+  test('Bank Name does not confuse a nearby deposit-method dropdown with the bank-name text field', () => {
+    const result = selectBestMappingCandidate({
+      concept: 'bank_name',
+      currentCandidateId: '65',
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.bankName',
+        businessSection: 'Banking',
+        pageIndex: 1,
+        ordinalOnPage: 58,
+        tabLeft: 35.2,
+        tabTop: 874.88,
+        docusignFieldFamily: 'Text',
+      },
+      candidates: [
+        {
+          id: '65',
+          resolvedLabel: null,
+          labelSource: 'none',
+          labelConfidence: 'none',
+          businessSection: 'Banking',
+          docusignTabType: 'List',
+          pageIndex: 1,
+          ordinalOnPage: 56,
+          tabLeft: 411.52,
+          tabTop: 713.6,
+          currentValue: 'manual',
+        },
+        {
+          id: '29',
+          resolvedLabel: null,
+          labelSource: 'none',
+          labelConfidence: 'none',
+          businessSection: 'Banking',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 61,
+          tabLeft: 35.2,
+          tabTop: 874.88,
+          currentValue: 'Bank of Example',
+        },
+      ],
+    });
+
+    expect(result.trusted).toBe(true);
+    expect(result.selectedCandidateId).toBe('29');
+  });
+
   test('Bank Name rejects URL, email, phone, date, and numeric-shaped current targets', () => {
     const conflictingValues = [
       'https://example.test',
@@ -3698,6 +3767,17 @@ test.describe('interactive validation safety', () => {
     ]);
   });
 
+  test('descriptive concept aliases are recognized by INTERACTIVE_CONCEPTS aliases', () => {
+    expect(resolveInteractiveTargetConcepts({
+      INTERACTIVE_CONCEPTS: 'legal_name,registered_name,dba_name,description_of_services,bank_name',
+    } as NodeJS.ProcessEnv)).toEqual([
+      'business_name',
+      'dba_name',
+      'business_description',
+      'bank_name',
+    ]);
+  });
+
   test('address batch concepts are recognized by INTERACTIVE_CONCEPTS', () => {
     const addressBatch = [
       'location_name',
@@ -3846,6 +3926,31 @@ test.describe('interactive validation safety', () => {
       'very-short-behavior',
       'excessive-length-behavior',
       'garbage-text-rejected-or-flagged',
+      'empty-required-behavior',
+    ]);
+  });
+
+  test('bank name builds the expected interactive matrix', () => {
+    const plan = buildInteractiveValidationPlan(mockValidationReport([
+      mockField({
+        index: 1,
+        resolvedLabel: 'Bank Name',
+        label: 'Bank Name',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'bank_name',
+      }),
+    ]), {
+      INTERACTIVE_CONCEPTS: 'bank_name',
+    } as NodeJS.ProcessEnv);
+
+    expect(plan.skippedConcepts).toEqual([]);
+    expect(plan.cases.map((entry) => entry.validationId)).toEqual([
+      'normal-value-accepted',
+      'very-short-behavior',
+      'numeric-only-behavior',
+      'excessive-length-behavior',
+      'special-characters-behavior',
       'empty-required-behavior',
     ]);
   });
