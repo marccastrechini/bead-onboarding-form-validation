@@ -21,6 +21,11 @@ import {
   selectPhysicalOperatingAddressDomProbeAnchor,
   writePhysicalOperatingAddressDomProbeArtifacts,
 } from '../fixtures/physical-address-dom-probe';
+import {
+  guardedPhysicalOperatingAddressPostToggleCaptureEnabled,
+  sanitizePhysicalOperatingAddressPostToggleCaptureText,
+  writePhysicalOperatingAddressPostToggleArtifacts,
+} from '../fixtures/physical-address-post-toggle-capture';
 import { ReportBuilder } from '../fixtures/validation-report';
 import type { FieldRecord, ValidationReport } from '../fixtures/validation-report';
 import { FIELD_CONCEPT_REGISTRY } from '../fixtures/field-concepts';
@@ -4105,6 +4110,27 @@ test.describe('interactive validation safety', () => {
     } as NodeJS.ProcessEnv)).toBe(false);
   });
 
+  test('physical address post-toggle capture stays opt-in and does not enable probe or guarded discovery by itself', () => {
+    expect(guardedPhysicalOperatingAddressPostToggleCaptureEnabled({} as NodeJS.ProcessEnv)).toBe(false);
+    expect(guardedPhysicalOperatingAddressPostToggleCaptureEnabled({
+      SAFE_DISCOVERY_CAPTURE_PHYSICAL_ADDRESS: '1',
+    } as NodeJS.ProcessEnv)).toBe(true);
+    expect(guardedPhysicalOperatingAddressDomProbeEnabled({
+      SAFE_DISCOVERY_CAPTURE_PHYSICAL_ADDRESS: '1',
+    } as NodeJS.ProcessEnv)).toBe(false);
+    expect(guardedPhysicalOperatingAddressDiscoveryEnabled({
+      SAFE_DISCOVERY_CAPTURE_PHYSICAL_ADDRESS: '1',
+    } as NodeJS.ProcessEnv)).toBe(false);
+  });
+
+  test('physical address post-toggle capture redacts raw values but preserves field-local labels', () => {
+    expect(sanitizePhysicalOperatingAddressPostToggleCaptureText('hello@example.com')).toBe('[redacted:email]');
+    expect(sanitizePhysicalOperatingAddressPostToggleCaptureText('https://example.test')).toBe('[redacted:url]');
+    expect(sanitizePhysicalOperatingAddressPostToggleCaptureText('+15154407899')).toBe('[redacted:phone]');
+    expect(sanitizePhysicalOperatingAddressPostToggleCaptureText('Address Line 1')).toBe('Address Line 1');
+    expect(sanitizePhysicalOperatingAddressPostToggleCaptureText('Business Email')).toBe('Business Email');
+  });
+
   test('physical address DOM probe redacts raw values into shapes', () => {
     const sanitized = sanitizePhysicalOperatingAddressProbeControl({
       tagName: 'INPUT',
@@ -4262,6 +4288,99 @@ test.describe('interactive validation safety', () => {
       'latest-physical-operating-address-dom-probe.json',
       'latest-physical-operating-address-dom-probe.md',
     ]);
+    expect(report).toEqual(original);
+  });
+
+  test('physical address post-toggle capture output is artifact-only', async ({ page }) => {
+    const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bead-physical-address-capture-'));
+    const report = {
+      generatedAt: '2026-04-30T14:05:00.000Z',
+      anchorLabel: 'Required - addressOptions - isOperatingAddress',
+      anchorLeft: 407.44,
+      anchorTop: 611.91,
+      captureBounds: {
+        left: 180,
+        top: 700,
+        width: 860,
+        height: 220,
+      },
+      textNodes: [
+        {
+          tagName: 'DIV',
+          domPath: 'body:nth-of-type(1) > div:nth-of-type(4)',
+          className: 'field-label',
+          text: 'Address Line 1',
+          keywords: ['Address Line 1'],
+          textShape: 'text_like',
+          redacted: false,
+          left: 233.44,
+          top: 728.11,
+          width: 108,
+          height: 18,
+        },
+        {
+          tagName: 'DIV',
+          domPath: 'body:nth-of-type(1) > div:nth-of-type(8)',
+          className: 'value-like',
+          text: '[redacted:email]',
+          keywords: [],
+          textShape: 'email',
+          redacted: true,
+          left: 410.88,
+          top: 801.08,
+          width: 140,
+          height: 18,
+        },
+      ],
+      controls: [
+        {
+          tagName: 'INPUT',
+          inputType: 'text',
+          role: 'textbox',
+          ariaLabel: null,
+          ariaLabelledBy: 'physical-address-line-1',
+          ariaLabelledByText: 'Address Line 1',
+          name: null,
+          dataType: 'Text',
+          dataTabType: 'Text',
+          elementId: 'tab-form-element-00000000-0000-4000-8000-000000000001',
+          className: 'doc-tab',
+          domPath: 'body:nth-of-type(1) > div:nth-of-type(4) > input:nth-of-type(1)',
+          parentPath: 'body:nth-of-type(1) > div:nth-of-type(4)',
+          left: 233.44,
+          top: 747.31,
+          width: 376,
+          height: 22,
+          visible: true,
+          editable: true,
+          checked: null,
+          withinDocTab: true,
+          nearestSectionText: 'Physical Operating Address',
+          labelText: 'Text',
+          keywordMatches: [],
+          valueShape: 'text_like',
+        },
+      ],
+      observations: ['Potential value-like text was redacted inside the post-toggle capture preview.'],
+    };
+    const original = JSON.parse(JSON.stringify(report));
+
+    const { screenshotPath, htmlPath, jsonPath, mdPath } = await writePhysicalOperatingAddressPostToggleArtifacts(page, report, outDir);
+
+    expect(path.basename(screenshotPath)).toBe('latest-physical-operating-address-post-toggle-screenshot.png');
+    expect(path.basename(htmlPath)).toBe('latest-physical-operating-address-post-toggle-dom.html');
+    expect(path.basename(jsonPath)).toBe('latest-physical-operating-address-post-toggle-structure.json');
+    expect(path.basename(mdPath)).toBe('latest-physical-operating-address-post-toggle-structure.md');
+    expect(fs.readdirSync(outDir).sort()).toEqual([
+      'latest-physical-operating-address-post-toggle-dom.html',
+      'latest-physical-operating-address-post-toggle-screenshot.png',
+      'latest-physical-operating-address-post-toggle-structure.json',
+      'latest-physical-operating-address-post-toggle-structure.md',
+    ]);
+    expect(fs.readFileSync(htmlPath, 'utf8')).toContain('[redacted:email]');
+    expect(fs.readFileSync(htmlPath, 'utf8')).not.toContain('hello@example.com');
+    expect(fs.readFileSync(jsonPath, 'utf8')).toContain('[redacted:email]');
+    expect(fs.statSync(screenshotPath).size).toBeGreaterThan(0);
     expect(report).toEqual(original);
   });
 

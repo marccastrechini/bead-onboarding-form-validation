@@ -5,6 +5,11 @@ import {
   guardedPhysicalOperatingAddressDomProbeEnabled,
   type PhysicalOperatingAddressDomProbeReport,
 } from './physical-address-dom-probe';
+import {
+  capturePhysicalOperatingAddressPostToggleStructure,
+  guardedPhysicalOperatingAddressPostToggleCaptureEnabled,
+  type PhysicalOperatingAddressPostToggleCaptureReport,
+} from './physical-address-post-toggle-capture';
 import type { FrameHost } from './signer-helpers';
 
 export const SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS_ENV = 'SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS';
@@ -19,6 +24,7 @@ export interface GuardedPhysicalOperatingAddressDiscoveryResult {
   diagnostics: string[];
   expanded: boolean;
   probeReport: PhysicalOperatingAddressDomProbeReport | null;
+  captureReport: PhysicalOperatingAddressPostToggleCaptureReport | null;
 }
 
 const ADDRESS_OPTIONS_RE = /\baddressoptions\b/i;
@@ -129,18 +135,19 @@ export async function maybeExpandPhysicalOperatingAddressSection(
 
   if (!guardedPhysicalOperatingAddressDiscoveryEnabled(env)) {
     diagnostics.push('physical-operating-address discovery toggle: disabled');
-    return { fields: initialFields, diagnostics, expanded: false, probeReport: null };
+    return { fields: initialFields, diagnostics, expanded: false, probeReport: null, captureReport: null };
   }
 
   const toggleField = findPhysicalOperatingAddressToggle(initialFields);
   if (!toggleField) {
     diagnostics.push('physical-operating-address discovery toggle: no unique visible isOperatingAddress radio candidate found');
-    return { fields: initialFields, diagnostics, expanded: false, probeReport: null };
+    return { fields: initialFields, diagnostics, expanded: false, probeReport: null, captureReport: null };
   }
 
   const toggleLabel = normalizeText(toggleField.resolvedLabel ?? toggleField.label) ?? '(unlabelled radio)';
   const alreadyChecked = await readCheckedState(toggleField);
   const probeEnabled = guardedPhysicalOperatingAddressDomProbeEnabled(env);
+  const captureEnabled = guardedPhysicalOperatingAddressPostToggleCaptureEnabled(env);
 
   diagnostics.push(`physical-operating-address discovery toggle candidate: ${toggleLabel}`);
   diagnostics.push(
@@ -162,6 +169,10 @@ export async function maybeExpandPhysicalOperatingAddressSection(
 
   const afterProbeSnapshot = probeEnabled
     ? await capturePhysicalOperatingAddressDomProbeSnapshot(frame, 'after-toggle')
+    : null;
+
+  const captureReport = captureEnabled
+    ? await capturePhysicalOperatingAddressPostToggleStructure(frame)
     : null;
 
   const fields = await discoverFields(frame);
@@ -188,5 +199,9 @@ export async function maybeExpandPhysicalOperatingAddressSection(
     diagnostics.push('physical-operating-address dom probe: captured before/after structural snapshots');
   }
 
-  return { fields, diagnostics, expanded: true, probeReport };
+  if (captureReport) {
+    diagnostics.push('physical-operating-address post-toggle capture: captured sanitized structural review payload');
+  }
+
+  return { fields, diagnostics, expanded: true, probeReport, captureReport };
 }

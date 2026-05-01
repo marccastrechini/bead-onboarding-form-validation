@@ -21,6 +21,7 @@ import {
 } from '../fixtures/field-discovery';
 import { maybeExpandPhysicalOperatingAddressSection } from '../fixtures/conditional-discovery';
 import { writePhysicalOperatingAddressDomProbeArtifacts } from '../fixtures/physical-address-dom-probe';
+import { writePhysicalOperatingAddressPostToggleArtifacts } from '../fixtures/physical-address-post-toggle-capture';
 import { ReportBuilder, type CheckResult, type CheckStatus } from '../fixtures/validation-report';
 import { loadEnrichment } from '../lib/enrichment-loader';
 import type { ValidationCase } from '../fixtures/validation-rules';
@@ -101,6 +102,37 @@ test.describe('Bead Onboarding – Field Discovery Sweep', () => {
         contentType: 'application/json',
       });
       await testInfo.attach('physical-operating-address-dom-probe.md', {
+        path: mdPath,
+        contentType: 'text/markdown',
+      });
+    }
+
+    if (expansion.captureReport) {
+      const { screenshotPath, htmlPath, jsonPath, mdPath } = await writePhysicalOperatingAddressPostToggleArtifacts(
+        page,
+        expansion.captureReport,
+        ARTIFACTS_DIR,
+      );
+      report.noteFragileSelector(
+        `physical-operating-address post-toggle capture artifacts: ${path.basename(screenshotPath)}, ${path.basename(htmlPath)}, ${path.basename(jsonPath)}, ${path.basename(mdPath)}`,
+      );
+      testInfo.annotations.push({
+        type: 'diagnostic',
+        description: 'physical-operating-address post-toggle capture artifacts written',
+      });
+      await testInfo.attach('physical-operating-address-post-toggle-screenshot.png', {
+        path: screenshotPath,
+        contentType: 'image/png',
+      });
+      await testInfo.attach('physical-operating-address-post-toggle-dom.html', {
+        path: htmlPath,
+        contentType: 'text/html',
+      });
+      await testInfo.attach('physical-operating-address-post-toggle-structure.json', {
+        path: jsonPath,
+        contentType: 'application/json',
+      });
+      await testInfo.attach('physical-operating-address-post-toggle-structure.md', {
         path: mdPath,
         contentType: 'text/markdown',
       });
