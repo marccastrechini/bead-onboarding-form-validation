@@ -4,8 +4,6 @@ import type { Page } from '@playwright/test';
 import type { FrameHost } from './signer-helpers';
 import {
   keywordsForPhysicalOperatingAddressProbeText,
-  physicalOperatingAddressProbeValueShape,
-  selectPhysicalOperatingAddressDomProbeAnchor,
   type PhysicalOperatingAddressDomProbeControl,
   type PhysicalOperatingAddressDomProbeTextFragment,
   type PhysicalOperatingAddressProbeValueShape,
@@ -114,6 +112,62 @@ export async function capturePhysicalOperatingAddressPostToggleStructure(
       if (/^[A-Z]{2}$/i.test(normalized)) return 'state_like';
       if (/^\d+(?:\.\d+)?$/.test(normalized)) return 'numeric';
       return 'text_like';
+    };
+
+    const controlValueShape = (
+      value: string | null | undefined,
+      options?: {
+        tagName?: string | null;
+        inputType?: string | null;
+        checked?: boolean | null;
+      },
+    ): PhysicalOperatingAddressProbeValueShape => {
+      const tagName = (options?.tagName ?? '').toUpperCase();
+      const inputType = (options?.inputType ?? '').toLowerCase();
+
+      if (inputType === 'radio' || inputType === 'checkbox') {
+        return options?.checked ? 'checked' : 'unchecked';
+      }
+
+      const normalized = normalize(value);
+      if (!normalized) return 'blank';
+      if (tagName === 'SELECT') return 'selected';
+      if (/^\d{5}(?:-\d{4})?$/.test(normalized)) return 'postal_like';
+      if (/^[A-Z]{2}$/i.test(normalized)) return 'state_like';
+      if (/^\d+(?:\.\d+)?$/.test(normalized)) return 'numeric';
+
+      return 'text_like';
+    };
+
+    const selectAnchor = (
+      controls: PhysicalOperatingAddressDomProbeControl[],
+      keywordText: PhysicalOperatingAddressDomProbeTextFragment[],
+    ): { label: string | null; left: number | null; top: number | null } => {
+      const controlAnchor = controls.find((control) =>
+        control.inputType === 'radio' && control.keywordMatches.includes('isOperatingAddress')
+      );
+      if (controlAnchor) {
+        return {
+          label: controlAnchor.labelText ?? controlAnchor.name ?? null,
+          left: controlAnchor.left,
+          top: controlAnchor.top,
+        };
+      }
+
+      const textAnchor = keywordText.find((entry) => entry.keywords.includes('isOperatingAddress'));
+      if (textAnchor) {
+        return {
+          label: textAnchor.text,
+          left: textAnchor.left,
+          top: textAnchor.top,
+        };
+      }
+
+      return {
+        label: null,
+        left: null,
+        top: null,
+      };
     };
 
     const sanitizeText = (value: string | null | undefined): string | null => {
@@ -293,7 +347,7 @@ export async function capturePhysicalOperatingAddressPostToggleStructure(
           nearestSectionText: nearestSectionText(element),
           labelText,
           keywordMatches,
-          valueShape: physicalOperatingAddressProbeValueShape(currentValue, {
+          valueShape: controlValueShape(currentValue, {
             tagName: element.tagName,
             inputType: element instanceof HTMLInputElement ? element.type : null,
             checked: element instanceof HTMLInputElement ? element.checked : null,
@@ -339,7 +393,7 @@ export async function capturePhysicalOperatingAddressPostToggleStructure(
         top: entry.top,
       }));
 
-    const anchor = selectPhysicalOperatingAddressDomProbeAnchor(controls, keywordText);
+    const anchor = selectAnchor(controls, keywordText);
 
     const defaultBounds = {
       left: round((anchor.left ?? 0) - 260) ?? 0,

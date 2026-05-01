@@ -7,6 +7,7 @@ import {
 import type { InteractiveTargetDiagnosticsFile } from '../fixtures/interactive-validation';
 import type { FieldRecord, ValidationReport } from '../fixtures/validation-report';
 import type { PhysicalOperatingAddressDomProbeControl, PhysicalOperatingAddressDomProbeReport } from '../fixtures/physical-address-dom-probe';
+import type { PhysicalOperatingAddressPostToggleCaptureReport } from '../fixtures/physical-address-post-toggle-capture';
 import type { EnrichmentBundle, EnrichmentRecord } from '../lib/enrichment-loader';
 import {
   detectValueShape,
@@ -171,10 +172,12 @@ interface ConceptCalibrationContext {
   humanProof: AppliedHumanProof | null;
   inferMissingCountryFromOtherDropdowns: boolean;
   physicalAddressProbeMissingProof: string[];
+  physicalAddressPostToggleCaptureMissingProof: string[];
 }
 
 const artifactsDir = path.resolve(__dirname, '..', 'artifacts');
 const PHYSICAL_ADDRESS_PROBE_FILE_NAME = 'latest-physical-operating-address-dom-probe.json';
+const PHYSICAL_ADDRESS_POST_TOGGLE_CAPTURE_FILE_NAME = 'latest-physical-operating-address-post-toggle-structure.json';
 const CONTROLLED_CHOICE_CONCEPTS = new Set<FieldConceptKey>([
   'legal_entity_type',
   'business_type',
@@ -200,6 +203,8 @@ const PHYSICAL_ADDRESS_PROBE_TARGET_KEYWORDS = new Set([
 
 export const PHYSICAL_ADDRESS_PROBE_GENERIC_CONTROLS_PREFIX = 'Guarded post-toggle DOM probe exposed only generic unlabeled controls immediately below addressOptions';
 export const PHYSICAL_ADDRESS_PROBE_CAPTURE_RECOMMENDATION = 'Capture a screenshot or MHTML immediately after selecting isOperatingAddress, or add a narrower post-toggle DOM selector that resolves the field-local labels before trusting geometry.';
+export const PHYSICAL_ADDRESS_POST_TOGGLE_CAPTURE_PREFIX = 'Guarded post-toggle structure capture ran after isOperatingAddress, but it still did not recover field-local Physical Operating Address labels';
+export const PHYSICAL_ADDRESS_POST_TOGGLE_CAPTURE_REFINEMENT_RECOMMENDATION = 'Tighten the post-toggle capture anchor, bounds, or DOM selector so the sanitized review payload isolates the Physical Operating Address block and recovers field-local labels before trusting geometry.';
 
 interface CalibrationCliPaths {
   summaryPath: string;
@@ -240,6 +245,9 @@ export function runMappingCalibrationCli(argv: string[] = process.argv): Mapping
   const physicalAddressProbe = loadOptionalJson<PhysicalOperatingAddressDomProbeReport>(
     path.join(path.dirname(paths.summaryPath), PHYSICAL_ADDRESS_PROBE_FILE_NAME),
   );
+  const physicalAddressPostToggleCapture = loadOptionalJson<PhysicalOperatingAddressPostToggleCaptureReport>(
+    path.join(path.dirname(paths.summaryPath), PHYSICAL_ADDRESS_POST_TOGGLE_CAPTURE_FILE_NAME),
+  );
 
   const calibration = buildMappingCalibration({
     report,
@@ -248,6 +256,7 @@ export function runMappingCalibrationCli(argv: string[] = process.argv): Mapping
     alignment,
     humanProof,
     physicalAddressProbe,
+    physicalAddressPostToggleCapture,
     summaryPath: paths.summaryPath,
     targetDiagnosticsPath: paths.targetDiagnosticsPath,
     enrichmentPath: paths.enrichmentPath,
@@ -271,6 +280,7 @@ export function buildMappingCalibration(input: {
   alignment: SampleAlignmentArtifact;
   humanProof?: HumanProofAnswers | null;
   physicalAddressProbe?: PhysicalOperatingAddressDomProbeReport | null;
+  physicalAddressPostToggleCapture?: PhysicalOperatingAddressPostToggleCaptureReport | null;
   summaryPath: string;
   targetDiagnosticsPath: string;
   enrichmentPath: string;
@@ -324,9 +334,13 @@ function buildConceptContexts(input: {
   alignment: SampleAlignmentArtifact;
   humanProof?: HumanProofAnswers | null;
   physicalAddressProbe?: PhysicalOperatingAddressDomProbeReport | null;
+  physicalAddressPostToggleCapture?: PhysicalOperatingAddressPostToggleCaptureReport | null;
 }): ConceptCalibrationContext[] {
   const sourceFieldIndexByField = new Map(input.report.fields.map((field, index) => [field, index + 1]));
   const physicalAddressProbeMissingProof = buildPhysicalAddressProbeMissingProof(input.physicalAddressProbe ?? null);
+  const physicalAddressPostToggleCaptureMissingProof = buildPhysicalAddressPostToggleCaptureMissingProof(
+    input.physicalAddressPostToggleCapture ?? null,
+  );
   const diagnosticsByConcept = new Map<FieldConceptKey, InteractiveTargetDiagnosticsFile['rows'][number]>();
   for (const row of input.targetDiagnostics.rows) {
     if (!diagnosticsByConcept.has(row.concept)) diagnosticsByConcept.set(row.concept, row);
@@ -434,6 +448,7 @@ function buildConceptContexts(input: {
         humanProof: input.humanProof?.byConcept[concept] ?? null,
         inferMissingCountryFromOtherDropdowns: input.humanProof?.inferMissingCountryFromOtherDropdowns ?? true,
         physicalAddressProbeMissingProof,
+        physicalAddressPostToggleCaptureMissingProof,
       };
       context.currentSignature = diagnosticsRow?.actualFieldSignature ?? (currentField ? formatCandidateSummary(summarizeField(context, currentField)) : 'n/a');
       return [context];
@@ -706,7 +721,11 @@ function rewriteMissingProofFromHumanProof(
     !entry.startsWith('A human screenshot is needed to confirm'),
   );
   if (isPhysicalOperatingAddressConcept(context)) {
-    rewritten.push(...context.physicalAddressProbeMissingProof);
+    if (context.physicalAddressPostToggleCaptureMissingProof.length > 0) {
+      rewritten.push(...context.physicalAddressPostToggleCaptureMissingProof);
+    } else {
+      rewritten.push(...context.physicalAddressProbeMissingProof);
+    }
   }
   rewritten.push(`${humanProof.summary} The saved safe-mode report still does not surface a matching field-local Physical Operating Address target.`);
   return unique(rewritten);
@@ -746,6 +765,34 @@ function buildPhysicalAddressProbeMissingProof(
     missingProof.push('Some nearby post-toggle controls also fall outside the DocuSign tab container, so the exposed block is not isolated enough for geometry-only assignment.');
   }
   return missingProof;
+}
+
+function buildPhysicalAddressPostToggleCaptureMissingProof(
+  capture: PhysicalOperatingAddressPostToggleCaptureReport | null | undefined,
+): string[] {
+  if (!capture) return [];
+
+  const recoveredLeafLabels = !capture.observations.includes(
+    'No field-local Physical Operating Address leaf labels were recovered inside the post-toggle capture bounds.',
+  );
+  if (recoveredLeafLabels) return [];
+
+  const qualifiers: string[] = [];
+  if (capture.observations.includes('The post-toggle capture bounds still include controls outside .doc-tab.')) {
+    qualifiers.push('the capture bounds still included controls outside .doc-tab');
+  }
+  if (
+    capture.captureBounds.left <= 1 &&
+    capture.captureBounds.top <= 1 &&
+    capture.captureBounds.width >= 1000 &&
+    capture.captureBounds.height >= 3000
+  ) {
+    qualifiers.push('the capture bounds expanded to near page scale');
+  }
+
+  return [
+    `${PHYSICAL_ADDRESS_POST_TOGGLE_CAPTURE_PREFIX}${qualifiers.length > 0 ? `; ${qualifiers.join(' and ')}` : ''}, so the block is not isolated enough for geometry-only assignment.`,
+  ];
 }
 
 function summarizePhysicalAddressProbeRows(controls: PhysicalOperatingAddressDomProbeControl[]): string[] {
@@ -1299,13 +1346,21 @@ function buildFindings(rows: MappingCalibrationRow[]): string[] {
     row.appliedHumanProof !== null &&
     row.appliedHumanProof.status !== 'confirmed_omitted_or_hidden',
   );
+  const proofRecordedButCaptureAmbiguous = proofRecordedButBlocked.filter((row) =>
+    row.missingProof.some((entry) => entry.startsWith(PHYSICAL_ADDRESS_POST_TOGGLE_CAPTURE_PREFIX)),
+  );
+  if (proofRecordedButCaptureAmbiguous.length > 0) {
+    findings.push(`${proofRecordedButCaptureAmbiguous.map((row) => row.conceptDisplayName).join(', ')} have operator proof recorded, but the guarded post-toggle structure capture still does not isolate field-local labels after isOperatingAddress. ${PHYSICAL_ADDRESS_POST_TOGGLE_CAPTURE_REFINEMENT_RECOMMENDATION}`);
+  }
   const proofRecordedButProbeAmbiguous = proofRecordedButBlocked.filter((row) =>
+    !row.missingProof.some((entry) => entry.startsWith(PHYSICAL_ADDRESS_POST_TOGGLE_CAPTURE_PREFIX)) &&
     row.missingProof.some((entry) => entry.startsWith(PHYSICAL_ADDRESS_PROBE_GENERIC_CONTROLS_PREFIX)),
   );
   if (proofRecordedButProbeAmbiguous.length > 0) {
     findings.push(`${proofRecordedButProbeAmbiguous.map((row) => row.conceptDisplayName).join(', ')} have operator proof recorded, but the guarded post-toggle DOM probe still exposes only generic unlabeled controls after addressOptions. ${PHYSICAL_ADDRESS_PROBE_CAPTURE_RECOMMENDATION}`);
   }
   const proofRecordedButMissingTarget = proofRecordedButBlocked.filter((row) =>
+    !row.missingProof.some((entry) => entry.startsWith(PHYSICAL_ADDRESS_POST_TOGGLE_CAPTURE_PREFIX)) &&
     !row.missingProof.some((entry) => entry.startsWith(PHYSICAL_ADDRESS_PROBE_GENERIC_CONTROLS_PREFIX)),
   );
   if (proofRecordedButMissingTarget.length > 0) {

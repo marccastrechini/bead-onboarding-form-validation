@@ -81,6 +81,8 @@ import {
 } from '../scripts/generate-validation-findings';
 import {
   buildMappingCalibration,
+  PHYSICAL_ADDRESS_POST_TOGGLE_CAPTURE_PREFIX,
+  PHYSICAL_ADDRESS_POST_TOGGLE_CAPTURE_REFINEMENT_RECOMMENDATION,
   PHYSICAL_ADDRESS_PROBE_CAPTURE_RECOMMENDATION,
   PHYSICAL_ADDRESS_PROBE_GENERIC_CONTROLS_PREFIX,
 } from '../scripts/generate-mapping-calibration';
@@ -6031,10 +6033,51 @@ test.describe('interactive validation safety', () => {
         generatedAt: '2026-04-28T00:00:00.000Z',
         sourceJson: 'sample.json',
         sourceMhtml: 'sample.mhtml',
-        records: [baseInput.enrichment.records[0]!],
+        records: [{
+          tabGuid: 'guid-business_mailing_address_line_1',
+          positionalFingerprint: 'page:1|Text|ord:47',
+          tabLeft: 35.2,
+          tabTop: 627.2,
+          jsonKeyPath: 'merchantData.businessMailingAddress.line1',
+          jsonFieldFamily: 'Address',
+          jsonTypeHint: 'string',
+          docusignFieldFamily: 'Text',
+          confidence: 'high',
+          suggestedDisplayName: 'Physical Operating Address Line 1',
+          suggestedBusinessSection: 'Address',
+          layoutSectionHeader: 'Physical Operating Address',
+          layoutFieldLabel: 'Address Line 1',
+          layoutValueShape: 'text_name_like',
+          layoutEvidenceSource: 'pdf-text-sequence',
+          layoutNeighboringLabels: ['Address Line 1', 'City', 'State', 'ZIP'],
+          layoutEditability: 'editable',
+        }],
       },
       alignment: {
-        rows: [baseInput.alignment.rows[0]!],
+        rows: [{
+          jsonKeyPath: 'merchantData.businessMailingAddress.line1',
+          jsonFieldFamily: 'Address',
+          jsonValueSample: '124 Uptown Blvd',
+          jsonTypeHint: 'string',
+          matchedTabGuid: 'guid-business_mailing_address_line_1',
+          matchedRenderedValue: '124 Uptown Blvd',
+          candidateRenderedPrompt: 'Required',
+          candidateDocuSignFieldFamily: 'Text',
+          tabPageIndex: 1,
+          tabOrdinalOnPage: 47,
+          tabLeft: 35.2,
+          tabTop: 627.2,
+          layoutSectionHeader: 'Physical Operating Address',
+          layoutFieldLabel: 'Address Line 1',
+          layoutEvidenceSource: 'pdf-text-sequence',
+          layoutValueShape: 'text_name_like',
+          layoutNeighboringLabels: ['Address Line 1', 'City', 'State', 'ZIP'],
+          layoutEditability: 'editable',
+          businessSection: 'Address',
+          confidence: 'high',
+          matchingMethod: 'layout_cell',
+          notes: 'matched using PDF/MHTML field-cell evidence (Physical Operating Address > Address Line 1)',
+        }],
       },
       humanProof: {
         byConcept: {
@@ -6235,6 +6278,163 @@ test.describe('interactive validation safety', () => {
     expect(mismatchRow!.missingProof.some((entry) => entry.includes(PHYSICAL_ADDRESS_PROBE_GENERIC_CONTROLS_PREFIX))).toBe(true);
     expect(mismatchRow!.missingProof).toContain('Operator confirmed Physical Operating Address > Address Line 1 is visible and editable. The saved safe-mode report still does not surface a matching field-local Physical Operating Address target.');
     expect(mismatchOnly.findings.join(' ')).toContain(PHYSICAL_ADDRESS_PROBE_CAPTURE_RECOMMENDATION);
+  });
+
+  test('post-toggle capture blockers prefer capture-isolation wording over screenshot recapture', () => {
+    const baseInput = {
+      targetDiagnostics: {
+        schemaVersion: 1,
+        runStartedAt: '2026-04-28T00:00:00.000Z',
+        runFinishedAt: '2026-04-28T00:00:01.000Z',
+        summary: {
+          total: 0,
+          trusted: 0,
+          tool_mapping_suspect: 0,
+          mapping_not_confident: 0,
+          error_ownership_suspect: 0,
+          product_failure: 0,
+          observer_ambiguous: 0,
+          passed: 0,
+          skipped: 0,
+          manual_review: 0,
+        },
+        rows: [],
+      },
+      summaryPath: 'summary.json',
+      targetDiagnosticsPath: 'diagnostics.json',
+      enrichmentPath: 'enrichment.json',
+      alignmentPath: 'alignment.json',
+    };
+    const calibration = buildMappingCalibration({
+      ...baseInput,
+      report: mockValidationReport([
+        mockField({
+          index: 41,
+          acceptedLabel: 'Required - legalState',
+          rawCandidateLabels: [{ source: 'label-for', value: 'Required - legalState' }],
+          docusignTabType: 'List',
+          inferredType: 'state',
+          inferredClassification: 'manual_review',
+          currentValueShape: 'state_like',
+          pageIndex: 1,
+          ordinalOnPage: 43,
+          tabLeft: 548.33,
+          tabTop: 579.63,
+        }),
+        mockField({
+          index: 47,
+          acceptedLabel: 'Required',
+          rawCandidateLabels: [{ source: 'label-for', value: 'Required' }],
+          docusignTabType: 'Text',
+          inferredType: 'unknown_manual_review',
+          inferredClassification: 'manual_review',
+          currentValueShape: 'text_like',
+          pageIndex: 1,
+          ordinalOnPage: 47,
+          tabLeft: 35.2,
+          tabTop: 640,
+          visible: false,
+          editable: false,
+        }),
+      ]),
+      enrichment: {
+        schemaVersion: 1,
+        generatedAt: '2026-04-28T00:00:00.000Z',
+        sourceJson: 'sample.json',
+        sourceMhtml: 'sample.mhtml',
+        records: [{
+          tabGuid: 'guid-business_mailing_address_line_1',
+          positionalFingerprint: 'page:1|Text|ord:47',
+          tabLeft: 35.2,
+          tabTop: 627.2,
+          jsonKeyPath: 'merchantData.businessMailingAddress.line1',
+          jsonFieldFamily: 'Address',
+          jsonTypeHint: 'string',
+          docusignFieldFamily: 'Text',
+          confidence: 'high',
+          suggestedDisplayName: 'Physical Operating Address Line 1',
+          suggestedBusinessSection: 'Address',
+          layoutSectionHeader: 'Physical Operating Address',
+          layoutFieldLabel: 'Address Line 1',
+          layoutValueShape: 'text_name_like',
+          layoutEvidenceSource: 'pdf-text-sequence',
+          layoutNeighboringLabels: ['Address Line 1', 'City', 'State', 'ZIP'],
+          layoutEditability: 'editable',
+        }],
+      },
+      alignment: {
+        rows: [{
+          jsonKeyPath: 'merchantData.businessMailingAddress.line1',
+          jsonFieldFamily: 'Address',
+          jsonValueSample: '124 Uptown Blvd',
+          jsonTypeHint: 'string',
+          matchedTabGuid: 'guid-business_mailing_address_line_1',
+          matchedRenderedValue: '124 Uptown Blvd',
+          candidateRenderedPrompt: 'Required',
+          candidateDocuSignFieldFamily: 'Text',
+          tabPageIndex: 1,
+          tabOrdinalOnPage: 47,
+          tabLeft: 35.2,
+          tabTop: 627.2,
+          layoutSectionHeader: 'Physical Operating Address',
+          layoutFieldLabel: 'Address Line 1',
+          layoutEvidenceSource: 'pdf-text-sequence',
+          layoutValueShape: 'text_name_like',
+          layoutNeighboringLabels: ['Address Line 1', 'City', 'State', 'ZIP'],
+          layoutEditability: 'editable',
+          businessSection: 'Address',
+          confidence: 'high',
+          matchingMethod: 'layout_cell',
+          notes: 'matched using PDF/MHTML field-cell evidence (Physical Operating Address > Address Line 1)',
+        }],
+      },
+      humanProof: {
+        byConcept: {
+          business_mailing_address_line_1: {
+            status: 'confirmed_editable',
+            summary: 'Operator confirmed Physical Operating Address > Address Line 1 is visible and editable.',
+          },
+        },
+        inferMissingCountryFromOtherDropdowns: false,
+      },
+      physicalAddressProbe: {
+        generatedAt: '2026-04-28T00:00:02.000Z',
+        toggleCandidateLabel: 'Required - addressOptions - isOperatingAddress',
+        toggleAction: 'selected',
+        discoveryCounts: {
+          discoveredFieldsBefore: 102,
+          discoveredFieldsAfter: 100,
+          labeledPhysicalAddressFieldsBefore: 0,
+          labeledPhysicalAddressFieldsAfter: 0,
+        },
+        snapshots: [],
+        observations: [],
+      },
+      physicalAddressPostToggleCapture: {
+        generatedAt: '2026-04-28T00:00:03.000Z',
+        anchorLabel: 'Required - addressOptions - isOperatingAddress',
+        anchorLeft: 407.44,
+        anchorTop: 611.91,
+        captureBounds: {
+          left: 0,
+          top: 0,
+          width: 1304,
+          height: 4641,
+        },
+        textNodes: [],
+        controls: [],
+        observations: [
+          'No field-local Physical Operating Address leaf labels were recovered inside the post-toggle capture bounds.',
+          'The post-toggle capture bounds still include controls outside .doc-tab.',
+        ],
+      },
+    });
+    const row = calibration.rows.find((entry) => entry.concept === 'business_mailing_address_line_1');
+
+    expect(row).toBeTruthy();
+    expect(row!.missingProof.some((entry) => entry.startsWith(PHYSICAL_ADDRESS_POST_TOGGLE_CAPTURE_PREFIX))).toBe(true);
+    expect(row!.missingProof.some((entry) => entry.startsWith(PHYSICAL_ADDRESS_PROBE_GENERIC_CONTROLS_PREFIX))).toBe(false);
+    expect(calibration.findings.join(' ')).toContain(PHYSICAL_ADDRESS_POST_TOGGLE_CAPTURE_REFINEMENT_RECOMMENDATION);
   });
 
   test('country blockers without sample layout proof ask whether the control exists or is display-only', () => {
@@ -6514,6 +6714,62 @@ test.describe('interactive validation safety', () => {
     expect(report.recommendedNextToolingWork).toContain(`For proof-recorded Physical Operating Address blockers, ${PHYSICAL_ADDRESS_PROBE_CAPTURE_RECOMMENDATION}`);
     expect(markdown).toContain(PHYSICAL_ADDRESS_PROBE_GENERIC_CONTROLS_PREFIX);
     expect(markdown).toContain(PHYSICAL_ADDRESS_PROBE_CAPTURE_RECOMMENDATION);
+  });
+
+  test('post-toggle capture blockers ask for capture refinement instead of recapturing the same artifacts', () => {
+    const input = mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'registered_state',
+          conceptDisplayName: 'Registered Legal Address State',
+          validationId: 'invalid-state-rejected',
+          testName: 'invalid state rejected',
+          status: 'failed',
+          outcome: 'product_failure',
+          targetConfidence: 'trusted',
+          controlKind: 'native-select',
+          optionsDiscoverable: true,
+        }),
+      ],
+    });
+    input.calibration.rows = [
+      {
+        concept: 'registered_state',
+        conceptDisplayName: 'Registered Legal Address State',
+        currentCandidateFieldIndex: 63,
+        selectedCandidate: '#63 Registered Legal Address State',
+        decision: 'trust_current_mapping',
+        calibrationReason: 'none',
+        mappingDecisionReason: 'trusted_by_label',
+      },
+      {
+        concept: 'business_mailing_city',
+        conceptDisplayName: 'Business Mailing Address City',
+        currentCandidateFieldIndex: null,
+        selectedCandidate: null,
+        decision: 'leave_unresolved',
+        calibrationReason: 'none',
+        mappingDecisionReason: 'rejected_section_mismatch',
+        missingProof: [
+          `${PHYSICAL_ADDRESS_POST_TOGGLE_CAPTURE_PREFIX}; the capture bounds still included controls outside .doc-tab and the capture bounds expanded to near page scale, so the block is not isolated enough for geometry-only assignment.`,
+          'Operator confirmed Physical Operating Address > City is visible and editable. The saved safe-mode report still does not surface a matching field-local Physical Operating Address target.',
+        ],
+        appliedHumanProof: {
+          status: 'confirmed_editable',
+          summary: 'Operator confirmed Physical Operating Address > City is visible and editable.',
+        },
+        humanConfirmation: null,
+      },
+    ];
+
+    const report = buildValidationFindingsReport(input);
+    const markdown = renderValidationFindingsMarkdown(report);
+
+    expect(report.executiveSummary.join(' ')).toContain('guarded post-toggle structure capture now runs after isOperatingAddress, but it still does not isolate field-local Physical Operating Address labels');
+    expect(report.recommendedNextToolingWork).toContain(`For proof-recorded Physical Operating Address blockers, ${PHYSICAL_ADDRESS_POST_TOGGLE_CAPTURE_REFINEMENT_RECOMMENDATION}`);
+    expect(markdown).toContain(PHYSICAL_ADDRESS_POST_TOGGLE_CAPTURE_PREFIX);
+    expect(markdown).toContain(PHYSICAL_ADDRESS_POST_TOGGLE_CAPTURE_REFINEMENT_RECOMMENDATION);
+    expect(markdown).not.toContain(PHYSICAL_ADDRESS_PROBE_CAPTURE_RECOMMENDATION);
   });
 
   test('controlled-choice calibration diagnostics do not emit sensitive values', () => {
