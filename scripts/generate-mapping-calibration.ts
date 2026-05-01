@@ -348,10 +348,15 @@ function buildConceptContexts(input: {
 
   const requestedConcepts = new Set<FieldConceptKey>([
     'website',
+    'contact_first_name',
+    'contact_last_name',
     'email',
     'phone',
+    'stakeholder_first_name',
+    'stakeholder_last_name',
     'bank_name',
     'date_of_birth',
+    'stakeholder_job_title',
     'registration_date',
     'naics',
     'merchant_category_code',
@@ -1456,10 +1461,15 @@ function formatCoordinates(left: number | null, top: number | null): string {
 function conceptOrder(concept: FieldConceptKey): number {
   const ordered: FieldConceptKey[] = [
     'website',
+    'contact_first_name',
+    'contact_last_name',
     'email',
     'phone',
+    'stakeholder_first_name',
+    'stakeholder_last_name',
     'bank_name',
     'date_of_birth',
+    'stakeholder_job_title',
     'registration_date',
     'ownership_percentage',
     'location_name',

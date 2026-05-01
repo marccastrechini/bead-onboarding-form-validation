@@ -947,14 +947,29 @@ test.describe('field validation scorecard', () => {
     );
   });
 
-  test('stakeholder contact concepts resolve to stakeholder-only keys and shapes', () => {
+  test('contact and stakeholder profile concepts resolve to scoped keys and shapes', () => {
+    expect(conceptKeyForJsonKeyPath('merchantData.mainPointOfContact.firstName')).toBe('contact_first_name');
+    expect(conceptKeyForJsonKeyPath('merchantData.mainPointOfContact.lastName')).toBe('contact_last_name');
+    expect(conceptKeyForJsonKeyPath('merchantData.stakeholders[0].firstName')).toBe('stakeholder_first_name');
+    expect(conceptKeyForJsonKeyPath('merchantData.stakeholders[0].lastName')).toBe('stakeholder_last_name');
+    expect(conceptKeyForJsonKeyPath('merchantData.stakeholders[0].jobTitle')).toBe('stakeholder_job_title');
     expect(conceptKeyForJsonKeyPath('merchantData.businessEmail')).toBe('email');
     expect(conceptKeyForJsonKeyPath('merchantData.businessPhone')).toBe('phone');
     expect(conceptKeyForJsonKeyPath('merchantData.stakeholders[0].email')).toBe('stakeholder_email');
     expect(conceptKeyForJsonKeyPath('merchantData.stakeholders[0].phoneNumber')).toBe('stakeholder_phone');
 
+    expect(FIELD_CONCEPT_REGISTRY.contact_first_name.businessSection).toBe('Contact');
+    expect(FIELD_CONCEPT_REGISTRY.contact_last_name.businessSection).toBe('Contact');
+    expect(FIELD_CONCEPT_REGISTRY.stakeholder_first_name.businessSection).toBe('Stakeholder');
+    expect(FIELD_CONCEPT_REGISTRY.stakeholder_last_name.businessSection).toBe('Stakeholder');
+    expect(FIELD_CONCEPT_REGISTRY.stakeholder_job_title.businessSection).toBe('Stakeholder');
     expect(FIELD_CONCEPT_REGISTRY.stakeholder_email.businessSection).toBe('Stakeholder');
     expect(FIELD_CONCEPT_REGISTRY.stakeholder_phone.businessSection).toBe('Stakeholder');
+    expect(expectedValueShapesForConcept('contact_first_name')).toEqual(['text_name_like']);
+    expect(expectedValueShapesForConcept('contact_last_name')).toEqual(['text_name_like']);
+    expect(expectedValueShapesForConcept('stakeholder_first_name')).toEqual(['text_name_like']);
+    expect(expectedValueShapesForConcept('stakeholder_last_name')).toEqual(['text_name_like']);
+    expect(expectedValueShapesForConcept('stakeholder_job_title')).toEqual(['text_name_like']);
     expect(expectedValueShapesForConcept('stakeholder_email')).toEqual(['email']);
     expect(expectedValueShapesForConcept('stakeholder_phone')).toEqual(['phone']);
   });
@@ -3797,6 +3812,18 @@ test.describe('interactive validation safety', () => {
     ]);
   });
 
+  test('profile concept aliases are recognized by INTERACTIVE_CONCEPTS aliases', () => {
+    expect(resolveInteractiveTargetConcepts({
+      INTERACTIVE_CONCEPTS: 'contact_first_name,main_point_of_contact_last_name,stakeholder_first_name,stakeholder_last_name,stakeholder_title',
+    } as NodeJS.ProcessEnv)).toEqual([
+      'contact_first_name',
+      'contact_last_name',
+      'stakeholder_first_name',
+      'stakeholder_last_name',
+      'stakeholder_job_title',
+    ]);
+  });
+
   test('address batch concepts are recognized by INTERACTIVE_CONCEPTS', () => {
     const addressBatch = [
       'location_name',
@@ -3972,6 +3999,80 @@ test.describe('interactive validation safety', () => {
       'special-characters-behavior',
       'empty-required-behavior',
     ]);
+  });
+
+  test('profile name and title concepts build the expected interactive matrix', () => {
+    const plan = buildInteractiveValidationPlan(mockValidationReport([
+      mockField({
+        index: 1,
+        section: 'Contact',
+        resolvedLabel: 'Point Of Contact First Name',
+        label: 'Point Of Contact First Name',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'signer_first_name',
+      }),
+      mockField({
+        index: 2,
+        section: 'Contact',
+        resolvedLabel: 'Point Of Contact Last Name',
+        label: 'Point Of Contact Last Name',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'signer_last_name',
+      }),
+      mockField({
+        index: 3,
+        section: 'Stakeholder',
+        resolvedLabel: 'Stakeholder First Name',
+        label: 'Stakeholder First Name',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'signer_first_name',
+      }),
+      mockField({
+        index: 4,
+        section: 'Stakeholder',
+        resolvedLabel: 'Stakeholder Last Name',
+        label: 'Stakeholder Last Name',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'signer_last_name',
+      }),
+      mockField({
+        index: 5,
+        section: 'Stakeholder',
+        resolvedLabel: 'Stakeholder Job Title',
+        label: 'Stakeholder Job Title',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'free_text',
+      }),
+    ]), {
+      INTERACTIVE_CONCEPTS: 'contact_first_name,contact_last_name,stakeholder_first_name,stakeholder_last_name,stakeholder_job_title',
+    } as NodeJS.ProcessEnv);
+
+    const casesByConcept = new Map<string, string[]>();
+    for (const entry of plan.cases) {
+      casesByConcept.set(entry.concept, [...(casesByConcept.get(entry.concept) ?? []), entry.validationId]);
+    }
+
+    expect(plan.skippedConcepts).toEqual([]);
+    for (const concept of [
+      'contact_first_name',
+      'contact_last_name',
+      'stakeholder_first_name',
+      'stakeholder_last_name',
+      'stakeholder_job_title',
+    ] as const) {
+      expect(casesByConcept.get(concept)).toEqual([
+        'normal-value-accepted',
+        'very-short-behavior',
+        'excessive-length-behavior',
+        'special-characters-behavior',
+        'empty-required-behavior',
+      ]);
+    }
   });
 
   test('processing and code concepts build the expected interactive matrix', () => {
@@ -5547,6 +5648,73 @@ test.describe('interactive validation safety', () => {
     expect(businessName.selectedCandidateId).toBe('editable');
     expect(dbaName.trusted).toBe(false);
     expect(dbaName.decisionReason).toBe('rejected_ambiguous_neighbors');
+  });
+
+  test('profile name concepts trust scoped text-like anchors and reject numeric title shapes', () => {
+    const contactFirstName = selectBestMappingCandidate({
+      concept: 'contact_first_name',
+      currentCandidateId: null,
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.mainPointOfContact.firstName',
+        businessSection: 'Contact',
+        pageIndex: 1,
+        ordinalOnPage: 31,
+        tabLeft: 35.2,
+        tabTop: 433.92,
+        docusignFieldFamily: 'Text',
+      },
+      candidates: [{
+        id: 'contact-first-name',
+        resolvedLabel: 'Main Point Of Contact First Name',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        businessSection: 'Contact',
+        docusignTabType: 'Text',
+        pageIndex: 1,
+        ordinalOnPage: 31,
+        tabLeft: 35.2,
+        tabTop: 433.92,
+        currentValue: 'Taylor',
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+      }],
+    });
+    const stakeholderJobTitle = selectBestMappingCandidate({
+      concept: 'stakeholder_job_title',
+      currentCandidateId: null,
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.stakeholders[0].jobTitle',
+        businessSection: 'Stakeholder',
+        pageIndex: 3,
+        ordinalOnPage: 27,
+        tabLeft: 35.2,
+        tabTop: 311.04,
+        docusignFieldFamily: 'Text',
+      },
+      candidates: [{
+        id: 'stakeholder-job-title',
+        resolvedLabel: 'Stakeholder Job Title',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        businessSection: 'Stakeholder',
+        docusignTabType: 'Text',
+        pageIndex: 3,
+        ordinalOnPage: 27,
+        tabLeft: 35.2,
+        tabTop: 311.04,
+        currentValue: '123456',
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+      }],
+    });
+
+    expect(contactFirstName.trusted).toBe(true);
+    expect(contactFirstName.selectedCandidateId).toBe('contact-first-name');
+    expect(contactFirstName.decisionReason).toBe('trusted_by_label');
+    expect(stakeholderJobTitle.trusted).toBe(false);
+    expect(stakeholderJobTitle.decisionReason).toBe('rejected_value_shape_mismatch');
   });
 
   test('layout-cell labels separate Registered Name and DBA Name from Location Name', () => {

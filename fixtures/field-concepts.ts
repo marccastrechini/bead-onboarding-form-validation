@@ -7,10 +7,15 @@ export type FieldConceptKey =
   | 'business_type'
   | 'location_name'
   | 'website'
+  | 'contact_first_name'
+  | 'contact_last_name'
   | 'email'
+  | 'stakeholder_first_name'
+  | 'stakeholder_last_name'
   | 'stakeholder_email'
   | 'phone'
   | 'stakeholder_phone'
+  | 'stakeholder_job_title'
   | 'ein'
   | 'ssn'
   | 'date_of_birth'
@@ -350,6 +355,34 @@ export const FIELD_CONCEPTS: FieldConceptDefinition[] = [
     notes: 'Website validation should make accepted domain/URL formats clear.',
   },
   {
+    key: 'contact_first_name',
+    displayName: 'Point Of Contact First Name',
+    businessSection: 'Contact',
+    fieldTypes: ['signer_first_name'],
+    labelPatterns: [/(main\s*)?point\s*of\s*contact.*(first\s*name|given\s*name)/i, /contact.*(first\s*name|given\s*name)/i],
+    jsonKeyPatterns: [/merchantData\.mainPointOfContact\.firstName$/i],
+    bestPracticeValidations: TEXT_LENGTH_AND_CONTENT,
+    missingValidationSeverity: 'high',
+    weakValidationSeverity: 'medium',
+    validExamples: ['Taylor'],
+    invalidExamples: ['', '!@#$%^&*()'],
+    notes: 'Point-of-contact first name should stay anchored to the page-1 main contact row and should not drift into stakeholder name fields.',
+  },
+  {
+    key: 'contact_last_name',
+    displayName: 'Point Of Contact Last Name',
+    businessSection: 'Contact',
+    fieldTypes: ['signer_last_name'],
+    labelPatterns: [/(main\s*)?point\s*of\s*contact.*(last\s*name|surname|family\s*name)/i, /contact.*(last\s*name|surname|family\s*name)/i],
+    jsonKeyPatterns: [/merchantData\.mainPointOfContact\.lastName$/i],
+    bestPracticeValidations: TEXT_LENGTH_AND_CONTENT,
+    missingValidationSeverity: 'high',
+    weakValidationSeverity: 'medium',
+    validExamples: ['Morgan'],
+    invalidExamples: ['', '!@#$%^&*()'],
+    notes: 'Point-of-contact last name should stay anchored to the page-1 main contact row and should not drift into stakeholder name fields.',
+  },
+  {
     key: 'email',
     displayName: 'Email',
     businessSection: 'Contact',
@@ -362,6 +395,34 @@ export const FIELD_CONCEPTS: FieldConceptDefinition[] = [
     validExamples: ['qa.signer@example.com'],
     invalidExamples: ['qa.signerexample.com', 'qa.signer@', 'qa signer@example.com'],
     notes: 'Email is a primary contact and notification channel.',
+  },
+  {
+    key: 'stakeholder_first_name',
+    displayName: 'Stakeholder First Name',
+    businessSection: 'Stakeholder',
+    fieldTypes: ['signer_first_name'],
+    labelPatterns: [/stakeholders?.*(first\s*name|given\s*name)/i, /owner.*(first\s*name|given\s*name)/i, /principal.*(first\s*name|given\s*name)/i],
+    jsonKeyPatterns: [/merchantData\.stakeholders\[\d+\]\.firstName$/i],
+    bestPracticeValidations: TEXT_LENGTH_AND_CONTENT,
+    missingValidationSeverity: 'high',
+    weakValidationSeverity: 'medium',
+    validExamples: ['Jordan'],
+    invalidExamples: ['', '!@#$%^&*()'],
+    notes: 'Stakeholder first name should stay anchored to beneficial-owner rows and should not reuse page-1 point-of-contact fields.',
+  },
+  {
+    key: 'stakeholder_last_name',
+    displayName: 'Stakeholder Last Name',
+    businessSection: 'Stakeholder',
+    fieldTypes: ['signer_last_name'],
+    labelPatterns: [/stakeholders?.*(last\s*name|surname|family\s*name)/i, /owner.*(last\s*name|surname|family\s*name)/i, /principal.*(last\s*name|surname|family\s*name)/i],
+    jsonKeyPatterns: [/merchantData\.stakeholders\[\d+\]\.lastName$/i],
+    bestPracticeValidations: TEXT_LENGTH_AND_CONTENT,
+    missingValidationSeverity: 'high',
+    weakValidationSeverity: 'medium',
+    validExamples: ['Lee'],
+    invalidExamples: ['', '!@#$%^&*()'],
+    notes: 'Stakeholder last name should stay anchored to beneficial-owner rows and should not reuse page-1 point-of-contact fields.',
   },
   {
     key: 'stakeholder_email',
@@ -404,6 +465,20 @@ export const FIELD_CONCEPTS: FieldConceptDefinition[] = [
     validExamples: ['+15551234567', '(555) 123-4567'],
     invalidExamples: ['callmemaybe', '555', '+1555123456789012'],
     notes: 'Stakeholder phone targets owner contact data and should not reuse business-contact anchors from page 1. Expectations should distinguish strict E.164-only copy, domestic-format tolerance, normalization/truncation, and field-local validation.',
+  },
+  {
+    key: 'stakeholder_job_title',
+    displayName: 'Stakeholder Job Title',
+    businessSection: 'Stakeholder',
+    fieldTypes: ['free_text'],
+    labelPatterns: [/stakeholders?.*job\s*title/i, /owner.*job\s*title/i, /principal.*job\s*title/i, /job\s*title/i],
+    jsonKeyPatterns: [/merchantData\.stakeholders\[\d+\]\.jobTitle$/i],
+    bestPracticeValidations: TEXT_LENGTH_AND_CONTENT,
+    missingValidationSeverity: 'medium',
+    weakValidationSeverity: 'medium',
+    validExamples: ['Managing Member'],
+    invalidExamples: ['', '!@#$%^&*()'],
+    notes: 'Stakeholder job title should stay within the stakeholder profile block and should not be confused with ownership-type or identity-document selectors.',
   },
   {
     key: 'ein',

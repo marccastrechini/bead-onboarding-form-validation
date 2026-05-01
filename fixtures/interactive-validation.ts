@@ -20,7 +20,12 @@ export const INTERACTIVE_TARGET_DIAGNOSTICS_MD = 'latest-interactive-target-diag
 
 export const INTERACTIVE_TARGET_CONCEPTS = [
   'website',
+  'contact_first_name',
+  'contact_last_name',
+  'stakeholder_first_name',
+  'stakeholder_last_name',
   'date_of_birth',
+  'stakeholder_job_title',
   'registration_date',
   'email',
   'stakeholder_email',
@@ -67,6 +72,11 @@ const INTERACTIVE_TARGET_ALIASES: Record<string, InteractiveTargetConcept> = {
   account_type: 'bank_account_type',
   location_business_type: 'business_type',
   registered_postal_code: 'postal_code',
+  main_point_of_contact_first_name: 'contact_first_name',
+  point_of_contact_first_name: 'contact_first_name',
+  main_point_of_contact_last_name: 'contact_last_name',
+  point_of_contact_last_name: 'contact_last_name',
+  stakeholder_title: 'stakeholder_job_title',
   legal_name: 'business_name',
   registered_name: 'business_name',
   description_of_services: 'business_description',
@@ -449,7 +459,11 @@ const SIGNATURE_FAMILY_PATTERNS: Array<{ family: string; pattern: RegExp }> = [
 ];
 const PRIMARY_FAMILY_BY_CONCEPT: Partial<Record<FieldConceptKey, string>> = {
   website: 'url',
+  contact_first_name: 'name',
+  contact_last_name: 'name',
   email: 'email',
+  stakeholder_first_name: 'name',
+  stakeholder_last_name: 'name',
   stakeholder_email: 'email',
   phone: 'phone',
   stakeholder_phone: 'phone',
@@ -464,6 +478,11 @@ const PRIMARY_FAMILY_BY_CONCEPT: Partial<Record<FieldConceptKey, string>> = {
 };
 const BLOCKED_SIGNATURE_FAMILIES: Partial<Record<FieldConceptKey, string[]>> = {
   website: ['email', 'phone', 'bank', 'date', 'name', 'postal', 'percentage', 'description'],
+  contact_first_name: ['email', 'phone', 'url', 'bank', 'date', 'postal', 'percentage', 'description'],
+  contact_last_name: ['email', 'phone', 'url', 'bank', 'date', 'postal', 'percentage', 'description'],
+  stakeholder_first_name: ['email', 'phone', 'url', 'bank', 'date', 'postal', 'percentage', 'description'],
+  stakeholder_last_name: ['email', 'phone', 'url', 'bank', 'date', 'postal', 'percentage', 'description'],
+  stakeholder_job_title: ['email', 'phone', 'url', 'bank', 'date', 'postal', 'percentage', 'description'],
   bank_name: ['phone', 'email', 'date', 'postal', 'percentage', 'description'],
   phone: ['email', 'bank', 'date', 'name', 'postal', 'percentage', 'description'],
   stakeholder_phone: ['email', 'bank', 'date', 'name', 'postal', 'percentage', 'description'],
@@ -855,6 +874,26 @@ const MATRIX_BY_CONCEPT: Record<InteractiveTargetConcept, MatrixCaseDefinition[]
       expectedBehavior: 'reject_or_manual_review',
     },
   ],
+  contact_first_name: TEXT_FIELD_MATRIX.map((entry) =>
+    entry.validationId === 'normal-value-accepted'
+      ? { ...entry, inputValue: 'Taylor' }
+      : entry,
+  ),
+  contact_last_name: TEXT_FIELD_MATRIX.map((entry) =>
+    entry.validationId === 'normal-value-accepted'
+      ? { ...entry, inputValue: 'Morgan' }
+      : entry,
+  ),
+  stakeholder_first_name: TEXT_FIELD_MATRIX.map((entry) =>
+    entry.validationId === 'normal-value-accepted'
+      ? { ...entry, inputValue: 'Jordan' }
+      : entry,
+  ),
+  stakeholder_last_name: TEXT_FIELD_MATRIX.map((entry) =>
+    entry.validationId === 'normal-value-accepted'
+      ? { ...entry, inputValue: 'Lee' }
+      : entry,
+  ),
   date_of_birth: [
     {
       validationId: 'valid-adult-dob-accepted',
@@ -1070,6 +1109,11 @@ const MATRIX_BY_CONCEPT: Record<InteractiveTargetConcept, MatrixCaseDefinition[]
       expectedBehavior: 'observe',
     },
   ],
+  stakeholder_job_title: TEXT_FIELD_MATRIX.map((entry) =>
+    entry.validationId === 'normal-value-accepted'
+      ? { ...entry, inputValue: 'Managing Member' }
+      : entry,
+  ),
   business_name: TEXT_FIELD_MATRIX,
   dba_name: TEXT_FIELD_MATRIX.map((entry) =>
     entry.validationId === 'normal-value-accepted'
