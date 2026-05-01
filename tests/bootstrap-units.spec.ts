@@ -3675,6 +3675,29 @@ test.describe('interactive validation safety', () => {
     } as NodeJS.ProcessEnv)).toEqual([...batchOne]);
   });
 
+  test('processing and code concepts are recognized by INTERACTIVE_CONCEPTS aliases', () => {
+    const processingBatch = [
+      'naics',
+      'merchant_category_code',
+      'annual_revenue',
+      'highest_monthly_volume',
+      'average_ticket',
+      'max_ticket',
+    ] as const;
+
+    expect(INTERACTIVE_TARGET_CONCEPTS).toEqual(expect.arrayContaining([...processingBatch]));
+    expect(resolveInteractiveTargetConcepts({
+      INTERACTIVE_CONCEPTS: 'naics,merchant_category_code,gross_annual_revenue,highest_monthly_volume,average_ticket_size,maximum_ticket_size',
+    } as NodeJS.ProcessEnv)).toEqual([
+      'naics',
+      'merchant_category_code',
+      'annual_revenue',
+      'highest_monthly_volume',
+      'average_ticket',
+      'max_ticket',
+    ]);
+  });
+
   test('address batch concepts are recognized by INTERACTIVE_CONCEPTS', () => {
     const addressBatch = [
       'location_name',
@@ -3827,6 +3850,108 @@ test.describe('interactive validation safety', () => {
     ]);
   });
 
+  test('processing and code concepts build the expected interactive matrix', () => {
+    const plan = buildInteractiveValidationPlan(mockValidationReport([
+      mockField({
+        index: 1,
+        resolvedLabel: 'NAICS',
+        label: 'NAICS',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'naics',
+      }),
+      mockField({
+        index: 2,
+        resolvedLabel: 'Merchant Category Code',
+        label: 'Merchant Category Code',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'mcc',
+      }),
+      mockField({
+        index: 3,
+        resolvedLabel: 'Annual Revenue',
+        label: 'Annual Revenue',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'annual_revenue',
+      }),
+      mockField({
+        index: 4,
+        resolvedLabel: 'Highest Monthly Volume',
+        label: 'Highest Monthly Volume',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'monthly_volume',
+      }),
+      mockField({
+        index: 5,
+        resolvedLabel: 'Average Ticket',
+        label: 'Average Ticket',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'average_ticket',
+      }),
+      mockField({
+        index: 6,
+        resolvedLabel: 'Max Ticket',
+        label: 'Max Ticket',
+        labelSource: 'aria-label',
+        labelConfidence: 'high',
+        inferredType: 'max_ticket',
+      }),
+    ]), {
+      INTERACTIVE_CONCEPTS: 'naics,merchant_category_code,annual_revenue,highest_monthly_volume,average_ticket,max_ticket',
+    } as NodeJS.ProcessEnv);
+
+    const casesByConcept = new Map<string, string[]>();
+    for (const entry of plan.cases) {
+      casesByConcept.set(entry.concept, [...(casesByConcept.get(entry.concept) ?? []), entry.validationId]);
+    }
+
+    expect(plan.skippedConcepts).toEqual([]);
+    expect(casesByConcept.get('naics')).toEqual([
+      'valid-code-accepted',
+      'letters-rejected',
+      'too-short-rejected',
+      'empty-required-behavior',
+    ]);
+    expect(casesByConcept.get('merchant_category_code')).toEqual([
+      'valid-code-accepted',
+      'letters-rejected',
+      'too-short-rejected',
+      'empty-required-behavior',
+    ]);
+    expect(casesByConcept.get('annual_revenue')).toEqual([
+      'valid-amount-accepted',
+      'letters-rejected',
+      'negative-value-behavior',
+      'excessive-value-behavior',
+      'empty-required-behavior',
+    ]);
+    expect(casesByConcept.get('highest_monthly_volume')).toEqual([
+      'valid-amount-accepted',
+      'letters-rejected',
+      'negative-value-behavior',
+      'excessive-value-behavior',
+      'empty-required-behavior',
+    ]);
+    expect(casesByConcept.get('average_ticket')).toEqual([
+      'valid-amount-accepted',
+      'letters-rejected',
+      'negative-value-behavior',
+      'excessive-value-behavior',
+      'empty-required-behavior',
+    ]);
+    expect(casesByConcept.get('max_ticket')).toEqual([
+      'valid-amount-accepted',
+      'letters-rejected',
+      'negative-value-behavior',
+      'excessive-value-behavior',
+      'empty-required-behavior',
+    ]);
+  });
+
   test('invalid interactive concept names are rejected', () => {
     expect(() => resolveInteractiveTargetConcepts({
       INTERACTIVE_CONCEPTS: 'registration_date,not_a_real_concept',
@@ -3875,6 +4000,99 @@ test.describe('interactive validation safety', () => {
       expect(result.trusted).toBe(false);
       expect(result.decisionReason).toBe('rejected_value_shape_mismatch');
     }
+  });
+
+  test('processing and code mappings are not trusted when value shape is contradictory', () => {
+    const contradictions = [
+      { concept: 'naics', label: 'NAICS', section: 'Business Details', value: 'Example Business LLC' },
+      { concept: 'merchant_category_code', label: 'Merchant Category Code', section: 'Business Details', value: 'merchant@example.test' },
+      { concept: 'annual_revenue', label: 'Annual Revenue', section: 'Processing & Financials', value: 'merchant@example.test' },
+      { concept: 'highest_monthly_volume', label: 'Highest Monthly Volume', section: 'Processing & Financials', value: 'https://example.test' },
+      { concept: 'average_ticket', label: 'Average Ticket', section: 'Processing & Financials', value: 'Bank of Example' },
+      { concept: 'max_ticket', label: 'Max Ticket', section: 'Processing & Financials', value: '+15551234567' },
+    ] as const;
+
+    for (const item of contradictions) {
+      expect(expectedValueShapesForConcept(item.concept).length).toBeGreaterThan(0);
+      const result = selectBestMappingCandidate({
+        concept: item.concept,
+        currentCandidateId: 'candidate',
+        expectedAnchor: {
+          displayName: item.label,
+          businessSection: item.section,
+          pageIndex: 1,
+          ordinalOnPage: 1,
+          tabLeft: 10,
+          tabTop: 10,
+          docusignFieldFamily: 'Text',
+        },
+        candidates: [{
+          id: 'candidate',
+          resolvedLabel: item.label,
+          labelSource: 'aria-label',
+          labelConfidence: 'high',
+          businessSection: item.section,
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 1,
+          tabLeft: 10,
+          tabTop: 10,
+          currentValue: item.value,
+        }],
+      });
+
+      expect(result.trusted).toBe(false);
+      expect(result.decisionReason).toBe('rejected_value_shape_mismatch');
+    }
+  });
+
+  test('Merchant Category Code exact-anchor numeric candidate can be trusted', () => {
+    const result = selectBestMappingCandidate({
+      concept: 'merchant_category_code',
+      currentCandidateId: null,
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.merchantCategoryCode',
+        displayName: 'Merchant Category Code',
+        businessSection: 'Business Details',
+        pageIndex: 1,
+        ordinalOnPage: 14,
+        tabLeft: 286.08,
+        tabTop: 318.08,
+        docusignFieldFamily: 'Text',
+      },
+      candidates: [
+        {
+          id: 'mcc',
+          businessSection: 'Business Details',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 15,
+          tabLeft: 286.08,
+          tabTop: 318.08,
+          currentValue: '5812',
+          enrichment: {
+            jsonKeyPath: 'merchantData.merchantCategoryCode',
+            matchedBy: 'position',
+            suggestedDisplayName: 'Merchant Category Code',
+            suggestedBusinessSection: 'Business Details',
+          },
+        },
+        {
+          id: 'naics',
+          businessSection: 'Business Details',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 13,
+          tabLeft: 35.2,
+          tabTop: 318.08,
+          currentValue: '722511',
+        },
+      ],
+    });
+
+    expect(result.trusted).toBe(true);
+    expect(result.selectedCandidateId).toBe('mcc');
+    expect(result.decisionReason).toBe('trusted_by_anchor_and_value_shape');
   });
 
   test('Batch 1 can run only when mapping is trusted', () => {

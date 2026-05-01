@@ -32,6 +32,10 @@ export const INTERACTIVE_TARGET_CONCEPTS = [
   'location_name',
   'naics',
   'merchant_category_code',
+  'annual_revenue',
+  'highest_monthly_volume',
+  'average_ticket',
+  'max_ticket',
   'ownership_percentage',
   'registered_address_line_1',
   'registered_address_line_2',
@@ -63,6 +67,9 @@ const INTERACTIVE_TARGET_ALIASES: Record<string, InteractiveTargetConcept> = {
   account_type: 'bank_account_type',
   location_business_type: 'business_type',
   registered_postal_code: 'postal_code',
+  gross_annual_revenue: 'annual_revenue',
+  average_ticket_size: 'average_ticket',
+  maximum_ticket_size: 'max_ticket',
 };
 
 export type InteractiveTargetConcept = typeof INTERACTIVE_TARGET_CONCEPTS[number];
@@ -460,6 +467,12 @@ const BLOCKED_SIGNATURE_FAMILIES: Partial<Record<FieldConceptKey, string[]>> = {
   email: ['phone', 'bank', 'date', 'name', 'postal', 'percentage', 'description'],
   stakeholder_email: ['phone', 'bank', 'date', 'name', 'postal', 'percentage', 'description'],
   registration_date: ['email', 'phone', 'url', 'bank', 'name', 'postal', 'percentage', 'description'],
+  naics: ['email', 'phone', 'url', 'bank', 'date', 'postal', 'percentage', 'description', 'name'],
+  merchant_category_code: ['email', 'phone', 'url', 'bank', 'date', 'postal', 'percentage', 'description', 'name'],
+  annual_revenue: ['email', 'phone', 'url', 'bank', 'date', 'postal', 'description', 'name'],
+  highest_monthly_volume: ['email', 'phone', 'url', 'bank', 'date', 'postal', 'description', 'name'],
+  average_ticket: ['email', 'phone', 'url', 'bank', 'date', 'postal', 'description', 'name'],
+  max_ticket: ['email', 'phone', 'url', 'bank', 'date', 'postal', 'description', 'name'],
   postal_code: ['email', 'phone', 'url', 'bank', 'date', 'name', 'percentage', 'description'],
   ownership_percentage: ['email', 'phone', 'url', 'bank', 'date', 'name', 'postal', 'description'],
   business_name: ['email', 'phone', 'url', 'bank', 'date', 'postal', 'percentage', 'description'],
@@ -677,6 +690,82 @@ const CONTROLLED_CHOICE_MATRIX: MatrixCaseDefinition[] = [
     inputValue: '',
     expectedBehavior: 'reject_or_manual_review',
     interactionKind: 'clear_if_supported',
+  },
+];
+
+const MONEY_FIELD_MATRIX: MatrixCaseDefinition[] = [
+  {
+    validationId: 'valid-amount-accepted',
+    caseName: 'valid-plain',
+    testName: 'valid amount accepted',
+    inputValue: '25000',
+    expectedBehavior: 'accept',
+  },
+  {
+    validationId: 'letters-rejected',
+    caseName: 'letters',
+    testName: 'letters rejected or impossible',
+    inputValue: 'abcde',
+    expectedBehavior: 'reject_or_warn',
+  },
+  {
+    validationId: 'negative-value-behavior',
+    caseName: 'negative',
+    testName: 'negative value behavior observed',
+    inputValue: '-50',
+    expectedBehavior: 'observe',
+  },
+  {
+    validationId: 'excessive-value-behavior',
+    caseName: 'excessive-value',
+    testName: 'excessive value behavior observed',
+    inputValue: '999999999',
+    expectedBehavior: 'observe',
+  },
+  {
+    validationId: 'empty-required-behavior',
+    caseName: 'empty-required',
+    testName: 'empty required behavior observed',
+    inputValue: '',
+    expectedBehavior: 'reject_or_manual_review',
+  },
+];
+
+const TICKET_FIELD_MATRIX: MatrixCaseDefinition[] = [
+  {
+    validationId: 'valid-amount-accepted',
+    caseName: 'valid-formatted',
+    testName: 'valid formatted amount accepted',
+    inputValue: '605.00',
+    expectedBehavior: 'accept',
+  },
+  {
+    validationId: 'letters-rejected',
+    caseName: 'letters',
+    testName: 'letters rejected or impossible',
+    inputValue: 'ticket',
+    expectedBehavior: 'reject_or_warn',
+  },
+  {
+    validationId: 'negative-value-behavior',
+    caseName: 'negative',
+    testName: 'negative value behavior observed',
+    inputValue: '-5',
+    expectedBehavior: 'observe',
+  },
+  {
+    validationId: 'excessive-value-behavior',
+    caseName: 'excessive-value',
+    testName: 'excessive value behavior observed',
+    inputValue: '250000',
+    expectedBehavior: 'observe',
+  },
+  {
+    validationId: 'empty-required-behavior',
+    caseName: 'empty-required',
+    testName: 'empty required behavior observed',
+    inputValue: '',
+    expectedBehavior: 'reject_or_manual_review',
   },
 ];
 
@@ -1043,6 +1132,22 @@ const MATRIX_BY_CONCEPT: Record<InteractiveTargetConcept, MatrixCaseDefinition[]
       expectedBehavior: 'reject_or_manual_review',
     },
   ],
+  annual_revenue: MONEY_FIELD_MATRIX.map((entry) =>
+    entry.validationId === 'valid-amount-accepted'
+      ? { ...entry, inputValue: '500000' }
+      : entry,
+  ),
+  highest_monthly_volume: MONEY_FIELD_MATRIX.map((entry) =>
+    entry.validationId === 'valid-amount-accepted'
+      ? { ...entry, inputValue: '25000' }
+      : entry,
+  ),
+  average_ticket: TICKET_FIELD_MATRIX,
+  max_ticket: TICKET_FIELD_MATRIX.map((entry) =>
+    entry.validationId === 'valid-amount-accepted'
+      ? { ...entry, inputValue: '1815.00' }
+      : entry,
+  ),
   registered_address_line_1: ADDRESS_FIELD_MATRIX,
   registered_address_line_2: ADDRESS_FIELD_MATRIX,
   registered_city: CITY_FIELD_MATRIX,
