@@ -35,6 +35,7 @@ export interface PhysicalOperatingAddressPostToggleCaptureTextNode {
   keywords: string[];
   textShape: PhysicalOperatingAddressCaptureTextShape;
   redacted: boolean;
+  withinDocTab: boolean;
   left: number | null;
   top: number | null;
   width: number | null;
@@ -75,12 +76,95 @@ export function sanitizePhysicalOperatingAddressPostToggleCaptureText(value: str
   return `[redacted:${captureTextShape(normalized)}]`;
 }
 
+function roundCaptureCoordinate(value: number | null | undefined): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? Number(value.toFixed(2)) : null;
+}
+
+function intersectsCaptureBounds(
+  bounds: { left: number; top: number; right: number; bottom: number },
+  rect: { left: number | null; top: number | null; width: number | null; height: number | null },
+): boolean {
+  if (rect.left === null || rect.top === null || rect.width === null || rect.height === null) return false;
+  const right = rect.left + rect.width;
+  const bottom = rect.top + rect.height;
+  return right >= bounds.left && rect.left <= bounds.right && bottom >= bounds.top && rect.top <= bounds.bottom;
+}
+
+function shouldSeedPostToggleCaptureBoundsFromControl(
+  control: PhysicalOperatingAddressPostToggleCaptureControl,
+  anchorTop: number | null,
+): boolean {
+  if (!control.visible || !control.withinDocTab) return false;
+  if ((control.width ?? 0) <= 5 || (control.height ?? 0) <= 5) return false;
+  if (anchorTop !== null && control.inputType !== 'radio' && control.top !== null && control.top < anchorTop - 24) return false;
+  return true;
+}
+
+function shouldSeedPostToggleCaptureBoundsFromTextNode(
+  node: PhysicalOperatingAddressPostToggleCaptureTextNode,
+  anchorTop: number | null,
+): boolean {
+  if (node.left === null || node.top === null || node.width === null || node.height === null) return false;
+  if (node.width <= 4 || node.height <= 4) return false;
+  if (node.width > 640 || node.height > 120) return false;
+  if (!node.withinDocTab && node.keywords.length === 0) return false;
+  if (anchorTop !== null && node.top < anchorTop - 24) return false;
+  return true;
+}
+
+export function refinePhysicalOperatingAddressPostToggleCaptureRegion(input: {
+  anchorLeft: number | null;
+  anchorTop: number | null;
+  controls: PhysicalOperatingAddressPostToggleCaptureControl[];
+  textNodes: PhysicalOperatingAddressPostToggleCaptureTextNode[];
+}): {
+  captureBounds: PhysicalOperatingAddressPostToggleCaptureBounds;
+  controls: PhysicalOperatingAddressPostToggleCaptureControl[];
+  textNodes: PhysicalOperatingAddressPostToggleCaptureTextNode[];
+} {
+  const defaultBounds = {
+    left: roundCaptureCoordinate((input.anchorLeft ?? 0) - 260) ?? 0,
+    top: roundCaptureCoordinate((input.anchorTop ?? 0) - 90) ?? 0,
+    right: roundCaptureCoordinate((input.anchorLeft ?? 0) + 700) ?? 900,
+    bottom: roundCaptureCoordinate((input.anchorTop ?? 0) + 430) ?? 430,
+  };
+
+  const nearbyControls = input.controls.filter((control) => intersectsCaptureBounds(defaultBounds, control));
+  const nearbyTextNodes = input.textNodes.filter((node) => intersectsCaptureBounds(defaultBounds, node));
+  const boundsSeed = [
+    ...nearbyControls.filter((control) => shouldSeedPostToggleCaptureBoundsFromControl(control, input.anchorTop)),
+    ...nearbyTextNodes.filter((node) => shouldSeedPostToggleCaptureBoundsFromTextNode(node, input.anchorTop)),
+  ];
+
+  const refinedBounds = boundsSeed.length > 0
+    ? {
+      left: roundCaptureCoordinate(Math.max(0, Math.min(...boundsSeed.map((entry) => entry.left ?? Number.POSITIVE_INFINITY)) - 24)) ?? defaultBounds.left,
+      top: roundCaptureCoordinate(Math.max(0, Math.min(...boundsSeed.map((entry) => entry.top ?? Number.POSITIVE_INFINITY)) - 24)) ?? defaultBounds.top,
+      right: roundCaptureCoordinate(Math.max(...boundsSeed.map((entry) => (entry.left ?? 0) + (entry.width ?? 0))) + 24) ?? defaultBounds.right,
+      bottom: roundCaptureCoordinate(Math.max(...boundsSeed.map((entry) => (entry.top ?? 0) + (entry.height ?? 0))) + 24) ?? defaultBounds.bottom,
+    }
+    : defaultBounds;
+
+  return {
+    captureBounds: {
+      left: refinedBounds.left,
+      top: refinedBounds.top,
+      width: roundCaptureCoordinate(refinedBounds.right - refinedBounds.left) ?? 0,
+      height: roundCaptureCoordinate(refinedBounds.bottom - refinedBounds.top) ?? 0,
+    },
+    controls: input.controls.filter((control) => intersectsCaptureBounds(refinedBounds, control)),
+    textNodes: input.textNodes
+      .filter((node) => intersectsCaptureBounds(refinedBounds, node))
+      .filter((node) => shouldSeedPostToggleCaptureBoundsFromTextNode(node, input.anchorTop)),
+  };
+}
+
 export async function capturePhysicalOperatingAddressPostToggleStructure(
   frame: FrameHost,
 ): Promise<PhysicalOperatingAddressPostToggleCaptureReport> {
   const body = frame.locator('body').first();
 
-  const snapshot = await body.evaluate((root, payload) => {
+  const rawSnapshot = await body.evaluate((root, payload) => {
     const keywordSpecs = payload.keywordSpecs;
     const safeLabelPattern = new RegExp(payload.safeLabelPatternSource, 'i');
 
@@ -374,6 +458,7 @@ export async function capturePhysicalOperatingAddressPostToggleStructure(
           keywords: matchesKeywords(rawText),
           textShape: captureTextShape(rawText),
           redacted: text !== rawText,
+          withinDocTab: Boolean(element.closest('.doc-tab')),
           left: rect.left,
           top: rect.top,
           width: rect.width,
@@ -395,49 +480,10 @@ export async function capturePhysicalOperatingAddressPostToggleStructure(
 
     const anchor = selectAnchor(controls, keywordText);
 
-    const defaultBounds = {
-      left: round((anchor.left ?? 0) - 260) ?? 0,
-      top: round((anchor.top ?? 0) - 90) ?? 0,
-      right: round((anchor.left ?? 0) + 700) ?? 900,
-      bottom: round((anchor.top ?? 0) + 430) ?? 430,
-    };
-
-    const intersectsBounds = (
-      bounds: { left: number; top: number; right: number; bottom: number },
-      rect: { left: number | null; top: number | null; width: number | null; height: number | null },
-    ): boolean => {
-      if (rect.left === null || rect.top === null || rect.width === null || rect.height === null) return false;
-      const right = rect.left + rect.width;
-      const bottom = rect.top + rect.height;
-      return right >= bounds.left && rect.left <= bounds.right && bottom >= bounds.top && rect.top <= bounds.bottom;
-    };
-
-    const nearbyControls = controls.filter((control) => intersectsBounds(defaultBounds, control));
-    const nearbyTextNodes = textNodes.filter((node) => intersectsBounds(defaultBounds, node));
-    const boundsSeed = [...nearbyControls, ...nearbyTextNodes];
-
-    const refinedBounds = boundsSeed.length > 0
-      ? {
-        left: round(Math.max(0, Math.min(...boundsSeed.map((entry) => entry.left ?? Number.POSITIVE_INFINITY)) - 24)) ?? defaultBounds.left,
-        top: round(Math.max(0, Math.min(...boundsSeed.map((entry) => entry.top ?? Number.POSITIVE_INFINITY)) - 24)) ?? defaultBounds.top,
-        right: round(Math.max(...boundsSeed.map((entry) => (entry.left ?? 0) + (entry.width ?? 0))) + 24) ?? defaultBounds.right,
-        bottom: round(Math.max(...boundsSeed.map((entry) => (entry.top ?? 0) + (entry.height ?? 0))) + 24) ?? defaultBounds.bottom,
-      }
-      : defaultBounds;
-
-    const finalControls = controls.filter((control) => intersectsBounds(refinedBounds, control));
-    const finalTextNodes = textNodes.filter((node) => intersectsBounds(refinedBounds, node));
-
     return {
       anchor,
-      captureBounds: {
-        left: refinedBounds.left,
-        top: refinedBounds.top,
-        width: round(refinedBounds.right - refinedBounds.left) ?? 0,
-        height: round(refinedBounds.bottom - refinedBounds.top) ?? 0,
-      },
-      controls: finalControls,
-      textNodes: finalTextNodes,
+      controls,
+      textNodes,
     };
   }, {
     keywordSpecs: [
@@ -453,6 +499,13 @@ export async function capturePhysicalOperatingAddressPostToggleStructure(
       { keyword: 'addressOptions', patternSource: '\\baddressoptions\\b' },
     ],
     safeLabelPatternSource: SAFE_CAPTURE_LABEL_RE.source,
+  });
+
+  const snapshot = refinePhysicalOperatingAddressPostToggleCaptureRegion({
+    anchorLeft: rawSnapshot.anchor.left,
+    anchorTop: rawSnapshot.anchor.top,
+    controls: rawSnapshot.controls,
+    textNodes: rawSnapshot.textNodes,
   });
 
   const observations: string[] = [];
@@ -471,9 +524,9 @@ export async function capturePhysicalOperatingAddressPostToggleStructure(
 
   return {
     generatedAt: new Date().toISOString(),
-    anchorLabel: snapshot.anchor.label,
-    anchorLeft: snapshot.anchor.left,
-    anchorTop: snapshot.anchor.top,
+    anchorLabel: rawSnapshot.anchor.label,
+    anchorLeft: rawSnapshot.anchor.left,
+    anchorTop: rawSnapshot.anchor.top,
     captureBounds: snapshot.captureBounds,
     textNodes: dedupeCaptureTextNodes(snapshot.textNodes),
     controls: snapshot.controls,
