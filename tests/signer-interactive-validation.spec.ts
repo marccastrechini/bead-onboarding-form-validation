@@ -12,6 +12,7 @@ import {
   runInteractiveCase,
   skippedConceptToResult,
   writeInteractiveResultsArtifacts,
+  type InteractiveProgressState,
   type InteractiveValidationPlan,
   type InteractiveValidationResult,
 } from '../fixtures/interactive-validation';
@@ -30,9 +31,10 @@ test.describe('Bead Onboarding - Interactive Field Validation', () => {
     const guardState = getInteractiveGuardState();
     const results: InteractiveValidationResult[] = [];
     let plan: InteractiveValidationPlan | null = null;
+    let currentStep: InteractiveProgressState | null = null;
 
     const flush = () => writeInteractiveResultsArtifacts(
-      buildInteractiveResultsFile({ runStartedAt, guardState, plan, results }),
+      buildInteractiveResultsFile({ runStartedAt, currentStep, guardState, plan, results }),
       ARTIFACTS_DIR,
     );
 
@@ -78,11 +80,18 @@ test.describe('Bead Onboarding - Interactive Field Validation', () => {
 
       for (const validationCase of plan.cases) {
         const field = fields[validationCase.targetField.fieldIndex - 1] ?? null;
-        const result = await runInteractiveCase(validationCase, field, fields, frame);
+        const result = await runInteractiveCase(validationCase, field, fields, frame, {
+          onProgress: (progress) => {
+            currentStep = progress;
+            flush();
+          },
+        });
         results.push(result);
+        currentStep = null;
         flush();
       }
 
+      currentStep = null;
       const artifacts = flush();
       await attachArtifacts(testInfo, artifacts);
     } catch (error) {

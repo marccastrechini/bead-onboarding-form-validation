@@ -17,6 +17,7 @@ export const INTERACTIVE_RESULTS_JSON = 'latest-interactive-validation-results.j
 export const INTERACTIVE_RESULTS_MD = 'latest-interactive-validation-results.md';
 export const INTERACTIVE_TARGET_DIAGNOSTICS_JSON = 'latest-interactive-target-diagnostics.json';
 export const INTERACTIVE_TARGET_DIAGNOSTICS_MD = 'latest-interactive-target-diagnostics.md';
+export const INTERACTIVE_STEP_TIMEOUT_MS = 30_000;
 
 export const INTERACTIVE_TARGET_CONCEPTS = [
   'website',
@@ -106,6 +107,7 @@ export type InteractiveReasonCode =
   | 'target_mapping_not_trusted'
   | 'error_ownership_suspect'
   | 'observer_ambiguous'
+  | 'observer_timeout'
   | 'product_failure'
   | 'interaction_error';
 export type InteractiveTargetConfidence = 'trusted' | 'tool_mapping_suspect' | 'mapping_not_confident';
@@ -388,10 +390,35 @@ export interface InteractiveValidationResult {
   skippedReason?: string;
 }
 
+export type InteractiveStepPhase =
+  | 'read-original-value'
+  | 'describe-control'
+  | 'read-target-signature'
+  | 'wait-for-client-validation'
+  | 'read-value-after-fill'
+  | 'read-value-after-blur'
+  | 'collect-observation'
+  | 'restore-original-value';
+
+export interface InteractiveProgressState {
+  concept: FieldConceptKey;
+  conceptDisplayName: string;
+  validationId: string;
+  caseName: string;
+  phase: InteractiveStepPhase;
+  startedAt: string;
+}
+
+export interface InteractiveCaseRuntimeOptions {
+  stepTimeoutMs?: number;
+  onProgress?: (progress: InteractiveProgressState) => void | Promise<void>;
+}
+
 export interface InteractiveValidationResultsFile {
   schemaVersion: 1;
   runStartedAt: string;
   runFinishedAt: string;
+  currentStep: InteractiveProgressState | null;
   guardState: InteractiveGuardState;
   sourceReport: {
     runStartedAt: string | null;
@@ -1535,6 +1562,7 @@ export async function runInteractiveCase(
   field: DiscoveredField | null,
   allFields: DiscoveredField[],
   _frame: FrameHost,
+  runtime: InteractiveCaseRuntimeOptions = {},
 ): Promise<InteractiveValidationResult> {
   if (!field || field.controlCategory !== 'merchant_input') {
     return skippedCase(testCase, 'target field was not available as a merchant input in live discovery');
@@ -1547,22 +1575,50 @@ export async function runInteractiveCase(
   const targetResolution = resolveInteractiveTargetField(testCase, field, allFields);
   const liveField = targetResolution.field;
   const locator = liveField.locator;
-  const originalValue = await readControlValue(locator);
-  const control = await describeInteractiveControl(locator);
-  const actualElement = await readElementSignature(liveField);
+  let originalValue: string | null = null;
+  let control: InteractiveControlDescriptor = {
+    kind: 'unsupported',
+    tagName: null,
+    role: null,
+    inputType: null,
+    options: [],
+    supportsFreeText: false,
+    canClear: false,
+  };
+  let actualElement: InteractiveElementSignature = {
+    id: null,
+    name: null,
+    ariaLabel: null,
+    title: null,
+    role: null,
+    tagName: null,
+    type: null,
+    inputMode: null,
+    autocomplete: null,
+    placeholder: null,
+    docusignTabType: null,
+  };
   const targetDiagnostics = createTargetDiagnostics(testCase, liveField, actualElement, originalValue);
-  const targetVerification = verifyInteractiveTarget(testCase, liveField, actualElement, targetResolution.selection);
-  targetDiagnostics.targetConfidence = targetVerification.confidence;
-  targetDiagnostics.targetConfidenceReason = targetVerification.reason;
-  targetDiagnostics.mappingDecisionReason = targetVerification.decisionReason;
-  targetDiagnostics.mappingShiftReason = targetVerification.shiftReason;
-  targetDiagnostics.mappingFlags = [...targetVerification.flags];
 
   let filled = false;
   let interactionMode: PreparedInteractiveAction['mode'] = 'observe_current';
   let result: InteractiveValidationResult;
 
   try {
+    originalValue = await withInteractiveStepTimeout(testCase, 'read-original-value', () => readControlValue(locator), runtime);
+    targetDiagnostics.actualValueBeforeTest = sanitizeNullable(originalValue);
+    control = await withInteractiveStepTimeout(testCase, 'describe-control', () => describeInteractiveControl(locator), runtime);
+    actualElement = await withInteractiveStepTimeout(testCase, 'read-target-signature', () => readElementSignature(liveField), runtime);
+    targetDiagnostics.actualElement = actualElement;
+    targetDiagnostics.actualFieldSignature = formatActualFieldSignature(actualElement);
+
+    const targetVerification = verifyInteractiveTarget(testCase, liveField, actualElement, targetResolution.selection);
+    targetDiagnostics.targetConfidence = targetVerification.confidence;
+    targetDiagnostics.targetConfidenceReason = targetVerification.reason;
+    targetDiagnostics.mappingDecisionReason = targetVerification.decisionReason;
+    targetDiagnostics.mappingShiftReason = targetVerification.shiftReason;
+    targetDiagnostics.mappingFlags = [...targetVerification.flags];
+
     if (targetVerification.confidence !== 'trusted') {
       result = mappingGateResult(testCase, targetDiagnostics, targetVerification);
     } else {
@@ -1592,16 +1648,25 @@ export async function runInteractiveCase(
         }
 
         if (filled) {
-          targetDiagnostics.actualValueAfterFill = sanitizeNullable(await readControlValue(locator));
+          targetDiagnostics.actualValueAfterFill = sanitizeNullable(
+            await withInteractiveStepTimeout(testCase, 'read-value-after-fill', () => readControlValue(locator), runtime),
+          );
           await locator.blur({ timeout: 3_000 }).catch(() => undefined);
-          await waitForClientValidation(locator);
-          targetDiagnostics.actualValueAfterBlur = sanitizeNullable(await readControlValue(locator));
+          await withInteractiveStepTimeout(testCase, 'wait-for-client-validation', () => waitForClientValidation(locator), runtime);
+          targetDiagnostics.actualValueAfterBlur = sanitizeNullable(
+            await withInteractiveStepTimeout(testCase, 'read-value-after-blur', () => readControlValue(locator), runtime),
+          );
         } else {
           targetDiagnostics.actualValueAfterFill = sanitizeNullable(originalValue);
           targetDiagnostics.actualValueAfterBlur = sanitizeNullable(originalValue);
         }
 
-        const observation = await collectObservation(liveField, testCase.concept, preparedAction.attemptedValue, filled);
+        const observation = await withInteractiveStepTimeout(
+          testCase,
+          'collect-observation',
+          () => collectObservation(liveField, testCase.concept, preparedAction.attemptedValue, filled),
+          runtime,
+        );
         observation.controlKind = control.kind;
         observation.optionsDiscoverable = control.options.length > 0;
         observation.freeTextEntryImpossible = Boolean(preparedAction.freeTextEntryImpossible);
@@ -1637,31 +1702,52 @@ export async function runInteractiveCase(
       }
     }
   } catch (error) {
-    result = {
-      concept: testCase.concept,
-      conceptDisplayName: testCase.conceptDisplayName,
-      fieldLabel: testCase.fieldLabel,
-      targetField: testCase.targetField,
-      validationId: testCase.validationId,
-      caseName: testCase.caseName,
-      testName: testCase.testName,
-      inputValue: testCase.inputValue,
-      expectedBehavior: testCase.expectedBehavior,
-      severity: testCase.severity,
-      status: 'skipped',
-      outcome: 'observer_ambiguous',
-      reasonCode: 'interaction_error',
-      observation: null,
-      targetDiagnostics,
-      evidence: summarizeNonObservationResult(testCase, targetDiagnostics, oneLine(error)),
-      interpretation: 'The runner could not complete this interaction cleanly enough to interpret the field behavior.',
-      recommendation: 'Review the locator and field editability before interpreting this case.',
-      cleanupStrategy: testCase.cleanupStrategy,
-      safetyNotes: testCase.safetyNotes,
-      skippedReason: oneLine(error),
-    };
+    result = isInteractiveStepTimeoutError(error)
+      ? buildInteractiveStepTimeoutResult(testCase, targetDiagnostics, {
+        phase: error.phase,
+        timeoutMs: error.timeoutMs,
+      })
+      : {
+        concept: testCase.concept,
+        conceptDisplayName: testCase.conceptDisplayName,
+        fieldLabel: testCase.fieldLabel,
+        targetField: testCase.targetField,
+        validationId: testCase.validationId,
+        caseName: testCase.caseName,
+        testName: testCase.testName,
+        inputValue: testCase.inputValue,
+        expectedBehavior: testCase.expectedBehavior,
+        severity: testCase.severity,
+        status: 'skipped',
+        outcome: 'observer_ambiguous',
+        reasonCode: 'interaction_error',
+        observation: null,
+        targetDiagnostics,
+        evidence: summarizeNonObservationResult(testCase, targetDiagnostics, oneLine(error)),
+        interpretation: 'The runner could not complete this interaction cleanly enough to interpret the field behavior.',
+        recommendation: 'Review the locator and field editability before interpreting this case.',
+        cleanupStrategy: testCase.cleanupStrategy,
+        safetyNotes: testCase.safetyNotes,
+        skippedReason: oneLine(error),
+      };
   } finally {
-    const restore = await restoreOriginalValue(locator, originalValue, filled, interactionMode);
+    const restore = await withInteractiveStepTimeout(
+      testCase,
+      'restore-original-value',
+      () => restoreOriginalValue(locator, originalValue, filled, interactionMode),
+      runtime,
+    ).catch((error) => {
+      if (isInteractiveStepTimeoutError(error)) {
+        return {
+          restoredValue: originalValue,
+          restoreSucceeded: false,
+        };
+      }
+      return {
+        restoredValue: originalValue,
+        restoreSucceeded: false,
+      };
+    });
     targetDiagnostics.restoredValue = sanitizeNullable(restore.restoredValue);
     targetDiagnostics.restoreSucceeded = restore.restoreSucceeded;
   }
@@ -1682,6 +1768,7 @@ export async function runInteractiveCase(
 export function buildInteractiveResultsFile(input: {
   runStartedAt: string;
   runFinishedAt?: string;
+  currentStep?: InteractiveProgressState | null;
   guardState: InteractiveGuardState;
   plan: InteractiveValidationPlan | null;
   results: InteractiveValidationResult[];
@@ -1691,6 +1778,7 @@ export function buildInteractiveResultsFile(input: {
     schemaVersion: 1,
     runStartedAt: input.runStartedAt,
     runFinishedAt: input.runFinishedAt ?? new Date().toISOString(),
+    currentStep: input.currentStep ?? null,
     guardState: input.guardState,
     sourceReport: {
       runStartedAt: input.plan?.sourceReport.runStartedAt ?? null,
@@ -1741,6 +1829,11 @@ export function renderInteractiveResultsMarkdown(resultFile: InteractiveValidati
   lines.push('');
   lines.push(`- Run started: ${esc(resultFile.runStartedAt)}`);
   lines.push(`- Run finished: ${esc(resultFile.runFinishedAt)}`);
+  if (resultFile.currentStep) {
+    lines.push(
+      `- In progress: ${esc(`${resultFile.currentStep.conceptDisplayName} (validationId=${resultFile.currentStep.validationId}, phase=${resultFile.currentStep.phase}, started=${resultFile.currentStep.startedAt})`)}`,
+    );
+  }
   lines.push(`- INTERACTIVE_VALIDATION guard: ${resultFile.guardState.INTERACTIVE_VALIDATION ? 'on' : 'off'}`);
   lines.push(`- DISPOSABLE_ENVELOPE guard: ${resultFile.guardState.DISPOSABLE_ENVELOPE ? 'on' : 'off'}`);
   lines.push(`- Total observations: ${resultFile.summary.total}`);
@@ -1955,6 +2048,107 @@ function skippedCase(testCase: InteractiveValidationCase, reason: string): Inter
   };
 }
 
+class InteractiveStepTimeoutError extends Error {
+  readonly phase: InteractiveStepPhase;
+  readonly timeoutMs: number;
+
+  constructor(
+    testCase: Pick<InteractiveValidationCase, 'concept' | 'conceptDisplayName' | 'validationId'>,
+    phase: InteractiveStepPhase,
+    timeoutMs: number,
+  ) {
+    super(describeInteractiveStepTimeout(testCase, phase, timeoutMs));
+    this.name = 'InteractiveStepTimeoutError';
+    this.phase = phase;
+    this.timeoutMs = timeoutMs;
+  }
+}
+
+function describeInteractiveStepTimeout(
+  testCase: Pick<InteractiveValidationCase, 'concept' | 'conceptDisplayName' | 'validationId'>,
+  phase: InteractiveStepPhase,
+  timeoutMs: number,
+): string {
+  return `observer timeout after ${timeoutMs}ms; concept=${testCase.concept}; validationId=${testCase.validationId}; phase=${phase}`;
+}
+
+async function reportInteractiveProgress(
+  testCase: Pick<InteractiveValidationCase, 'concept' | 'conceptDisplayName' | 'validationId' | 'caseName'>,
+  phase: InteractiveStepPhase,
+  runtime: InteractiveCaseRuntimeOptions,
+): Promise<void> {
+  // eslint-disable-next-line no-console
+  console.log(`[interactive] concept=${testCase.concept} validationId=${testCase.validationId} phase=${phase}`);
+  if (!runtime.onProgress) return;
+  await runtime.onProgress({
+    concept: testCase.concept,
+    conceptDisplayName: testCase.conceptDisplayName,
+    validationId: testCase.validationId,
+    caseName: testCase.caseName,
+    phase,
+    startedAt: new Date().toISOString(),
+  });
+}
+
+async function withInteractiveStepTimeout<T>(
+  testCase: Pick<InteractiveValidationCase, 'concept' | 'conceptDisplayName' | 'validationId' | 'caseName'>,
+  phase: InteractiveStepPhase,
+  step: () => Promise<T>,
+  runtime: InteractiveCaseRuntimeOptions,
+): Promise<T> {
+  await reportInteractiveProgress(testCase, phase, runtime);
+  const timeoutMs = runtime.stepTimeoutMs ?? INTERACTIVE_STEP_TIMEOUT_MS;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      step(),
+      new Promise<T>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new InteractiveStepTimeoutError(testCase, phase, timeoutMs)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+function isInteractiveStepTimeoutError(error: unknown): error is InteractiveStepTimeoutError {
+  return error instanceof InteractiveStepTimeoutError;
+}
+
+export function buildInteractiveStepTimeoutResult(
+  testCase: InteractiveValidationCase,
+  targetDiagnostics: InteractiveTargetDiagnostics,
+  input: {
+    phase: InteractiveStepPhase;
+    timeoutMs: number;
+  },
+): InteractiveValidationResult {
+  const detail = describeInteractiveStepTimeout(testCase, input.phase, input.timeoutMs);
+  return {
+    concept: testCase.concept,
+    conceptDisplayName: testCase.conceptDisplayName,
+    fieldLabel: testCase.fieldLabel,
+    targetField: testCase.targetField,
+    validationId: testCase.validationId,
+    caseName: testCase.caseName,
+    testName: testCase.testName,
+    inputValue: testCase.inputValue,
+    expectedBehavior: testCase.expectedBehavior,
+    severity: testCase.severity,
+    status: 'manual_review',
+    outcome: 'observer_ambiguous',
+    reasonCode: 'observer_timeout',
+    observation: null,
+    targetDiagnostics,
+    evidence: summarizeNonObservationResult(testCase, targetDiagnostics, detail),
+    interpretation: 'The runner timed out while observing or restoring this field, so the result is tooling ambiguity rather than a product finding.',
+    recommendation: `Review the ${testCase.conceptDisplayName} locator or page responsiveness before treating this case as a product defect.`,
+    cleanupStrategy: testCase.cleanupStrategy,
+    safetyNotes: testCase.safetyNotes,
+    skippedReason: detail,
+  };
+}
+
 async function readControlValue(locator: Locator): Promise<string | null> {
   try {
     return await locator.inputValue({ timeout: 1_500 });
@@ -1965,7 +2159,7 @@ async function readControlValue(locator: Locator): Promise<string | null> {
           return element.value;
         }
         return element.textContent?.trim() ?? '';
-      }, { timeout: 1_500 });
+      }, undefined, { timeout: 1_500 });
     } catch {
       return null;
     }
@@ -2072,7 +2266,7 @@ async function describeInteractiveControl(locator: Locator): Promise<Interactive
         supportsFreeText: false,
         canClear: false,
       };
-    }, { timeout: 2_000 });
+    }, undefined, { timeout: 2_000 });
   } catch {
     return {
       kind: 'unsupported',
@@ -2240,7 +2434,11 @@ async function restoreOriginalValue(
 }
 
 async function waitForClientValidation(locator: Locator): Promise<void> {
-  await locator.evaluate(() => new Promise((resolve) => window.setTimeout(resolve, 250))).catch(() => undefined);
+  await locator.evaluate(
+    () => new Promise((resolve) => window.setTimeout(resolve, 250)),
+    undefined,
+    { timeout: 1_500 },
+  ).catch(() => undefined);
 }
 
 async function collectObservation(
@@ -2395,7 +2593,7 @@ async function collectObservation(
     ariaInvalid: dom.ariaInvalid,
     inputValue,
     observedValue,
-  });
+  }, undefined, { timeout: 5_000 });
   const validationMessage = sanitizeNullable(dom.validationMessage);
   const validationMessageEvidence = validationMessage
     ? toEvidenceItem('native-validation-message', validationMessage, concept, true, field.tabGuid ? true : null)
@@ -2968,7 +3166,7 @@ async function readElementSignature(field: DiscoveredField): Promise<Interactive
         element.getAttribute('data-tab-type'),
       ),
     };
-  }, { timeout: 2_000 });
+  }, undefined, { timeout: 2_000 });
 }
 
 function verifyInteractiveTarget(

@@ -39,14 +39,20 @@ import {
   applyRestoreSafetyGate,
   assertInteractiveValidationGuards,
   buildExpectedAnchor,
+  buildInteractiveResultsFile,
+  buildInteractiveStepTimeoutResult,
   buildInteractiveValidationPlan,
   extractFieldLocalValidationDiagnostics,
   INTERACTIVE_TARGET_CONCEPTS,
+  INTERACTIVE_STEP_TIMEOUT_MS,
   prepareControlledChoiceInteraction,
+  renderInteractiveResultsMarkdown,
   resolveInteractiveTargetConcepts,
   skippedConceptToResult,
+  type InteractiveProgressState,
   type InteractiveResultOutcome,
   type InteractiveResultStatus,
+  type InteractiveValidationCase,
   type InteractiveTargetConfidence,
   type InteractiveValidationResultsFile,
 } from '../fixtures/interactive-validation';
@@ -5212,6 +5218,71 @@ test.describe('interactive validation safety', () => {
     expect(downgraded.reasonCode).toBe('observer_ambiguous');
   });
 
+  test('interactive step timeout becomes observer ambiguity without product finding', () => {
+    const validationCase = mockInteractiveCase();
+    const result = buildInteractiveStepTimeoutResult(
+      validationCase,
+      mockInteractiveTargetDiagnostics(validationCase),
+      {
+        phase: 'collect-observation',
+        timeoutMs: 12_345,
+      },
+    );
+
+    expect(result.status).toBe('manual_review');
+    expect(result.outcome).toBe('observer_ambiguous');
+    expect(result.reasonCode).toBe('observer_timeout');
+    expect(result.evidence).toContain('phase=collect-observation');
+    expect(result.evidence).toContain(`validationId=${validationCase.validationId}`);
+
+    const report = buildValidationFindingsReport(mockFindingsInput({ results: [result] }));
+    expect(report.likelyProductValidationFindings).toEqual([]);
+    expect(report.ambiguousHumanReviewFindings).toHaveLength(1);
+  });
+
+  test('interactive step timeout preserves existing target confidence', () => {
+    const validationCase = mockInteractiveCase();
+    const result = buildInteractiveStepTimeoutResult(
+      validationCase,
+      mockInteractiveTargetDiagnostics(validationCase, {
+        targetConfidence: 'mapping_not_confident',
+        targetConfidenceReason: 'Target verification not yet evaluated.',
+      }),
+      {
+        phase: 'read-target-signature',
+        timeoutMs: INTERACTIVE_STEP_TIMEOUT_MS,
+      },
+    );
+
+    expect(result.targetDiagnostics?.targetConfidence).toBe('mapping_not_confident');
+    expect(result.evidence).toContain('targetConfidence=mapping_not_confident');
+  });
+
+  test('interactive results markdown surfaces the current in-progress step', () => {
+    const currentStep: InteractiveProgressState = {
+      concept: 'email',
+      conceptDisplayName: 'Email',
+      validationId: 'missing-at-rejected',
+      caseName: 'missing-at',
+      phase: 'collect-observation',
+      startedAt: '2026-04-27T00:00:00.500Z',
+    };
+
+    const resultFile = buildInteractiveResultsFile({
+      runStartedAt: '2026-04-27T00:00:00.000Z',
+      guardState: { INTERACTIVE_VALIDATION: true, DISPOSABLE_ENVELOPE: true },
+      plan: null,
+      results: [],
+      currentStep,
+    });
+
+    expect(resultFile.currentStep).toEqual(currentStep);
+    const markdown = renderInteractiveResultsMarkdown(resultFile);
+    expect(markdown).toContain('In progress');
+    expect(markdown).toContain('validationId=missing-at-rejected');
+    expect(markdown).toContain('phase=collect-observation');
+  });
+
   test('sensitive fields are excluded from this batch', () => {
     for (const concept of ['ein', 'ssn', 'routing_number', 'account_number', 'upload'] as const) {
       expect(INTERACTIVE_TARGET_CONCEPTS).not.toContain(concept as any);
@@ -8036,6 +8107,7 @@ function mockInteractiveResults(
     schemaVersion: 1,
     runStartedAt: '2026-04-27T00:00:00.000Z',
     runFinishedAt: '2026-04-27T00:00:01.000Z',
+    currentStep: null,
     guardState: { INTERACTIVE_VALIDATION: true, DISPOSABLE_ENVELOPE: true },
     sourceReport: {
       runStartedAt: '2026-04-27T00:00:00.000Z',
@@ -8238,6 +8310,7 @@ function mockFindingsInput(args: {
       schemaVersion: 1,
       runStartedAt: '2026-04-27T00:00:00.000Z',
       runFinishedAt: '2026-04-27T00:00:01.000Z',
+      currentStep: null,
       guardState: { INTERACTIVE_VALIDATION: true, DISPOSABLE_ENVELOPE: true },
       sourceReport: {
         runStartedAt: '2026-04-27T00:00:00.000Z',
@@ -8358,6 +8431,118 @@ function interactiveReasonCodeFor(outcome: InteractiveResultOutcome): Interactiv
   if (outcome === 'observer_ambiguous') return 'observer_ambiguous';
   if (outcome === 'error_ownership_suspect') return 'error_ownership_suspect';
   return 'target_mapping_not_trusted';
+}
+
+function mockInteractiveCase(overrides: Partial<InteractiveValidationCase> = {}): InteractiveValidationCase {
+  return {
+    id: 'email:missing-at-rejected:missing-at',
+    concept: 'email',
+    conceptDisplayName: 'Email',
+    fieldLabel: 'Email',
+    targetField: {
+      primary: 'live-discovery-field-index',
+      fieldIndex: 1,
+      displayName: 'Email',
+      inferredType: 'email',
+      confidence: 'high',
+      fallback: 'skip-if-field-does-not-resolve-visible-editable-merchant-input',
+    },
+    targetProfile: {
+      intendedFieldDisplayName: 'Email',
+      intendedBusinessSection: 'Contact',
+      intendedSectionName: 'Contact',
+      layoutSectionHeader: 'Contact',
+      layoutFieldLabel: 'Email',
+      layoutEvidenceSource: 'synthetic-test',
+      jsonKeyPath: 'merchantData.email',
+      enrichmentMatchedBy: 'guid',
+      enrichmentPositionalFingerprint: 'page:1|Text|ord:1',
+      inferredType: 'email',
+      labelSource: 'aria-label',
+      labelConfidence: 'high',
+      mappingConfidence: 'high',
+      tabGuid: 'guid-email',
+      docusignTabType: 'Text',
+      pageIndex: 1,
+      ordinalOnPage: 1,
+      expectedPageIndex: 1,
+      expectedOrdinalOnPage: 1,
+      expectedDocusignFieldFamily: 'Text',
+      coordinates: {
+        left: 10,
+        top: 10,
+        width: 100,
+        height: 20,
+      },
+      expectedCoordinates: {
+        left: 10,
+        top: 10,
+      },
+    },
+    validationId: 'missing-at-rejected',
+    caseName: 'missing-at',
+    testName: 'missing @ rejected',
+    inputValue: 'invalid-email',
+    expectedBehavior: 'An email without @ is rejected.',
+    expectedSignal: 'reject',
+    interactionKind: 'fill',
+    severity: 'critical',
+    cleanupStrategy: 'restore_original_value_then_blur',
+    safetyNotes: ['Synthetic offline test case.'],
+    ...overrides,
+  };
+}
+
+function mockInteractiveTargetDiagnostics(
+  validationCase: InteractiveValidationCase,
+  overrides: Partial<NonNullable<InteractiveValidationResultsFile['results'][number]['targetDiagnostics']>> = {},
+): NonNullable<InteractiveValidationResultsFile['results'][number]['targetDiagnostics']> {
+  return {
+    intendedFieldDisplayName: validationCase.targetProfile.intendedFieldDisplayName,
+    intendedBusinessSection: validationCase.targetProfile.intendedBusinessSection,
+    intendedSectionName: validationCase.targetProfile.intendedSectionName,
+    inferredType: validationCase.targetProfile.inferredType,
+    labelSource: validationCase.targetProfile.labelSource,
+    labelConfidence: validationCase.targetProfile.labelConfidence,
+    mappingConfidence: validationCase.targetProfile.mappingConfidence,
+    tabGuid: validationCase.targetProfile.tabGuid,
+    docusignTabType: validationCase.targetProfile.docusignTabType,
+    pageIndex: validationCase.targetProfile.pageIndex,
+    ordinalOnPage: validationCase.targetProfile.ordinalOnPage,
+    coordinates: {
+      left: validationCase.targetProfile.coordinates.left,
+      top: validationCase.targetProfile.coordinates.top,
+      width: validationCase.targetProfile.coordinates.width,
+      height: validationCase.targetProfile.coordinates.height,
+    },
+    locatorStrategy: 'live-discovery-field-index:1',
+    actualElement: {
+      id: 'email-input',
+      name: 'email',
+      ariaLabel: 'Email',
+      title: null,
+      role: 'textbox',
+      tagName: 'input',
+      type: 'email',
+      inputMode: 'email',
+      autocomplete: 'email',
+      placeholder: 'Email',
+      docusignTabType: 'Text',
+    },
+    actualFieldSignature: 'tag=input type=email role=textbox',
+    targetConfidence: 'trusted',
+    targetConfidenceReason: 'trusted_by_label',
+    mappingDecisionReason: 'trusted_by_label',
+    mappingShiftReason: 'none',
+    mappingFlags: [],
+    actualValueBeforeTest: 'owner@example.test',
+    attemptedValue: validationCase.inputValue,
+    actualValueAfterFill: null,
+    actualValueAfterBlur: null,
+    restoredValue: null,
+    restoreSucceeded: null,
+    ...overrides,
+  };
 }
 
 function mockMhtmlTab(args: {
