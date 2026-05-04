@@ -89,6 +89,13 @@ test.describe('Bead Onboarding - Interactive Field Validation', () => {
         results.push(result);
         currentStep = null;
         flush();
+        if (result.reasonCode === 'observer_timeout') {
+          testInfo.annotations.push({
+            type: 'diagnostic',
+            description: `interactive phase: halting run after observer timeout (${result.concept}/${result.validationId})`,
+          });
+          break;
+        }
       }
 
       currentStep = null;

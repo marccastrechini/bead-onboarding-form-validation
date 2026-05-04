@@ -5,6 +5,7 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { EventEmitter } from 'node:events';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -39,6 +40,7 @@ import {
   applyRestoreSafetyGate,
   assertInteractiveValidationGuards,
   buildExpectedAnchor,
+  buildInteractiveProgressArtifact,
   buildInteractiveResultsFile,
   buildInteractiveStepTimeoutResult,
   buildInteractiveValidationPlan,
@@ -46,6 +48,7 @@ import {
   INTERACTIVE_TARGET_CONCEPTS,
   INTERACTIVE_STEP_TIMEOUT_MS,
   prepareControlledChoiceInteraction,
+  releaseInteractiveTimeoutSession,
   renderInteractiveResultsMarkdown,
   resolveInteractiveTargetConcepts,
   skippedConceptToResult,
@@ -93,6 +96,11 @@ import {
   PHYSICAL_ADDRESS_PROBE_CAPTURE_RECOMMENDATION,
   PHYSICAL_ADDRESS_PROBE_GENERIC_CONTROLS_PREFIX,
 } from '../scripts/generate-mapping-calibration';
+import {
+  buildInteractiveTimeoutArtifact,
+  buildWindowsProcessTreeKillCommand,
+  runNpmScriptWithWatchdog,
+} from '../scripts/bootstrap-interactive-run';
 
 test.describe('bead-client: buildResendUrl', () => {
   test('substitutes {applicationId} and joins base + path', () => {
@@ -5258,6 +5266,41 @@ test.describe('interactive validation safety', () => {
     expect(result.evidence).toContain('targetConfidence=mapping_not_confident');
   });
 
+  test('interactive timeout release closes the page/context/browser path', async () => {
+    const calls: string[] = [];
+    const browser = {
+      isConnected: () => true,
+      close: async () => {
+        calls.push('browser.close');
+      },
+    };
+    const context = {
+      close: async () => {
+        calls.push('context.close');
+        throw new Error('context close failed');
+      },
+      browser: () => browser,
+    };
+    const page = {
+      close: async () => {
+        calls.push('page.close');
+        throw new Error('page close failed');
+      },
+      context: () => context,
+    };
+
+    const release = await releaseInteractiveTimeoutSession({
+      page: () => page,
+    } as any);
+
+    expect(calls).toEqual(['page.close', 'context.close', 'browser.close']);
+    expect(release.pageClosed).toBe(false);
+    expect(release.contextClosed).toBe(false);
+    expect(release.browserClosed).toBe(true);
+    expect(release.releaseErrors).toContain('page.close:page close failed');
+    expect(release.releaseErrors).toContain('context.close:context close failed');
+  });
+
   test('interactive results markdown surfaces the current in-progress step', () => {
     const currentStep: InteractiveProgressState = {
       concept: 'email',
@@ -5281,6 +5324,83 @@ test.describe('interactive validation safety', () => {
     expect(markdown).toContain('In progress');
     expect(markdown).toContain('validationId=missing-at-rejected');
     expect(markdown).toContain('phase=collect-observation');
+  });
+
+  test('interactive progress heartbeat records concept validationId phase and timestamp', () => {
+    const currentStep: InteractiveProgressState = {
+      concept: 'legal_entity_type',
+      conceptDisplayName: 'Legal Entity Type',
+      validationId: 'current-option-documented',
+      caseName: 'observe-current',
+      phase: 'collect-observation',
+      startedAt: '2026-05-04T18:58:40.000Z',
+    };
+
+    const artifact = buildInteractiveProgressArtifact(currentStep, currentStep.startedAt);
+
+    expect(artifact.status).toBe('in_progress');
+    expect(artifact.concept).toBe('legal_entity_type');
+    expect(artifact.validationId).toBe('current-option-documented');
+    expect(artifact.phase).toBe('collect-observation');
+    expect(artifact.timestamp).toBe('2026-05-04T18:58:40.000Z');
+  });
+
+  test('bootstrap watchdog selects Windows process-tree kill command', () => {
+    expect(buildWindowsProcessTreeKillCommand(4321)).toEqual({
+      command: 'taskkill',
+      args: ['/pid', '4321', '/t', '/f'],
+    });
+  });
+
+  test('bootstrap watchdog times out non-zero and writes a timeout artifact with last progress', async () => {
+    const artifactsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bead-watchdog-'));
+    const progressPath = path.join(artifactsDir, 'latest-interactive-progress.json');
+    fs.writeFileSync(progressPath, JSON.stringify(buildInteractiveProgressArtifact({
+      concept: 'legal_entity_type',
+      conceptDisplayName: 'Legal Entity Type',
+      validationId: 'current-option-documented',
+      caseName: 'observe-current',
+      phase: 'collect-observation',
+      startedAt: '2026-05-04T18:58:40.000Z',
+    }, '2026-05-04T18:58:40.000Z'), null, 2), 'utf8');
+
+    const child = new EventEmitter() as EventEmitter & { pid: number };
+    child.pid = 4321;
+    const spawnCalls: Array<{ command: string; args: readonly string[] }> = [];
+    const killCalls: Array<{ pid: number; platform?: NodeJS.Platform }> = [];
+
+    try {
+      const result = await runNpmScriptWithWatchdog('test:interactive', {}, {
+        timeoutMs: 25,
+        platform: 'win32',
+        artifactsDir,
+        now: () => new Date('2026-05-04T18:59:00.000Z'),
+        spawnImpl: ((command: string, args: readonly string[]) => {
+          spawnCalls.push({ command, args });
+          return child as any;
+        }) as any,
+        killProcessTree: async (pid, platform) => {
+          killCalls.push({ pid, platform });
+        },
+      });
+
+      expect(spawnCalls).toHaveLength(1);
+      expect(result.code).toBe(124);
+      expect(result.timedOut).toBe(true);
+      expect(result.reason).toContain('exceeded INTERACTIVE_RUN_TIMEOUT_MS=25ms');
+      expect(result.reason).toContain('lastProgress=legal_entity_type/current-option-documented/collect-observation');
+      expect(killCalls).toEqual([{ pid: 4321, platform: 'win32' }]);
+      expect(result.timeoutArtifactPath).toBeTruthy();
+
+      const timeoutArtifact = JSON.parse(fs.readFileSync(result.timeoutArtifactPath!, 'utf8')) as ReturnType<typeof buildInteractiveTimeoutArtifact>;
+      expect(timeoutArtifact.childPid).toBe(4321);
+      expect(timeoutArtifact.progress?.concept).toBe('legal_entity_type');
+      expect(timeoutArtifact.progress?.validationId).toBe('current-option-documented');
+      expect(timeoutArtifact.progress?.phase).toBe('collect-observation');
+      expect(timeoutArtifact.timedOutAt).toBe('2026-05-04T18:59:00.000Z');
+    } finally {
+      fs.rmSync(artifactsDir, { recursive: true, force: true });
+    }
   });
 
   test('sensitive fields are excluded from this batch', () => {

@@ -17,7 +17,9 @@ export const INTERACTIVE_RESULTS_JSON = 'latest-interactive-validation-results.j
 export const INTERACTIVE_RESULTS_MD = 'latest-interactive-validation-results.md';
 export const INTERACTIVE_TARGET_DIAGNOSTICS_JSON = 'latest-interactive-target-diagnostics.json';
 export const INTERACTIVE_TARGET_DIAGNOSTICS_MD = 'latest-interactive-target-diagnostics.md';
+export const INTERACTIVE_PROGRESS_JSON = 'latest-interactive-progress.json';
 export const INTERACTIVE_STEP_TIMEOUT_MS = 30_000;
+const INTERACTIVE_TIMEOUT_RELEASE_TIMEOUT_MS = 5_000;
 
 export const INTERACTIVE_TARGET_CONCEPTS = [
   'website',
@@ -409,9 +411,34 @@ export interface InteractiveProgressState {
   startedAt: string;
 }
 
+export interface InteractiveProgressArtifact {
+  schemaVersion: 1;
+  status: 'idle' | 'in_progress';
+  concept: FieldConceptKey | null;
+  conceptDisplayName: string | null;
+  validationId: string | null;
+  caseName: string | null;
+  phase: InteractiveStepPhase | null;
+  timestamp: string;
+}
+
+export interface InteractiveTimeoutReleaseResult {
+  pageClosed: boolean;
+  contextClosed: boolean;
+  browserClosed: boolean;
+  releaseErrors: string[];
+}
+
+export interface InteractiveStepTimeoutContext {
+  phase: InteractiveStepPhase;
+  timeoutMs: number;
+  error: InteractiveStepTimeoutError;
+}
+
 export interface InteractiveCaseRuntimeOptions {
   stepTimeoutMs?: number;
   onProgress?: (progress: InteractiveProgressState) => void | Promise<void>;
+  onTimeout?: (context: InteractiveStepTimeoutContext) => void | Promise<void>;
 }
 
 export interface InteractiveValidationResultsFile {
@@ -1603,12 +1630,23 @@ export async function runInteractiveCase(
   let filled = false;
   let interactionMode: PreparedInteractiveAction['mode'] = 'observe_current';
   let result: InteractiveValidationResult;
+  let timeoutRelease: InteractiveTimeoutReleaseResult | null = null;
+
+  const runtimeWithTimeout: InteractiveCaseRuntimeOptions = {
+    ...runtime,
+    onTimeout: async (context) => {
+      timeoutRelease = await releaseInteractiveTimeoutSession(locator);
+      if (runtime.onTimeout) {
+        await runtime.onTimeout(context);
+      }
+    },
+  };
 
   try {
-    originalValue = await withInteractiveStepTimeout(testCase, 'read-original-value', () => readControlValue(locator), runtime);
+    originalValue = await withInteractiveStepTimeout(testCase, 'read-original-value', () => readControlValue(locator), runtimeWithTimeout);
     targetDiagnostics.actualValueBeforeTest = sanitizeNullable(originalValue);
-    control = await withInteractiveStepTimeout(testCase, 'describe-control', () => describeInteractiveControl(locator), runtime);
-    actualElement = await withInteractiveStepTimeout(testCase, 'read-target-signature', () => readElementSignature(liveField), runtime);
+    control = await withInteractiveStepTimeout(testCase, 'describe-control', () => describeInteractiveControl(locator), runtimeWithTimeout);
+    actualElement = await withInteractiveStepTimeout(testCase, 'read-target-signature', () => readElementSignature(liveField), runtimeWithTimeout);
     targetDiagnostics.actualElement = actualElement;
     targetDiagnostics.actualFieldSignature = formatActualFieldSignature(actualElement);
 
@@ -1649,12 +1687,12 @@ export async function runInteractiveCase(
 
         if (filled) {
           targetDiagnostics.actualValueAfterFill = sanitizeNullable(
-            await withInteractiveStepTimeout(testCase, 'read-value-after-fill', () => readControlValue(locator), runtime),
+            await withInteractiveStepTimeout(testCase, 'read-value-after-fill', () => readControlValue(locator), runtimeWithTimeout),
           );
           await locator.blur({ timeout: 3_000 }).catch(() => undefined);
-          await withInteractiveStepTimeout(testCase, 'wait-for-client-validation', () => waitForClientValidation(locator), runtime);
+          await withInteractiveStepTimeout(testCase, 'wait-for-client-validation', () => waitForClientValidation(locator), runtimeWithTimeout);
           targetDiagnostics.actualValueAfterBlur = sanitizeNullable(
-            await withInteractiveStepTimeout(testCase, 'read-value-after-blur', () => readControlValue(locator), runtime),
+            await withInteractiveStepTimeout(testCase, 'read-value-after-blur', () => readControlValue(locator), runtimeWithTimeout),
           );
         } else {
           targetDiagnostics.actualValueAfterFill = sanitizeNullable(originalValue);
@@ -1665,7 +1703,7 @@ export async function runInteractiveCase(
           testCase,
           'collect-observation',
           () => collectObservation(liveField, testCase.concept, preparedAction.attemptedValue, filled),
-          runtime,
+          runtimeWithTimeout,
         );
         observation.controlKind = control.kind;
         observation.optionsDiscoverable = control.options.length > 0;
@@ -1706,6 +1744,7 @@ export async function runInteractiveCase(
       ? buildInteractiveStepTimeoutResult(testCase, targetDiagnostics, {
         phase: error.phase,
         timeoutMs: error.timeoutMs,
+        release: timeoutRelease,
       })
       : {
         concept: testCase.concept,
@@ -1731,25 +1770,30 @@ export async function runInteractiveCase(
         skippedReason: oneLine(error),
       };
   } finally {
-    const restore = await withInteractiveStepTimeout(
-      testCase,
-      'restore-original-value',
-      () => restoreOriginalValue(locator, originalValue, filled, interactionMode),
-      runtime,
-    ).catch((error) => {
-      if (isInteractiveStepTimeoutError(error)) {
+    if (timeoutRelease) {
+      targetDiagnostics.restoredValue = sanitizeNullable(originalValue);
+      targetDiagnostics.restoreSucceeded = false;
+    } else {
+      const restore = await withInteractiveStepTimeout(
+        testCase,
+        'restore-original-value',
+        () => restoreOriginalValue(locator, originalValue, filled, interactionMode),
+        runtimeWithTimeout,
+      ).catch((error) => {
+        if (isInteractiveStepTimeoutError(error)) {
+          return {
+            restoredValue: originalValue,
+            restoreSucceeded: false,
+          };
+        }
         return {
           restoredValue: originalValue,
           restoreSucceeded: false,
         };
-      }
-      return {
-        restoredValue: originalValue,
-        restoreSucceeded: false,
-      };
-    });
-    targetDiagnostics.restoredValue = sanitizeNullable(restore.restoredValue);
-    targetDiagnostics.restoreSucceeded = restore.restoreSucceeded;
+      });
+      targetDiagnostics.restoredValue = sanitizeNullable(restore.restoredValue);
+      targetDiagnostics.restoreSucceeded = restore.restoreSucceeded;
+    }
   }
 
   result = applyRestoreSafetyGate(result, targetDiagnostics);
@@ -1807,18 +1851,48 @@ export function writeInteractiveResultsArtifacts(
   mdPath: string;
   targetDiagnosticsJsonPath: string;
   targetDiagnosticsMdPath: string;
+  progressJsonPath: string;
 } {
   fs.mkdirSync(outDir, { recursive: true });
   const jsonPath = path.join(outDir, INTERACTIVE_RESULTS_JSON);
   const mdPath = path.join(outDir, INTERACTIVE_RESULTS_MD);
   const targetDiagnosticsJsonPath = path.join(outDir, INTERACTIVE_TARGET_DIAGNOSTICS_JSON);
   const targetDiagnosticsMdPath = path.join(outDir, INTERACTIVE_TARGET_DIAGNOSTICS_MD);
+  const progressJsonPath = writeInteractiveProgressArtifact(resultFile.currentStep, outDir, resultFile.runFinishedAt);
   fs.writeFileSync(jsonPath, JSON.stringify(resultFile, null, 2), 'utf8');
   fs.writeFileSync(mdPath, renderInteractiveResultsMarkdown(resultFile), 'utf8');
   const targetDiagnostics = buildInteractiveTargetDiagnosticsFile(resultFile);
   fs.writeFileSync(targetDiagnosticsJsonPath, JSON.stringify(targetDiagnostics, null, 2), 'utf8');
   fs.writeFileSync(targetDiagnosticsMdPath, renderInteractiveTargetDiagnosticsMarkdown(targetDiagnostics), 'utf8');
-  return { jsonPath, mdPath, targetDiagnosticsJsonPath, targetDiagnosticsMdPath };
+  return { jsonPath, mdPath, targetDiagnosticsJsonPath, targetDiagnosticsMdPath, progressJsonPath };
+}
+
+export function buildInteractiveProgressArtifact(
+  currentStep: InteractiveProgressState | null | undefined,
+  timestamp = currentStep?.startedAt ?? new Date().toISOString(),
+): InteractiveProgressArtifact {
+  return {
+    schemaVersion: 1,
+    status: currentStep ? 'in_progress' : 'idle',
+    concept: currentStep?.concept ?? null,
+    conceptDisplayName: currentStep?.conceptDisplayName ?? null,
+    validationId: currentStep?.validationId ?? null,
+    caseName: currentStep?.caseName ?? null,
+    phase: currentStep?.phase ?? null,
+    timestamp,
+  };
+}
+
+export function writeInteractiveProgressArtifact(
+  currentStep: InteractiveProgressState | null | undefined,
+  outDir: string,
+  timestamp?: string,
+): string {
+  fs.mkdirSync(outDir, { recursive: true });
+  const progressJsonPath = path.join(outDir, INTERACTIVE_PROGRESS_JSON);
+  const artifact = buildInteractiveProgressArtifact(currentStep, timestamp);
+  fs.writeFileSync(progressJsonPath, JSON.stringify(artifact, null, 2), 'utf8');
+  return progressJsonPath;
 }
 
 export function renderInteractiveResultsMarkdown(resultFile: InteractiveValidationResultsFile): string {
@@ -2103,7 +2177,13 @@ async function withInteractiveStepTimeout<T>(
     return await Promise.race([
       step(),
       new Promise<T>((_resolve, reject) => {
-        timer = setTimeout(() => reject(new InteractiveStepTimeoutError(testCase, phase, timeoutMs)), timeoutMs);
+        timer = setTimeout(() => {
+          const error = new InteractiveStepTimeoutError(testCase, phase, timeoutMs);
+          void Promise.race([
+            Promise.resolve(runtime.onTimeout?.({ phase, timeoutMs, error })),
+            new Promise<void>((resolve) => setTimeout(resolve, INTERACTIVE_TIMEOUT_RELEASE_TIMEOUT_MS)),
+          ]).finally(() => reject(error));
+        }, timeoutMs);
       }),
     ]);
   } finally {
@@ -2121,9 +2201,13 @@ export function buildInteractiveStepTimeoutResult(
   input: {
     phase: InteractiveStepPhase;
     timeoutMs: number;
+    release?: InteractiveTimeoutReleaseResult | null;
   },
 ): InteractiveValidationResult {
   const detail = describeInteractiveStepTimeout(testCase, input.phase, input.timeoutMs);
+  const releaseDetail = input.release
+    ? `; sessionRelease=page:${input.release.pageClosed ? 'closed' : 'open'},context:${input.release.contextClosed ? 'closed' : 'open'},browser:${input.release.browserClosed ? 'closed' : 'open'}${input.release.releaseErrors.length ? `; releaseErrors=${input.release.releaseErrors.join(' | ')}` : ''}`
+    : '';
   return {
     concept: testCase.concept,
     conceptDisplayName: testCase.conceptDisplayName,
@@ -2140,13 +2224,45 @@ export function buildInteractiveStepTimeoutResult(
     reasonCode: 'observer_timeout',
     observation: null,
     targetDiagnostics,
-    evidence: summarizeNonObservationResult(testCase, targetDiagnostics, detail),
+    evidence: summarizeNonObservationResult(testCase, targetDiagnostics, `${detail}${releaseDetail}`),
     interpretation: 'The runner timed out while observing or restoring this field, so the result is tooling ambiguity rather than a product finding.',
     recommendation: `Review the ${testCase.conceptDisplayName} locator or page responsiveness before treating this case as a product defect.`,
     cleanupStrategy: testCase.cleanupStrategy,
     safetyNotes: testCase.safetyNotes,
-    skippedReason: detail,
+    skippedReason: `${detail}${releaseDetail}`,
   };
+}
+
+export async function releaseInteractiveTimeoutSession(
+  locator: Pick<Locator, 'page'>,
+): Promise<InteractiveTimeoutReleaseResult> {
+  const page = locator.page();
+  const context = page.context();
+  const browser = context.browser();
+  const release: InteractiveTimeoutReleaseResult = {
+    pageClosed: false,
+    contextClosed: false,
+    browserClosed: false,
+    releaseErrors: [],
+  };
+
+  const tryRelease = async (label: string, action: () => Promise<void>): Promise<boolean> => {
+    try {
+      await action();
+      return true;
+    } catch (error) {
+      release.releaseErrors.push(`${label}:${oneLine(error)}`);
+      return false;
+    }
+  };
+
+  release.pageClosed = await tryRelease('page.close', () => page.close({ runBeforeUnload: false }));
+  release.contextClosed = await tryRelease('context.close', () => context.close());
+  if (!release.contextClosed && browser?.isConnected()) {
+    release.browserClosed = await tryRelease('browser.close', () => browser.close());
+  }
+
+  return release;
 }
 
 async function readControlValue(locator: Locator): Promise<string | null> {
@@ -2583,7 +2699,7 @@ async function collectObservation(
       errorCandidates,
       invalidIndicators,
     };
-  }, { timeout: 3_000 });
+  }, undefined, { timeout: 3_000 });
 
   const observedValue = filled ? sanitizeEvidenceText(dom.observedValue ?? '') : null;
   const normalizedOrReformatted = filled && observedValue !== null && observedValue !== inputValue;
