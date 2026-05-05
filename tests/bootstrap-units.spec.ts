@@ -5165,6 +5165,95 @@ test.describe('interactive validation safety', () => {
     }
   });
 
+  test('bank_account_type calibrated layout proof displaces stale Account Type enrichment', () => {
+    const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bead-bank-account-calibration-'));
+    const calibrationPath = path.join(outDir, 'latest-mapping-calibration.json');
+    try {
+      fs.writeFileSync(calibrationPath, JSON.stringify({
+        schemaVersion: 1,
+        rows: [{
+          concept: 'bank_account_type',
+          conceptDisplayName: 'Bank Account Type',
+          jsonKeyPath: 'merchantData.accountType',
+          currentCandidateFieldIndex: 2,
+          currentCandidateCoordinates: '536.96,876.8',
+          selectedCandidate: '#2 Account Type Banking p1 ord64 List shape=text_name_like editable=editable layout=Bank Info > Account Type @ 536.96,876.8',
+          decision: 'trust_current_mapping',
+          calibrationReason: 'none',
+          mappingDecisionReason: 'trusted_by_label',
+          missingProof: [],
+          neighborWindow: [{
+            fieldIndex: 2,
+            label: 'Account Type',
+            businessSection: 'Banking',
+            layoutSectionHeader: 'Bank Info',
+            layoutFieldLabel: 'Account Type',
+            pageIndex: 1,
+            ordinalOnPage: 64,
+            coordinates: '536.96,876.8',
+            tabType: 'List',
+          }],
+        }],
+      }), 'utf8');
+
+      const plan = buildInteractiveValidationPlan(mockValidationReport([
+        mockField({
+          index: 1,
+          section: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
+          inferredType: 'business_type',
+          docusignTabType: 'List',
+          labelSource: 'enrichment-coordinate',
+          labelConfidence: 'medium',
+          pageIndex: 1,
+          ordinalOnPage: 56,
+          tabLeft: 411.52,
+          tabTop: 713.6,
+          enrichment: {
+            jsonKeyPath: 'merchantData.accountType',
+            matchedBy: 'coordinate',
+            confidence: 'high',
+            suggestedDisplayName: 'Bank Account Type',
+            suggestedBusinessSection: 'Banking',
+            expectedPageIndex: 1,
+            expectedOrdinalOnPage: 56,
+            expectedTabLeft: 411.52,
+            expectedTabTop: 713.6,
+            expectedDocusignFieldFamily: 'List',
+          },
+        }),
+        mockField({
+          index: 2,
+          section: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
+          inferredType: 'bank_account_type',
+          docusignTabType: 'List',
+          pageIndex: 1,
+          ordinalOnPage: 64,
+          tabLeft: 536.96,
+          tabTop: 876.8,
+        }),
+      ]), {
+        INTERACTIVE_CONCEPTS: 'bank_account_type',
+        INTERACTIVE_MAPPING_CALIBRATION_PATH: calibrationPath,
+      } as NodeJS.ProcessEnv);
+
+      expect(plan.skippedConcepts).toEqual([]);
+      expect(plan.cases).toHaveLength(4);
+      expect(plan.cases.every((entry) => entry.targetField.fieldIndex === 2)).toBe(true);
+      expect(plan.cases[0]!.targetProfile).toMatchObject({
+        intendedFieldDisplayName: 'Bank Account Type',
+        intendedBusinessSection: 'Banking',
+        layoutSectionHeader: 'Bank Info',
+        layoutFieldLabel: 'Account Type',
+        layoutEvidenceSource: 'mapping-calibration',
+        jsonKeyPath: 'merchantData.accountType',
+        expectedOrdinalOnPage: 64,
+        expectedDocusignFieldFamily: 'List',
+      });
+    } finally {
+      fs.rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
   test('options-not-discoverable results are manual_review or skipped, not product-like execution', () => {
     const undiscoverable = prepareControlledChoiceInteraction(
       { interactionKind: 'select_alternate', conceptDisplayName: 'Legal Entity Type' },
@@ -6234,7 +6323,7 @@ test.describe('interactive validation safety', () => {
       },
       candidates: [{
         id: 'account-type',
-        resolvedLabel: 'Bank Account Type',
+        resolvedLabel: 'Account Type',
         labelSource: 'layout-cell',
         labelConfidence: 'high',
         businessSection: 'Banking',
@@ -6264,7 +6353,7 @@ test.describe('interactive validation safety', () => {
       },
       candidates: [{
         id: 'account-type',
-        resolvedLabel: 'Bank Account Type',
+        resolvedLabel: 'Account Type',
         labelSource: 'layout-cell',
         labelConfidence: 'high',
         businessSection: 'Banking',
@@ -6284,6 +6373,42 @@ test.describe('interactive validation safety', () => {
     expect(trusted.trusted).toBe(true);
     expect(wrongSection.trusted).toBe(false);
     expect(wrongSection.decisionReason).toBe('rejected_insufficient_label_proof');
+  });
+
+  test('proof_of_bank_account_type does not steal Bank Info Account Type proof', () => {
+    const result = selectBestMappingCandidate({
+      concept: 'proof_of_bank_account_type',
+      currentCandidateId: null,
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.proofOfBankAccountType',
+        businessSection: 'Attachments',
+        pageIndex: 1,
+        ordinalOnPage: 65,
+        tabLeft: 663.68,
+        tabTop: 876.8,
+        docusignFieldFamily: 'List',
+      },
+      candidates: [{
+        id: 'account-type',
+        resolvedLabel: 'Account Type',
+        labelSource: 'layout-cell',
+        labelConfidence: 'high',
+        businessSection: 'Banking',
+        layoutSectionHeader: 'Bank Info',
+        layoutFieldLabel: 'Account Type',
+        docusignTabType: 'List',
+        pageIndex: 1,
+        ordinalOnPage: 64,
+        tabLeft: 536.96,
+        tabTop: 876.8,
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+      }],
+    });
+
+    expect(result.trusted).toBe(false);
+    expect(result.decisionReason).toBe('rejected_section_mismatch');
   });
 
   test('scoped address state concepts require the matching address-block section proof', () => {

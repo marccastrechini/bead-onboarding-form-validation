@@ -346,8 +346,8 @@ function scoreConcept(
   const hasConfidentMatch = matches.some(
     (match) => CONFIDENCE_RANK[match.identificationConfidence] >= CONFIDENCE_RANK.medium,
   );
-  const calibratedMatch = !hasConfidentMatch && calibrationRow ? buildCalibratedMatch(report, concept, calibrationRow) : null;
-  if (calibratedMatch) {
+  const calibratedMatch = calibrationRow ? buildCalibratedMatch(report, concept, calibrationRow) : null;
+  if (calibratedMatch && (!hasConfidentMatch || isBankAccountTypeCalibrationOverride(concept, calibratedMatch))) {
     const existingIndex = matches.findIndex((match) => match.fieldIndex === calibratedMatch.fieldIndex);
     if (existingIndex >= 0) {
       const preferCalibratedDisplayName =
@@ -371,6 +371,9 @@ function scoreConcept(
   matches.sort((a, b) => {
       const confidence = CONFIDENCE_RANK[b.identificationConfidence] - CONFIDENCE_RANK[a.identificationConfidence];
       if (confidence !== 0) return confidence;
+      const calibrationEvidence =
+        Number(isBankAccountTypeCalibrationOverride(concept, b)) - Number(isBankAccountTypeCalibrationOverride(concept, a));
+      if (calibrationEvidence !== 0) return calibrationEvidence;
       return a.fieldIndex - b.fieldIndex;
     });
 
@@ -450,6 +453,19 @@ function scoreConcept(
   score.summary = summarizeConcept(score, report);
   score.recommendedImprovements = recommendForConcept(score, report);
   return score;
+}
+
+function isBankAccountTypeCalibrationOverride(concept: FieldConceptDefinition, match: ScorecardFieldMatch): boolean {
+  if (concept.key !== 'bank_account_type') return false;
+  const evidence = match.calibrationEvidence;
+  return Boolean(
+    evidence?.jsonKeyPath &&
+    /merchantData\.accountType$/i.test(evidence.jsonKeyPath) &&
+    evidence.businessSection === 'Banking' &&
+    /^bank\s*info$/i.test(evidence.layoutSectionHeader ?? '') &&
+    /^account\s*type$/i.test(evidence.layoutFieldLabel ?? '') &&
+    /^(list|radio)$/i.test(evidence.expectedDocusignFieldFamily ?? ''),
+  );
 }
 
 function matchFieldToConcept(
