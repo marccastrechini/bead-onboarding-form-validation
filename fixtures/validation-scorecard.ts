@@ -46,6 +46,20 @@ export interface ScorecardFieldMatch {
   labelConfidence: FieldRecord['labelConfidence'];
   identificationConfidence: IdentificationConfidence;
   evidence: string[];
+  calibrationEvidence?: ScorecardCalibrationEvidence;
+}
+
+export interface ScorecardCalibrationEvidence {
+  jsonKeyPath: string | null;
+  businessSection: string | null;
+  layoutSectionHeader: string | null;
+  layoutFieldLabel: string | null;
+  layoutEvidenceSource: string | null;
+  expectedPageIndex: number | null;
+  expectedOrdinalOnPage: number | null;
+  expectedTabLeft: number | null;
+  expectedTabTop: number | null;
+  expectedDocusignFieldFamily: string | null;
 }
 
 export interface ScorecardValidationRow {
@@ -162,11 +176,23 @@ type MappingCalibrationDecision =
 export interface MappingCalibrationRow {
   concept: FieldConceptKey;
   conceptDisplayName: string;
+  jsonKeyPath?: string;
   currentCandidateFieldIndex: number | null;
+  currentCandidateCoordinates?: string | null;
   selectedCandidate: string | null;
   decision: MappingCalibrationDecision;
   calibrationReason: string;
   mappingDecisionReason: string;
+  neighborWindow?: Array<{
+    fieldIndex: number;
+    businessSection: string | null;
+    layoutSectionHeader: string | null;
+    layoutFieldLabel: string | null;
+    pageIndex: number | null;
+    ordinalOnPage: number | null;
+    coordinates: string | null;
+    tabType: string | null;
+  }>;
   missingProof?: string[];
   appliedHumanProof?: {
     status: string;
@@ -332,9 +358,10 @@ function scoreConcept(
         displayName: preferCalibratedDisplayName
           ? calibratedMatch.displayName
           : matches[existingIndex]!.displayName || calibratedMatch.displayName,
-        businessSection: matches[existingIndex]!.businessSection || calibratedMatch.businessSection,
+        businessSection: calibratedMatch.businessSection || matches[existingIndex]!.businessSection,
         identificationConfidence: maxConfidence(matches[existingIndex]!.identificationConfidence, calibratedMatch.identificationConfidence),
         evidence: Array.from(new Set([...calibratedMatch.evidence, ...matches[existingIndex]!.evidence])),
+        calibrationEvidence: calibratedMatch.calibrationEvidence ?? matches[existingIndex]!.calibrationEvidence,
       };
     } else {
       matches.push(calibratedMatch);
@@ -1140,10 +1167,11 @@ function buildCalibratedMatch(
   if (!fieldIndex || fieldIndex < 1 || fieldIndex > report.fields.length) return null;
 
   const field = report.fields[fieldIndex - 1]!;
+  const calibrationEvidence = buildScorecardCalibrationEvidence(concept, calibrationRow, fieldIndex);
   return {
     fieldIndex,
     displayName: displayNameForCalibratedMatch(field, concept),
-    businessSection: field.enrichment?.suggestedBusinessSection ?? sectionFromField(field, concept),
+    businessSection: calibrationEvidence?.businessSection ?? field.enrichment?.suggestedBusinessSection ?? concept.businessSection,
     controlCategory: field.controlCategory,
     inferredType: field.inferredType,
     labelSource: field.labelSource,
@@ -1153,8 +1181,52 @@ function buildCalibratedMatch(
       `mapping calibration ${calibrationRow.decision}`,
       `calibration reason: ${calibrationRow.calibrationReason}`,
       `calibration decision: ${calibrationRow.mappingDecisionReason}`,
+      ...(calibrationEvidence?.layoutSectionHeader && calibrationEvidence.layoutFieldLabel
+        ? [`layout proof: ${calibrationEvidence.layoutSectionHeader} > ${calibrationEvidence.layoutFieldLabel}`]
+        : []),
     ],
+    ...(calibrationEvidence ? { calibrationEvidence } : {}),
   };
+}
+
+function buildScorecardCalibrationEvidence(
+  concept: FieldConceptDefinition,
+  calibrationRow: MappingCalibrationRow,
+  fieldIndex: number,
+): ScorecardCalibrationEvidence | undefined {
+  const neighbor = calibrationRow.neighborWindow?.find((entry) => entry.fieldIndex === fieldIndex) ?? null;
+  const coordinates = parseCalibrationCoordinates(neighbor?.coordinates ?? calibrationRow.currentCandidateCoordinates ?? null);
+  const hasEvidence = Boolean(
+    calibrationRow.jsonKeyPath ||
+    neighbor?.businessSection ||
+    neighbor?.layoutSectionHeader ||
+    neighbor?.layoutFieldLabel ||
+    neighbor?.pageIndex ||
+    neighbor?.ordinalOnPage ||
+    coordinates.left !== null ||
+    coordinates.top !== null ||
+    neighbor?.tabType,
+  );
+  if (!hasEvidence) return undefined;
+
+  return {
+    jsonKeyPath: calibrationRow.jsonKeyPath ?? null,
+    businessSection: neighbor?.businessSection ?? concept.businessSection,
+    layoutSectionHeader: neighbor?.layoutSectionHeader ?? null,
+    layoutFieldLabel: neighbor?.layoutFieldLabel ?? null,
+    layoutEvidenceSource: neighbor?.layoutSectionHeader || neighbor?.layoutFieldLabel ? 'mapping-calibration' : null,
+    expectedPageIndex: neighbor?.pageIndex ?? null,
+    expectedOrdinalOnPage: neighbor?.ordinalOnPage ?? null,
+    expectedTabLeft: coordinates.left,
+    expectedTabTop: coordinates.top,
+    expectedDocusignFieldFamily: neighbor?.tabType ?? null,
+  };
+}
+
+function parseCalibrationCoordinates(value: string | null | undefined): { left: number | null; top: number | null } {
+  const match = /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/.exec(value ?? '');
+  if (!match) return { left: null, top: null };
+  return { left: Number(match[1]), top: Number(match[2]) };
 }
 
 function calibratedFieldIndex(

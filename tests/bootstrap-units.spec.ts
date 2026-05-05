@@ -5096,6 +5096,75 @@ test.describe('interactive validation safety', () => {
     });
   });
 
+  test('calibrated controlled-choice mappings carry layout proof into the interactive target profile', () => {
+    const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bead-calibrated-controlled-choice-'));
+    const calibrationPath = path.join(outDir, 'latest-mapping-calibration.json');
+    try {
+      fs.writeFileSync(calibrationPath, JSON.stringify({
+        schemaVersion: 1,
+        rows: [{
+          concept: 'proof_of_bank_account_type',
+          conceptDisplayName: 'Proof Of Bank Account Type',
+          jsonKeyPath: 'merchantData.proofOfBankAccountType',
+          currentCandidateFieldIndex: 1,
+          currentCandidateCoordinates: '663.68,876.8',
+          selectedCandidate: '#1 Proof of Bank Account Type Attachments p1 ord65 List shape=text_name_like editable=editable layout=Bank Info > Proof of Bank Account Type @ 663.68,876.8',
+          decision: 'trust_current_mapping',
+          calibrationReason: 'none',
+          mappingDecisionReason: 'trusted_by_label',
+          missingProof: [],
+          neighborWindow: [{
+            fieldIndex: 1,
+            businessSection: 'Attachments',
+            layoutSectionHeader: 'Bank Info',
+            layoutFieldLabel: 'Proof of Bank Account Type',
+            pageIndex: 1,
+            ordinalOnPage: 65,
+            coordinates: '663.68,876.8',
+            tabType: 'List',
+          }],
+        }],
+      }), 'utf8');
+
+      const plan = buildInteractiveValidationPlan(mockValidationReport([
+        mockField({
+          index: 1,
+          section: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
+          labelSource: 'none',
+          labelConfidence: 'none',
+          inferredType: 'proof_of_bank_account_type',
+          docusignTabType: 'List',
+          pageIndex: 1,
+          ordinalOnPage: 65,
+          tabLeft: 663.68,
+          tabTop: 876.8,
+        }),
+      ]), {
+        INTERACTIVE_CONCEPTS: 'proof_of_bank_account_type',
+        INTERACTIVE_MAPPING_CALIBRATION_PATH: calibrationPath,
+      } as NodeJS.ProcessEnv);
+
+      expect(plan.skippedConcepts).toEqual([]);
+      expect(plan.cases).toHaveLength(4);
+      expect(plan.cases[0]!.targetProfile).toMatchObject({
+        intendedBusinessSection: 'Attachments',
+        layoutSectionHeader: 'Bank Info',
+        layoutFieldLabel: 'Proof of Bank Account Type',
+        layoutEvidenceSource: 'mapping-calibration',
+        jsonKeyPath: 'merchantData.proofOfBankAccountType',
+        expectedPageIndex: 1,
+        expectedOrdinalOnPage: 65,
+        expectedDocusignFieldFamily: 'List',
+        expectedCoordinates: {
+          left: 663.68,
+          top: 876.8,
+        },
+      });
+    } finally {
+      fs.rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
   test('options-not-discoverable results are manual_review or skipped, not product-like execution', () => {
     const undiscoverable = prepareControlledChoiceInteraction(
       { interactionKind: 'select_alternate', conceptDisplayName: 'Legal Entity Type' },

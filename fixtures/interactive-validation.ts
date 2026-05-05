@@ -2037,6 +2037,7 @@ function toInteractiveCase(
   validation: BestPracticeValidation,
   matrixCase: MatrixCaseDefinition,
 ): InteractiveValidationCase {
+  const calibrationEvidence = match.calibrationEvidence;
   return {
     id: `${concept}:${validation.id}:${matrixCase.caseName}`,
     concept,
@@ -2047,10 +2048,10 @@ function toInteractiveCase(
       intendedFieldDisplayName: match.displayName,
       intendedBusinessSection: match.businessSection,
       intendedSectionName: sourceField.section,
-      layoutSectionHeader: sourceField.enrichment?.layoutSectionHeader ?? null,
-      layoutFieldLabel: sourceField.enrichment?.layoutFieldLabel ?? null,
-      layoutEvidenceSource: sourceField.enrichment?.layoutEvidenceSource ?? null,
-      jsonKeyPath: sourceField.enrichment?.jsonKeyPath ?? null,
+      layoutSectionHeader: sourceField.enrichment?.layoutSectionHeader ?? calibrationEvidence?.layoutSectionHeader ?? null,
+      layoutFieldLabel: sourceField.enrichment?.layoutFieldLabel ?? calibrationEvidence?.layoutFieldLabel ?? null,
+      layoutEvidenceSource: sourceField.enrichment?.layoutEvidenceSource ?? calibrationEvidence?.layoutEvidenceSource ?? null,
+      jsonKeyPath: sourceField.enrichment?.jsonKeyPath ?? calibrationEvidence?.jsonKeyPath ?? null,
       enrichmentMatchedBy: sourceField.enrichment?.matchedBy ?? null,
       enrichmentPositionalFingerprint: sourceField.enrichment?.positionalFingerprint ?? null,
       inferredType: sourceField.inferredType,
@@ -2061,9 +2062,9 @@ function toInteractiveCase(
       docusignTabType: sourceField.docusignTabType,
       pageIndex: sourceField.pageIndex,
       ordinalOnPage: sourceField.ordinalOnPage,
-      expectedPageIndex: sourceField.enrichment?.expectedPageIndex ?? null,
-      expectedOrdinalOnPage: sourceField.enrichment?.expectedOrdinalOnPage ?? null,
-      expectedDocusignFieldFamily: sourceField.enrichment?.expectedDocusignFieldFamily ?? null,
+      expectedPageIndex: sourceField.enrichment?.expectedPageIndex ?? calibrationEvidence?.expectedPageIndex ?? null,
+      expectedOrdinalOnPage: sourceField.enrichment?.expectedOrdinalOnPage ?? calibrationEvidence?.expectedOrdinalOnPage ?? null,
+      expectedDocusignFieldFamily: sourceField.enrichment?.expectedDocusignFieldFamily ?? calibrationEvidence?.expectedDocusignFieldFamily ?? null,
       coordinates: {
         left: sourceField.tabLeft,
         top: sourceField.tabTop,
@@ -2071,8 +2072,8 @@ function toInteractiveCase(
         height: sourceField.tabHeight,
       },
       expectedCoordinates: {
-        left: sourceField.enrichment?.expectedTabLeft ?? null,
-        top: sourceField.enrichment?.expectedTabTop ?? null,
+        left: sourceField.enrichment?.expectedTabLeft ?? calibrationEvidence?.expectedTabLeft ?? null,
+        top: sourceField.enrichment?.expectedTabTop ?? calibrationEvidence?.expectedTabTop ?? null,
       },
     },
     validationId: validation.id,
