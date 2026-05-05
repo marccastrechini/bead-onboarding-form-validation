@@ -99,6 +99,13 @@ Operator guidance:
 - If heartbeat output stops or an operator-timeout artifact appears, treat that as a tooling or process issue, not a product finding.
 - Do not manually rerun live interactive batches until the wrapper outcome is understood.
 
+## Controlled-choice status
+
+- Run controlled-choice canaries one concept at a time through the operator watchdog.
+- The current controlled-choice closure set is complete: `legal_entity_type`, `business_type`, `bank_account_type`, and `proof_of_bank_account_type`.
+- Do not rerun completed controlled-choice concepts unless source mappings, calibration anchors, or live target proof logic change.
+- For previously blocked fields outside this closure set, use non-live diagnostics before attempting another guarded live run.
+
 ## Unit tests
 
 ```powershell
