@@ -1213,6 +1213,7 @@ function buildScorecardCalibrationEvidence(
   fieldIndex: number,
 ): ScorecardCalibrationEvidence | undefined {
   const neighbor = calibrationRow.neighborWindow?.find((entry) => entry.fieldIndex === fieldIndex)
+    ?? businessTypeCalibrationNeighbor(concept, calibrationRow)
     ?? bankAccountTypeCalibrationNeighbor(concept, calibrationRow)
     ?? null;
   const coordinates = parseCalibrationCoordinates(neighbor?.coordinates ?? calibrationRow.currentCandidateCoordinates ?? null);
@@ -1260,7 +1261,14 @@ function calibratedFieldIndex(
   if (concept.key === 'bank_account_type') {
     const bankAccountTypeNeighbor = bankAccountTypeCalibrationNeighbor(concept, calibrationRow);
     return bankAccountTypeNeighbor
-      ? resolveReportFieldIndexByCalibrationAnchor(report, bankAccountTypeNeighbor)
+      ? resolveReportFieldIndexByCalibrationAnchor(report, bankAccountTypeNeighbor, concept)
+      : null;
+  }
+
+  if (concept.key === 'business_type') {
+    const businessTypeNeighbor = businessTypeCalibrationNeighbor(concept, calibrationRow);
+    return businessTypeNeighbor
+      ? resolveReportFieldIndexByCalibrationAnchor(report, businessTypeNeighbor, concept)
       : null;
   }
 
@@ -1291,6 +1299,28 @@ function bankAccountTypeCalibrationNeighbor(
     ?? null;
 }
 
+function businessTypeCalibrationNeighbor(
+  concept: FieldConceptDefinition,
+  calibrationRow: MappingCalibrationRow,
+): MappingCalibrationNeighbor | null {
+  if (concept.key !== 'business_type') return null;
+  if (!/merchantData\.locationBusinessType$/i.test(calibrationRow.jsonKeyPath ?? '')) return null;
+  const candidateIndex = calibratedCandidateIndex(calibrationRow);
+  const neighbors = calibrationRow.neighborWindow ?? [];
+  return neighbors.find((entry) => entry.fieldIndex === candidateIndex && isLocationDetailsBusinessTypeNeighbor(entry))
+    ?? neighbors.find(isLocationDetailsBusinessTypeNeighbor)
+    ?? null;
+}
+
+function isLocationDetailsBusinessTypeNeighbor(neighbor: MappingCalibrationNeighbor): boolean {
+  return Boolean(
+    neighbor.businessSection === 'Business Details' &&
+    /^location\s*details$/i.test(neighbor.layoutSectionHeader ?? '') &&
+    /^business\s*type$/i.test(neighbor.layoutFieldLabel ?? '') &&
+    /^(list|radio)$/i.test(neighbor.tabType ?? ''),
+  );
+}
+
 function isBankInfoAccountTypeNeighbor(neighbor: MappingCalibrationNeighbor): boolean {
   return Boolean(
     neighbor.businessSection === 'Banking' &&
@@ -1303,6 +1333,7 @@ function isBankInfoAccountTypeNeighbor(neighbor: MappingCalibrationNeighbor): bo
 function resolveReportFieldIndexByCalibrationAnchor(
   report: ValidationReport,
   neighbor: MappingCalibrationNeighbor,
+  concept?: FieldConceptDefinition,
 ): number | null {
   const coordinates = parseCalibrationCoordinates(neighbor.coordinates);
   const family = neighbor.tabType?.toLowerCase() ?? null;
@@ -1312,7 +1343,7 @@ function resolveReportFieldIndexByCalibrationAnchor(
     .filter(({ field }) => field.visible !== false && field.editable !== false)
     .filter(({ field }) => neighbor.pageIndex === null || field.pageIndex === neighbor.pageIndex)
     .filter(({ field }) => family === null || (field.docusignTabType ?? '').toLowerCase() === family)
-    .map(({ field, fieldIndex }) => ({ fieldIndex, score: scoreCalibrationAnchorCandidate(field, neighbor, coordinates) }))
+    .map(({ field, fieldIndex }) => ({ fieldIndex, score: scoreCalibrationAnchorCandidate(field, neighbor, coordinates, concept) }))
     .filter((entry): entry is { fieldIndex: number; score: number } => entry.score !== null)
     .sort((a, b) => b.score - a.score || a.fieldIndex - b.fieldIndex);
 
@@ -1327,13 +1358,21 @@ function scoreCalibrationAnchorCandidate(
   field: FieldRecord,
   neighbor: MappingCalibrationNeighbor,
   coordinates: { left: number | null; top: number | null },
+  concept?: FieldConceptDefinition,
 ): number | null {
   const inferredType = String(field.inferredType ?? '').toLowerCase();
   const labelText = [field.resolvedLabel, field.enrichment?.suggestedDisplayName, field.enrichment?.layoutFieldLabel]
     .filter(Boolean)
     .join(' ')
     .toLowerCase();
-  if (inferredType.includes('proof_of_bank_account_type') || /proof\s*of\s*bank\s*account\s*type/.test(labelText)) {
+  if (concept?.key === 'bank_account_type' && (inferredType.includes('proof_of_bank_account_type') || /proof\s*of\s*bank\s*account\s*type/.test(labelText))) {
+    return null;
+  }
+  if (concept?.key === 'business_type' && (
+    inferredType.includes('legal_entity_type') ||
+    inferredType.includes('proof_of_business_type') ||
+    /legal\s*entity\s*type|proof\s*of\s*business\s*type/.test(labelText)
+  )) {
     return null;
   }
 
@@ -1361,6 +1400,7 @@ function scoreCalibrationAnchorCandidate(
   }
 
   if (inferredType.includes('bank_account_type')) score += 10;
+  if (concept?.key === 'business_type' && inferredType.includes('business_type')) score += 10;
   return score;
 }
 

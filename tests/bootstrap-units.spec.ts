@@ -5056,6 +5056,212 @@ test.describe('interactive validation safety', () => {
     });
   });
 
+  test('business_type live verifier trusts the calibrated Location Details Business Type target', () => {
+    const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bead-business-type-live-target-'));
+    const calibrationPath = path.join(outDir, 'latest-mapping-calibration.json');
+    try {
+      fs.writeFileSync(calibrationPath, JSON.stringify({
+        schemaVersion: 1,
+        rows: [{
+          concept: 'business_type',
+          conceptDisplayName: 'Business Type',
+          jsonKeyPath: 'merchantData.locationBusinessType',
+          currentCandidateFieldIndex: 2,
+          currentCandidateCoordinates: '411.52,713.6',
+          selectedCandidate: '#2 Business Type Business Details p1 ord56 List shape=text_name_like editable=editable layout=Location Details > Business Type @ 411.52,713.6',
+          decision: 'trust_current_mapping',
+          calibrationReason: 'none',
+          mappingDecisionReason: 'trusted_by_label',
+          missingProof: [],
+          neighborWindow: [{
+            fieldIndex: 2,
+            businessSection: 'Business Details',
+            layoutSectionHeader: 'Location Details',
+            layoutFieldLabel: 'Business Type',
+            pageIndex: 1,
+            ordinalOnPage: 56,
+            coordinates: '411.52,713.6',
+            tabType: 'List',
+          }],
+        }],
+      }), 'utf8');
+
+      const report = mockValidationReport([
+        mockField({
+          index: 1,
+          inferredType: 'legal_entity_type',
+          docusignTabType: 'List',
+          pageIndex: 1,
+          ordinalOnPage: 11,
+          tabLeft: 288,
+          tabTop: 287.36,
+        }),
+        mockField({
+          index: 2,
+          inferredType: 'unknown_manual_review',
+          docusignTabType: 'List',
+          pageIndex: 1,
+          ordinalOnPage: 42,
+          tabLeft: 350.08,
+          tabTop: 544.64,
+        }),
+        mockField({
+          index: 3,
+          inferredType: 'business_type',
+          docusignTabType: 'List',
+          pageIndex: 1,
+          ordinalOnPage: 56,
+          tabLeft: 411.52,
+          tabTop: 713.6,
+        }),
+      ]);
+      const calibration = JSON.parse(fs.readFileSync(calibrationPath, 'utf8'));
+      const score = buildValidationScorecard(report, null, calibration)
+        .conceptScores.find((entry) => entry.key === 'business_type')!;
+      const plan = buildInteractiveValidationPlan(report, {
+        INTERACTIVE_CONCEPTS: 'business_type',
+        INTERACTIVE_MAPPING_CALIBRATION_PATH: calibrationPath,
+      } as NodeJS.ProcessEnv);
+      const testCase = plan.cases[0]!;
+      const liveFields = [
+        mockDiscoveredField({
+          index: 0,
+          inferredType: 'legal_entity_type',
+          docusignTabType: 'List',
+          pageIndex: 1,
+          ordinalOnPage: 11,
+          tabLeft: 288,
+          tabTop: 287.36,
+        }),
+        mockDiscoveredField({
+          index: 1,
+          inferredType: 'unknown_manual_review',
+          docusignTabType: 'List',
+          pageIndex: 1,
+          ordinalOnPage: 42,
+          tabLeft: 350.08,
+          tabTop: 544.64,
+        }),
+        mockDiscoveredField({
+          index: 2,
+          inferredType: 'business_type',
+          docusignTabType: 'List',
+          pageIndex: 1,
+          ordinalOnPage: 56,
+          tabLeft: 411.52,
+          tabTop: 713.6,
+        }),
+      ];
+
+      const resolved = resolveInteractiveTargetField(testCase, liveFields[testCase.targetField.fieldIndex - 1]!, liveFields);
+
+      expect(score.identifiedWithConfidence).toBe(true);
+      expect(score.mappedFields[0]).toMatchObject({
+        fieldIndex: 3,
+        displayName: 'Business Type',
+        businessSection: 'Business Details',
+        identificationConfidence: 'high',
+        calibrationEvidence: {
+          jsonKeyPath: 'merchantData.locationBusinessType',
+          layoutSectionHeader: 'Location Details',
+          layoutFieldLabel: 'Business Type',
+          expectedOrdinalOnPage: 56,
+          expectedDocusignFieldFamily: 'List',
+        },
+      });
+      expect(plan.skippedConcepts).toEqual([]);
+      expect(plan.cases).toHaveLength(4);
+      expect(plan.cases.every((entry) => entry.targetField.fieldIndex === 3)).toBe(true);
+      expect(testCase.targetProfile).toMatchObject({
+        layoutSectionHeader: 'Location Details',
+        layoutFieldLabel: 'Business Type',
+        jsonKeyPath: 'merchantData.locationBusinessType',
+        expectedOrdinalOnPage: 56,
+        expectedDocusignFieldFamily: 'List',
+      });
+      expect(resolved.field.ordinalOnPage).toBe(56);
+      expect(resolved.selection.trusted).toBe(true);
+      expect(resolved.selection.decisionReason).not.toBe('rejected_insufficient_label_proof');
+    } finally {
+      fs.rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
+  test('business_type Business Type outside Location Details is not trusted', () => {
+    const result = selectBestMappingCandidate({
+      concept: 'business_type',
+      currentCandidateId: null,
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.locationBusinessType',
+        businessSection: 'Business Details',
+        pageIndex: 1,
+        ordinalOnPage: 56,
+        tabLeft: 411.52,
+        tabTop: 713.6,
+        docusignFieldFamily: 'List',
+      },
+      candidates: [{
+        id: 'business-type-general',
+        resolvedLabel: 'Business Type',
+        labelSource: 'layout-cell',
+        labelConfidence: 'high',
+        businessSection: 'Business Details',
+        layoutSectionHeader: 'General',
+        layoutFieldLabel: 'Business Type',
+        docusignTabType: 'List',
+        pageIndex: 1,
+        ordinalOnPage: 56,
+        tabLeft: 411.52,
+        tabTop: 713.6,
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+      }],
+    });
+
+    expect(result.trusted).toBe(false);
+    expect(result.decisionReason).toBe('rejected_insufficient_label_proof');
+    expect(result.assessments[0]!.conceptSpecificProofMatches).toBe(false);
+  });
+
+  test('business_type does not trust Legal Entity Type proof', () => {
+    const result = selectBestMappingCandidate({
+      concept: 'business_type',
+      currentCandidateId: null,
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.locationBusinessType',
+        businessSection: 'Business Details',
+        pageIndex: 1,
+        ordinalOnPage: 56,
+        tabLeft: 411.52,
+        tabTop: 713.6,
+        docusignFieldFamily: 'List',
+      },
+      candidates: [{
+        id: 'legal-entity-type',
+        resolvedLabel: 'Legal Entity Type',
+        labelSource: 'layout-cell',
+        labelConfidence: 'high',
+        businessSection: 'Business Details',
+        layoutSectionHeader: 'General',
+        layoutFieldLabel: 'Legal Entity Type',
+        inferredType: 'legal_entity_type',
+        docusignTabType: 'List',
+        pageIndex: 1,
+        ordinalOnPage: 56,
+        tabLeft: 411.52,
+        tabTop: 713.6,
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+      }],
+    });
+
+    expect(result.trusted).toBe(false);
+    expect(result.decisionReason).toBe('rejected_insufficient_label_proof');
+    expect(result.assessments[0]!.conceptSpecificProofMatches).toBe(false);
+  });
+
   test('account_type matrix is generated only for trusted mappings', () => {
     const trustedPlan = buildInteractiveValidationPlan(mockValidationReport([
       mockField({
