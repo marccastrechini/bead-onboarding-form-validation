@@ -5,6 +5,7 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { spawnSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
@@ -5403,6 +5404,90 @@ test.describe('interactive validation safety', () => {
     }
   });
 
+  test.describe('interactive operator watchdog wrapper', () => {
+    test.skip(process.platform !== 'win32', 'PowerShell operator watchdog is Windows-specific.');
+
+    test('heartbeat output appears while a fake child is still running', () => {
+      const artifactsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bead-operator-watchdog-'));
+
+      try {
+        const result = runInteractiveWatchdogFixture({
+          artifactsDir,
+          timeoutSeconds: 5,
+          pollSeconds: 1,
+          progress: mockWatchdogProgressState(),
+          childScriptContent: [
+            'Start-Sleep -Seconds 2',
+            'exit 0',
+          ].join('\n'),
+        });
+
+        expect(result.exitCode).toBe(0);
+        expect(result.combinedOutput).toContain('heartbeat elapsed=0s');
+        expect(result.combinedOutput).toContain('heartbeat elapsed=1s');
+        expect(result.combinedOutput).toContain('validationId=valid-option-accepted');
+        expect(result.combinedOutput).toContain('caseName=alternate-option');
+        expect(result.combinedOutput).toContain('phase=collect-observation');
+        expect(result.combinedOutput).toContain('environment cleanup complete');
+      } finally {
+        fs.rmSync(artifactsDir, { recursive: true, force: true });
+      }
+    });
+
+    test('timeout writes operator timeout artifact and terminates the fake child process tree', () => {
+      const artifactsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bead-operator-watchdog-timeout-'));
+
+      try {
+        const result = runInteractiveWatchdogFixture({
+          artifactsDir,
+          timeoutSeconds: 2,
+          pollSeconds: 1,
+          progress: mockWatchdogProgressState(),
+          childScriptContent: [
+            'Start-Sleep -Seconds 30',
+            'exit 0',
+          ].join('\n'),
+        });
+
+        expect(result.exitCode).toBe(124);
+        expect(result.combinedOutput).toContain('operator timeout after 2s');
+        expect(result.combinedOutput).toContain('terminating child process tree');
+        expect(result.combinedOutput).toContain('environment cleanup complete');
+
+        const timeoutArtifact = parseJsonFile<{
+          childProcessId: number;
+          timeoutSeconds: number;
+          elapsedSeconds: number;
+          concepts: string[];
+          lastProgress: {
+            concept: string;
+            validationId: string;
+            caseName: string;
+            phase: string;
+          } | null;
+        }>(result.operatorTimeoutPath);
+
+        expect(timeoutArtifact.timeoutSeconds).toBe(2);
+        expect(timeoutArtifact.elapsedSeconds).toBeGreaterThanOrEqual(2);
+        expect(timeoutArtifact.concepts).toEqual(['legal_entity_type']);
+        expect(timeoutArtifact.lastProgress?.concept).toBe('legal_entity_type');
+        expect(timeoutArtifact.lastProgress?.validationId).toBe('valid-option-accepted');
+        expect(timeoutArtifact.lastProgress?.caseName).toBe('alternate-option');
+        expect(timeoutArtifact.lastProgress?.phase).toBe('collect-observation');
+        expect(isWindowsProcessRunning(timeoutArtifact.childProcessId)).toBe(false);
+      } finally {
+        fs.rmSync(artifactsDir, { recursive: true, force: true });
+      }
+    });
+
+    test('wrapper command is documented for operator use', () => {
+      const docs = fs.readFileSync(path.resolve(__dirname, '..', 'docs', 'LIVE_BOOTSTRAP.md'), 'utf8');
+      expect(docs).toContain('scripts/run-interactive-watchdog.ps1');
+      expect(docs).toContain('npm run interactive:watchdog -- -Concepts legal_entity_type -TimeoutSeconds 240');
+      expect(docs).toContain('wait for heartbeat lines');
+    });
+  });
+
   test('sensitive fields are excluded from this batch', () => {
     for (const concept of ['ein', 'ssn', 'routing_number', 'account_number', 'upload'] as const) {
       expect(INTERACTIVE_TARGET_CONCEPTS).not.toContain(concept as any);
@@ -8521,6 +8606,113 @@ function mockFindingsInput(args: {
     },
     generatedAt: '2026-04-27T00:00:02.000Z',
   } as Parameters<typeof buildValidationFindingsReport>[0];
+}
+
+const WATCHDOG_SCRIPT_PATH = path.resolve(__dirname, '..', 'scripts', 'run-interactive-watchdog.ps1');
+const POWERSHELL_EXE = 'powershell.exe';
+
+function mockWatchdogProgressState(overrides: Partial<InteractiveProgressState> = {}): InteractiveProgressState {
+  return {
+    concept: 'legal_entity_type',
+    conceptDisplayName: 'Legal Entity Type',
+    validationId: 'valid-option-accepted',
+    caseName: 'alternate-option',
+    phase: 'collect-observation',
+    startedAt: '2026-05-05T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
+function runInteractiveWatchdogFixture(input: {
+  artifactsDir: string;
+  childScriptContent: string;
+  concepts?: string;
+  timeoutSeconds?: number;
+  pollSeconds?: number;
+  progress?: InteractiveProgressState | null;
+}): {
+  exitCode: number | null;
+  stdout: string;
+  stderr: string;
+  combinedOutput: string;
+  operatorTimeoutPath: string;
+} {
+  fs.mkdirSync(input.artifactsDir, { recursive: true });
+  const childScriptPath = path.join(input.artifactsDir, 'fake-child.ps1');
+  fs.writeFileSync(childScriptPath, input.childScriptContent, 'utf8');
+
+  if (input.progress) {
+    const progressPath = path.join(input.artifactsDir, 'latest-interactive-progress.json');
+    fs.writeFileSync(
+      progressPath,
+      JSON.stringify(buildInteractiveProgressArtifact(input.progress, input.progress.startedAt), null, 2),
+      'utf8',
+    );
+  }
+
+  const result = spawnSync(
+    POWERSHELL_EXE,
+    [
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      WATCHDOG_SCRIPT_PATH,
+      '-Concepts',
+      input.concepts ?? 'legal_entity_type',
+      '-TimeoutSeconds',
+      String(input.timeoutSeconds ?? 5),
+      '-PollSeconds',
+      String(input.pollSeconds ?? 1),
+      '-ArtifactsDir',
+      input.artifactsDir,
+      '-ChildFilePath',
+      POWERSHELL_EXE,
+      '-ChildArgumentList',
+      `-NoProfile -ExecutionPolicy Bypass -File "${childScriptPath.replace(/"/g, '""')}"`,
+    ],
+    {
+      cwd: path.resolve(__dirname, '..'),
+      encoding: 'utf8',
+      windowsHide: true,
+    },
+  );
+
+  const stdout = result.stdout ?? '';
+  const stderr = result.stderr ?? '';
+  return {
+    exitCode: result.status,
+    stdout,
+    stderr,
+    combinedOutput: `${stdout}\n${stderr}`.trim(),
+    operatorTimeoutPath: path.join(input.artifactsDir, 'latest-interactive-operator-timeout.json'),
+  };
+}
+
+function parseJsonFile<T>(filePath: string): T {
+  const raw = fs.readFileSync(filePath, 'utf8').replace(/^\uFEFF/, '');
+  return JSON.parse(raw) as T;
+}
+
+function isWindowsProcessRunning(pid: number): boolean {
+  if (!Number.isInteger(pid) || pid <= 0) {
+    return false;
+  }
+
+  const result = spawnSync(
+    POWERSHELL_EXE,
+    [
+      '-NoProfile',
+      '-Command',
+      `if (Get-Process -Id ${pid} -ErrorAction SilentlyContinue) { exit 0 } exit 1`,
+    ],
+    {
+      encoding: 'utf8',
+      windowsHide: true,
+    },
+  );
+
+  return result.status === 0;
 }
 
 function countStatuses(results: InteractiveValidationResultsFile['results']): InteractiveValidationResultsFile['summary'] {

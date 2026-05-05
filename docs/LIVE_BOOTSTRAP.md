@@ -71,6 +71,34 @@ What it does:
    `guardSignerSession` in `fixtures/signer-helpers.ts` blocks the run
    with the standard `blocked` annotation.
 
+## Interactive watchdog
+
+Future live interactive validation should be launched through
+`scripts/run-interactive-watchdog.ps1` or the operator watchdog npm helper,
+not by calling `bootstrap:interactive` directly:
+
+```powershell
+npm run interactive:canary:legal-entity
+```
+
+For an arbitrary concept list, pass the wrapper parameters through npm:
+
+```powershell
+npm run interactive:watchdog -- -Concepts legal_entity_type -TimeoutSeconds 240
+```
+
+What the watchdog adds:
+
+- Periodic heartbeat lines even when Playwright is silent.
+- A hard outer timeout with Windows process-tree cleanup.
+- A sanitized operator-timeout artifact at `artifacts/latest-interactive-operator-timeout.json`.
+
+Operator guidance:
+
+- If Copilot appears to be "evaluating", wait for heartbeat lines before assuming the run is frozen.
+- If heartbeat output stops or an operator-timeout artifact appears, treat that as a tooling or process issue, not a product finding.
+- Do not manually rerun live interactive batches until the wrapper outcome is understood.
+
 ## Unit tests
 
 ```powershell
