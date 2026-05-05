@@ -3251,15 +3251,23 @@ test.describe('interactive validation safety', () => {
         },
         {
           id: '24',
-          resolvedLabel: null,
-          labelSource: 'none',
-          labelConfidence: 'none',
+          resolvedLabel: 'Business Phone',
+          labelSource: 'enrichment-position',
+          labelConfidence: 'medium',
+          businessSection: 'Contact',
+          inferredType: 'phone_e164',
           docusignTabType: 'Text',
           pageIndex: 1,
           ordinalOnPage: 59,
           tabLeft: 663.04,
           tabTop: 766.08,
           currentValue: '+15551234567',
+          enrichment: {
+            jsonKeyPath: 'merchantData.businessPhone',
+            matchedBy: 'position',
+            suggestedDisplayName: 'Business Phone',
+            suggestedBusinessSection: 'Contact',
+          },
         },
         {
           id: '29',
@@ -3278,6 +3286,181 @@ test.describe('interactive validation safety', () => {
 
     expect(result.trusted).toBe(true);
     expect(result.selectedCandidateId).toBe('24');
+  });
+
+  test('Contact Phone can be trusted when contact proof and phone value shape align', () => {
+    const result = selectBestMappingCandidate({
+      concept: 'phone',
+      currentCandidateId: 'contact-phone',
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.businessPhone',
+        businessSection: 'Contact',
+        pageIndex: 1,
+        ordinalOnPage: 57,
+        tabLeft: 663.04,
+        tabTop: 766.08,
+        docusignFieldFamily: 'Text',
+      },
+      candidates: [
+        {
+          id: 'contact-phone',
+          resolvedLabel: 'Business Phone',
+          labelSource: 'enrichment-guid',
+          labelConfidence: 'high',
+          businessSection: 'Contact',
+          inferredType: 'phone_e164',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 59,
+          tabLeft: 663.04,
+          tabTop: 766.08,
+          currentValue: '+15551234567',
+          enrichment: {
+            jsonKeyPath: 'merchantData.businessPhone',
+            matchedBy: 'guid',
+            confidence: 'high',
+            suggestedDisplayName: 'Business Phone',
+            suggestedBusinessSection: 'Contact',
+          },
+        },
+      ],
+    });
+
+    expect(result.trusted).toBe(true);
+    expect(result.selectedCandidateId).toBe('contact-phone');
+  });
+
+  test('Phone does not trust a phone-shaped field outside Contact', () => {
+    const result = selectBestMappingCandidate({
+      concept: 'phone',
+      currentCandidateId: 'bank-phone',
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.businessPhone',
+        businessSection: 'Contact',
+        pageIndex: 1,
+        ordinalOnPage: 57,
+        tabLeft: 663.04,
+        tabTop: 766.08,
+        docusignFieldFamily: 'Text',
+      },
+      candidates: [
+        {
+          id: 'bank-phone',
+          resolvedLabel: 'Bank Phone',
+          labelSource: 'enrichment-guid',
+          labelConfidence: 'high',
+          businessSection: 'Banking',
+          inferredType: 'phone_e164',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 62,
+          tabLeft: 284.16,
+          tabTop: 874.88,
+          currentValue: '+15557654321',
+        },
+      ],
+    });
+
+    expect(result.trusted).toBe(false);
+    expect(result.decisionReason).toBe('rejected_section_mismatch');
+  });
+
+  test('Stakeholder Phone does not satisfy business Phone', () => {
+    const result = selectBestMappingCandidate({
+      concept: 'phone',
+      currentCandidateId: 'stakeholder-phone',
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.businessPhone',
+        businessSection: 'Contact',
+        pageIndex: 1,
+        ordinalOnPage: 57,
+        tabLeft: 663.04,
+        tabTop: 766.08,
+        docusignFieldFamily: 'Text',
+      },
+      candidates: [
+        {
+          id: 'stakeholder-phone',
+          resolvedLabel: 'stakeholders #0 › Phone Number',
+          labelSource: 'enrichment-guid',
+          labelConfidence: 'high',
+          businessSection: 'Stakeholder',
+          inferredType: 'phone_e164',
+          docusignTabType: 'Text',
+          pageIndex: 3,
+          ordinalOnPage: 27,
+          tabLeft: 410.88,
+          tabTop: 279.04,
+          currentValue: '+15558765432',
+          enrichment: {
+            jsonKeyPath: 'merchantData.stakeholders[0].phoneNumber',
+            matchedBy: 'guid',
+            confidence: 'high',
+            suggestedDisplayName: 'stakeholders #0 › Phone Number',
+            suggestedBusinessSection: 'Stakeholder',
+          },
+        },
+      ],
+    });
+
+    expect(result.trusted).toBe(false);
+    expect(result.decisionReason).toBe('rejected_section_mismatch');
+  });
+
+  test('Nearby same-shape phone candidates do not displace the Contact phone candidate', () => {
+    const result = selectBestMappingCandidate({
+      concept: 'phone',
+      currentCandidateId: 'contact-phone',
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.businessPhone',
+        businessSection: 'Contact',
+        pageIndex: 1,
+        ordinalOnPage: 57,
+        tabLeft: 663.04,
+        tabTop: 766.08,
+        docusignFieldFamily: 'Text',
+      },
+      candidates: [
+        {
+          id: 'contact-phone',
+          resolvedLabel: 'Business Phone',
+          labelSource: 'enrichment-guid',
+          labelConfidence: 'high',
+          businessSection: 'Contact',
+          inferredType: 'phone_e164',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 59,
+          tabLeft: 663.04,
+          tabTop: 766.08,
+          currentValue: '+15551234567',
+          enrichment: {
+            jsonKeyPath: 'merchantData.businessPhone',
+            matchedBy: 'guid',
+            confidence: 'high',
+            suggestedDisplayName: 'Business Phone',
+            suggestedBusinessSection: 'Contact',
+          },
+        },
+        {
+          id: 'bank-phone',
+          resolvedLabel: 'Bank Phone',
+          labelSource: 'enrichment-position',
+          labelConfidence: 'medium',
+          businessSection: 'Banking',
+          inferredType: 'phone_e164',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 62,
+          tabLeft: 284.16,
+          tabTop: 874.88,
+          currentValue: '+15557654321',
+        },
+      ],
+    });
+
+    expect(result.trusted).toBe(true);
+    expect(result.selectedCandidateId).toBe('contact-phone');
   });
 
   test('Stakeholder Email prefers stakeholder anchors over business contact fields', () => {

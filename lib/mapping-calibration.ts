@@ -347,6 +347,7 @@ export function assessMappingCandidate(
   const conceptSpecificProofMatches = conceptSpecificProofSatisfied({
     concept,
     candidate,
+    expectedAnchor,
     labelText,
     businessSection,
     valueShape,
@@ -690,9 +691,9 @@ function businessDescriptionProofMatches(input: {
     (input.sectionMatches && longText);
 }
 
-function conceptSpecificProofSatisfied(input: {
-  concept: FieldConceptKey;
+function businessContactPhoneProofMatches(input: {
   candidate: MappingCandidate;
+  expectedAnchor: ExpectedMappingAnchor | null;
   labelText: string;
   businessSection: string | null;
   valueShape: ValueShape;
@@ -700,6 +701,54 @@ function conceptSpecificProofSatisfied(input: {
   sectionMatches: boolean;
   typeMatches: boolean;
 }): boolean {
+  if (input.valueShape !== 'phone') return false;
+
+  const candidateConcept = conceptKeyForJsonKeyPath(input.candidate.enrichment?.jsonKeyPath ?? null);
+  const anchorConcept = conceptKeyForJsonKeyPath(input.expectedAnchor?.jsonKeyPath ?? null);
+  const proofText = [
+    input.labelText,
+    input.businessSection,
+    input.candidate.sectionName,
+    input.candidate.layoutSectionHeader,
+    input.candidate.layoutFieldLabel,
+    input.candidate.enrichment?.suggestedDisplayName,
+    input.candidate.enrichment?.suggestedBusinessSection,
+    input.expectedAnchor?.displayName,
+    input.expectedAnchor?.businessSection,
+  ].filter(Boolean).join(' ');
+  const explicitWrongContext = /\b(stakeholder|owner|principal|bank|routing|account|mailing|address)\b/i.test(proofText);
+
+  if (explicitWrongContext) return false;
+
+  const contactSectionProof =
+    input.sectionMatches ||
+    input.businessSection === 'Contact' ||
+    input.candidate.enrichment?.suggestedBusinessSection === 'Contact' ||
+    sectionNameMatchesBusinessSection(input.candidate.sectionName ?? null, 'Contact');
+  const businessPhoneLabelProof = /\bbusiness\s*phone\b|\bcontact\s*(number|phone)\b/i.test(proofText);
+  const businessPhoneAnchorProof =
+    anchorConcept === 'phone' &&
+    input.expectedAnchor?.businessSection === 'Contact' &&
+    isExactAnchorCandidate(input.candidate, input.expectedAnchor);
+  const businessPhoneEnrichmentProof = candidateConcept === 'phone' && (contactSectionProof || businessPhoneLabelProof);
+
+  return businessPhoneAnchorProof || businessPhoneEnrichmentProof || ((contactSectionProof || businessPhoneLabelProof) && input.labelMatches && input.typeMatches);
+}
+
+function conceptSpecificProofSatisfied(input: {
+  concept: FieldConceptKey;
+  candidate: MappingCandidate;
+  expectedAnchor: ExpectedMappingAnchor | null;
+  labelText: string;
+  businessSection: string | null;
+  valueShape: ValueShape;
+  labelMatches: boolean;
+  sectionMatches: boolean;
+  typeMatches: boolean;
+}): boolean {
+  if (input.concept === 'phone') {
+    return businessContactPhoneProofMatches(input);
+  }
   if (input.concept === 'business_description') {
     return businessDescriptionProofMatches(input);
   }
