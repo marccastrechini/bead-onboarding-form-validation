@@ -208,6 +208,8 @@ export interface MappingCalibrationRow {
   } | null;
 }
 
+type MappingCalibrationNeighbor = NonNullable<MappingCalibrationRow['neighborWindow']>[number];
+
 export interface MappingCalibrationFile {
   schemaVersion: 1;
   rows: MappingCalibrationRow[];
@@ -1210,7 +1212,9 @@ function buildScorecardCalibrationEvidence(
   calibrationRow: MappingCalibrationRow,
   fieldIndex: number,
 ): ScorecardCalibrationEvidence | undefined {
-  const neighbor = calibrationRow.neighborWindow?.find((entry) => entry.fieldIndex === fieldIndex) ?? null;
+  const neighbor = calibrationRow.neighborWindow?.find((entry) => entry.fieldIndex === fieldIndex)
+    ?? bankAccountTypeCalibrationNeighbor(concept, calibrationRow)
+    ?? null;
   const coordinates = parseCalibrationCoordinates(neighbor?.coordinates ?? calibrationRow.currentCandidateCoordinates ?? null);
   const hasEvidence = Boolean(
     calibrationRow.jsonKeyPath ||
@@ -1250,17 +1254,66 @@ function calibratedFieldIndex(
   concept: FieldConceptDefinition,
   calibrationRow: MappingCalibrationRow,
 ): number | null {
+  const candidateIndex = calibratedCandidateIndex(calibrationRow);
+  if (!candidateIndex) return null;
+
+  const bankAccountTypeNeighbor = bankAccountTypeCalibrationNeighbor(concept, calibrationRow);
+  if (bankAccountTypeNeighbor) {
+    return resolveReportFieldIndexByCalibrationAnchor(report, bankAccountTypeNeighbor);
+  }
+
+  return resolveReportFieldIndex(report, concept, candidateIndex);
+}
+
+function calibratedCandidateIndex(calibrationRow: MappingCalibrationRow): number | null {
   if (calibrationRow.decision === 'trust_current_mapping' && calibrationRow.currentCandidateFieldIndex) {
-    return resolveReportFieldIndex(report, concept, calibrationRow.currentCandidateFieldIndex);
+    return calibrationRow.currentCandidateFieldIndex;
   }
   if (!calibrationRow.selectedCandidate) {
-    return calibrationRow.currentCandidateFieldIndex
-      ? resolveReportFieldIndex(report, concept, calibrationRow.currentCandidateFieldIndex)
-      : null;
+    return calibrationRow.currentCandidateFieldIndex ?? null;
   }
   const match = calibrationRow.selectedCandidate.match(/^#(\d+)\b/);
-  const candidateIndex = match ? Number(match[1]) : calibrationRow.currentCandidateFieldIndex ?? null;
-  return candidateIndex ? resolveReportFieldIndex(report, concept, candidateIndex) : null;
+  return match ? Number(match[1]) : calibrationRow.currentCandidateFieldIndex ?? null;
+}
+
+function bankAccountTypeCalibrationNeighbor(
+  concept: FieldConceptDefinition,
+  calibrationRow: MappingCalibrationRow,
+): MappingCalibrationNeighbor | null {
+  if (concept.key !== 'bank_account_type') return null;
+  if (!/merchantData\.accountType$/i.test(calibrationRow.jsonKeyPath ?? '')) return null;
+  const candidateIndex = calibratedCandidateIndex(calibrationRow);
+  const neighbors = calibrationRow.neighborWindow ?? [];
+  return neighbors.find((entry) => entry.fieldIndex === candidateIndex && isBankInfoAccountTypeNeighbor(entry))
+    ?? neighbors.find(isBankInfoAccountTypeNeighbor)
+    ?? null;
+}
+
+function isBankInfoAccountTypeNeighbor(neighbor: MappingCalibrationNeighbor): boolean {
+  return Boolean(
+    neighbor.businessSection === 'Banking' &&
+    /^bank\s*info$/i.test(neighbor.layoutSectionHeader ?? '') &&
+    /^account\s*type$/i.test(neighbor.layoutFieldLabel ?? '') &&
+    /^(list|radio)$/i.test(neighbor.tabType ?? ''),
+  );
+}
+
+function resolveReportFieldIndexByCalibrationAnchor(
+  report: ValidationReport,
+  neighbor: MappingCalibrationNeighbor,
+): number | null {
+  const coordinates = parseCalibrationCoordinates(neighbor.coordinates);
+  const family = neighbor.tabType?.toLowerCase() ?? null;
+  const matches = report.fields
+    .map((field, index) => ({ field, fieldIndex: index + 1 }))
+    .filter(({ field }) => field.controlCategory === 'merchant_input')
+    .filter(({ field }) => neighbor.pageIndex === null || field.pageIndex === neighbor.pageIndex)
+    .filter(({ field }) => neighbor.ordinalOnPage === null || field.ordinalOnPage === neighbor.ordinalOnPage)
+    .filter(({ field }) => coordinates.left === null || (field.tabLeft !== null && Math.abs(field.tabLeft - coordinates.left) <= 5))
+    .filter(({ field }) => coordinates.top === null || (field.tabTop !== null && Math.abs(field.tabTop - coordinates.top) <= 5))
+    .filter(({ field }) => family === null || (field.docusignTabType ?? '').toLowerCase() === family);
+
+  return matches.length === 1 ? matches[0]!.fieldIndex : null;
 }
 
 function resolveReportFieldIndex(

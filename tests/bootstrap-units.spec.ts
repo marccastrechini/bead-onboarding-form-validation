@@ -15,6 +15,7 @@ import {
   findPhysicalOperatingAddressToggle,
   guardedPhysicalOperatingAddressDiscoveryEnabled,
 } from '../fixtures/conditional-discovery';
+import type { DiscoveredField } from '../fixtures/field-discovery';
 import {
   buildPhysicalOperatingAddressDomProbeReport,
   collectPhysicalOperatingAddressProbeTextFragments,
@@ -52,6 +53,7 @@ import {
   releaseInteractiveTimeoutSession,
   renderInteractiveResultsMarkdown,
   resolveInteractiveTargetConcepts,
+  resolveInteractiveTargetField,
   skippedConceptToResult,
   type InteractiveProgressState,
   type InteractiveResultOutcome,
@@ -5224,6 +5226,16 @@ test.describe('interactive validation safety', () => {
         mockField({
           index: 2,
           section: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
+          inferredType: 'business_type',
+          docusignTabType: 'List',
+          pageIndex: 1,
+          ordinalOnPage: 56,
+          tabLeft: 411.52,
+          tabTop: 713.6,
+        }),
+        mockField({
+          index: 3,
+          section: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
           inferredType: 'bank_account_type',
           docusignTabType: 'List',
           pageIndex: 1,
@@ -5238,7 +5250,7 @@ test.describe('interactive validation safety', () => {
 
       expect(plan.skippedConcepts).toEqual([]);
       expect(plan.cases).toHaveLength(4);
-      expect(plan.cases.every((entry) => entry.targetField.fieldIndex === 2)).toBe(true);
+      expect(plan.cases.every((entry) => entry.targetField.fieldIndex === 3)).toBe(true);
       expect(plan.cases[0]!.targetProfile).toMatchObject({
         intendedFieldDisplayName: 'Bank Account Type',
         intendedBusinessSection: 'Banking',
@@ -5249,6 +5261,116 @@ test.describe('interactive validation safety', () => {
         expectedOrdinalOnPage: 64,
         expectedDocusignFieldFamily: 'List',
       });
+    } finally {
+      fs.rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
+  test('bank_account_type live verifier trusts the calibrated Bank Info Account Type target', () => {
+    const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bead-bank-live-target-'));
+    const calibrationPath = path.join(outDir, 'latest-mapping-calibration.json');
+    try {
+      fs.writeFileSync(calibrationPath, JSON.stringify({
+        schemaVersion: 1,
+        rows: [{
+          concept: 'bank_account_type',
+          conceptDisplayName: 'Bank Account Type',
+          jsonKeyPath: 'merchantData.accountType',
+          currentCandidateFieldIndex: 2,
+          currentCandidateCoordinates: '536.96,876.8',
+          selectedCandidate: '#2 Account Type Banking p1 ord64 List shape=text_name_like editable=editable layout=Bank Info > Account Type @ 536.96,876.8',
+          decision: 'trust_current_mapping',
+          calibrationReason: 'none',
+          mappingDecisionReason: 'trusted_by_label',
+          missingProof: [],
+          neighborWindow: [{
+            fieldIndex: 2,
+            businessSection: 'Banking',
+            layoutSectionHeader: 'Bank Info',
+            layoutFieldLabel: 'Account Type',
+            pageIndex: 1,
+            ordinalOnPage: 64,
+            coordinates: '536.96,876.8',
+            tabType: 'List',
+          }],
+        }],
+      }), 'utf8');
+
+      const plan = buildInteractiveValidationPlan(mockValidationReport([
+        mockField({
+          index: 1,
+          inferredType: 'business_type',
+          docusignTabType: 'List',
+          pageIndex: 1,
+          ordinalOnPage: 56,
+          tabLeft: 411.52,
+          tabTop: 713.6,
+        }),
+        mockField({
+          index: 2,
+          inferredType: 'business_type',
+          docusignTabType: 'List',
+          pageIndex: 1,
+          ordinalOnPage: 56,
+          tabLeft: 411.52,
+          tabTop: 713.6,
+        }),
+        mockField({
+          index: 3,
+          inferredType: 'bank_account_type',
+          docusignTabType: 'List',
+          pageIndex: 1,
+          ordinalOnPage: 64,
+          tabLeft: 536.96,
+          tabTop: 876.8,
+        }),
+      ]), {
+        INTERACTIVE_CONCEPTS: 'bank_account_type',
+        INTERACTIVE_MAPPING_CALIBRATION_PATH: calibrationPath,
+      } as NodeJS.ProcessEnv);
+      const testCase = plan.cases[0]!;
+      const liveFields = [
+        mockDiscoveredField({
+          index: 0,
+          inferredType: 'business_type',
+          docusignTabType: 'List',
+          pageIndex: 1,
+          ordinalOnPage: 56,
+          tabLeft: 411.52,
+          tabTop: 713.6,
+        }),
+        mockDiscoveredField({
+          index: 1,
+          inferredType: 'business_type',
+          docusignTabType: 'List',
+          pageIndex: 1,
+          ordinalOnPage: 56,
+          tabLeft: 411.52,
+          tabTop: 713.6,
+        }),
+        mockDiscoveredField({
+          index: 2,
+          inferredType: 'bank_account_type',
+          docusignTabType: 'List',
+          pageIndex: 1,
+          ordinalOnPage: 64,
+          tabLeft: 536.96,
+          tabTop: 876.8,
+        }),
+      ];
+
+      const resolved = resolveInteractiveTargetField(testCase, liveFields[testCase.targetField.fieldIndex - 1]!, liveFields);
+
+      expect(testCase.targetProfile).toMatchObject({
+        layoutSectionHeader: 'Bank Info',
+        layoutFieldLabel: 'Account Type',
+        jsonKeyPath: 'merchantData.accountType',
+        expectedOrdinalOnPage: 64,
+        expectedDocusignFieldFamily: 'List',
+      });
+      expect(resolved.field.ordinalOnPage).toBe(64);
+      expect(resolved.selection.trusted).toBe(true);
+      expect(resolved.selection.decisionReason).not.toBe('rejected_insufficient_label_proof');
     } finally {
       fs.rmSync(outDir, { recursive: true, force: true });
     }
@@ -6409,6 +6531,43 @@ test.describe('interactive validation safety', () => {
 
     expect(result.trusted).toBe(false);
     expect(result.decisionReason).toBe('rejected_section_mismatch');
+  });
+
+  test('bank_account_type does not trust Proof of Bank Account Type label proof', () => {
+    const result = selectBestMappingCandidate({
+      concept: 'bank_account_type',
+      currentCandidateId: null,
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.accountType',
+        businessSection: 'Banking',
+        pageIndex: 1,
+        ordinalOnPage: 64,
+        tabLeft: 536.96,
+        tabTop: 876.8,
+        docusignFieldFamily: 'List',
+      },
+      candidates: [{
+        id: 'proof-of-bank-account-type',
+        resolvedLabel: 'Proof of Bank Account Type',
+        labelSource: 'layout-cell',
+        labelConfidence: 'high',
+        businessSection: 'Banking',
+        layoutSectionHeader: 'Bank Info',
+        layoutFieldLabel: 'Proof of Bank Account Type',
+        docusignTabType: 'List',
+        pageIndex: 1,
+        ordinalOnPage: 65,
+        tabLeft: 663.68,
+        tabTop: 876.8,
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+      }],
+    });
+
+    expect(result.trusted).toBe(false);
+    expect(result.assessments[0]!.conceptSpecificProofMatches).toBe(false);
+    expect(result.decisionReason).not.toBe('trusted_by_label');
   });
 
   test('scoped address state concepts require the matching address-block section proof', () => {
@@ -8383,6 +8542,60 @@ function mockField(overrides: Partial<FieldRecord> = {}): FieldRecord {
     tabHeight: null,
     ...overrides,
   };
+  if (!Object.prototype.hasOwnProperty.call(overrides, 'label')) field.label = field.resolvedLabel;
+  return field;
+}
+
+type MockDiscoveredFieldOverrides = Partial<Omit<DiscoveredField, 'inferredType'>> & {
+  inferredType?: DiscoveredField['inferredType'] | string;
+};
+
+function mockDiscoveredField(overrides: MockDiscoveredFieldOverrides = {}): DiscoveredField {
+  const field = {
+    kind: 'combobox',
+    index: 1,
+    sectionName: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
+    label: null,
+    placeholder: null,
+    ariaLabel: null,
+    title: null,
+    describedByText: null,
+    helperText: null,
+    resolvedLabel: null,
+    labelSource: 'none',
+    labelConfidence: 'none',
+    labelLooksLikeValue: false,
+    rawCandidateLabels: [],
+    rejectedLabelCandidates: [],
+    observedValueLikeTextNearControl: null,
+    idOrNameKey: null,
+    attachmentEvidence: 'none',
+    groupName: null,
+    currentValue: null,
+    type: null,
+    inputMode: null,
+    autocomplete: null,
+    pattern: null,
+    minLength: null,
+    maxLength: null,
+    required: true,
+    docusignTabType: 'List',
+    elementId: null,
+    tabGuid: null,
+    pageIndex: null,
+    ordinalOnPage: null,
+    tabLeft: null,
+    tabTop: null,
+    tabWidth: null,
+    tabHeight: null,
+    visible: true,
+    editable: true,
+    controlCategory: 'merchant_input',
+    inferredType: 'unknown_manual_review',
+    locatorConfidence: 'css-fallback',
+    locator: {} as DiscoveredField['locator'],
+    ...overrides,
+  } as DiscoveredField;
   if (!Object.prototype.hasOwnProperty.call(overrides, 'label')) field.label = field.resolvedLabel;
   return field;
 }

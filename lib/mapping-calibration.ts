@@ -734,7 +734,9 @@ function controlledChoiceProofMatches(input: {
     case 'bank_country':
       return input.labelMatches && input.sectionMatches && sectionProof && /country/.test(labelField);
     case 'bank_account_type':
-      return input.labelMatches && input.sectionMatches && sectionProof && /account\s*type|bank\s*account\s*type/.test(labelField);
+      return input.labelMatches && input.sectionMatches && sectionProof &&
+        !/proof\s*of\s*bank\s*account\s*type/.test(labelField) &&
+        /account\s*type|bank\s*account\s*type/.test(labelField);
     case 'federal_tax_id_type':
       return input.labelMatches && input.sectionMatches && sectionProof && /federal\s*tax\s*id\s*type/.test(labelField);
     case 'proof_of_business_type':

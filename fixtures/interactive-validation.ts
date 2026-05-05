@@ -3126,7 +3126,7 @@ function createTargetDiagnostics(
   };
 }
 
-function resolveInteractiveTargetField(
+export function resolveInteractiveTargetField(
   testCase: InteractiveValidationCase,
   field: DiscoveredField,
   allFields: DiscoveredField[],
