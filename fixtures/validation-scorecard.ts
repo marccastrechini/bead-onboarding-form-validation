@@ -1257,9 +1257,11 @@ function calibratedFieldIndex(
   const candidateIndex = calibratedCandidateIndex(calibrationRow);
   if (!candidateIndex) return null;
 
-  const bankAccountTypeNeighbor = bankAccountTypeCalibrationNeighbor(concept, calibrationRow);
-  if (bankAccountTypeNeighbor) {
-    return resolveReportFieldIndexByCalibrationAnchor(report, bankAccountTypeNeighbor);
+  if (concept.key === 'bank_account_type') {
+    const bankAccountTypeNeighbor = bankAccountTypeCalibrationNeighbor(concept, calibrationRow);
+    return bankAccountTypeNeighbor
+      ? resolveReportFieldIndexByCalibrationAnchor(report, bankAccountTypeNeighbor)
+      : null;
   }
 
   return resolveReportFieldIndex(report, concept, candidateIndex);
@@ -1304,16 +1306,62 @@ function resolveReportFieldIndexByCalibrationAnchor(
 ): number | null {
   const coordinates = parseCalibrationCoordinates(neighbor.coordinates);
   const family = neighbor.tabType?.toLowerCase() ?? null;
-  const matches = report.fields
+  const scoredMatches = report.fields
     .map((field, index) => ({ field, fieldIndex: index + 1 }))
     .filter(({ field }) => field.controlCategory === 'merchant_input')
+    .filter(({ field }) => field.visible !== false && field.editable !== false)
     .filter(({ field }) => neighbor.pageIndex === null || field.pageIndex === neighbor.pageIndex)
-    .filter(({ field }) => neighbor.ordinalOnPage === null || field.ordinalOnPage === neighbor.ordinalOnPage)
-    .filter(({ field }) => coordinates.left === null || (field.tabLeft !== null && Math.abs(field.tabLeft - coordinates.left) <= 5))
-    .filter(({ field }) => coordinates.top === null || (field.tabTop !== null && Math.abs(field.tabTop - coordinates.top) <= 5))
-    .filter(({ field }) => family === null || (field.docusignTabType ?? '').toLowerCase() === family);
+    .filter(({ field }) => family === null || (field.docusignTabType ?? '').toLowerCase() === family)
+    .map(({ field, fieldIndex }) => ({ fieldIndex, score: scoreCalibrationAnchorCandidate(field, neighbor, coordinates) }))
+    .filter((entry): entry is { fieldIndex: number; score: number } => entry.score !== null)
+    .sort((a, b) => b.score - a.score || a.fieldIndex - b.fieldIndex);
 
-  return matches.length === 1 ? matches[0]!.fieldIndex : null;
+  const best = scoredMatches[0] ?? null;
+  if (!best || best.score < 70) return null;
+  const second = scoredMatches[1] ?? null;
+  if (second && best.score - second.score < 20) return null;
+  return best.fieldIndex;
+}
+
+function scoreCalibrationAnchorCandidate(
+  field: FieldRecord,
+  neighbor: MappingCalibrationNeighbor,
+  coordinates: { left: number | null; top: number | null },
+): number | null {
+  const inferredType = String(field.inferredType ?? '').toLowerCase();
+  const labelText = [field.resolvedLabel, field.enrichment?.suggestedDisplayName, field.enrichment?.layoutFieldLabel]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  if (inferredType.includes('proof_of_bank_account_type') || /proof\s*of\s*bank\s*account\s*type/.test(labelText)) {
+    return null;
+  }
+
+  const hasCoordinates = coordinates.left !== null && coordinates.top !== null && field.tabLeft !== null && field.tabTop !== null;
+  const hasOrdinal = neighbor.ordinalOnPage !== null && field.ordinalOnPage !== null;
+  if (!hasCoordinates && !hasOrdinal) return null;
+
+  let score = 0;
+  if (hasCoordinates) {
+    const distance = Math.max(
+      Math.abs((field.tabLeft ?? 0) - (coordinates.left ?? 0)),
+      Math.abs((field.tabTop ?? 0) - (coordinates.top ?? 0)),
+    );
+    if (distance <= 5) score += 100;
+    else if (distance <= 20) score += 80;
+    else if (distance <= 60) score += 50;
+    else return null;
+  }
+
+  if (hasOrdinal) {
+    const distance = Math.abs((field.ordinalOnPage ?? 0) - (neighbor.ordinalOnPage ?? 0));
+    if (distance === 0) score += 40;
+    else if (distance <= 3) score += 20;
+    else if (!hasCoordinates) return null;
+  }
+
+  if (inferredType.includes('bank_account_type')) score += 10;
+  return score;
 }
 
 function resolveReportFieldIndex(

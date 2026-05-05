@@ -5376,6 +5376,182 @@ test.describe('interactive validation safety', () => {
     }
   });
 
+  test('bank_account_type exact calibrated proof is confident when live ordinal drifts', () => {
+    const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bead-bank-scorecard-confidence-'));
+    const calibrationPath = path.join(outDir, 'latest-mapping-calibration.json');
+    try {
+      fs.writeFileSync(calibrationPath, JSON.stringify({
+        schemaVersion: 1,
+        rows: [{
+          concept: 'bank_account_type',
+          conceptDisplayName: 'Bank Account Type',
+          jsonKeyPath: 'merchantData.accountType',
+          currentCandidateFieldIndex: 2,
+          currentCandidateCoordinates: '536.96,876.8',
+          selectedCandidate: '#2 Account Type Banking p1 ord64 List shape=text_name_like editable=editable layout=Bank Info > Account Type @ 536.96,876.8',
+          decision: 'trust_current_mapping',
+          calibrationReason: 'none',
+          mappingDecisionReason: 'trusted_by_label',
+          missingProof: [],
+          neighborWindow: [{
+            fieldIndex: 2,
+            businessSection: 'Banking',
+            layoutSectionHeader: 'Bank Info',
+            layoutFieldLabel: 'Account Type',
+            pageIndex: 1,
+            ordinalOnPage: 64,
+            coordinates: '536.96,876.8',
+            tabType: 'List',
+          }],
+        }],
+      }), 'utf8');
+
+      const report = mockValidationReport([
+        mockField({
+          index: 1,
+          inferredType: 'business_type',
+          docusignTabType: 'List',
+          pageIndex: 1,
+          ordinalOnPage: 56,
+          tabLeft: 411.52,
+          tabTop: 713.6,
+        }),
+        mockField({
+          index: 2,
+          inferredType: 'business_type',
+          docusignTabType: 'List',
+          pageIndex: 1,
+          ordinalOnPage: 56,
+          tabLeft: 411.52,
+          tabTop: 713.6,
+        }),
+        mockField({
+          index: 3,
+          inferredType: 'bank_account_type',
+          docusignTabType: 'List',
+          pageIndex: 1,
+          ordinalOnPage: 61,
+          tabLeft: 536.96,
+          tabTop: 876.8,
+        }),
+      ]);
+      const calibration = JSON.parse(fs.readFileSync(calibrationPath, 'utf8'));
+      const score = buildValidationScorecard(report, null, calibration)
+        .conceptScores.find((entry) => entry.key === 'bank_account_type')!;
+      const plan = buildInteractiveValidationPlan(report, {
+        INTERACTIVE_CONCEPTS: 'bank_account_type',
+        INTERACTIVE_MAPPING_CALIBRATION_PATH: calibrationPath,
+      } as NodeJS.ProcessEnv);
+
+      expect(score.identifiedWithConfidence).toBe(true);
+      expect(score.identificationConfidence).toBe('high');
+      expect(score.mappedFields).toHaveLength(1);
+      expect(score.mappedFields[0]).toMatchObject({
+        fieldIndex: 3,
+        displayName: 'Bank Account Type',
+        businessSection: 'Banking',
+        identificationConfidence: 'high',
+        calibrationEvidence: {
+          jsonKeyPath: 'merchantData.accountType',
+          layoutSectionHeader: 'Bank Info',
+          layoutFieldLabel: 'Account Type',
+          expectedOrdinalOnPage: 64,
+          expectedDocusignFieldFamily: 'List',
+        },
+      });
+      expect(plan.skippedConcepts).toEqual([]);
+      expect(plan.cases).toHaveLength(4);
+      expect(plan.cases.every((entry) => entry.targetField.fieldIndex === 3)).toBe(true);
+    } finally {
+      fs.rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
+  test('bank_account_type Account Type outside Bank Info is not confidence-uplifted', () => {
+    const report = mockValidationReport([
+      mockField({
+        index: 1,
+        inferredType: 'bank_account_type',
+        docusignTabType: 'List',
+        pageIndex: 1,
+        ordinalOnPage: 64,
+        tabLeft: 536.96,
+        tabTop: 876.8,
+      }),
+    ]);
+    const score = buildValidationScorecard(report, null, {
+      schemaVersion: 1,
+      rows: [{
+        concept: 'bank_account_type',
+        conceptDisplayName: 'Bank Account Type',
+        jsonKeyPath: 'merchantData.accountType',
+        currentCandidateFieldIndex: 1,
+        currentCandidateCoordinates: '536.96,876.8',
+        selectedCandidate: '#1 Account Type Banking p1 ord64 List shape=text_name_like editable=editable layout=Location Details > Account Type @ 536.96,876.8',
+        decision: 'trust_current_mapping',
+        calibrationReason: 'none',
+        mappingDecisionReason: 'trusted_by_label',
+        missingProof: [],
+        neighborWindow: [{
+          fieldIndex: 1,
+          businessSection: 'Banking',
+          layoutSectionHeader: 'Location Details',
+          layoutFieldLabel: 'Account Type',
+          pageIndex: 1,
+          ordinalOnPage: 64,
+          coordinates: '536.96,876.8',
+          tabType: 'List',
+        }],
+      }],
+    }).conceptScores.find((entry) => entry.key === 'bank_account_type')!;
+
+    expect(score.identifiedWithConfidence).toBe(false);
+    expect(score.identificationConfidence).toBe('low');
+    expect(score.mappedFields.every((entry) => entry.identificationConfidence !== 'high')).toBe(true);
+  });
+
+  test('bank_account_type Proof of Bank Account Type proof is not confidence-uplifted', () => {
+    const report = mockValidationReport([
+      mockField({
+        index: 1,
+        inferredType: 'proof_of_bank_account_type',
+        docusignTabType: 'List',
+        pageIndex: 1,
+        ordinalOnPage: 65,
+        tabLeft: 663.68,
+        tabTop: 876.8,
+      }),
+    ]);
+    const score = buildValidationScorecard(report, null, {
+      schemaVersion: 1,
+      rows: [{
+        concept: 'bank_account_type',
+        conceptDisplayName: 'Bank Account Type',
+        jsonKeyPath: 'merchantData.accountType',
+        currentCandidateFieldIndex: 1,
+        currentCandidateCoordinates: '663.68,876.8',
+        selectedCandidate: '#1 Proof of Bank Account Type Banking p1 ord65 List shape=text_name_like editable=editable layout=Bank Info > Proof of Bank Account Type @ 663.68,876.8',
+        decision: 'trust_current_mapping',
+        calibrationReason: 'none',
+        mappingDecisionReason: 'trusted_by_label',
+        missingProof: [],
+        neighborWindow: [{
+          fieldIndex: 1,
+          businessSection: 'Banking',
+          layoutSectionHeader: 'Bank Info',
+          layoutFieldLabel: 'Proof of Bank Account Type',
+          pageIndex: 1,
+          ordinalOnPage: 65,
+          coordinates: '663.68,876.8',
+          tabType: 'List',
+        }],
+      }],
+    }).conceptScores.find((entry) => entry.key === 'bank_account_type')!;
+
+    expect(score.identifiedWithConfidence).toBe(false);
+    expect(score.mappedFields).toEqual([]);
+  });
+
   test('options-not-discoverable results are manual_review or skipped, not product-like execution', () => {
     const undiscoverable = prepareControlledChoiceInteraction(
       { interactionKind: 'select_alternate', conceptDisplayName: 'Legal Entity Type' },
