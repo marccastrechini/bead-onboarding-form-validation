@@ -106,6 +106,12 @@ Operator guidance:
 - Do not rerun completed controlled-choice concepts unless source mappings, calibration anchors, or live target proof logic change.
 - For previously blocked fields outside this closure set, use non-live diagnostics before attempting another guarded live run.
 
+## Coverage acceleration model
+
+- Use representative field-family coverage to reduce reruns once a concept family has trusted live evidence.
+- Use non-live mapping triage first for same-shape ambiguity, ownership uncertainty, and field-local capture blockers before scheduling another guarded live batch.
+- Reserve operator-watchdog runs for representative concepts and higher-risk exceptions rather than expanding every mapped field immediately.
+
 ## Unit tests
 
 ```powershell
