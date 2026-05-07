@@ -993,6 +993,13 @@ test.describe('field validation scorecard', () => {
     expect(expectedValueShapesForConcept('stakeholder_phone')).toEqual(['phone']);
   });
 
+  test('processing amount concepts resolve sample alias key paths', () => {
+    expect(conceptKeyForJsonKeyPath('merchantData.grossAnnualRevenue')).toBe('annual_revenue');
+    expect(conceptKeyForJsonKeyPath('merchantData.highestMonthlyVolume')).toBe('highest_monthly_volume');
+    expect(conceptKeyForJsonKeyPath('merchantData.averageTicketSize')).toBe('average_ticket');
+    expect(conceptKeyForJsonKeyPath('merchantData.maxTicketSize')).toBe('max_ticket');
+  });
+
   test('scoped address and location concepts resolve exact key paths, shapes, and select families', () => {
     expect(conceptKeyForJsonKeyPath('merchantData.locationName')).toBe('location_name');
     expect(conceptKeyForJsonKeyPath('merchantData.registeredLegalAddress.line1')).toBe('registered_address_line_1');
@@ -7970,6 +7977,189 @@ test.describe('interactive validation safety', () => {
     expect(row!.missingProof).toContain('Sample layout evidence points to General > Legal Entity Type.');
     expect(row!.missingProof).toContain('A human screenshot is needed to confirm the field label, section, editability, and control family.');
     expect(row!.humanConfirmation?.requestedEvidence).toBe('On page 1 General, is Legal Entity Type an editable dropdown/list or display text?');
+  });
+
+  test('stakeholder email-phone and amount alias anchors produce offline calibration rows', () => {
+    const calibration = buildMappingCalibration({
+      report: mockValidationReport([]),
+      targetDiagnostics: {
+        schemaVersion: 1,
+        runStartedAt: '2026-04-28T00:00:00.000Z',
+        runFinishedAt: '2026-04-28T00:00:01.000Z',
+        summary: {
+          total: 0,
+          trusted: 0,
+          tool_mapping_suspect: 0,
+          mapping_not_confident: 0,
+          error_ownership_suspect: 0,
+          product_failure: 0,
+          observer_ambiguous: 0,
+          passed: 0,
+          skipped: 0,
+          manual_review: 0,
+        },
+        rows: [],
+      },
+      enrichment: {
+        schemaVersion: 1,
+        generatedAt: '2026-04-28T00:00:00.000Z',
+        sourceJson: 'sample.json',
+        sourceMhtml: 'sample.mhtml',
+        records: [],
+      },
+      alignment: {
+        rows: [
+          {
+            jsonKeyPath: 'merchantData.stakeholders[0].email',
+            jsonFieldFamily: 'Stakeholder',
+            jsonValueSample: 'shape:email',
+            jsonTypeHint: 'email',
+            matchedTabGuid: 'guid-stakeholder-email',
+            matchedRenderedValue: null,
+            candidateRenderedPrompt: null,
+            candidateDocuSignFieldFamily: 'Text',
+            tabPageIndex: 3,
+            tabOrdinalOnPage: 22,
+            tabLeft: 35.2,
+            tabTop: 280.32,
+            layoutSectionHeader: null,
+            layoutFieldLabel: null,
+            layoutEvidenceSource: null,
+            layoutValueShape: null,
+            layoutNeighboringLabels: [],
+            layoutEditability: null,
+            businessSection: 'Stakeholder',
+            confidence: 'high',
+            matchingMethod: 'layout_cell',
+            notes: 'matched stakeholder email anchor',
+          },
+          {
+            jsonKeyPath: 'merchantData.stakeholders[0].phoneNumber',
+            jsonFieldFamily: 'Stakeholder',
+            jsonValueSample: 'shape:phone',
+            jsonTypeHint: 'phone',
+            matchedTabGuid: 'guid-stakeholder-phone',
+            matchedRenderedValue: null,
+            candidateRenderedPrompt: null,
+            candidateDocuSignFieldFamily: 'Text',
+            tabPageIndex: 3,
+            tabOrdinalOnPage: 23,
+            tabLeft: 410.88,
+            tabTop: 279.04,
+            layoutSectionHeader: null,
+            layoutFieldLabel: null,
+            layoutEvidenceSource: null,
+            layoutValueShape: null,
+            layoutNeighboringLabels: [],
+            layoutEditability: null,
+            businessSection: 'Stakeholder',
+            confidence: 'high',
+            matchingMethod: 'layout_cell',
+            notes: 'matched stakeholder phone anchor',
+          },
+          {
+            jsonKeyPath: 'merchantData.grossAnnualRevenue',
+            jsonFieldFamily: 'Processing & Financials',
+            jsonValueSample: 'shape:numeric',
+            jsonTypeHint: 'currency',
+            matchedTabGuid: null,
+            matchedRenderedValue: null,
+            candidateRenderedPrompt: null,
+            candidateDocuSignFieldFamily: null,
+            tabPageIndex: null,
+            tabOrdinalOnPage: null,
+            tabLeft: null,
+            tabTop: null,
+            layoutSectionHeader: null,
+            layoutFieldLabel: null,
+            layoutEvidenceSource: null,
+            layoutValueShape: null,
+            layoutNeighboringLabels: [],
+            layoutEditability: null,
+            businessSection: 'Processing & Financials',
+            confidence: 'none',
+            matchingMethod: 'unmatched',
+            notes: 'no rendered value matched any variant',
+          },
+          {
+            jsonKeyPath: 'merchantData.averageTicketSize',
+            jsonFieldFamily: 'Processing & Financials',
+            jsonValueSample: 'shape:numeric',
+            jsonTypeHint: 'currency',
+            matchedTabGuid: null,
+            matchedRenderedValue: null,
+            candidateRenderedPrompt: null,
+            candidateDocuSignFieldFamily: null,
+            tabPageIndex: null,
+            tabOrdinalOnPage: null,
+            tabLeft: null,
+            tabTop: null,
+            layoutSectionHeader: null,
+            layoutFieldLabel: null,
+            layoutEvidenceSource: null,
+            layoutValueShape: null,
+            layoutNeighboringLabels: [],
+            layoutEditability: null,
+            businessSection: 'Processing & Financials',
+            confidence: 'none',
+            matchingMethod: 'unmatched',
+            notes: 'no rendered value matched any variant',
+          },
+          {
+            jsonKeyPath: 'merchantData.maxTicketSize',
+            jsonFieldFamily: 'Processing & Financials',
+            jsonValueSample: 'shape:numeric',
+            jsonTypeHint: 'currency',
+            matchedTabGuid: null,
+            matchedRenderedValue: null,
+            candidateRenderedPrompt: null,
+            candidateDocuSignFieldFamily: null,
+            tabPageIndex: null,
+            tabOrdinalOnPage: null,
+            tabLeft: null,
+            tabTop: null,
+            layoutSectionHeader: null,
+            layoutFieldLabel: null,
+            layoutEvidenceSource: null,
+            layoutValueShape: null,
+            layoutNeighboringLabels: [],
+            layoutEditability: null,
+            businessSection: 'Processing & Financials',
+            confidence: 'none',
+            matchingMethod: 'unmatched',
+            notes: 'no rendered value matched any variant',
+          },
+        ],
+      },
+      summaryPath: 'summary.json',
+      targetDiagnosticsPath: 'diagnostics.json',
+      enrichmentPath: 'enrichment.json',
+      alignmentPath: 'alignment.json',
+    });
+
+    expect(calibration.rows.find((entry) => entry.concept === 'stakeholder_email')).toMatchObject({
+      jsonKeyPath: 'merchantData.stakeholders[0].email',
+      decision: 'leave_unresolved',
+    });
+    expect(calibration.rows.find((entry) => entry.concept === 'stakeholder_phone')).toMatchObject({
+      jsonKeyPath: 'merchantData.stakeholders[0].phoneNumber',
+      decision: 'leave_unresolved',
+    });
+    expect(calibration.rows.find((entry) => entry.concept === 'annual_revenue')).toMatchObject({
+      jsonKeyPath: 'merchantData.grossAnnualRevenue',
+      decision: 'leave_unresolved',
+    });
+    expect(calibration.rows.find((entry) => entry.concept === 'average_ticket')).toMatchObject({
+      jsonKeyPath: 'merchantData.averageTicketSize',
+      decision: 'leave_unresolved',
+    });
+    expect(calibration.rows.find((entry) => entry.concept === 'max_ticket')).toMatchObject({
+      jsonKeyPath: 'merchantData.maxTicketSize',
+      decision: 'leave_unresolved',
+    });
+    expect(calibration.rows.filter((entry) =>
+      ['stakeholder_email', 'stakeholder_phone', 'annual_revenue', 'average_ticket', 'max_ticket'].includes(entry.concept),
+    ).every((entry) => entry.missingProof.length > 0)).toBe(true);
   });
 
   test('physical operating address blockers ask for block visibility instead of a nearby unrelated control', () => {
