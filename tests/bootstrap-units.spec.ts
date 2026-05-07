@@ -2242,6 +2242,100 @@ test.describe('validation findings export', () => {
     expect(contactLastName.outcome).toBe('passed');
   });
 
+  test('business_description very-short and garbage text remain manual review policy questions', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'business_description',
+          conceptDisplayName: 'Business Description',
+          validationId: 'very-short-behavior',
+          testName: 'very short value behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+        }),
+        mockFindingsResult({
+          concept: 'business_description',
+          conceptDisplayName: 'Business Description',
+          validationId: 'garbage-text-rejected-or-flagged',
+          testName: 'garbage text rejected or flagged',
+          status: 'warning',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+        }),
+      ],
+    }));
+
+    expect(report.ambiguousHumanReviewFindings.map((finding) => `${finding.concept}:${finding.validationId}`)).toEqual([
+      'business_description:very-short-behavior',
+      'business_description:garbage-text-rejected-or-flagged',
+    ]);
+    expect(report.ambiguousHumanReviewFindings.every((finding) => finding.ambiguity?.type === 'policy_question')).toBe(true);
+    expect(report.likelyProductValidationFindings).toEqual([]);
+  });
+
+  test('business_description truncation is acceptable documented behavior and not ambiguity', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'business_description',
+          conceptDisplayName: 'Business Description',
+          validationId: 'excessive-length-behavior',
+          testName: 'excessive length behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          inputValue: 'Long Business Name'.repeat(20),
+          observedValue: 'Long Business Name',
+          normalizedOrReformatted: true,
+        }),
+      ],
+    }));
+
+    expect(report.ambiguousHumanReviewFindings).toEqual([]);
+    expect(report.likelyProductValidationFindings).toEqual([]);
+
+    const businessDescription = report.trustedExecutedObservations.find((finding) => finding.concept === 'business_description')!;
+    expect(businessDescription.status).toBe('passed');
+    expect(businessDescription.outcome).toBe('passed');
+  });
+
+  test('registration_date alternate format and future date remain manual review without product findings', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'registration_date',
+          conceptDisplayName: 'Registration Date',
+          validationId: 'accepted-date-format-documented',
+          testName: 'MM/DD/YYYY format behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          ariaInvalid: 'true',
+          invalidIndicators: ['field-root:class=has-error'],
+          docusignValidationText: ['Please use YYYY/MM/DD.'],
+        }),
+        mockFindingsResult({
+          concept: 'registration_date',
+          conceptDisplayName: 'Registration Date',
+          validationId: 'future-date-behavior',
+          testName: 'future date behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          inputValue: '2099/01/01',
+          observedValue: '2099/01/01',
+        }),
+      ],
+    }));
+
+    expect(report.ambiguousHumanReviewFindings.map((finding) => `${finding.validationId}:${finding.ambiguity?.type}`)).toEqual([
+      'accepted-date-format-documented:matrix_expectation_mismatch',
+      'future-date-behavior:observer_needs_stronger_text_evidence',
+    ]);
+    expect(report.likelyProductValidationFindings).toEqual([]);
+  });
+
   test('symbol-heavy contact and location names remain manual review while business and DBA name leniency stays unchanged', () => {
     const report = buildValidationFindingsReport(mockFindingsInput({
       results: [

@@ -705,6 +705,16 @@ function resolveFindingForPolicy(
     };
   }
 
+  if (isBusinessDescriptionLengthBehaviorResolved(result, finding)) {
+    return {
+      ...finding,
+      status: 'passed',
+      outcome: 'passed',
+      interpretation: `Observed acceptable ${finding.conceptDisplayName} length enforcement through truncation or normalization.`,
+      recommendation: 'Document the enforced limit or maxlength, but do not treat this behavior as a product defect.',
+    };
+  }
+
   if (isAddressLengthBehaviorResolved(result, finding)) {
     return {
       ...finding,
@@ -982,6 +992,15 @@ function isNameLengthBehaviorResolved(
   finding: Omit<FindingItem, 'ambiguity' | 'controlledChoiceClassification'>,
 ): boolean {
   if (!isLengthNormalizedTextNameConcept(finding.concept) || !/excessive-length/i.test(result.validationId)) return false;
+  const lengthEffect = inferLengthEffect(result);
+  return result.observation?.normalizedOrReformatted === true || lengthEffect === 'shortened';
+}
+
+function isBusinessDescriptionLengthBehaviorResolved(
+  result: ValidationResult,
+  finding: Omit<FindingItem, 'ambiguity' | 'controlledChoiceClassification'>,
+): boolean {
+  if (finding.concept !== 'business_description' || !/excessive-length/i.test(result.validationId)) return false;
   const lengthEffect = inferLengthEffect(result);
   return result.observation?.normalizedOrReformatted === true || lengthEffect === 'shortened';
 }
