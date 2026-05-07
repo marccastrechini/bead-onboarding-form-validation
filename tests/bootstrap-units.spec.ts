@@ -55,6 +55,8 @@ import {
   resolveInteractiveTargetConcepts,
   resolveInteractiveTargetField,
   skippedConceptToResult,
+  writeInteractiveProgressArtifact,
+  writeInteractiveResultsArtifacts,
   type InteractiveProgressState,
   type InteractiveResultOutcome,
   type InteractiveResultStatus,
@@ -6189,6 +6191,133 @@ test.describe('interactive validation safety', () => {
     expect(artifact.validationId).toBe('current-option-documented');
     expect(artifact.phase).toBe('collect-observation');
     expect(artifact.timestamp).toBe('2026-05-04T18:58:40.000Z');
+  });
+
+  test('interactive progress artifact retries once on EBUSY and then succeeds', () => {
+    const artifactsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bead-progress-write-'));
+    const currentStep = mockWatchdogProgressState({
+      concept: 'phone',
+      conceptDisplayName: 'Phone',
+      validationId: 'letters-rejected',
+      caseName: 'letters',
+      phase: 'restore-original-value',
+      startedAt: '2026-05-07T12:31:31.278Z',
+    });
+    let renameAttempts = 0;
+
+    try {
+      const progressPath = writeInteractiveProgressArtifact(currentStep, artifactsDir, currentStep.startedAt, {
+        renameSync: ((oldPath: fs.PathLike, newPath: fs.PathLike) => {
+          renameAttempts += 1;
+          if (renameAttempts === 1) {
+            throw Object.assign(new Error('resource busy or locked'), { code: 'EBUSY' });
+          }
+          fs.renameSync(oldPath, newPath);
+        }) as typeof fs.renameSync,
+        sleepMs: () => undefined,
+        now: () => 1234,
+        random: () => 0.5,
+      });
+
+      const artifact = parseJsonFile<ReturnType<typeof buildInteractiveProgressArtifact>>(progressPath);
+      expect(renameAttempts).toBe(2);
+      expect(artifact.concept).toBe('phone');
+      expect(artifact.validationId).toBe('letters-rejected');
+      expect(artifact.phase).toBe('restore-original-value');
+    } finally {
+      fs.rmSync(artifactsDir, { recursive: true, force: true });
+    }
+  });
+
+  test('interactive progress artifact repeated EBUSY logs warning and does not block primary artifact writes', () => {
+    const artifactsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bead-progress-warning-'));
+    const warnings: string[] = [];
+    const currentStep = mockWatchdogProgressState({
+      concept: 'phone',
+      conceptDisplayName: 'Phone',
+      validationId: 'letters-rejected',
+      caseName: 'letters',
+      phase: 'restore-original-value',
+      startedAt: '2026-05-07T12:31:31.278Z',
+    });
+
+    try {
+      const resultFile = buildInteractiveResultsFile({
+        runStartedAt: '2026-05-07T12:30:58.000Z',
+        runFinishedAt: '2026-05-07T12:31:31.278Z',
+        currentStep,
+        guardState: {
+          INTERACTIVE_VALIDATION: true,
+          DISPOSABLE_ENVELOPE: true,
+        },
+        plan: null,
+        results: [skippedConceptToResult({
+          concept: 'phone',
+          conceptDisplayName: 'Phone',
+          status: 'skipped',
+          reason: 'mapping not trusted for test fixture',
+        })],
+      });
+
+      const artifacts = writeInteractiveResultsArtifacts(resultFile, artifactsDir, {
+        logWarning: (message) => warnings.push(message),
+        progressWriteDependencies: {
+          renameSync: (() => {
+            throw Object.assign(new Error('resource busy or locked'), { code: 'EBUSY' });
+          }) as typeof fs.renameSync,
+          sleepMs: () => undefined,
+          now: () => 1234,
+          random: () => 0.5,
+        },
+      });
+
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain('progress artifact write warning');
+      expect(fs.existsSync(artifacts.jsonPath)).toBe(true);
+      expect(fs.existsSync(artifacts.targetDiagnosticsJsonPath)).toBe(true);
+
+      const written = parseJsonFile<InteractiveValidationResultsFile>(artifacts.jsonPath);
+      expect(written.summary.total).toBe(1);
+      expect(written.summary.skipped).toBe(1);
+      expect(written.currentStep?.validationId).toBe('letters-rejected');
+    } finally {
+      fs.rmSync(artifactsDir, { recursive: true, force: true });
+    }
+  });
+
+  test('interactive progress artifact temp-file replacement preserves valid JSON shape', () => {
+    const artifactsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bead-progress-atomic-'));
+
+    try {
+      const first = mockWatchdogProgressState({
+        concept: 'phone',
+        conceptDisplayName: 'Phone',
+        validationId: 'valid-e164-accepted',
+        caseName: 'valid-e164',
+        phase: 'collect-observation',
+        startedAt: '2026-05-07T12:31:00.000Z',
+      });
+      const second = mockWatchdogProgressState({
+        concept: 'phone',
+        conceptDisplayName: 'Phone',
+        validationId: 'letters-rejected',
+        caseName: 'letters',
+        phase: 'restore-original-value',
+        startedAt: '2026-05-07T12:31:31.278Z',
+      });
+
+      const progressPath = writeInteractiveProgressArtifact(first, artifactsDir, first.startedAt);
+      writeInteractiveProgressArtifact(second, artifactsDir, second.startedAt);
+
+      const artifact = parseJsonFile<ReturnType<typeof buildInteractiveProgressArtifact>>(progressPath);
+      expect(artifact.validationId).toBe('letters-rejected');
+      expect(artifact.phase).toBe('restore-original-value');
+      expect(
+        fs.readdirSync(artifactsDir).filter((name) => name.startsWith('latest-interactive-progress.json.') && name.endsWith('.tmp')),
+      ).toEqual([]);
+    } finally {
+      fs.rmSync(artifactsDir, { recursive: true, force: true });
+    }
   });
 
   test('bootstrap watchdog selects Windows process-tree kill command', () => {

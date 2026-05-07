@@ -20,6 +20,8 @@ export const INTERACTIVE_TARGET_DIAGNOSTICS_MD = 'latest-interactive-target-diag
 export const INTERACTIVE_PROGRESS_JSON = 'latest-interactive-progress.json';
 export const INTERACTIVE_STEP_TIMEOUT_MS = 30_000;
 const INTERACTIVE_TIMEOUT_RELEASE_TIMEOUT_MS = 5_000;
+const INTERACTIVE_PROGRESS_WRITE_BACKOFF_MS = [10, 25, 50, 100] as const;
+const RETRIABLE_PROGRESS_WRITE_ERROR_CODES = new Set(['EBUSY', 'EPERM', 'ENOENT']);
 
 export const INTERACTIVE_TARGET_CONCEPTS = [
   'website',
@@ -117,6 +119,21 @@ export type InteractiveTargetConfidence = 'trusted' | 'tool_mapping_suspect' | '
 export interface InteractiveGuardState {
   INTERACTIVE_VALIDATION: boolean;
   DISPOSABLE_ENVELOPE: boolean;
+}
+
+interface InteractiveProgressWriteDependencies {
+  mkdirSync: typeof fs.mkdirSync;
+  writeFileSync: typeof fs.writeFileSync;
+  renameSync: typeof fs.renameSync;
+  rmSync: typeof fs.rmSync;
+  sleepMs: (ms: number) => void;
+  now: () => number;
+  random: () => number;
+}
+
+export interface InteractiveArtifactWriteOptions {
+  progressWriteDependencies?: Partial<InteractiveProgressWriteDependencies>;
+  logWarning?: (message: string) => void;
 }
 
 export type InteractiveInteractionKind =
@@ -1846,6 +1863,7 @@ export function buildInteractiveResultsFile(input: {
 export function writeInteractiveResultsArtifacts(
   resultFile: InteractiveValidationResultsFile,
   outDir: string,
+  options: InteractiveArtifactWriteOptions = {},
 ): {
   jsonPath: string;
   mdPath: string;
@@ -1858,7 +1876,21 @@ export function writeInteractiveResultsArtifacts(
   const mdPath = path.join(outDir, INTERACTIVE_RESULTS_MD);
   const targetDiagnosticsJsonPath = path.join(outDir, INTERACTIVE_TARGET_DIAGNOSTICS_JSON);
   const targetDiagnosticsMdPath = path.join(outDir, INTERACTIVE_TARGET_DIAGNOSTICS_MD);
-  const progressJsonPath = writeInteractiveProgressArtifact(resultFile.currentStep, outDir, resultFile.runFinishedAt);
+  const progressJsonPath = path.join(outDir, INTERACTIVE_PROGRESS_JSON);
+  try {
+    writeInteractiveProgressArtifact(
+      resultFile.currentStep,
+      outDir,
+      resultFile.runFinishedAt,
+      options.progressWriteDependencies,
+    );
+  } catch (error) {
+    const logWarning = options.logWarning ?? ((message: string) => {
+      // eslint-disable-next-line no-console
+      console.warn(`[interactive] ${message}`);
+    });
+    logWarning(`progress artifact write warning: ${oneLine(error)}`);
+  }
   fs.writeFileSync(jsonPath, JSON.stringify(resultFile, null, 2), 'utf8');
   fs.writeFileSync(mdPath, renderInteractiveResultsMarkdown(resultFile), 'utf8');
   const targetDiagnostics = buildInteractiveTargetDiagnosticsFile(resultFile);
@@ -1887,12 +1919,82 @@ export function writeInteractiveProgressArtifact(
   currentStep: InteractiveProgressState | null | undefined,
   outDir: string,
   timestamp?: string,
+  dependencies: Partial<InteractiveProgressWriteDependencies> = {},
 ): string {
-  fs.mkdirSync(outDir, { recursive: true });
+  const writeDependencies = buildInteractiveProgressWriteDependencies(dependencies);
+  writeDependencies.mkdirSync(outDir, { recursive: true });
   const progressJsonPath = path.join(outDir, INTERACTIVE_PROGRESS_JSON);
   const artifact = buildInteractiveProgressArtifact(currentStep, timestamp);
-  fs.writeFileSync(progressJsonPath, JSON.stringify(artifact, null, 2), 'utf8');
+  writeInteractiveProgressArtifactWithRetry(progressJsonPath, artifact, writeDependencies);
   return progressJsonPath;
+}
+
+function buildInteractiveProgressWriteDependencies(
+  overrides: Partial<InteractiveProgressWriteDependencies> = {},
+): InteractiveProgressWriteDependencies {
+  return {
+    mkdirSync: overrides.mkdirSync ?? fs.mkdirSync,
+    writeFileSync: overrides.writeFileSync ?? fs.writeFileSync,
+    renameSync: overrides.renameSync ?? fs.renameSync,
+    rmSync: overrides.rmSync ?? fs.rmSync,
+    sleepMs: overrides.sleepMs ?? sleepSync,
+    now: overrides.now ?? Date.now,
+    random: overrides.random ?? Math.random,
+  };
+}
+
+function writeInteractiveProgressArtifactWithRetry(
+  progressJsonPath: string,
+  artifact: InteractiveProgressArtifact,
+  dependencies: InteractiveProgressWriteDependencies,
+): void {
+  const contents = JSON.stringify(artifact, null, 2);
+
+  for (let attempt = 0; attempt <= INTERACTIVE_PROGRESS_WRITE_BACKOFF_MS.length; attempt++) {
+    const tempPath = buildInteractiveProgressTempPath(progressJsonPath, attempt, dependencies);
+    try {
+      dependencies.writeFileSync(tempPath, contents, 'utf8');
+      dependencies.renameSync(tempPath, progressJsonPath);
+      return;
+    } catch (error) {
+      removeProgressTempFile(tempPath, dependencies);
+      if (!isRetriableProgressWriteError(error) || attempt === INTERACTIVE_PROGRESS_WRITE_BACKOFF_MS.length) {
+        throw error;
+      }
+      dependencies.sleepMs(INTERACTIVE_PROGRESS_WRITE_BACKOFF_MS[attempt]!);
+    }
+  }
+}
+
+function buildInteractiveProgressTempPath(
+  progressJsonPath: string,
+  attempt: number,
+  dependencies: Pick<InteractiveProgressWriteDependencies, 'now' | 'random'>,
+): string {
+  const suffix = `${process.pid}.${dependencies.now()}.${Math.floor(dependencies.random() * 1_000_000)}.${attempt}`;
+  return path.join(path.dirname(progressJsonPath), `${path.basename(progressJsonPath)}.${suffix}.tmp`);
+}
+
+function removeProgressTempFile(
+  tempPath: string,
+  dependencies: Pick<InteractiveProgressWriteDependencies, 'rmSync'>,
+): void {
+  try {
+    dependencies.rmSync(tempPath, { force: true });
+  } catch {
+    // Ignore temp cleanup failures; the original write error is the actionable signal.
+  }
+}
+
+function isRetriableProgressWriteError(error: unknown): error is NodeJS.ErrnoException {
+  const code = (error as NodeJS.ErrnoException | null | undefined)?.code;
+  return typeof code === 'string' && RETRIABLE_PROGRESS_WRITE_ERROR_CODES.has(code);
+}
+
+function sleepSync(ms: number): void {
+  if (ms <= 0) return;
+  const shared = new Int32Array(new SharedArrayBuffer(4));
+  Atomics.wait(shared, 0, 0, ms);
 }
 
 export function renderInteractiveResultsMarkdown(resultFile: InteractiveValidationResultsFile): string {
