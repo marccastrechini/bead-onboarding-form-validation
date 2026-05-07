@@ -2138,6 +2138,178 @@ test.describe('validation findings export', () => {
     expect(dbaBlank.outcome).toBe('passed');
   });
 
+  test('very-short text-name behavior stays policy-question manual review across the trusted text-name family', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'business_name',
+          conceptDisplayName: 'Business Name',
+          validationId: 'very-short-behavior',
+          testName: 'very short value behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+        }),
+        mockFindingsResult({
+          concept: 'dba_name',
+          conceptDisplayName: 'DBA Name',
+          validationId: 'very-short-behavior',
+          testName: 'very short value behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+        }),
+        mockFindingsResult({
+          concept: 'location_name',
+          conceptDisplayName: 'Location Name',
+          validationId: 'very-short-behavior',
+          testName: 'very short value behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+        }),
+        mockFindingsResult({
+          concept: 'contact_first_name',
+          conceptDisplayName: 'Point Of Contact First Name',
+          validationId: 'very-short-behavior',
+          testName: 'very short value behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+        }),
+        mockFindingsResult({
+          concept: 'contact_last_name',
+          conceptDisplayName: 'Point Of Contact Last Name',
+          validationId: 'very-short-behavior',
+          testName: 'very short value behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+        }),
+      ],
+    }));
+
+    expect(report.ambiguousHumanReviewFindings.map((finding) => `${finding.concept}:${finding.validationId}`)).toEqual([
+      'business_name:very-short-behavior',
+      'dba_name:very-short-behavior',
+      'location_name:very-short-behavior',
+      'contact_first_name:very-short-behavior',
+      'contact_last_name:very-short-behavior',
+    ]);
+    expect(report.ambiguousHumanReviewFindings.every((finding) => finding.ambiguity?.type === 'policy_question')).toBe(true);
+    expect(report.likelyProductValidationFindings).toEqual([]);
+  });
+
+  test('contact first and last name truncation is acceptable documented behavior, not ambiguity', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'contact_first_name',
+          conceptDisplayName: 'Point Of Contact First Name',
+          validationId: 'excessive-length-behavior',
+          testName: 'excessive length behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          inputValue: 'Long Business Name'.repeat(20),
+          observedValue: 'Long Business Name',
+          normalizedOrReformatted: true,
+        }),
+        mockFindingsResult({
+          concept: 'contact_last_name',
+          conceptDisplayName: 'Point Of Contact Last Name',
+          validationId: 'excessive-length-behavior',
+          testName: 'excessive length behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          inputValue: 'Long Business Name'.repeat(20),
+          observedValue: 'Long Business Name',
+          normalizedOrReformatted: true,
+        }),
+      ],
+    }));
+
+    expect(report.ambiguousHumanReviewFindings).toEqual([]);
+    expect(report.likelyProductValidationFindings).toEqual([]);
+
+    const contactFirstName = report.trustedExecutedObservations.find((finding) => finding.concept === 'contact_first_name')!;
+    expect(contactFirstName.status).toBe('passed');
+    expect(contactFirstName.outcome).toBe('passed');
+
+    const contactLastName = report.trustedExecutedObservations.find((finding) => finding.concept === 'contact_last_name')!;
+    expect(contactLastName.status).toBe('passed');
+    expect(contactLastName.outcome).toBe('passed');
+  });
+
+  test('symbol-heavy contact and location names remain manual review while business and DBA name leniency stays unchanged', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'business_name',
+          conceptDisplayName: 'Business Name',
+          validationId: 'special-characters-behavior',
+          testName: 'special characters behavior observed',
+          status: 'warning',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+        }),
+        mockFindingsResult({
+          concept: 'dba_name',
+          conceptDisplayName: 'DBA Name',
+          validationId: 'special-characters-behavior',
+          testName: 'special characters behavior observed',
+          status: 'warning',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+        }),
+        mockFindingsResult({
+          concept: 'location_name',
+          conceptDisplayName: 'Location Name',
+          validationId: 'special-characters-behavior',
+          testName: 'special characters behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+        }),
+        mockFindingsResult({
+          concept: 'contact_first_name',
+          conceptDisplayName: 'Point Of Contact First Name',
+          validationId: 'special-characters-behavior',
+          testName: 'special characters behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+        }),
+        mockFindingsResult({
+          concept: 'contact_last_name',
+          conceptDisplayName: 'Point Of Contact Last Name',
+          validationId: 'special-characters-behavior',
+          testName: 'special characters behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+        }),
+      ],
+    }));
+
+    expect(report.ambiguousHumanReviewFindings.map((finding) => `${finding.concept}:${finding.validationId}`)).toEqual([
+      'location_name:special-characters-behavior',
+      'contact_first_name:special-characters-behavior',
+      'contact_last_name:special-characters-behavior',
+    ]);
+    expect(report.ambiguousHumanReviewFindings.every((finding) => finding.ambiguity?.type === 'expected_text_leniency')).toBe(true);
+
+    const businessName = report.trustedExecutedObservations.find((finding) => finding.concept === 'business_name')!;
+    expect(businessName.status).toBe('warning');
+    expect(businessName.outcome).toBe('passed');
+
+    const dbaName = report.trustedExecutedObservations.find((finding) => finding.concept === 'dba_name')!;
+    expect(dbaName.status).toBe('warning');
+    expect(dbaName.outcome).toBe('passed');
+    expect(report.likelyProductValidationFindings).toEqual([]);
+  });
+
   test('policy question does not appear as product finding', () => {
     const report = buildValidationFindingsReport(mockFindingsInput({
       results: [

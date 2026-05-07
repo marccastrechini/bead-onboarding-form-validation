@@ -968,11 +968,20 @@ function isPhoneTooLongAcceptedWithoutSignal(
   return (result.observation.observedValue ?? null) === result.inputValue;
 }
 
+function isLengthNormalizedTextNameConcept(
+  concept: FieldConceptKey,
+): concept is 'business_name' | 'dba_name' | 'contact_first_name' | 'contact_last_name' {
+  return concept === 'business_name' ||
+    concept === 'dba_name' ||
+    concept === 'contact_first_name' ||
+    concept === 'contact_last_name';
+}
+
 function isNameLengthBehaviorResolved(
   result: ValidationResult,
   finding: Omit<FindingItem, 'ambiguity' | 'controlledChoiceClassification'>,
 ): boolean {
-  if (!isNameConcept(finding.concept) || !/excessive-length/i.test(result.validationId)) return false;
+  if (!isLengthNormalizedTextNameConcept(finding.concept) || !/excessive-length/i.test(result.validationId)) return false;
   const lengthEffect = inferLengthEffect(result);
   return result.observation?.normalizedOrReformatted === true || lengthEffect === 'shortened';
 }
@@ -1399,7 +1408,7 @@ function conceptNotes(
   if (concept === 'postal_code' && findings.some((finding) => finding.validationId === 'letters-behavior' && finding.outcome === 'passed')) {
     notes.push('Alphabetic ZIP input is treated as expected rejection when field-local ZIP validation is present for this Batch 1 US address flow.');
   }
-  if (isNameConcept(concept) && findings.some((finding) => /excessive-length/i.test(finding.validationId) && finding.outcome === 'passed')) {
+  if (isLengthNormalizedTextNameConcept(concept) && findings.some((finding) => /excessive-length/i.test(finding.validationId) && finding.outcome === 'passed')) {
     notes.push('Safe truncation or normalization for excessive length is treated as acceptable enforcement in this report.');
   }
   if (isNameConcept(concept) && findings.some((finding) => /special-characters/i.test(finding.validationId) && finding.outcome === 'passed')) {
