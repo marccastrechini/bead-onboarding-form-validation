@@ -2519,7 +2519,7 @@ test.describe('validation findings export', () => {
 
     expect(withoutE164.ambiguousHumanReviewFindings[0].ambiguity?.type).toBe('policy_question');
 
-    const withE164 = buildValidationFindingsReport(mockFindingsInput({
+    const stakeholderWithE164 = buildValidationFindingsReport(mockFindingsInput({
       results: [
         mockFindingsResult({
           concept: 'stakeholder_phone',
@@ -2536,9 +2536,57 @@ test.describe('validation findings export', () => {
       ],
     }));
 
-    expect(withE164.ambiguousHumanReviewFindings[0].ambiguity?.type).toBe('matrix_expectation_mismatch');
-    expect(withE164.ambiguousHumanReviewFindings[0].ambiguity?.humanGuidancePrompt)
-      .toBe('Field-local validation currently requires E.164. Should Stakeholder Phone instead accept or normalize domestic phone format without a leading plus?');
+    const resolvedStakeholder = stakeholderWithE164.trustedExecutedObservations.find((finding) =>
+      finding.concept === 'stakeholder_phone' && finding.validationId === 'missing-plus-handling'
+    )!;
+
+    expect(resolvedStakeholder.status).toBe('passed');
+    expect(resolvedStakeholder.outcome).toBe('passed');
+    expect(resolvedStakeholder.interpretation)
+      .toBe('Observed explicit field-local E.164 enforcement for Stakeholder Phone input without a leading plus.');
+    expect(stakeholderWithE164.ambiguousHumanReviewFindings).toEqual([]);
+    expect(stakeholderWithE164.likelyProductValidationFindings).toEqual([]);
+
+    const businessWithE164 = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'phone',
+          conceptDisplayName: 'Phone',
+          validationId: 'missing-plus-handling',
+          testName: 'missing plus sign behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          ariaInvalid: 'true',
+          docusignValidationText: ['Invalid phone number format. Must be a valid E.164 format (e.g., +15551234567).'],
+          invalidIndicators: ['field-root:class=has-tab-error'],
+        }),
+      ],
+    }));
+
+    expect(businessWithE164.ambiguousHumanReviewFindings[0].ambiguity?.type).toBe('matrix_expectation_mismatch');
+    expect(businessWithE164.ambiguousHumanReviewFindings[0].ambiguity?.humanGuidancePrompt)
+      .toBe('Field-local validation currently requires E.164. Should Phone instead accept or normalize domestic phone format without a leading plus?');
+  });
+
+  test('true invalid stakeholder phone acceptance still becomes a product finding', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'stakeholder_phone',
+          conceptDisplayName: 'Stakeholder Phone',
+          validationId: 'letters-rejected',
+          testName: 'letters rejected',
+          status: 'failed',
+          outcome: 'product_failure',
+          targetConfidence: 'trusted',
+        }),
+      ],
+    }));
+
+    expect(report.likelyProductValidationFindings.map((finding) => `${finding.concept}:${finding.validationId}`)).toEqual([
+      'stakeholder_phone:letters-rejected',
+    ]);
   });
 
   test('phone too-long with truncation, prevention, or local validation is not a product finding', () => {
@@ -2717,11 +2765,13 @@ test.describe('validation findings export', () => {
     expect(report.likelyProductValidationFindings).toEqual([]);
     expect(report.runScope.resultCounts).toMatchObject({
       total: 2,
-      passed: 1,
-      manual_review: 1,
+      passed: 2,
+      manual_review: 0,
     });
     expect(report.perConceptResults.find((concept) => concept.concept === 'stakeholder_phone')!.notes.join(' '))
       .not.toContain('likely product validation finding');
+    expect(report.perConceptResults.find((concept) => concept.concept === 'stakeholder_phone')!.notes.join(' '))
+      .toContain('Missing-plus handling showed explicit field-local E.164 validation and is treated as acceptable documented behavior unless domestic-format normalization or acceptance becomes policy.');
   });
 
   test('findings report does not write raw attempted or observed values', () => {

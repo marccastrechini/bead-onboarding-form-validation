@@ -685,6 +685,16 @@ function resolveFindingForPolicy(
     };
   }
 
+  if (isStakeholderPhoneMissingPlusBehaviorResolved(result, finding)) {
+    return {
+      ...finding,
+      status: 'passed',
+      outcome: 'passed',
+      interpretation: `Observed explicit field-local E.164 enforcement for ${finding.conceptDisplayName} input without a leading plus.`,
+      recommendation: 'Treat explicit field-local E.164 rejection as acceptable documented behavior unless product policy later changes to allow domestic-format normalization or acceptance.',
+    };
+  }
+
   if (isPhoneTooLongBehaviorResolved(result, finding)) {
     return {
       ...finding,
@@ -955,6 +965,16 @@ function hasExplicitE164Requirement(result: ValidationResult): boolean {
   ].filter((text): text is string => Boolean(text));
 
   return texts.some((text) => /\bE\.?164\b/i.test(text));
+}
+
+function isStakeholderPhoneMissingPlusBehaviorResolved(
+  result: ValidationResult,
+  finding: Omit<FindingItem, 'ambiguity' | 'controlledChoiceClassification'>,
+): boolean {
+  return finding.concept === 'stakeholder_phone' &&
+    isPhoneMissingPlusCase(result, finding) &&
+    hasExplicitE164Requirement(result) &&
+    hasObservedValidationFeedback(result.observation);
 }
 
 function isPhoneTooLongBehaviorResolved(
@@ -1414,6 +1434,8 @@ function conceptNotes(
 
     if (missingPlusFinding?.ambiguity?.type === 'policy_question') {
       notes.push('Missing-plus handling remains a phone-format policy question until domestic-format acceptance or normalization is confirmed.');
+    } else if (missingPlusFinding?.outcome === 'passed') {
+      notes.push('Missing-plus handling showed explicit field-local E.164 validation and is treated as acceptable documented behavior unless domestic-format normalization or acceptance becomes policy.');
     } else if (missingPlusFinding?.ambiguity?.type === 'matrix_expectation_mismatch') {
       notes.push('Missing-plus handling showed field-local E.164 validation and should stay in human review until domestic-format acceptance or normalization policy is confirmed.');
     }
