@@ -1000,11 +1000,12 @@ function isPhoneTooLongAcceptedWithoutSignal(
 
 function isLengthNormalizedTextNameConcept(
   concept: FieldConceptKey,
-): concept is 'business_name' | 'dba_name' | 'contact_first_name' | 'contact_last_name' {
+): concept is 'business_name' | 'dba_name' | 'contact_first_name' | 'contact_last_name' | 'stakeholder_job_title' {
   return concept === 'business_name' ||
     concept === 'dba_name' ||
     concept === 'contact_first_name' ||
-    concept === 'contact_last_name';
+    concept === 'contact_last_name' ||
+    concept === 'stakeholder_job_title';
 }
 
 function isNameLengthBehaviorResolved(

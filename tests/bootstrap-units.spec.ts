@@ -2249,6 +2249,34 @@ test.describe('validation findings export', () => {
     expect(contactLastName.outcome).toBe('passed');
   });
 
+  test('stakeholder job title truncation is acceptable documented behavior, not ambiguity', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'stakeholder_job_title',
+          conceptDisplayName: 'Stakeholder Job Title',
+          validationId: 'excessive-length-behavior',
+          testName: 'excessive length behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          inputValue: 'Managing Member'.repeat(20),
+          observedValue: 'Managing Member',
+          normalizedOrReformatted: true,
+        }),
+      ],
+    }));
+
+    expect(report.ambiguousHumanReviewFindings).toEqual([]);
+    expect(report.likelyProductValidationFindings).toEqual([]);
+
+    const stakeholderJobTitle = report.trustedExecutedObservations.find((finding) => finding.concept === 'stakeholder_job_title')!;
+    expect(stakeholderJobTitle.status).toBe('passed');
+    expect(stakeholderJobTitle.outcome).toBe('passed');
+    expect(report.perConceptResults.find((concept) => concept.concept === 'stakeholder_job_title')!.notes.join(' '))
+      .toContain('Safe truncation or normalization for excessive length is treated as acceptable enforcement in this report.');
+  });
+
   test('business_description very-short and garbage text remain manual review policy questions', () => {
     const report = buildValidationFindingsReport(mockFindingsInput({
       results: [
@@ -2408,6 +2436,49 @@ test.describe('validation findings export', () => {
     const dbaName = report.trustedExecutedObservations.find((finding) => finding.concept === 'dba_name')!;
     expect(dbaName.status).toBe('warning');
     expect(dbaName.outcome).toBe('passed');
+    expect(report.likelyProductValidationFindings).toEqual([]);
+  });
+
+  test('stakeholder job title keeps conservative very-short, special-character, and empty-required review policy', () => {
+    const report = buildValidationFindingsReport(mockFindingsInput({
+      results: [
+        mockFindingsResult({
+          concept: 'stakeholder_job_title',
+          conceptDisplayName: 'Stakeholder Job Title',
+          validationId: 'very-short-behavior',
+          testName: 'very short value behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+        }),
+        mockFindingsResult({
+          concept: 'stakeholder_job_title',
+          conceptDisplayName: 'Stakeholder Job Title',
+          validationId: 'special-characters-behavior',
+          testName: 'special characters behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+        }),
+        mockFindingsResult({
+          concept: 'stakeholder_job_title',
+          conceptDisplayName: 'Stakeholder Job Title',
+          validationId: 'empty-required-behavior',
+          testName: 'empty required behavior observed',
+          status: 'manual_review',
+          outcome: 'observer_ambiguous',
+          targetConfidence: 'trusted',
+          inputValue: '',
+          observedValue: '',
+        }),
+      ],
+    }));
+
+    expect(report.ambiguousHumanReviewFindings.map((finding) => `${finding.validationId}:${finding.ambiguity?.type}`)).toEqual([
+      'very-short-behavior:policy_question',
+      'special-characters-behavior:expected_text_leniency',
+      'empty-required-behavior:product_validation_gap_candidate',
+    ]);
     expect(report.likelyProductValidationFindings).toEqual([]);
   });
 
