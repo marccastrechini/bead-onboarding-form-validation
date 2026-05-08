@@ -1215,6 +1215,7 @@ function buildScorecardCalibrationEvidence(
   const neighbor = calibrationRow.neighborWindow?.find((entry) => entry.fieldIndex === fieldIndex)
     ?? businessTypeCalibrationNeighbor(concept, calibrationRow)
     ?? bankAccountTypeCalibrationNeighbor(concept, calibrationRow)
+    ?? registeredStateCalibrationNeighbor(concept, calibrationRow)
     ?? null;
   const coordinates = parseCalibrationCoordinates(neighbor?.coordinates ?? calibrationRow.currentCandidateCoordinates ?? null);
   const hasEvidence = Boolean(
@@ -1272,6 +1273,13 @@ function calibratedFieldIndex(
       : null;
   }
 
+  if (concept.key === 'registered_state') {
+    const registeredStateNeighbor = registeredStateCalibrationNeighbor(concept, calibrationRow);
+    return registeredStateNeighbor
+      ? resolveReportFieldIndexByCalibrationAnchor(report, registeredStateNeighbor, concept)
+      : null;
+  }
+
   return resolveReportFieldIndex(report, concept, candidateIndex);
 }
 
@@ -1312,6 +1320,19 @@ function businessTypeCalibrationNeighbor(
     ?? null;
 }
 
+function registeredStateCalibrationNeighbor(
+  concept: FieldConceptDefinition,
+  calibrationRow: MappingCalibrationRow,
+): MappingCalibrationNeighbor | null {
+  if (concept.key !== 'registered_state') return null;
+  if (!/merchantData\.registeredLegalAddress\.(state|State|region|Region)$/i.test(calibrationRow.jsonKeyPath ?? '')) return null;
+  const candidateIndex = calibratedCandidateIndex(calibrationRow);
+  const neighbors = calibrationRow.neighborWindow ?? [];
+  return neighbors.find((entry) => entry.fieldIndex === candidateIndex && isRegisteredLegalAddressStateNeighbor(entry))
+    ?? neighbors.find(isRegisteredLegalAddressStateNeighbor)
+    ?? null;
+}
+
 function isLocationDetailsBusinessTypeNeighbor(neighbor: MappingCalibrationNeighbor): boolean {
   return Boolean(
     neighbor.businessSection === 'Business Details' &&
@@ -1327,6 +1348,15 @@ function isBankInfoAccountTypeNeighbor(neighbor: MappingCalibrationNeighbor): bo
     /^bank\s*info$/i.test(neighbor.layoutSectionHeader ?? '') &&
     /^account\s*type$/i.test(neighbor.layoutFieldLabel ?? '') &&
     /^(list|radio)$/i.test(neighbor.tabType ?? ''),
+  );
+}
+
+function isRegisteredLegalAddressStateNeighbor(neighbor: MappingCalibrationNeighbor): boolean {
+  return Boolean(
+    neighbor.businessSection === 'Address' &&
+    /^registered\s*legal\s*address$/i.test(neighbor.layoutSectionHeader ?? '') &&
+    /^(state|province|region)$/i.test(neighbor.layoutFieldLabel ?? '') &&
+    /^list$/i.test(neighbor.tabType ?? ''),
   );
 }
 

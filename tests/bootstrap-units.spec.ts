@@ -6862,7 +6862,7 @@ test.describe('interactive validation safety', () => {
     }
   });
 
-  test('calibrated Batch 1 targets use report-order field indexes for interactive plans', () => {
+  test('calibrated Batch 1 targets use live discovery field indexes for interactive plans', () => {
     const calibrationDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bead-calibration-'));
     const calibrationPath = path.join(calibrationDir, 'latest-mapping-calibration.json');
 
@@ -6919,7 +6919,7 @@ test.describe('interactive validation safety', () => {
 
       expect(plan.skippedConcepts).toEqual([]);
       expect(plan.cases.length).toBeGreaterThan(0);
-      expect(plan.cases.every((entry) => entry.targetField.fieldIndex === 5)).toBe(true);
+      expect(plan.cases.every((entry) => entry.targetField.fieldIndex === 4)).toBe(true);
       expect(plan.cases.every((entry) => entry.targetField.displayName === 'Registered Name')).toBe(true);
     } finally {
       fs.rmSync(calibrationDir, { recursive: true, force: true });
@@ -7689,6 +7689,36 @@ test.describe('interactive validation safety', () => {
         editable: true,
       }],
     });
+    const physicalOnly = selectBestMappingCandidate({
+      concept: 'registered_state',
+      currentCandidateId: null,
+      expectedAnchor: {
+        jsonKeyPath: 'merchantData.registeredLegalAddress.state',
+        businessSection: 'Address',
+        pageIndex: 1,
+        ordinalOnPage: 40,
+        tabLeft: 410.88,
+        tabTop: 543.36,
+        docusignFieldFamily: 'List',
+      },
+      candidates: [{
+        id: 'physical-state',
+        resolvedLabel: 'Physical Operating Address State',
+        labelSource: 'layout-cell',
+        labelConfidence: 'high',
+        businessSection: 'Address',
+        layoutSectionHeader: 'Physical Operating Address',
+        layoutFieldLabel: 'State',
+        docusignTabType: 'List',
+        pageIndex: 1,
+        ordinalOnPage: 50,
+        tabLeft: 350.08,
+        tabTop: 657.92,
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+      }],
+    });
     const wrongSection = selectBestMappingCandidate({
       concept: 'registered_state',
       currentCandidateId: null,
@@ -7722,8 +7752,165 @@ test.describe('interactive validation safety', () => {
 
     expect(trusted.trusted).toBe(true);
     expect(trusted.selectedCandidateId).toBe('registered-state');
+    expect(physicalOnly.trusted).toBe(false);
     expect(wrongSection.trusted).toBe(false);
     expect(wrongSection.decisionReason).toBe('rejected_section_mismatch');
+  });
+
+  test('registered_state calibrated layout proof resolves stale field-slot drift and keeps live target trust on the registered-address list', () => {
+    const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bead-registered-state-calibration-'));
+    const calibrationPath = path.join(outDir, 'latest-mapping-calibration.json');
+    try {
+      fs.writeFileSync(calibrationPath, JSON.stringify({
+        schemaVersion: 1,
+        rows: [{
+          concept: 'registered_state',
+          conceptDisplayName: 'Registered Legal Address State',
+          jsonKeyPath: 'merchantData.registeredLegalAddress.state',
+          currentCandidateFieldIndex: 64,
+          currentCandidateCoordinates: '350.08,544.64',
+          selectedCandidate: '#64 Registered Legal Address State Address p1 ord42 List shape=text_name_like editable=editable layout=Registered Legal Address > State @ 350.08,544.64',
+          decision: 'trust_current_mapping',
+          calibrationReason: 'none',
+          mappingDecisionReason: 'trusted_by_label',
+          missingProof: [],
+          neighborWindow: [{
+            fieldIndex: 64,
+            businessSection: 'Address',
+            layoutSectionHeader: 'Registered Legal Address',
+            layoutFieldLabel: 'State',
+            pageIndex: 1,
+            ordinalOnPage: 42,
+            coordinates: '350.08,544.64',
+            tabType: 'List',
+          }],
+        }],
+      }), 'utf8');
+
+      const fields = Array.from({ length: 64 }, (_, index) => mockField({ index: index + 1 }));
+      fields[2] = mockField({
+        kind: 'combobox',
+        index: 3,
+        section: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
+        labelSource: 'none',
+        labelConfidence: 'none',
+        inferredType: 'unknown_manual_review',
+        docusignTabType: 'List',
+        pageIndex: 1,
+        ordinalOnPage: 42,
+        tabLeft: 350.08,
+        tabTop: 544.64,
+      });
+      fields[63] = mockField({
+        kind: 'combobox',
+        index: 64,
+        section: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
+        labelSource: 'enrichment-coordinate',
+        labelConfidence: 'medium',
+        inferredType: 'business_type',
+        docusignTabType: 'List',
+        pageIndex: 1,
+        ordinalOnPage: 56,
+        tabLeft: 411.52,
+        tabTop: 713.6,
+        currentValueShape: 'text_name_like',
+      });
+
+      const plan = buildInteractiveValidationPlan(mockValidationReport(fields), {
+        INTERACTIVE_CONCEPTS: 'registered_state',
+        INTERACTIVE_MAPPING_CALIBRATION_PATH: calibrationPath,
+      } as NodeJS.ProcessEnv);
+
+      expect(plan.skippedConcepts).toEqual([]);
+      expect(plan.cases).toHaveLength(4);
+      expect(plan.cases.every((entry) => entry.targetField.fieldIndex === 3)).toBe(true);
+      expect(plan.cases[0]!.targetProfile).toMatchObject({
+        intendedFieldDisplayName: 'Registered Legal Address State',
+        intendedBusinessSection: 'Address',
+        layoutSectionHeader: 'Registered Legal Address',
+        layoutFieldLabel: 'State',
+        layoutEvidenceSource: 'mapping-calibration',
+        inferredType: 'unknown_manual_review',
+        labelSource: 'none',
+        expectedOrdinalOnPage: 42,
+        expectedDocusignFieldFamily: 'List',
+        expectedCoordinates: {
+          left: 350.08,
+          top: 544.64,
+        },
+      });
+
+      const liveFields = [
+        mockDiscoveredField({
+          index: 3,
+          docusignTabType: 'List',
+          pageIndex: 1,
+          ordinalOnPage: 42,
+          tabLeft: 350.08,
+          tabTop: 544.64,
+          currentValue: 'NC',
+          visible: true,
+          editable: true,
+        }),
+        mockDiscoveredField({
+          index: 47,
+          resolvedLabel: 'Physical Operating Address State',
+          labelSource: 'layout-cell',
+          labelConfidence: 'high',
+          docusignTabType: 'List',
+          pageIndex: 1,
+          ordinalOnPage: 50,
+          tabLeft: 350.08,
+          tabTop: 657.92,
+          currentValue: 'NC',
+          visible: true,
+          editable: true,
+        }),
+        mockDiscoveredField({
+          index: 64,
+          resolvedLabel: 'Business Type',
+          labelSource: 'layout-cell',
+          labelConfidence: 'high',
+          inferredType: 'business_type',
+          docusignTabType: 'List',
+          pageIndex: 1,
+          ordinalOnPage: 56,
+          tabLeft: 411.52,
+          tabTop: 713.6,
+          currentValue: 'Physical',
+          visible: true,
+          editable: true,
+        }),
+        mockDiscoveredField({
+          index: 68,
+          resolvedLabel: 'Bank Address State',
+          labelSource: 'layout-cell',
+          labelConfidence: 'high',
+          docusignTabType: 'List',
+          pageIndex: 1,
+          ordinalOnPage: 66,
+          tabLeft: 410.88,
+          tabTop: 936.32,
+          currentValue: 'NC',
+          visible: true,
+          editable: true,
+        }),
+      ];
+
+      const testCase = plan.cases[0]!;
+      const resolved = resolveInteractiveTargetField(
+        testCase,
+        liveFields.find((entry) => entry.index === testCase.targetField.fieldIndex)!,
+        liveFields,
+      );
+
+      expect(resolved.field.index).toBe(3);
+      expect(resolved.field.ordinalOnPage).toBe(42);
+      expect(resolved.selection.trusted).toBe(true);
+      expect(resolved.selection.decisionReason).not.toBe('rejected_insufficient_label_proof');
+    } finally {
+      fs.rmSync(outDir, { recursive: true, force: true });
+    }
   });
 
   test('proof_of_address_type is not confused with the upload control', () => {

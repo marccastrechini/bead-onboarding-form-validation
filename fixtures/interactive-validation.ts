@@ -1547,7 +1547,7 @@ export function buildInteractiveValidationPlan(
 
     const locatorStrategy: InteractiveLocatorStrategy = {
       primary: 'live-discovery-field-index',
-      fieldIndex: match.fieldIndex,
+      fieldIndex: sourceField.index,
       displayName: match.displayName,
       inferredType: match.inferredType,
       confidence: match.identificationConfidence,
