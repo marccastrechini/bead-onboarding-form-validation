@@ -161,6 +161,11 @@ const CONTROLLED_CHOICE_CONCEPTS = new Set<FieldConceptKey>([
   'country',
 ]);
 
+const STAKEHOLDER_NAME_CONCEPTS = new Set<FieldConceptKey>([
+  'stakeholder_first_name',
+  'stakeholder_last_name',
+]);
+
 const STRONG_LABEL_SOURCES = new Set([
   'aria-label',
   'aria-labelledby',
@@ -355,6 +360,14 @@ export function assessMappingCandidate(
     sectionMatches,
     typeMatches,
   });
+  const stakeholderNameFieldFamilyMismatch = stakeholderNameFieldFamilyMismatchForConcept(concept, candidate);
+  const stakeholderNameWrongNeighbor = stakeholderNameCarriesExplicitWrongProof({
+    concept,
+    candidate,
+    labelText,
+    businessSection,
+    expectedAnchor,
+  });
 
   let trustScore = 0;
   if (strongLabel && labelMatches) trustScore += 6;
@@ -365,6 +378,11 @@ export function assessMappingCandidate(
   if (valueShapeMatches) trustScore += 5;
   if (valueShapeMismatch) trustScore -= 8;
   if (!mutatable) trustScore -= 20;
+  if (STAKEHOLDER_NAME_CONCEPTS.has(concept) && docusignTabType === 'text') trustScore += 1;
+  if (STAKEHOLDER_NAME_CONCEPTS.has(concept) && conceptSpecificProofMatches) trustScore += 2;
+  if (STAKEHOLDER_NAME_CONCEPTS.has(concept) && !conceptSpecificProofMatches) trustScore -= 3;
+  if (stakeholderNameFieldFamilyMismatch) trustScore -= 12;
+  if (stakeholderNameWrongNeighbor) trustScore -= 8;
   if (concept === 'business_description' && valueShapeMatches && conceptSpecificProofMatches) trustScore += 2;
   if (concept === 'business_description' && valueShapeMatches && !conceptSpecificProofMatches) trustScore -= 3;
   if (CONTROLLED_CHOICE_CONCEPTS.has(concept) && fieldFamilyMatches) trustScore += 2;
@@ -399,6 +417,11 @@ export function assessMappingCandidate(
 
   if (valueShapeMismatch) reasons.push(`value shape ${valueShape} conflicts with ${concept}`);
   if (!mutatable) reasons.push('candidate is not an editable merchant input');
+  if (stakeholderNameFieldFamilyMismatch) reasons.push('field family is not a supported stakeholder-name text control');
+  if (stakeholderNameWrongNeighbor) reasons.push('candidate carries explicit stakeholder non-name proof');
+  if (STAKEHOLDER_NAME_CONCEPTS.has(concept) && !conceptSpecificProofMatches) {
+    reasons.push(stakeholderNameProofMessage(concept));
+  }
   if (CONTROLLED_CHOICE_CONCEPTS.has(concept) && !fieldFamilyMatches) {
     reasons.push('field family is not a supported select/dropdown/radio control');
   }
@@ -749,6 +772,9 @@ function conceptSpecificProofSatisfied(input: {
   if (input.concept === 'phone') {
     return businessContactPhoneProofMatches(input);
   }
+  if (STAKEHOLDER_NAME_CONCEPTS.has(input.concept)) {
+    return stakeholderNameProofMatches(input);
+  }
   if (input.concept === 'business_description') {
     return businessDescriptionProofMatches(input);
   }
@@ -756,6 +782,91 @@ function conceptSpecificProofSatisfied(input: {
     return controlledChoiceProofMatches(input);
   }
   return true;
+}
+
+function stakeholderNameProofMatches(input: {
+  concept: FieldConceptKey;
+  candidate: MappingCandidate;
+  expectedAnchor: ExpectedMappingAnchor | null;
+  labelText: string;
+  businessSection: string | null;
+  valueShape: ValueShape;
+  labelMatches: boolean;
+  sectionMatches: boolean;
+  typeMatches: boolean;
+}): boolean {
+  if (!STAKEHOLDER_NAME_CONCEPTS.has(input.concept)) return true;
+  if (stakeholderNameFieldFamilyMismatchForConcept(input.concept, input.candidate)) return false;
+  if (stakeholderNameCarriesExplicitWrongProof(input)) return false;
+
+  const stakeholderSectionProof =
+    input.sectionMatches ||
+    input.businessSection === 'Stakeholder' ||
+    input.candidate.enrichment?.suggestedBusinessSection === 'Stakeholder' ||
+    sectionNameMatchesBusinessSection(input.candidate.sectionName ?? null, 'Stakeholder');
+  if (!stakeholderSectionProof) return false;
+
+  const proofText = [
+    input.labelText,
+    input.businessSection,
+    input.candidate.sectionName,
+    input.candidate.layoutSectionHeader,
+    input.candidate.layoutFieldLabel,
+    input.candidate.enrichment?.suggestedDisplayName,
+    input.candidate.enrichment?.suggestedBusinessSection,
+    input.expectedAnchor?.displayName,
+    input.expectedAnchor?.businessSection,
+  ].filter(Boolean).join(' ');
+  const exactEnrichmentProof = conceptKeyForJsonKeyPath(input.candidate.enrichment?.jsonKeyPath ?? null) === input.concept;
+  const exactAnchorProof = stakeholderSectionProof && isExactAnchorCandidate(input.candidate, input.expectedAnchor);
+
+  if (input.concept === 'stakeholder_first_name') {
+    return exactEnrichmentProof || exactAnchorProof || /\b(first\s*name|given\s*name)\b/i.test(proofText);
+  }
+  if (input.concept === 'stakeholder_last_name') {
+    return exactEnrichmentProof || exactAnchorProof || /\b(last\s*name|surname|family\s*name)\b/i.test(proofText);
+  }
+  return false;
+}
+
+function stakeholderNameFieldFamilyMismatchForConcept(concept: FieldConceptKey, candidate: MappingCandidate): boolean {
+  if (!STAKEHOLDER_NAME_CONCEPTS.has(concept)) return false;
+  const docusignTabType = (candidate.docusignTabType ?? '').toLowerCase();
+  return Boolean(docusignTabType && docusignTabType !== 'text');
+}
+
+function stakeholderNameCarriesExplicitWrongProof(input: {
+  concept: FieldConceptKey;
+  candidate: MappingCandidate;
+  expectedAnchor: ExpectedMappingAnchor | null;
+  labelText: string;
+  businessSection: string | null;
+}): boolean {
+  if (!STAKEHOLDER_NAME_CONCEPTS.has(input.concept)) return false;
+
+  const candidateConcept = conceptKeyForJsonKeyPath(input.candidate.enrichment?.jsonKeyPath ?? null);
+  if (candidateConcept && candidateConcept !== input.concept) return true;
+
+  const proofText = [
+    input.labelText,
+    input.businessSection,
+    input.candidate.sectionName,
+    input.candidate.layoutSectionHeader,
+    input.candidate.layoutFieldLabel,
+    input.candidate.enrichment?.suggestedDisplayName,
+    input.expectedAnchor?.displayName,
+  ].filter(Boolean).join(' ');
+  const firstNameLabel = /\b(first\s*name|given\s*name)\b/i.test(proofText);
+  const lastNameLabel = /\b(last\s*name|surname|family\s*name)\b/i.test(proofText);
+  if (input.concept === 'stakeholder_first_name' && lastNameLabel) return true;
+  if (input.concept === 'stakeholder_last_name' && firstNameLabel) return true;
+  return /\b(job\s*title|ownership(?:\s*percentage)?|e-?mail|phone|telephone|date\s*of\s*birth|dob)\b/i.test(proofText);
+}
+
+function stakeholderNameProofMessage(concept: FieldConceptKey): string {
+  return concept === 'stakeholder_first_name'
+    ? 'missing Stakeholder First Name text-field proof'
+    : 'missing Stakeholder Last Name text-field proof';
 }
 
 function controlledChoiceProofMatches(input: {
