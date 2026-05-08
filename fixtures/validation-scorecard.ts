@@ -1182,9 +1182,10 @@ function buildCalibratedMatch(
   }
 
   const fieldIndex = calibratedFieldIndex(report, concept, calibrationRow);
-  if (!fieldIndex || fieldIndex < 1 || fieldIndex > report.fields.length) return null;
+  if (!fieldIndex) return null;
 
-  const field = report.fields[fieldIndex - 1]!;
+  const field = findReportFieldByDiscoveryIndex(report, fieldIndex);
+  if (!field || field.controlCategory !== 'merchant_input') return null;
   const calibrationEvidence = buildScorecardCalibrationEvidence(concept, calibrationRow, fieldIndex);
   return {
     fieldIndex,
@@ -1368,12 +1369,11 @@ function resolveReportFieldIndexByCalibrationAnchor(
   const coordinates = parseCalibrationCoordinates(neighbor.coordinates);
   const family = neighbor.tabType?.toLowerCase() ?? null;
   const scoredMatches = report.fields
-    .map((field, index) => ({ field, fieldIndex: index + 1 }))
-    .filter(({ field }) => field.controlCategory === 'merchant_input')
-    .filter(({ field }) => field.visible !== false && field.editable !== false)
-    .filter(({ field }) => neighbor.pageIndex === null || field.pageIndex === neighbor.pageIndex)
-    .filter(({ field }) => family === null || (field.docusignTabType ?? '').toLowerCase() === family)
-    .map(({ field, fieldIndex }) => ({ fieldIndex, score: scoreCalibrationAnchorCandidate(field, neighbor, coordinates, concept) }))
+    .filter((field) => field.controlCategory === 'merchant_input')
+    .filter((field) => field.visible !== false && field.editable !== false)
+    .filter((field) => neighbor.pageIndex === null || field.pageIndex === neighbor.pageIndex)
+    .filter((field) => family === null || (field.docusignTabType ?? '').toLowerCase() === family)
+    .map((field) => ({ fieldIndex: field.index, score: scoreCalibrationAnchorCandidate(field, neighbor, coordinates, concept) }))
     .filter((entry): entry is { fieldIndex: number; score: number } => entry.score !== null)
     .sort((a, b) => b.score - a.score || a.fieldIndex - b.fieldIndex);
 
@@ -1439,19 +1439,22 @@ function resolveReportFieldIndex(
   concept: FieldConceptDefinition,
   candidateIndex: number,
 ): number | null {
-  const direct = report.fields[candidateIndex - 1] ?? null;
-  if (direct?.controlCategory === 'merchant_input') return candidateIndex;
-
-  const legacyDiscoveryIndexMatch = report.fields
-    .map((field, index) => ({ field, fieldIndex: index + 1 }))
-    .filter((entry) => entry.field.index === candidateIndex && entry.field.controlCategory === 'merchant_input')
+  const exactMatches = report.fields
+    .filter((field) => field.index === candidateIndex && field.controlCategory === 'merchant_input')
     .sort((a, b) => {
-      const aAssessment = conceptAssessmentForField(a.field, concept);
-      const bAssessment = conceptAssessmentForField(b.field, concept);
+      const aAssessment = conceptAssessmentForField(a, concept);
+      const bAssessment = conceptAssessmentForField(b, concept);
       return (bAssessment?.trustScore ?? 0) - (aAssessment?.trustScore ?? 0);
     });
 
-  return legacyDiscoveryIndexMatch[0]?.fieldIndex ?? null;
+  return exactMatches[0]?.index ?? null;
+}
+
+function findReportFieldByDiscoveryIndex(
+  report: ValidationReport,
+  fieldIndex: number,
+): ValidationReport['fields'][number] | null {
+  return report.fields.find((field) => field.index === fieldIndex) ?? null;
 }
 
 function maxConfidence(a: IdentificationConfidence, b: IdentificationConfidence): IdentificationConfidence {

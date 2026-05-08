@@ -47,7 +47,9 @@ import {
   buildInteractiveStepTimeoutResult,
   buildInteractiveValidationPlan,
   extractFieldLocalValidationDiagnostics,
+  findDiscoveredFieldByDiscoveryIndex,
   INTERACTIVE_TARGET_CONCEPTS,
+  isAvailableInteractiveMerchantField,
   INTERACTIVE_STEP_TIMEOUT_MS,
   prepareControlledChoiceInteraction,
   releaseInteractiveTimeoutSession,
@@ -853,7 +855,7 @@ test.describe('field validation scorecard', () => {
   test('calibrated matches replace stale low-confidence address labels with the concept display name', () => {
     const report = mockValidationReport([
       mockField({
-        index: 18,
+        index: 1,
         label: 'registered Legal Address › Postal Code',
         resolvedLabel: 'registered Legal Address › Postal Code',
         labelSource: 'enrichment-position',
@@ -866,7 +868,7 @@ test.describe('field validation scorecard', () => {
         tabTop: 543.36,
       }),
       mockField({
-        index: 19,
+        index: 2,
         label: null,
         resolvedLabel: null,
         labelSource: 'none',
@@ -5704,7 +5706,7 @@ test.describe('interactive validation safety', () => {
       const testCase = plan.cases[0]!;
       const liveFields = [
         mockDiscoveredField({
-          index: 0,
+          index: 1,
           inferredType: 'legal_entity_type',
           docusignTabType: 'List',
           pageIndex: 1,
@@ -5713,7 +5715,7 @@ test.describe('interactive validation safety', () => {
           tabTop: 287.36,
         }),
         mockDiscoveredField({
-          index: 1,
+          index: 2,
           inferredType: 'unknown_manual_review',
           docusignTabType: 'List',
           pageIndex: 1,
@@ -5722,7 +5724,7 @@ test.describe('interactive validation safety', () => {
           tabTop: 544.64,
         }),
         mockDiscoveredField({
-          index: 2,
+          index: 3,
           inferredType: 'business_type',
           docusignTabType: 'List',
           pageIndex: 1,
@@ -5732,7 +5734,11 @@ test.describe('interactive validation safety', () => {
         }),
       ];
 
-      const resolved = resolveInteractiveTargetField(testCase, liveFields[testCase.targetField.fieldIndex - 1]!, liveFields);
+      const resolved = resolveInteractiveTargetField(
+        testCase,
+        liveFields.find((entry) => entry.index === testCase.targetField.fieldIndex)!,
+        liveFields,
+      );
 
       expect(score.identifiedWithConfidence).toBe(true);
       expect(score.mappedFields[0]).toMatchObject({
@@ -6116,15 +6122,6 @@ test.describe('interactive validation safety', () => {
       const testCase = plan.cases[0]!;
       const liveFields = [
         mockDiscoveredField({
-          index: 0,
-          inferredType: 'business_type',
-          docusignTabType: 'List',
-          pageIndex: 1,
-          ordinalOnPage: 56,
-          tabLeft: 411.52,
-          tabTop: 713.6,
-        }),
-        mockDiscoveredField({
           index: 1,
           inferredType: 'business_type',
           docusignTabType: 'List',
@@ -6135,6 +6132,15 @@ test.describe('interactive validation safety', () => {
         }),
         mockDiscoveredField({
           index: 2,
+          inferredType: 'business_type',
+          docusignTabType: 'List',
+          pageIndex: 1,
+          ordinalOnPage: 56,
+          tabLeft: 411.52,
+          tabTop: 713.6,
+        }),
+        mockDiscoveredField({
+          index: 3,
           inferredType: 'bank_account_type',
           docusignTabType: 'List',
           pageIndex: 1,
@@ -6144,7 +6150,11 @@ test.describe('interactive validation safety', () => {
         }),
       ];
 
-      const resolved = resolveInteractiveTargetField(testCase, liveFields[testCase.targetField.fieldIndex - 1]!, liveFields);
+      const resolved = resolveInteractiveTargetField(
+        testCase,
+        liveFields.find((entry) => entry.index === testCase.targetField.fieldIndex)!,
+        liveFields,
+      );
 
       expect(testCase.targetProfile).toMatchObject({
         layoutSectionHeader: 'Bank Info',
@@ -6883,7 +6893,6 @@ test.describe('interactive validation safety', () => {
 
     try {
       const report = mockValidationReport([
-        mockField({ index: 0, resolvedLabel: 'Intro display', controlCategory: 'merchant_input' }),
         mockField({ index: 1, resolvedLabel: 'Unrelated', controlCategory: 'merchant_input' }),
         mockField({ index: 2, resolvedLabel: 'Unrelated 2', controlCategory: 'merchant_input' }),
         mockField({
@@ -10278,6 +10287,162 @@ test.describe('interactive validation safety', () => {
     expect(dobCases.find((entry) => entry.validationId === 'future-date-rejected')!.expectedSignal).toBe('observe');
     expect(dobCases.find((entry) => entry.validationId === 'under-age-dob-rejected-or-flagged')!.expectedSignal).toBe('observe');
     expect(plan.cases.some((entry) => entry.concept === 'registration_date')).toBe(false);
+  });
+
+  test('visible editable list targets stay available while protected controls remain unavailable', () => {
+    expect(isAvailableInteractiveMerchantField(mockDiscoveredField({
+      index: 61,
+      kind: 'combobox',
+      docusignTabType: 'List',
+      controlCategory: 'merchant_input',
+      visible: true,
+      editable: true,
+    }))).toBe(true);
+
+    const unavailable = [
+      mockDiscoveredField({ controlCategory: 'merchant_input', visible: false, editable: true }),
+      mockDiscoveredField({ controlCategory: 'merchant_input', visible: true, editable: false }),
+      mockDiscoveredField({ controlCategory: 'attachment_control', visible: true, editable: true }),
+      mockDiscoveredField({ controlCategory: 'signature_widget', visible: true, editable: false }),
+      mockDiscoveredField({ controlCategory: 'acknowledgement_checkbox', visible: true, editable: false }),
+      mockDiscoveredField({ controlCategory: 'docusign_chrome', visible: true, editable: false, resolvedLabel: 'Complete' }),
+    ];
+
+    expect(unavailable.every((field) => !isAvailableInteractiveMerchantField(field))).toBe(true);
+  });
+
+  test('registered_state, proof_of_business_type, and federal_tax_id_type keep calibrated list targets on sparse live discovery indexes', () => {
+    const calibrationDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bead-live-target-availability-'));
+    const calibrationPath = path.join(calibrationDir, 'latest-mapping-calibration.json');
+
+    fs.writeFileSync(calibrationPath, JSON.stringify({
+      schemaVersion: 1,
+      rows: [
+        {
+          concept: 'registered_state',
+          conceptDisplayName: 'Registered Legal Address State',
+          jsonKeyPath: 'merchantData.registeredLegalAddress.state',
+          currentCandidateFieldIndex: 64,
+          selectedCandidate: '#64 Registered Legal Address State Address p1 ord42 List shape=text_name_like editable=editable layout=Registered Legal Address > State @ 350.08,544.64',
+          decision: 'trust_current_mapping',
+          calibrationReason: 'none',
+          mappingDecisionReason: 'trusted_by_label',
+          missingProof: [],
+          neighborWindow: [{
+            fieldIndex: 64,
+            businessSection: 'Address',
+            layoutSectionHeader: 'Registered Legal Address',
+            layoutFieldLabel: 'State',
+            pageIndex: 1,
+            ordinalOnPage: 42,
+            coordinates: '350.08,544.64',
+            tabType: 'List',
+          }],
+        },
+        {
+          concept: 'proof_of_business_type',
+          conceptDisplayName: 'Proof Of Business Type',
+          jsonKeyPath: 'merchantData.proofOfBusinessType',
+          currentCandidateFieldIndex: 61,
+          selectedCandidate: '#61 Proof of Business Type Attachments p1 ord8 List shape=text_name_like editable=editable layout=General > Proof of Business Type @ 663.68,256.64',
+          decision: 'trust_current_mapping',
+          calibrationReason: 'none',
+          mappingDecisionReason: 'trusted_by_label',
+          missingProof: [],
+          neighborWindow: [{
+            fieldIndex: 61,
+            businessSection: 'Attachments',
+            layoutSectionHeader: 'General',
+            layoutFieldLabel: 'Proof of Business Type',
+            pageIndex: 1,
+            ordinalOnPage: 8,
+            coordinates: '663.68,256.64',
+            tabType: 'List',
+          }],
+        },
+        {
+          concept: 'federal_tax_id_type',
+          conceptDisplayName: 'Federal Tax ID Type',
+          jsonKeyPath: 'merchantData.federalTaxIdType',
+          currentCandidateFieldIndex: 62,
+          selectedCandidate: '#62 Federal Tax ID Type Business Details p1 ord9 List shape=text_name_like editable=editable layout=General > Federal Tax ID Type @ 37.12,288.64',
+          decision: 'trust_current_mapping',
+          calibrationReason: 'none',
+          mappingDecisionReason: 'trusted_by_label',
+          missingProof: [],
+          neighborWindow: [{
+            fieldIndex: 62,
+            businessSection: 'Business Details',
+            layoutSectionHeader: 'General',
+            layoutFieldLabel: 'Federal Tax ID Type',
+            pageIndex: 1,
+            ordinalOnPage: 9,
+            coordinates: '37.12,288.64',
+            tabType: 'List',
+          }],
+        },
+      ],
+    }), 'utf8');
+
+    try {
+      const report = mockValidationReport([
+        mockField({
+          index: 61,
+          kind: 'combobox',
+          inferredType: 'business_type',
+          docusignTabType: 'List',
+          pageIndex: 1,
+          ordinalOnPage: 8,
+          tabLeft: 663.68,
+          tabTop: 256.64,
+        }),
+        mockField({
+          index: 62,
+          kind: 'combobox',
+          inferredType: 'ein',
+          docusignTabType: 'List',
+          pageIndex: 1,
+          ordinalOnPage: 9,
+          tabLeft: 37.12,
+          tabTop: 288.64,
+        }),
+        mockField({
+          index: 64,
+          kind: 'combobox',
+          inferredType: 'unknown_manual_review',
+          docusignTabType: 'List',
+          pageIndex: 1,
+          ordinalOnPage: 42,
+          tabLeft: 350.08,
+          tabTop: 544.64,
+        }),
+      ]);
+
+      const plan = buildInteractiveValidationPlan(report, {
+        INTERACTIVE_CONCEPTS: 'registered_state,proof_of_business_type,federal_tax_id_type',
+        INTERACTIVE_MAPPING_CALIBRATION_PATH: calibrationPath,
+      } as NodeJS.ProcessEnv);
+
+      expect(plan.skippedConcepts).toEqual([]);
+      expect(plan.cases.filter((entry) => entry.concept === 'registered_state').every((entry) => entry.targetField.fieldIndex === 64)).toBe(true);
+      expect(plan.cases.filter((entry) => entry.concept === 'proof_of_business_type').every((entry) => entry.targetField.fieldIndex === 61)).toBe(true);
+      expect(plan.cases.filter((entry) => entry.concept === 'federal_tax_id_type').every((entry) => entry.targetField.fieldIndex === 62)).toBe(true);
+
+      const liveFields = [
+        mockDiscoveredField({ index: 61, kind: 'combobox', inferredType: 'business_type', docusignTabType: 'List', pageIndex: 1, ordinalOnPage: 8, tabLeft: 663.68, tabTop: 256.64 }),
+        mockDiscoveredField({ index: 62, kind: 'combobox', inferredType: 'ein', docusignTabType: 'List', pageIndex: 1, ordinalOnPage: 9, tabLeft: 37.12, tabTop: 288.64 }),
+        mockDiscoveredField({ index: 64, kind: 'combobox', inferredType: 'unknown_manual_review', docusignTabType: 'List', pageIndex: 1, ordinalOnPage: 42, tabLeft: 350.08, tabTop: 544.64 }),
+      ];
+
+      for (const conceptKey of ['registered_state', 'proof_of_business_type', 'federal_tax_id_type'] as const) {
+        const testCase = plan.cases.find((entry) => entry.concept === conceptKey)!;
+        const liveField = findDiscoveredFieldByDiscoveryIndex(liveFields, testCase.targetField.fieldIndex);
+        expect(liveField).not.toBeNull();
+        expect(isAvailableInteractiveMerchantField(liveField)).toBe(true);
+      }
+    } finally {
+      fs.rmSync(calibrationDir, { recursive: true, force: true });
+    }
   });
 });
 

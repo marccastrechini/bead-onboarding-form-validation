@@ -1491,6 +1491,24 @@ export function resolveInteractiveTargetConcepts(env: NodeJS.ProcessEnv = proces
   ));
 }
 
+function findValidationReportFieldByDiscoveryIndex(
+  report: ValidationReport,
+  fieldIndex: number,
+): ValidationReport['fields'][number] | null {
+  return report.fields.find((field) => field.index === fieldIndex) ?? null;
+}
+
+export function findDiscoveredFieldByDiscoveryIndex(
+  fields: DiscoveredField[],
+  fieldIndex: number,
+): DiscoveredField | null {
+  return fields.find((field) => field.index === fieldIndex) ?? null;
+}
+
+export function isAvailableInteractiveMerchantField(field: DiscoveredField | null): field is DiscoveredField {
+  return Boolean(field && field.controlCategory === 'merchant_input' && field.visible && field.editable);
+}
+
 export function assertInteractiveValidationGuards(env: NodeJS.ProcessEnv = process.env): void {
   const state = getInteractiveGuardState(env);
   const missing = Object.entries(state)
@@ -1523,7 +1541,7 @@ export function buildInteractiveValidationPlan(
     const concept = FIELD_CONCEPT_REGISTRY[conceptKey];
     const score = scoreByConcept.get(conceptKey);
     const match = score?.mappedFields.find(isConfidentMatch);
-    const sourceField = match ? report.fields[match.fieldIndex - 1] : null;
+    const sourceField = match ? findValidationReportFieldByDiscoveryIndex(report, match.fieldIndex) : null;
 
     if (!score?.identifiedWithConfidence || !match || !sourceField) {
       skippedConcepts.push({
@@ -1612,7 +1630,7 @@ export async function runInteractiveCase(
     return skippedCase(testCase, 'target field was not available as a merchant input in live discovery');
   }
 
-  if (!field.visible || !field.editable) {
+  if (!isAvailableInteractiveMerchantField(field)) {
     return skippedCase(testCase, 'target field was not visible and editable');
   }
 

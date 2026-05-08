@@ -1302,7 +1302,9 @@ export async function discoverFields(
   for (const { kind, list } of kinds) {
     const slice = list.slice(0, maxPerKind);
     for (let i = 0; i < slice.length; i++) {
-      fields.push(await describe(slice[i], kind, i, frame));
+      // Keep one 1-based discovery index across all control kinds so the
+      // planner and runtime can key the same live field.
+      fields.push(await describe(slice[i], kind, fields.length + 1, frame));
     }
   }
 

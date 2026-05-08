@@ -8,6 +8,7 @@ import {
   assertInteractiveValidationGuards,
   buildInteractiveResultsFile,
   buildInteractiveValidationPlan,
+  findDiscoveredFieldByDiscoveryIndex,
   getInteractiveGuardState,
   runInteractiveCase,
   skippedConceptToResult,
@@ -79,7 +80,7 @@ test.describe('Bead Onboarding - Interactive Field Validation', () => {
       flush();
 
       for (const validationCase of plan.cases) {
-        const field = fields[validationCase.targetField.fieldIndex - 1] ?? null;
+        const field = findDiscoveredFieldByDiscoveryIndex(fields, validationCase.targetField.fieldIndex);
         const result = await runInteractiveCase(validationCase, field, fields, frame, {
           onProgress: (progress) => {
             currentStep = progress;
