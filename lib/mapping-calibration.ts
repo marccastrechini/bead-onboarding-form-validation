@@ -72,6 +72,7 @@ export interface MappingCandidate {
   currentValue?: string | null;
   currentValueShape?: ValueShape | null;
   observedValueLikeTextNearControl?: string | null;
+  helperText?: string | null;
   layoutValueShape?: ValueShape | null;
   layoutSectionHeader?: string | null;
   layoutFieldLabel?: string | null;
@@ -875,6 +876,7 @@ function controlledChoiceProofMatches(input: {
   labelText: string;
   labelMatches: boolean;
   sectionMatches: boolean;
+  typeMatches: boolean;
 }): boolean {
   const layoutSection = `${input.candidate.layoutSectionHeader ?? ''} ${input.candidate.sectionName ?? ''}`.toLowerCase();
   const labelField = `${input.candidate.layoutFieldLabel ?? ''} ${input.labelText}`.toLowerCase();
@@ -882,6 +884,8 @@ function controlledChoiceProofMatches(input: {
   const sectionProof = expectedSectionTokens.some((token) => layoutSection.includes(token));
 
   switch (input.concept) {
+    case 'document_type':
+      return documentTypeProofMatches(input);
     case 'legal_entity_type':
       return input.labelMatches && input.sectionMatches && sectionProof && /legal\s*entity\s*type/.test(labelField);
     case 'business_type':
@@ -908,6 +912,39 @@ function controlledChoiceProofMatches(input: {
     default:
       return input.labelMatches && input.sectionMatches;
   }
+}
+
+function documentTypeProofMatches(input: {
+  candidate: MappingCandidate;
+  labelText: string;
+  labelMatches: boolean;
+  sectionMatches: boolean;
+  typeMatches: boolean;
+}): boolean {
+  if (input.labelMatches && input.sectionMatches) return true;
+  if (!input.typeMatches) return false;
+  if (input.candidate.controlCategory && input.candidate.controlCategory !== 'merchant_input') return false;
+  if ((input.candidate.docusignTabType ?? '').toLowerCase() === 'signerattachment') return false;
+
+  const helperText = (input.candidate.helperText ?? '').toLowerCase();
+  const inferredType = (input.candidate.inferredType ?? '').toLowerCase();
+  const proofText = `${input.labelText} ${input.candidate.sectionName ?? ''} ${helperText}`.toLowerCase();
+  const candidateValueText = `${input.candidate.currentValue ?? ''} ${input.candidate.observedValueLikeTextNearControl ?? ''}`.toLowerCase();
+
+  if (looksLikeUploadedFileValue(candidateValueText)) return false;
+  if (/\b(complete|finish|submit|sign\s*here|signature|acknowledge|consent)\b/.test(proofText)) return false;
+
+  const attachmentContext = /\battachment(required|optional)?\b|\bsignerattachment(optional)?\b|\bdocument\b/.test(helperText);
+  const documentSignal = inferredType === 'document_type' || /\b(document\s*type|id\s*type|identification\s*type)\b/.test(proofText);
+
+  return attachmentContext && documentSignal;
+}
+
+function looksLikeUploadedFileValue(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return false;
+  return /\b[\w.-]+\.(pdf|png|jpe?g|gif|tiff?|heic|docx?|xlsx?|csv)\b/.test(normalized) ||
+    /\b(uploaded|selected\s*file|attachment\s*uploaded|download)\b/.test(normalized);
 }
 
 function controlledChoiceSectionTokens(concept: FieldConceptKey): string[] {
@@ -938,6 +975,8 @@ function controlledChoiceSectionTokens(concept: FieldConceptKey): string[] {
 
 function controlledChoiceProofMessage(concept: FieldConceptKey): string {
   switch (concept) {
+    case 'document_type':
+      return 'missing Stakeholder ID Type or Document Type field-local proof';
     case 'legal_entity_type':
       return 'missing General-section Legal Entity Type layout proof';
     case 'business_type':

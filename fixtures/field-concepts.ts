@@ -1032,7 +1032,11 @@ export const FIELD_CONCEPTS: FieldConceptDefinition[] = [
     businessSection: 'Attachments',
     fieldTypes: ['document_type', 'proof_type'],
     labelPatterns: [/document\s*type/i, /id\s*type/i, /identification\s*type/i],
-    jsonKeyPatterns: [/merchantData\.documentType$/i],
+    jsonKeyPatterns: [
+      /merchantData\.documentType$/i,
+      /merchantData\.stakeholders\[\d+\]\.idType$/i,
+      /merchantData\.stakeholders\[\d+\]\.proofOfIdentityType$/i,
+    ],
     bestPracticeValidations: DROPDOWN_MATRIX,
     missingValidationSeverity: 'high',
     weakValidationSeverity: 'medium',

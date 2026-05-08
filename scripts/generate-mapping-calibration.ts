@@ -183,6 +183,7 @@ const CONTROLLED_CHOICE_CONCEPTS = new Set<FieldConceptKey>([
   'business_type',
   'bank_account_type',
   'federal_tax_id_type',
+  'document_type',
   'proof_of_business_type',
   'proof_of_address_type',
   'proof_of_bank_account_type',
@@ -390,6 +391,7 @@ function buildConceptContexts(input: {
     'business_type',
     'bank_account_type',
     'federal_tax_id_type',
+    'document_type',
     'proof_of_business_type',
     'proof_of_address_type',
     'proof_of_bank_account_type',
@@ -435,7 +437,7 @@ function buildConceptContexts(input: {
             return Math.abs(field.ordinalOnPage - anchor.ordinalOnPage) <= 5;
           })
           .sort((a, b) => (a.pageIndex ?? 0) - (b.pageIndex ?? 0) || (a.ordinalOnPage ?? 0) - (b.ordinalOnPage ?? 0))
-        : [];
+        : fallbackNearbyFields(input.report, concept);
       const currentField = findCurrentField({
         diagnosticsRow,
         enrichmentRecord,
@@ -521,6 +523,19 @@ function findConceptEnrichmentRecord(input: {
   };
 }
 
+function fallbackNearbyFields(report: ValidationReport, concept: FieldConceptKey): FieldRecord[] {
+  if (concept !== 'document_type') return [];
+
+  return report.fields
+    .filter((field) => field.controlCategory === 'merchant_input')
+    .filter((field) => isTrustedControlledChoiceFamily(field.docusignTabType))
+    .filter((field) =>
+      field.inferredType === 'document_type' ||
+      field.rawCandidateLabels.some((candidate) => /document\s*type|identification\s*type|proof\s*of\s*identity|idtype/i.test(candidate.value)),
+    )
+    .sort((a, b) => (a.pageIndex ?? 0) - (b.pageIndex ?? 0) || (a.ordinalOnPage ?? 0) - (b.ordinalOnPage ?? 0));
+}
+
 function conceptRecordPriority(concept: FieldConceptKey, record: EnrichmentRecord): number {
   const key = record.jsonKeyPath;
   if (concept === 'postal_code') {
@@ -535,6 +550,11 @@ function conceptRecordPriority(concept: FieldConceptKey, record: EnrichmentRecor
   }
   if (concept === 'dba_name' && /merchantData\.dbaName$/i.test(key)) return 0;
   if (concept === 'business_description' && /merchantData\.businessDescription$/i.test(key)) return 0;
+  if (concept === 'document_type') {
+    if (/merchantData\.stakeholders\[\d+\]\.idType$/i.test(key)) return 0;
+    if (/merchantData\.stakeholders\[\d+\]\.proofOfIdentityType$/i.test(key)) return 5;
+    if (/merchantData\.documentType$/i.test(key)) return 10;
+  }
   if (concept === 'legal_entity_type' && /merchantData\.legalEntityType$/i.test(key)) return 0;
   if (concept === 'business_type') {
     if (/merchantData\.locationBusinessType$/i.test(key)) return 0;
@@ -857,6 +877,8 @@ function physicalAddressProbeControlFamily(control: PhysicalOperatingAddressDomP
 
 function expectedSectionHeaderForConcept(concept: FieldConceptKey): string | null {
   switch (concept) {
+    case 'document_type':
+      return 'Stakeholder';
     case 'registered_address_line_1':
     case 'registered_address_line_2':
     case 'registered_city':
@@ -1005,6 +1027,9 @@ function missingProofForSelection(
   if (context.concept === 'federal_tax_id_type') {
     missing.push('Need a visible editable Federal Tax ID Type selector rather than the sensitive tax ID value field itself.');
   }
+  if (context.concept === 'document_type') {
+    missing.push('Need a visible editable stakeholder ID Type or Document Type selector that is separate from any upload widget or uploaded file value.');
+  }
   if (context.concept === 'proof_of_business_type' || context.concept === 'proof_of_address_type' || context.concept === 'proof_of_bank_account_type') {
     missing.push('Need a visible editable proof-type selector that identifies document category only, not an upload widget or uploaded file value.');
   }
@@ -1079,6 +1104,8 @@ function requestedEvidenceForConcept(
   conceptName: string,
 ): string {
   switch (context.concept) {
+    case 'document_type':
+      return 'In Stakeholder, is ID Type an editable dropdown/list and separate from any upload field or uploaded file value?';
     case 'legal_entity_type':
       return 'On page 1 General, is Legal Entity Type an editable dropdown/list or display text?';
     case 'business_type':
@@ -1202,6 +1229,7 @@ function toMappingCandidate(context: ConceptCalibrationContext, field: FieldReco
     currentValue,
     currentValueShape,
     observedValueLikeTextNearControl: field.observedValueLikeTextNearControl,
+    helperText: field.helperText,
     layoutValueShape: layoutRecord?.layoutValueShape as ValueShape | null | undefined,
     layoutSectionHeader: layoutRecord?.layoutSectionHeader ?? null,
     layoutFieldLabel: layoutRecord?.layoutFieldLabel ?? null,
@@ -1503,6 +1531,7 @@ function conceptOrder(concept: FieldConceptKey): number {
     'business_type',
     'bank_account_type',
     'federal_tax_id_type',
+    'document_type',
     'proof_of_business_type',
     'proof_of_address_type',
     'proof_of_bank_account_type',

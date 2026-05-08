@@ -8298,6 +8298,57 @@ test.describe('interactive validation safety', () => {
     expect(result.selectedCandidateId).toBe('proof-type');
   });
 
+  test('document_type prefers the stakeholder metadata selector over upload and file-value echoes without auto-trusting it', () => {
+    const result = selectBestMappingCandidate({
+      concept: 'document_type',
+      currentCandidateId: null,
+      candidates: [
+        {
+          id: 'upload',
+          resolvedLabel: 'Upload Identification Document',
+          labelSource: 'aria-label',
+          labelConfidence: 'high',
+          docusignTabType: 'SignerAttachment',
+          controlCategory: 'attachment_control',
+          visible: true,
+          editable: false,
+        },
+        {
+          id: 'file-echo',
+          docusignTabType: 'List',
+          controlCategory: 'merchant_input',
+          inferredType: 'document_type',
+          helperText: 'Required - AttachmentRequired - Attachment - SignerAttachmentOptional',
+          currentValue: 'drivers-license.pdf',
+          visible: true,
+          editable: true,
+        },
+        {
+          id: 'document-type',
+          docusignTabType: 'List',
+          controlCategory: 'merchant_input',
+          inferredType: 'document_type',
+          helperText: 'Required - AttachmentRequired - Attachment - SignerAttachmentOptional',
+          pageIndex: 3,
+          ordinalOnPage: 10,
+          tabLeft: 37.12,
+          tabTop: 186.88,
+          visible: true,
+          editable: true,
+        },
+      ],
+    });
+
+    const assessmentsById = new Map(result.assessments.map((assessment) => [assessment.candidateId, assessment]));
+
+    expect(result.selectedCandidateId).toBe('document-type');
+    expect(result.trusted).toBe(false);
+    expect(result.decisionReason).toBe('rejected_insufficient_label_proof');
+    expect(assessmentsById.get('document-type')!.conceptSpecificProofMatches).toBe(true);
+    expect(assessmentsById.get('upload')!.conceptSpecificProofMatches).toBe(false);
+    expect(assessmentsById.get('file-echo')!.conceptSpecificProofMatches).toBe(false);
+  });
+
   test('proof_of_bank_account_type is not confused with bank account number', () => {
     const result = selectBestMappingCandidate({
       concept: 'proof_of_bank_account_type',
@@ -9978,6 +10029,93 @@ test.describe('interactive validation safety', () => {
     const rowText = JSON.stringify(calibration.rows.find((entry) => entry.concept === 'proof_of_bank_account_type'));
 
     expect(rowText).not.toContain('123456789');
+  });
+
+  test('document_type emits an unresolved calibration row from stakeholder idType fallback evidence', () => {
+    const calibration = buildMappingCalibration({
+      report: mockValidationReport([
+        mockField({
+          index: 1,
+          kind: 'combobox',
+          section: 'Bead Onboarding Application US-02604-2.pdf Page 3 of 4.',
+          rawCandidateLabels: [{ source: 'label-for', value: 'Required - stakeholder1IdType' }],
+          rejectedLabelCandidates: [{ source: 'label-for', value: 'Required - stakeholder1IdType', reason: 'docusign-stub' }],
+          helperText: 'Required - AttachmentRequired - Attachment - SignerAttachmentOptional',
+          docusignTabType: 'List',
+          inferredType: 'document_type',
+          inferredClassification: 'manual_review',
+          pageIndex: 3,
+          ordinalOnPage: 10,
+          tabLeft: 37.12,
+          tabTop: 186.88,
+        }),
+      ]),
+      targetDiagnostics: {
+        schemaVersion: 1,
+        runStartedAt: '2026-04-28T00:00:00.000Z',
+        runFinishedAt: '2026-04-28T00:00:01.000Z',
+        summary: {
+          total: 0,
+          trusted: 0,
+          tool_mapping_suspect: 0,
+          mapping_not_confident: 0,
+          error_ownership_suspect: 0,
+          product_failure: 0,
+          observer_ambiguous: 0,
+          passed: 0,
+          skipped: 0,
+          manual_review: 0,
+        },
+        rows: [],
+      },
+      enrichment: {
+        schemaVersion: 1,
+        generatedAt: '2026-04-28T00:00:00.000Z',
+        sourceJson: 'sample.json',
+        sourceMhtml: 'sample.mhtml',
+        records: [],
+      },
+      alignment: {
+        rows: [{
+          jsonKeyPath: 'merchantData.stakeholders[0].idType',
+          jsonFieldFamily: 'Stakeholder',
+          jsonValueSample: 'driverLicense',
+          jsonTypeHint: 'enum',
+          matchedTabGuid: null,
+          matchedRenderedValue: null,
+          candidateRenderedPrompt: null,
+          candidateDocuSignFieldFamily: null,
+          tabPageIndex: null,
+          tabOrdinalOnPage: null,
+          tabLeft: null,
+          tabTop: null,
+          layoutSectionHeader: null,
+          layoutFieldLabel: null,
+          layoutEvidenceSource: null,
+          layoutValueShape: null,
+          layoutNeighboringLabels: [],
+          layoutEditability: null,
+          businessSection: 'Stakeholder',
+          confidence: 'none',
+          matchingMethod: 'unmatched',
+          notes: 'no rendered value matched any variant',
+        }],
+      },
+      summaryPath: 'summary.json',
+      targetDiagnosticsPath: 'diagnostics.json',
+      enrichmentPath: 'enrichment.json',
+      alignmentPath: 'alignment.json',
+    });
+
+    const row = calibration.rows.find((entry) => entry.concept === 'document_type');
+
+    expect(row).toBeDefined();
+    expect(row).toMatchObject({
+      decision: 'leave_unresolved',
+      mappingDecisionReason: 'rejected_insufficient_label_proof',
+    });
+    expect(row!.selectedCandidate).toContain('#1');
+    expect(row!.missingProof).toContain('Need a visible editable stakeholder ID Type or Document Type selector that is separate from any upload widget or uploaded file value.');
   });
 
   test('trusted findings do not request human mapping confirmation', () => {
