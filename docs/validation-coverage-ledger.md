@@ -1,7 +1,7 @@
 # Validation Coverage Ledger
 
 Generated for the COVERAGESPRINT workstream on 2026-05-08.
-Updated during SPRINTRECOVER on 2026-05-08.
+Updated during COVERAGENEXT on 2026-05-08.
 
 ## Scope And Safety
 
@@ -59,17 +59,17 @@ The following concepts have trusted live evidence from prior completed guarded r
 - Business description very-short and garbage-text behavior.
 - Registration date alternate format and future-date behavior.
 - Stakeholder job title very-short and special-character behavior unless later policy resolves it.
+- Registered legal address text punctuation and symbol-heavy behavior unless the batch is intentionally run as manual-review coverage.
 
 ## Blocked Or Deferred Areas
 
 - `registered_state` immediate live work until the live-discovery target is available again as a merchant input.
-- Registered legal address text family remains frozen for clean-coverage work; only `postal_code` is currently live-proven in that family.
 - `business_mailing_*` and Physical Operating Address post-toggle capture.
 - Amount fields until separate editable controls are proven.
-- Stakeholder first and last name until resolver work is done.
+- Stakeholder first and last name until field-local screenshot proof confirms the current editable text target.
 - Date of birth because of sensitivity and policy constraints.
 - Website because of prior product-finding history.
-- SSN, EIN, routing number, account number, and other tax or bank-sensitive fields.
+- Raw SSN, EIN, routing number, account number, and other tax or bank-sensitive value fields.
 - Upload, signature, acknowledgement, and finalization-adjacent controls.
 
 ## Cumulative Coverage Estimate
@@ -98,20 +98,22 @@ The following concepts have trusted live evidence from prior completed guarded r
 - STATECANARY still did not add trusted live evidence for `registered_state`: all 4 checks were skipped because the intended live-discovery target was not available as a merchant input, so `targetDiagnostics` stayed null and no mutating verification ran.
 - `registered_state` is therefore excluded from immediate live sprint work. It is now a live-discovery target-availability resolver, not a quick coverage canary.
 
-## SPRINTRECOVER Candidate Classification
+## COVERAGENEXT Candidate Classification
 
-- Candidate for small live batch now: none.
-- Candidate for live singleton now: none.
-- High-value non-live resolver unlock: `stakeholder_first_name`, `stakeholder_last_name`.
-- Policy-only blocker: `stakeholder_job_title`; a policy-accepted manual-review batch is not favored for clean-coverage expansion.
-- Sensitive/defer: `website`, `date_of_birth`, `federal_tax_id_type`, tax and bank-sensitive value fields, and upload or signature-adjacent controls.
-- Address/live-discovery blocker: `registered_state`, `registered_address_line_1`, `registered_address_line_2`, `registered_city`, `registered_country`, `business_mailing_*`, and Physical Operating Address fields.
-- Amount/capture blocker: `annual_revenue`, `highest_monthly_volume`, `average_ticket`, `max_ticket`.
-- Already proven / do not rerun: the live-proven concepts listed above, including `naics` and `postal_code`.
+- Clean live candidate: `proof_of_business_type`, `federal_tax_id_type`.
+- Live candidate with expected policy/manual-review rows but useful trusted targeting coverage: `registered_address_line_1`, `registered_address_line_2`, `registered_city`, `stakeholder_job_title`.
+- Missing-proof capture unlock: `stakeholder_first_name`, `stakeholder_last_name`, `proof_of_address_type`, `annual_revenue`, `highest_monthly_volume`, `average_ticket`, `max_ticket`.
+- Resolver work required now: none ahead of the next batch; current unresolved work is proof, capture, policy, or live-discovery bound rather than a mapping-logic bug.
+- Product-policy decision required before reuse: `website`.
+- Sensitive/defer: `date_of_birth`, raw tax or bank-value fields, and upload or signature-adjacent controls.
+- Address/live-discovery blocker: `registered_state`, `registered_country`, `business_mailing_*`, and Physical Operating Address post-toggle capture.
+- Already proven / do not rerun: the live-proven concepts listed above, including `naics`, `merchant_category_code`, `postal_code`, `bank_account_type`, and `proof_of_bank_account_type`.
 
 ## Recommended Next Action
 
-- Recommended next action: non-live resolver work for `stakeholder_first_name` and `stakeholder_last_name`.
-- Coverage rationale: this is the fastest remaining path to a meaningful non-sensitive live batch after excluding `registered_state`, frozen address work, website, DOB, amount captures, and already-proven concepts.
-- Why not amounts first: all four amount concepts remain `Not Found` with no sample PDF or MHTML proof of separate editable controls, so they need capture or screenshot proof before they become a practical sprint candidate.
-- Why not a policy-manual-review batch: it would likely create ambiguous or policy-bound evidence rather than clean trusted live coverage, which conflicts with the current recovery goal.
+- Recommended next action: run a guarded live batch for `proof_of_business_type` and `federal_tax_id_type`.
+- Coverage rationale: this is the highest-confidence remaining same-family batch. Both concepts are mapped with `trust_current_mapping` / `trusted_by_label`, have no missing-proof blocker, are absent from current interactive history, and extend the already-proven controlled-choice metadata family without touching raw tax or bank values.
+- Why not stakeholder-name capture first: it is still the smallest remaining proof unlock after this batch, but it does not itself add trusted live coverage and is slower than the remaining clean controlled-choice lane.
+- Why not the address or stakeholder-job-title batch first: those concepts are viable only if the batch intentionally accepts policy/manual-review rows. They are useful fallback coverage, but they are no longer the fastest clean expansion path.
+- Why not website or DOB first: `website` still carries prior product-finding history that needs an explicit policy decision before reuse, and `date_of_birth` remains sensitivity-bound.
+- Fallback order if the clean batch stops early: `proof_of_address_type` proof capture if upload-adjacent ambiguity is the blocker; otherwise stakeholder-name screenshot proof; only then reopen the registered-address text family as an intentional manual-review batch.
