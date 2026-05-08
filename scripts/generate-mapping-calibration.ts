@@ -1054,6 +1054,7 @@ function buildHumanConfirmationRequest(
   const layoutTarget = sampleLayoutTarget(context);
   const matchedLayoutField = liveFieldMatchingSampleLayout(context);
   const conceptName = FIELD_CONCEPT_REGISTRY[context.concept].displayName;
+  const suspectedField = selectedField ?? nearestShapeMatch ?? context.currentField;
 
   if (layoutTarget && matchedLayoutField === null && isPhysicalOperatingAddressConcept(context)) {
     return {
@@ -1069,6 +1070,18 @@ function buildHumanConfirmationRequest(
   if (lacksSampleLayoutProof(context)) {
     const sectionHeader = expectedSectionHeaderForConcept(context.concept);
     const fieldLabel = conceptLeafLabel(context.concept);
+    if (context.concept === 'document_type') {
+      return {
+        needed: true,
+        concept: context.concept,
+        suspectedFieldLocation: suspectedField
+          ? formatCandidateSummary(summarizeField(context, suspectedField))
+          : 'Stakeholder > Document Type / ID Type',
+        currentBlocker: 'The saved sample does not currently prove a separate editable Stakeholder Document Type / ID Type control, and the current safe-mode report only shows an unlabeled page-3 dropdown/list candidate.',
+        requestedEvidence: 'Review one screenshot of the Stakeholder section around the Document Type / ID Type control and answer: what is the field-local label, is it visible, is it editable, is it a dropdown/list, and is it separate from any upload widget or uploaded file-value echo?',
+        decisionImpact: 'If the screenshot confirms one visible editable Stakeholder Document Type / ID Type dropdown/list that is separate from any upload widget or uploaded file-value echo, the next calibration can trust Document Type; otherwise keep Document Type mapping-blocked and out of product-failure counts for this flow.',
+      };
+    }
     return {
       needed: true,
       concept: context.concept,
@@ -1081,7 +1094,6 @@ function buildHumanConfirmationRequest(
     };
   }
 
-  const suspectedField = selectedField ?? nearestShapeMatch ?? context.currentField;
   const suspectedFieldLocation = suspectedField
     ? formatCandidateSummary(summarizeField(context, suspectedField))
     : context.anchor.displayName
@@ -1105,7 +1117,7 @@ function requestedEvidenceForConcept(
 ): string {
   switch (context.concept) {
     case 'document_type':
-      return 'In Stakeholder, is ID Type an editable dropdown/list and separate from any upload field or uploaded file value?';
+      return 'In Stakeholder, is the Document Type / ID Type control visible, editable, a dropdown/list, and separate from any upload widget or uploaded file-value echo?';
     case 'legal_entity_type':
       return 'On page 1 General, is Legal Entity Type an editable dropdown/list or display text?';
     case 'business_type':

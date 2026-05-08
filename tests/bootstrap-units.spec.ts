@@ -10116,6 +10116,12 @@ test.describe('interactive validation safety', () => {
     });
     expect(row!.selectedCandidate).toContain('#1');
     expect(row!.missingProof).toContain('Need a visible editable stakeholder ID Type or Document Type selector that is separate from any upload widget or uploaded file value.');
+    expect(row!.humanConfirmation).toMatchObject({
+      suspectedFieldLocation: '#1 (unresolved) p3 ord10 List shape=empty editable=editable @ 37.12,186.88',
+      currentBlocker: 'The saved sample does not currently prove a separate editable Stakeholder Document Type / ID Type control, and the current safe-mode report only shows an unlabeled page-3 dropdown/list candidate.',
+      requestedEvidence: 'Review one screenshot of the Stakeholder section around the Document Type / ID Type control and answer: what is the field-local label, is it visible, is it editable, is it a dropdown/list, and is it separate from any upload widget or uploaded file-value echo?',
+      decisionImpact: 'If the screenshot confirms one visible editable Stakeholder Document Type / ID Type dropdown/list that is separate from any upload widget or uploaded file-value echo, the next calibration can trust Document Type; otherwise keep Document Type mapping-blocked and out of product-failure counts for this flow.',
+    });
   });
 
   test('trusted findings do not request human mapping confirmation', () => {
