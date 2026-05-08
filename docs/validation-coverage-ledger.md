@@ -1,7 +1,7 @@
 # Validation Coverage Ledger
 
 Generated for the COVERAGESPRINT workstream on 2026-05-08.
-Updated during COVERAGENEXT on 2026-05-08.
+Updated during COVERAGEACCOUNTING on 2026-05-08.
 
 ## Scope And Safety
 
@@ -11,10 +11,11 @@ No raw field values, PII, DocuSign URLs, tokens, screenshots, tax IDs, routing n
 
 ## Latest Focused Scorecard
 
-- Latest focused run scope: `registered_state`.
+- Latest focused run scope: `proof_of_business_type`, `federal_tax_id_type`.
 - Latest scorecard coverage: 1/277 (0%), grade D.
-- Latest findings summary: product findings 0; ambiguous findings 0; mapping-blocked 0; ready-for-rerun 4.
-- Interpretation: the latest scorecard reflects the most recent focused run artifacts, not the cumulative set of concepts validated across the project. The latest focused run was a registered-state singleton whose wrapper completed, but all checks were skipped before mutation because the intended live-discovery target was not available as a merchant input.
+- Latest findings summary: product findings 0; ambiguous findings 0; mapping-blocked 0; ready-for-rerun 0.
+- Latest focused run added 8 trusted executed observations across 2 concepts.
+- Interpretation: the latest scorecard still reflects only the most recent focused run artifacts, not the cumulative set of concepts validated across the project. The latest focused controlled-choice rerun produced trusted live evidence for both concepts, with no raw tax-value entry, no upload-widget ambiguity, and no non-standalone-selector drift.
 
 ## Live-Proven Concepts
 
@@ -39,10 +40,12 @@ The following concepts have trusted live evidence from prior completed guarded r
 - `naics`
 - `merchant_category_code`
 - `postal_code`
+- `proof_of_business_type`
+- `federal_tax_id_type`
 
 ## Live-Proven Field Families
 
-- Controlled-choice metadata: legal entity type, business type, bank account type, proof-of-bank-account type.
+- Controlled-choice metadata: legal entity type, business type, bank account type, proof-of-bank-account type, proof-of-business type, federal tax ID type.
 - Contact channels: email and phone.
 - Business and contact text-name fields: business name, DBA name, location name, contact first name, contact last name.
 - Long/free text: business description.
@@ -74,9 +77,10 @@ The following concepts have trusted live evidence from prior completed guarded r
 
 ## Cumulative Coverage Estimate
 
-- Current live-proven concept count: 19 concepts.
+- Current live-proven concept count: 21 concepts.
 - Current live-proven behavior-family count: approximately 9 families.
 - Latest focused scorecard coverage is 1/277 (0%) because it is latest-run scoped.
+- Latest focused controlled-choice rerun added 8 trusted executed observations, 0 product findings, and 0 ambiguous findings.
 - Cumulative concept coverage is tracked here rather than inferred from the latest focused scorecard alone.
 
 ## COVERAGESPRINT Candidate Plan
@@ -99,22 +103,32 @@ The following concepts have trusted live evidence from prior completed guarded r
 - `registered_state` is therefore excluded from immediate live sprint work. It is now a live-discovery target-availability resolver, not a quick coverage canary.
 - TARGETAVAILABILITY resolved the shared discovery-index handoff bug non-live. Refreshed findings now classify `proof_of_business_type` and `federal_tax_id_type` as offline-trusted and ready for a guarded rerun; `registered_state` still needs one guarded confirmation run before it can re-enter the clean coverage lane.
 
-## COVERAGENEXT Candidate Classification
+## CLEANCHOICERERUN Results
 
-- Clean live candidate: `proof_of_business_type`, `federal_tax_id_type`.
-- Live candidate with expected policy/manual-review rows but useful trusted targeting coverage: `registered_address_line_1`, `registered_address_line_2`, `registered_city`, `stakeholder_job_title`.
-- Missing-proof capture unlock: `stakeholder_first_name`, `stakeholder_last_name`, `proof_of_address_type`, `annual_revenue`, `highest_monthly_volume`, `average_ticket`, `max_ticket`.
-- Resolver work required now: none ahead of the next batch; current unresolved work is proof, capture, policy, or live-discovery bound rather than a mapping-logic bug.
-- Product-policy decision required before reuse: `website`.
-- Sensitive/defer: `date_of_birth`, raw tax or bank-value fields, and upload or signature-adjacent controls.
-- Address/live-discovery blocker: `registered_state`, `registered_country`, `business_mailing_*`, and Physical Operating Address post-toggle capture.
-- Already proven / do not rerun: the live-proven concepts listed above, including `naics`, `merchant_category_code`, `postal_code`, `bank_account_type`, and `proof_of_bank_account_type`.
+- `proof_of_business_type`, `federal_tax_id_type`: completed through the operator watchdog as a single guarded controlled-choice metadata batch.
+- Result was 8/8 trusted executed observations, 8/8 passed in refreshed findings, 0 skipped, product findings 0, ambiguous findings 0, mapping-blocked findings 0.
+- Both concepts reached trusted live target verification on standalone native-select controls and stayed within the expected field-local label and section.
+- No upload-widget ambiguity, non-standalone-selector ambiguity, or raw tax-value entry occurred.
+- This adds `proof_of_business_type` and `federal_tax_id_type` to cumulative live-proven concept coverage and closes the previously open clean controlled-choice metadata rerun lane.
+
+## COVERAGEACCOUNTING Candidate Classification
+
+- Clean live candidate: none remaining after the controlled-choice metadata rerun. The next high-confidence options are more likely to create manual-review or capture work than a clean all-pass batch.
+- Live candidate likely to produce manual-review rows: `registered_address_line_1`, `registered_address_line_2`, `registered_city`, `stakeholder_job_title`.
+- Missing-proof capture unlock: `stakeholder_first_name`, `stakeholder_last_name`, `proof_of_address_type`.
+- Resolver work required: `document_type`.
+- Product-policy decision required: `website`.
+- Sensitive/defer: `date_of_birth`, raw SSN/EIN/tax-value fields, routing number, account number, bank-value fields, upload/signature/acknowledgement controls, and finalization-adjacent controls.
+- Frozen/address/live-discovery blocked: `registered_state`, `registered_country`, `business_mailing_*`, and Physical Operating Address post-toggle capture.
+- Amount/capture blocker: `annual_revenue`, `highest_monthly_volume`, `average_ticket`, `max_ticket`.
+- Already live-proven: the live-proven concepts listed above, now including `proof_of_business_type` and `federal_tax_id_type`, plus `naics`, `merchant_category_code`, and `postal_code`.
 
 ## Recommended Next Action
 
-- Recommended next action: run a guarded live batch for `proof_of_business_type` and `federal_tax_id_type`.
-- Coverage rationale: this is the highest-confidence remaining same-family batch. Both concepts are mapped with `trust_current_mapping` / `trusted_by_label`, have no missing-proof blocker, are absent from current interactive history, and extend the already-proven controlled-choice metadata family without touching raw tax or bank values.
-- Why not stakeholder-name capture first: it is still the smallest remaining proof unlock after this batch, but it does not itself add trusted live coverage and is slower than the remaining clean controlled-choice lane.
-- Why not the address or stakeholder-job-title batch first: those concepts are viable only if the batch intentionally accepts policy/manual-review rows. They are useful fallback coverage, but they are no longer the fastest clean expansion path.
-- Why not website or DOB first: `website` still carries prior product-finding history that needs an explicit policy decision before reuse, and `date_of_birth` remains sensitivity-bound.
-- Fallback order if the clean batch stops early: `proof_of_address_type` proof capture if upload-adjacent ambiguity is the blocker; otherwise stakeholder-name screenshot proof; only then reopen the registered-address text family as an intentional manual-review batch.
+- Recommended next action: run a guarded live batch for `registered_address_line_1`, `registered_address_line_2`, and `registered_city`.
+- Coverage rationale: this is now the highest-yield remaining batch for cumulative trusted-target expansion. All three concepts are already mapped with `trust_current_mapping` / `trusted_by_label`, have field-local registered-address section proof, and would add more concept coverage in one batch than a singleton or another resolver-only pass.
+- Why this still beats a cleaner resolver-first option: the likely downside is manual-review policy rows around punctuation or symbol handling, not target-availability loss or sensitive-value mutation. That is acceptable for the next coverage move because it still safely expands trusted live coverage.
+- Why not `stakeholder_job_title` first: it adds only one concept and still leans on anchor-and-value-shape proof rather than the stronger field-local registered-address label proof.
+- Why not `proof_of_address_type` or `document_type` first: both still need clearer field-family proof to show that the editable metadata selector is separate from upload or attachment semantics.
+- Why not `registered_state` first: it remains outside the immediate clean-expansion lane until a dedicated guarded confirmation run is explicitly chosen.
+- Why not amount fields or stakeholder names first: they are still capture/proof blockers and do not add trusted live coverage as efficiently as the registered legal address text family.
