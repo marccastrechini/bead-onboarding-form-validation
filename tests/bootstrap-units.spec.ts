@@ -10344,7 +10344,7 @@ test.describe('interactive validation safety', () => {
     expect(row!.missingProof).toEqual([]);
   });
 
-  test('proof_of_address_type keeps the correct unresolved blocker when human proof exists but no live layout target matches', () => {
+  test('proof_of_address_type trusts high-confidence offline layout evidence when human proof exists but no live layout target matches', () => {
     const calibration = buildMappingCalibration({
       report: mockValidationReport([
         mockField({
@@ -10449,6 +10449,125 @@ test.describe('interactive validation safety', () => {
 
     expect(row).toBeDefined();
     expect(row).toMatchObject({
+      decision: 'trust_likely_better_candidate',
+      mappingDecisionReason: 'trusted_by_label',
+      appliedHumanProof: {
+        status: 'confirmed_editable_dropdown',
+      },
+      humanConfirmation: null,
+    });
+    expect(row!.selectedCandidate).toContain('Proof Of Address Type');
+    expect(row!.selectedCandidate).toContain('layout=Registered Legal Address > Proof of Address Type');
+    expect(row!.missingProof).toEqual([]);
+    expect(row!.explanation).toContain('Human proof plus matching local mock MHTML/PDF layout evidence are strong enough to trust this field conservatively.');
+  });
+
+  test('proof_of_address_type stays unresolved when the offline sample family is not a trusted selector', () => {
+    const calibration = buildMappingCalibration({
+      report: mockValidationReport([
+        mockField({
+          index: 1,
+          kind: 'textbox',
+          section: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
+          helperText: 'Required - AttachmentRequired - Attachment - SignerAttachmentOptional',
+          docusignTabType: 'Text',
+          inferredType: 'unknown_manual_review',
+          inferredClassification: 'manual_review',
+          pageIndex: 1,
+          ordinalOnPage: 37,
+          tabLeft: 35.2,
+          tabTop: 512.64,
+          currentValueShape: 'text_name_like',
+        }),
+      ]),
+      targetDiagnostics: {
+        schemaVersion: 1,
+        runStartedAt: '2026-04-28T00:00:00.000Z',
+        runFinishedAt: '2026-04-28T00:00:01.000Z',
+        summary: {
+          total: 0,
+          trusted: 0,
+          tool_mapping_suspect: 0,
+          mapping_not_confident: 0,
+          error_ownership_suspect: 0,
+          product_failure: 0,
+          observer_ambiguous: 0,
+          passed: 0,
+          skipped: 0,
+          manual_review: 0,
+        },
+        rows: [],
+      },
+      enrichment: {
+        schemaVersion: 1,
+        generatedAt: '2026-04-28T00:00:00.000Z',
+        sourceJson: 'sample.json',
+        sourceMhtml: 'sample.mhtml',
+        records: [{
+          tabGuid: 'guid-proof-of-address-type',
+          positionalFingerprint: 'page:1|Text|ord:37',
+          tabLeft: 663.68,
+          tabTop: 512.64,
+          jsonKeyPath: 'merchantData.proofOfAddressType',
+          jsonFieldFamily: 'Attachments',
+          jsonTypeHint: 'enum',
+          docusignFieldFamily: 'Text',
+          confidence: 'high',
+          suggestedDisplayName: 'Proof Of Address Type',
+          suggestedBusinessSection: 'Attachments',
+          layoutSectionHeader: 'Registered Legal Address',
+          layoutFieldLabel: 'Proof of Address Type',
+          layoutValueShape: 'text_name_like',
+          layoutEvidenceSource: 'pdf-text-sequence',
+          layoutNeighboringLabels: ['Address Line 1', 'Address Line 2', 'City', 'State', 'ZIP', 'Proof of Address Type'],
+          layoutEditability: 'editable',
+        }],
+      },
+      alignment: {
+        rows: [{
+          jsonKeyPath: 'merchantData.proofOfAddressType',
+          jsonFieldFamily: 'Attachments',
+          jsonValueSample: 'Utility Bill',
+          jsonTypeHint: 'enum',
+          matchedTabGuid: 'guid-proof-of-address-type',
+          matchedRenderedValue: null,
+          candidateRenderedPrompt: 'Required',
+          candidateDocuSignFieldFamily: 'Text',
+          tabPageIndex: 1,
+          tabOrdinalOnPage: 37,
+          tabLeft: 663.68,
+          tabTop: 512.64,
+          layoutSectionHeader: 'Registered Legal Address',
+          layoutFieldLabel: 'Proof of Address Type',
+          layoutEvidenceSource: 'pdf-text-sequence',
+          layoutValueShape: 'text_name_like',
+          layoutNeighboringLabels: ['Address Line 1', 'Address Line 2', 'City', 'State', 'ZIP', 'Proof of Address Type'],
+          layoutEditability: 'editable',
+          businessSection: 'Attachments',
+          confidence: 'high',
+          matchingMethod: 'layout_cell',
+          notes: 'matched using PDF/MHTML field-cell evidence (Registered Legal Address > Proof of Address Type)',
+        }],
+      },
+      humanProof: {
+        byConcept: {
+          proof_of_address_type: {
+            status: 'confirmed_editable_dropdown',
+            summary: 'Existing mock proof confirms Registered Legal Address > Proof of Address Type is visible and editable as a dropdown/list, separate from the adjacent Proof of Address Document upload widget, separate from uploaded file-value echoes, and separate from stakeholder document metadata on page 3.',
+          },
+        },
+        inferMissingCountryFromOtherDropdowns: false,
+      },
+      summaryPath: 'summary.json',
+      targetDiagnosticsPath: 'diagnostics.json',
+      enrichmentPath: 'enrichment.json',
+      alignmentPath: 'alignment.json',
+    });
+
+    const row = calibration.rows.find((entry) => entry.concept === 'proof_of_address_type');
+
+    expect(row).toBeDefined();
+    expect(row).toMatchObject({
       decision: 'leave_unresolved',
       mappingDecisionReason: 'rejected_insufficient_label_proof',
       appliedHumanProof: {
@@ -10456,9 +10575,8 @@ test.describe('interactive validation safety', () => {
       },
       humanConfirmation: null,
     });
-    expect(row!.missingProof).toContain('Existing mock proof confirms Registered Legal Address > Proof of Address Type is visible and editable as a dropdown/list, separate from the adjacent Proof of Address Document upload widget, separate from uploaded file-value echoes, and separate from stakeholder document metadata on page 3.');
+    expect(row!.missingProof).toContain('Layout label exists but the sample DocuSign control family is Text, not a trusted select/list/radio control.');
     expect(row!.missingProof).toContain('The saved safe-mode report still does not surface a matching field-local Registered Legal Address Proof of Address Type selector.');
-    expect(row!.missingProof.join(' ')).not.toContain('Physical Operating Address target');
   });
 
   test('trusted findings do not request human mapping confirmation', () => {

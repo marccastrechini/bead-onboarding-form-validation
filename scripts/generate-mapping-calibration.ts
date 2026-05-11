@@ -62,7 +62,7 @@ export interface HumanProofAnswers {
   inferMissingCountryFromOtherDropdowns: boolean;
 }
 
-type ProofPromotionKind = 'none' | 'layout_target' | 'selected_candidate';
+type ProofPromotionKind = 'none' | 'layout_target' | 'selected_candidate' | 'offline_layout_target';
 
 interface CalibrationCandidateSummary {
   fieldIndex: number;
@@ -596,10 +596,17 @@ function buildConceptRow(
   let humanConfirmation = buildHumanConfirmationRequest(context, selection, selectedField, nearestShapeMatch, missingProof);
 
   const documentTypeHumanProofField = documentTypeHumanProofPromotableField(context, selection, selectedField);
-  const proofPromotionField = documentTypeHumanProofField ?? proofPromotableField(context, resolution.blockedCandidateIds);
-  const proofPromoted = documentTypeHumanProofField !== null || shouldPromoteWithHumanProof(context, proofPromotionField);
+  const proofOfAddressTypeOfflineField = proofOfAddressTypeOfflineHumanProofPromotableField(context);
+  const proofPromotionField = documentTypeHumanProofField
+    ?? proofOfAddressTypeOfflineField
+    ?? proofPromotableField(context, resolution.blockedCandidateIds);
+  const proofPromoted = documentTypeHumanProofField !== null
+    || proofOfAddressTypeOfflineField !== null
+    || shouldPromoteWithHumanProof(context, proofPromotionField);
   const proofPromotionKind: ProofPromotionKind = documentTypeHumanProofField
     ? 'selected_candidate'
+    : proofOfAddressTypeOfflineField
+      ? 'offline_layout_target'
     : proofPromoted
       ? 'layout_target'
       : 'none';
@@ -759,6 +766,98 @@ function documentTypeHumanProofPromotableField(
   if (!selectedAssessment.conceptSpecificProofMatches) return null;
 
   return selectedField;
+}
+
+function proofOfAddressTypeOfflineHumanProofPromotableField(
+  context: ConceptCalibrationContext,
+): FieldRecord | null {
+  if (context.concept !== 'proof_of_address_type') return null;
+  if (!context.humanProof || context.humanProof.status !== 'confirmed_editable_dropdown') return null;
+  if (liveFieldMatchingSampleLayout(context)) return null;
+
+  const alignmentRow = context.alignmentRow;
+  if (!alignmentRow || alignmentRow.matchingMethod !== 'layout_cell') return null;
+  if (alignmentRow.confidence !== 'high') return null;
+  if (alignmentRow.layoutSectionHeader !== 'Registered Legal Address') return null;
+  if (alignmentRow.layoutFieldLabel !== 'Proof of Address Type') return null;
+  if (!isTrustedControlledChoiceFamily(alignmentRow.candidateDocuSignFieldFamily)) return null;
+  if (alignmentRow.tabPageIndex === null || alignmentRow.tabOrdinalOnPage === null) return null;
+  if (alignmentRow.tabLeft === null || alignmentRow.tabTop === null) return null;
+
+  const section = context.nearbyFields.find((field) =>
+    field.pageIndex === alignmentRow.tabPageIndex && typeof field.section === 'string' && field.section.length > 0,
+  )?.section ?? context.currentField?.section ?? null;
+
+  return {
+    kind: 'combobox',
+    index: context.sourceFieldIndexByField.size,
+    section,
+    label: FIELD_CONCEPT_REGISTRY[context.concept].displayName,
+    resolvedLabel: FIELD_CONCEPT_REGISTRY[context.concept].displayName,
+    labelSource: 'enrichment-position',
+    labelConfidence: 'high',
+    rawCandidateLabels: alignmentRow.candidateRenderedPrompt
+      ? [{ source: 'label-for', value: alignmentRow.candidateRenderedPrompt }]
+      : [],
+    rejectedLabelCandidates: [],
+    labelLooksLikeValue: false,
+    observedValueLikeTextNearControl: null,
+    currentValueShape: (alignmentRow.layoutValueShape as ValueShape | null) ?? 'empty',
+    idOrNameKey: alignmentRow.matchedTabGuid ? `tab-form-element-${alignmentRow.matchedTabGuid}` : null,
+    attachmentEvidence: 'none',
+    groupName: null,
+    placeholder: null,
+    ariaLabel: null,
+    title: null,
+    describedBy: null,
+    helperText: null,
+    type: null,
+    inputMode: null,
+    autocomplete: null,
+    pattern: null,
+    minLength: null,
+    maxLength: null,
+    required: true,
+    docusignTabType: alignmentRow.candidateDocuSignFieldFamily,
+    visible: true,
+    editable: true,
+    controlCategory: 'merchant_input',
+    inferredType: 'proof_of_address_type',
+    inferredClassification: 'manual_review',
+    locatorConfidence: 'css-fallback',
+    checks: [],
+    enrichment: {
+      matchedBy: 'coordinate',
+      jsonKeyPath: alignmentRow.jsonKeyPath,
+      suggestedDisplayName: FIELD_CONCEPT_REGISTRY[context.concept].displayName,
+      suggestedBusinessSection: alignmentRow.businessSection,
+      confidence: alignmentRow.confidence,
+      positionalFingerprint: `page:${alignmentRow.tabPageIndex}|${alignmentRow.candidateDocuSignFieldFamily}|ord:${alignmentRow.tabOrdinalOnPage}`,
+      expectedPageIndex: alignmentRow.tabPageIndex,
+      expectedOrdinalOnPage: alignmentRow.tabOrdinalOnPage,
+      expectedDocusignFieldFamily: alignmentRow.candidateDocuSignFieldFamily,
+      expectedTabLeft: alignmentRow.tabLeft,
+      expectedTabTop: alignmentRow.tabTop,
+      expectedJsonTypeHint: alignmentRow.jsonTypeHint,
+      layoutSectionHeader: alignmentRow.layoutSectionHeader,
+      layoutFieldLabel: alignmentRow.layoutFieldLabel,
+      layoutValueShape: alignmentRow.layoutValueShape,
+      layoutEvidenceSource: alignmentRow.layoutEvidenceSource,
+      layoutNeighboringLabels: alignmentRow.layoutNeighboringLabels,
+      layoutEditability: alignmentRow.layoutEditability,
+      priorResolvedLabel: null,
+      priorLabelSource: 'none',
+      appliedToLabel: true,
+      labelUpgradeBlockedReason: null,
+    },
+    tabGuid: alignmentRow.matchedTabGuid,
+    pageIndex: alignmentRow.tabPageIndex,
+    ordinalOnPage: alignmentRow.tabOrdinalOnPage,
+    tabLeft: alignmentRow.tabLeft,
+    tabTop: alignmentRow.tabTop,
+    tabWidth: null,
+    tabHeight: null,
+  };
 }
 
 function rewriteMissingProofFromHumanProof(
@@ -1219,6 +1318,8 @@ function explainDecision(
   }
   if (proofPromotionKind === 'layout_target') {
     parts.push('Human proof plus a matching live layout target are strong enough to trust this field conservatively.');
+  } else if (proofPromotionKind === 'offline_layout_target') {
+    parts.push('Human proof plus matching local mock MHTML/PDF layout evidence are strong enough to trust this field conservatively.');
   } else if (proofPromotionKind === 'selected_candidate') {
     parts.push('Human proof plus the selected stakeholder metadata selector are strong enough to trust this field conservatively.');
   }
