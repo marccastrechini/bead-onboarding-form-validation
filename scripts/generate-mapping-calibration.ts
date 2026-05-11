@@ -735,6 +735,7 @@ function shouldPromoteWithHumanProof(context: ConceptCalibrationContext, matched
     case 'business_mailing_postal_code':
       return context.humanProof.status === 'confirmed_editable';
     case 'business_mailing_state':
+    case 'proof_of_address_type':
       return context.humanProof.status === 'confirmed_editable_dropdown';
     default:
       return false;
@@ -783,6 +784,16 @@ function rewriteMissingProofFromHumanProof(
     );
     rewritten.push(humanProof.summary);
     rewritten.push('The current safe-mode report still needs the stakeholder document-type selector to remain the best editable list candidate, separate from attachment controls and file-value echoes.');
+    return unique(rewritten);
+  }
+
+  if (context.concept === 'proof_of_address_type') {
+    const rewritten = missingProof.filter((entry) =>
+      !entry.startsWith('A human screenshot is needed to confirm') &&
+      !entry.startsWith('Need a visible editable proof-type selector'),
+    );
+    rewritten.push(humanProof.summary);
+    rewritten.push('The saved safe-mode report still does not surface a matching field-local Registered Legal Address Proof of Address Type selector.');
     return unique(rewritten);
   }
 
