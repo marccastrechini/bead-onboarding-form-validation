@@ -44,6 +44,7 @@ import {
   buildExpectedAnchor,
   buildInteractiveProgressArtifact,
   buildInteractiveResultsFile,
+  buildInteractiveTargetDiagnosticsFile,
   buildInteractiveStepTimeoutResult,
   buildInteractiveValidationPlan,
   extractFieldLocalValidationDiagnostics,
@@ -11105,6 +11106,93 @@ test.describe('interactive validation safety', () => {
       expect(resolved.field.docusignTabType).toBe('List');
       expect(resolved.selection.trusted).toBe(true);
       expect(resolved.selection.decisionReason).toBe('trusted_by_label');
+      expect(resolved.resolutionTrace.calibrationBackedSeed).toBe(true);
+      expect(resolved.resolutionTrace.expectedTarget).toMatchObject({
+        layoutSectionHeader: 'Registered Legal Address',
+        layoutFieldLabel: 'Proof of Address Type',
+        pageIndex: 1,
+        ordinalOnPage: 37,
+        docusignFieldFamily: 'List',
+      });
+      expect(resolved.resolutionTrace.seedField).toMatchObject({
+        fieldIndex: 17,
+        docusignTabType: 'Text',
+      });
+      expect(resolved.resolutionTrace.selectedCandidate).toMatchObject({
+        fieldIndex: 18,
+        docusignTabType: 'List',
+        calibratedProofBacked: true,
+      });
+      expect(resolved.resolutionTrace.nearestListCompatibleCandidates[0]).toMatchObject({
+        fieldIndex: 18,
+        includedInCandidatePool: true,
+      });
+
+      const diagnostic = mockInteractiveTargetDiagnostics(testCase, {
+        docusignTabType: 'Text',
+        expectedDocusignTabType: 'List',
+        pageIndex: 1,
+        expectedPageIndex: 1,
+        ordinalOnPage: 36,
+        expectedOrdinalOnPage: 37,
+        actualFieldSignature: 'id=seed; tag=input; type=text; tabType=Text',
+        targetConfidence: 'mapping_not_confident',
+        targetResolution: resolved.resolutionTrace,
+      });
+      const diagnosticsFile = buildInteractiveTargetDiagnosticsFile({
+        schemaVersion: 1,
+        runStartedAt: '2026-05-11T00:00:00.000Z',
+        runFinishedAt: '2026-05-11T00:00:01.000Z',
+        currentStep: null,
+        guardState: { INTERACTIVE_VALIDATION: true, DISPOSABLE_ENVELOPE: true },
+        sourceReport: {
+          runStartedAt: '2026-05-11T00:00:00.000Z',
+          runFinishedAt: '2026-05-11T00:00:01.000Z',
+        },
+        summary: { total: 1, passed: 0, failed: 0, warning: 0, manual_review: 0, skipped: 1 },
+        outcomes: {
+          passed: 0,
+          product_failure: 0,
+          tool_mapping_suspect: 0,
+          error_ownership_suspect: 0,
+          observer_ambiguous: 0,
+          mapping_not_confident: 1,
+        },
+        targetConcepts: ['proof_of_address_type'],
+        skippedConcepts: [],
+        results: [{
+          concept: 'proof_of_address_type',
+          conceptDisplayName: 'Proof Of Address Type',
+          fieldLabel: 'Proof Of Address Type',
+          targetField: testCase.targetField,
+          validationId: testCase.validationId,
+          caseName: testCase.caseName,
+          testName: testCase.testName,
+          inputValue: testCase.inputValue,
+          expectedBehavior: testCase.expectedBehavior,
+          severity: testCase.severity,
+          status: 'skipped',
+          outcome: 'mapping_not_confident',
+          reasonCode: 'target_mapping_not_trusted',
+          observation: null,
+          targetDiagnostics: diagnostic,
+          evidence: 'target not trusted',
+          interpretation: 'Synthetic target diagnostic test.',
+          recommendation: 'Review target diagnostics.',
+          cleanupStrategy: 'restore_original_value_then_blur',
+          safetyNotes: testCase.safetyNotes,
+          skippedReason: 'target not trusted',
+        }],
+      });
+
+      expect(diagnosticsFile.rows[0]).toMatchObject({
+        expectedDocusignTabType: 'List',
+        expectedPageIndex: 1,
+        expectedOrdinalOnPage: 37,
+        actualFieldSignature: 'id=seed; tag=input; type=text; tabType=Text',
+      });
+      expect(diagnosticsFile.rows[0].targetResolution?.seedField.docusignTabType).toBe('Text');
+      expect(diagnosticsFile.rows[0].targetResolution?.selectedCandidate?.docusignTabType).toBe('List');
     } finally {
       fs.rmSync(calibrationDir, { recursive: true, force: true });
     }
@@ -11246,6 +11334,20 @@ test.describe('interactive validation safety', () => {
       expect(resolved.field.docusignTabType).toBe('Text');
       expect(resolved.selection.trusted).toBe(false);
       expect(resolved.selection.selectedCandidateId).not.toBe('3');
+      expect(resolved.resolutionTrace.expectedTarget.docusignFieldFamily).toBe('List');
+      expect(resolved.resolutionTrace.seedField.docusignTabType).toBe('Text');
+      expect(resolved.resolutionTrace.nearestListCompatibleCandidates).toEqual([]);
+      expect(resolved.resolutionTrace.nearestTextCandidates[0]).toMatchObject({
+        fieldIndex: 18,
+        docusignTabType: 'Text',
+        includedInCandidatePool: false,
+        calibratedProofBacked: false,
+      });
+      expect(resolved.resolutionTrace.selectedCandidate).toMatchObject({
+        fieldIndex: 17,
+        docusignTabType: 'Text',
+      });
+      expect(testCase.safetyNotes).toContain('Does not exercise signature or completion flows.');
     } finally {
       fs.rmSync(calibrationDir, { recursive: true, force: true });
     }
@@ -12563,15 +12665,23 @@ function mockInteractiveTargetDiagnostics(
     mappingConfidence: validationCase.targetProfile.mappingConfidence,
     tabGuid: validationCase.targetProfile.tabGuid,
     docusignTabType: validationCase.targetProfile.docusignTabType,
+    expectedDocusignTabType: validationCase.targetProfile.expectedDocusignFieldFamily ?? validationCase.targetProfile.docusignTabType,
     pageIndex: validationCase.targetProfile.pageIndex,
+    expectedPageIndex: validationCase.targetProfile.expectedPageIndex ?? validationCase.targetProfile.pageIndex,
     ordinalOnPage: validationCase.targetProfile.ordinalOnPage,
+    expectedOrdinalOnPage: validationCase.targetProfile.expectedOrdinalOnPage ?? validationCase.targetProfile.ordinalOnPage,
     coordinates: {
       left: validationCase.targetProfile.coordinates.left,
       top: validationCase.targetProfile.coordinates.top,
       width: validationCase.targetProfile.coordinates.width,
       height: validationCase.targetProfile.coordinates.height,
     },
+    expectedCoordinates: {
+      left: validationCase.targetProfile.expectedCoordinates.left ?? validationCase.targetProfile.coordinates.left,
+      top: validationCase.targetProfile.expectedCoordinates.top ?? validationCase.targetProfile.coordinates.top,
+    },
     locatorStrategy: 'live-discovery-field-index:1',
+    targetResolution: null,
     actualElement: {
       id: 'email-input',
       name: 'email',

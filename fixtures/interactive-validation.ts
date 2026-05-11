@@ -313,6 +313,69 @@ export interface InteractiveElementSignature {
   docusignTabType: string | null;
 }
 
+export interface InteractiveTargetCandidateTrace {
+  candidateId: string;
+  fieldIndex: number;
+  signature: string;
+  inferredType: string | null;
+  docusignTabType: string | null;
+  pageIndex: number | null;
+  ordinalOnPage: number | null;
+  coordinates: {
+    left: number | null;
+    top: number | null;
+  };
+  coordinateDistance: number | null;
+  ordinalDistance: number | null;
+  controlCategory: string | null;
+  visible: boolean | null;
+  editable: boolean | null;
+  labelSource: string | null;
+  labelConfidence: string | null;
+  includedInCandidatePool: boolean;
+  calibratedProofBacked: boolean;
+}
+
+export interface InteractiveTargetAssessmentTrace extends InteractiveTargetCandidateTrace {
+  trustScore: number;
+  valueShape: string;
+  labelMatches: boolean;
+  sectionMatches: boolean;
+  typeMatches: boolean;
+  conceptSpecificProofMatches: boolean;
+  mutatable: boolean;
+  reasons: string[];
+}
+
+export interface InteractiveTargetResolutionTrace {
+  calibrationBackedSeed: boolean;
+  expectedTarget: {
+    displayName: string | null;
+    businessSection: string | null;
+    layoutSectionHeader: string | null;
+    layoutFieldLabel: string | null;
+    pageIndex: number | null;
+    ordinalOnPage: number | null;
+    coordinates: {
+      left: number | null;
+      top: number | null;
+    };
+    docusignFieldFamily: string | null;
+  };
+  seedField: InteractiveTargetCandidateTrace;
+  samePageCandidateCount: number;
+  candidatePoolSize: number;
+  selectedCandidateId: string | null;
+  selectedCandidate: InteractiveTargetCandidateTrace | null;
+  trusted: boolean;
+  decisionReason: string;
+  shiftReason: string;
+  explanation: string;
+  nearestListCompatibleCandidates: InteractiveTargetCandidateTrace[];
+  nearestTextCandidates: InteractiveTargetCandidateTrace[];
+  topCandidateAssessments: InteractiveTargetAssessmentTrace[];
+}
+
 export interface InteractiveTargetDiagnostics {
   intendedFieldDisplayName: string;
   intendedBusinessSection: string | null;
@@ -323,15 +386,23 @@ export interface InteractiveTargetDiagnostics {
   mappingConfidence: string;
   tabGuid: string | null;
   docusignTabType: string | null;
+  expectedDocusignTabType: string | null;
   pageIndex: number | null;
+  expectedPageIndex: number | null;
   ordinalOnPage: number | null;
+  expectedOrdinalOnPage: number | null;
   coordinates: {
     left: number | null;
     top: number | null;
     width: number | null;
     height: number | null;
   };
+  expectedCoordinates: {
+    left: number | null;
+    top: number | null;
+  };
   locatorStrategy: string;
+  targetResolution: InteractiveTargetResolutionTrace | null;
   actualElement: InteractiveElementSignature;
   actualFieldSignature: string;
   targetConfidence: InteractiveTargetConfidence;
@@ -369,6 +440,14 @@ export interface InteractiveTargetDiagnosticsFile {
     testName: string;
     intendedField: string;
     actualFieldSignature: string;
+    expectedDocusignTabType: string | null;
+    expectedPageIndex: number | null;
+    expectedOrdinalOnPage: number | null;
+    expectedCoordinates: {
+      left: number | null;
+      top: number | null;
+    } | null;
+    targetResolution: InteractiveTargetResolutionTrace | null;
     targetConfidence: InteractiveTargetConfidence;
     targetConfidenceReason: string;
     mappingDecisionReason: string | null;
@@ -1779,7 +1858,7 @@ export async function runInteractiveCase(
     placeholder: null,
     docusignTabType: null,
   };
-  const targetDiagnostics = createTargetDiagnostics(testCase, liveField, actualElement, originalValue);
+  const targetDiagnostics = createTargetDiagnostics(testCase, liveField, targetResolution, actualElement, originalValue);
 
   let filled = false;
   let interactionMode: PreparedInteractiveAction['mode'] = 'observe_current';
@@ -2201,6 +2280,11 @@ export function buildInteractiveTargetDiagnosticsFile(
     testName: result.testName,
     intendedField: result.targetDiagnostics?.intendedFieldDisplayName ?? result.fieldLabel ?? 'n/a',
     actualFieldSignature: result.targetDiagnostics?.actualFieldSignature ?? 'n/a',
+    expectedDocusignTabType: result.targetDiagnostics?.expectedDocusignTabType ?? null,
+    expectedPageIndex: result.targetDiagnostics?.expectedPageIndex ?? null,
+    expectedOrdinalOnPage: result.targetDiagnostics?.expectedOrdinalOnPage ?? null,
+    expectedCoordinates: result.targetDiagnostics?.expectedCoordinates ?? null,
+    targetResolution: result.targetDiagnostics?.targetResolution ?? null,
     targetConfidence: result.targetDiagnostics?.targetConfidence ?? 'mapping_not_confident',
     targetConfidenceReason: result.targetDiagnostics?.targetConfidenceReason ?? result.skippedReason ?? result.evidence,
     mappingDecisionReason: result.targetDiagnostics?.mappingDecisionReason ?? null,
@@ -2255,16 +2339,44 @@ export function renderInteractiveTargetDiagnosticsMarkdown(file: InteractiveTarg
   lines.push('');
   lines.push('## Target Review');
   lines.push('');
-  lines.push('| Concept | Test | Intended field | Actual field signature | Target confidence | Reason | Value before/after | Error evidence | Outcome | Interpretation |');
-  lines.push('|---|---|---|---|---|---|---|---|---|---|');
+  lines.push('| Concept | Test | Intended field | Expected target | Actual field signature | Target confidence | Reason | Value before/after | Error evidence | Outcome | Interpretation |');
+  lines.push('|---|---|---|---|---|---|---|---|---|---|---|');
   for (const row of file.rows) {
-    const reason = [row.targetConfidenceReason, ...(row.mappingFlags ?? [])].filter(Boolean).join(' | ');
+    const reason = [row.targetConfidenceReason, ...(row.mappingFlags ?? []), formatTargetResolutionTrace(row.targetResolution)].filter(Boolean).join(' | ');
     lines.push(
-      `| ${esc(row.conceptDisplayName)} | ${esc(row.testName)} | ${esc(row.intendedField)} | ${esc(row.actualFieldSignature)} | ${esc(row.targetConfidence)} | ${esc(reason || 'n/a')} | ${esc(formatValueFlow(row))} | ${esc(row.errorEvidence)} | ${esc(row.outcome)} | ${esc(row.interpretation)} |`,
+      `| ${esc(row.conceptDisplayName)} | ${esc(row.testName)} | ${esc(row.intendedField)} | ${esc(formatExpectedTarget(row))} | ${esc(row.actualFieldSignature)} | ${esc(row.targetConfidence)} | ${esc(reason || 'n/a')} | ${esc(formatValueFlow(row))} | ${esc(row.errorEvidence)} | ${esc(row.outcome)} | ${esc(row.interpretation)} |`,
     );
   }
   lines.push('');
   return lines.join('\n');
+}
+
+function formatExpectedTarget(row: InteractiveTargetDiagnosticsFile['rows'][number]): string {
+  const coordinateText = row.expectedCoordinates && row.expectedCoordinates.left !== null && row.expectedCoordinates.top !== null
+    ? ` @ ${row.expectedCoordinates.left},${row.expectedCoordinates.top}`
+    : '';
+  const pageText = row.expectedPageIndex !== null ? `p${row.expectedPageIndex}` : 'p?';
+  const ordinalText = row.expectedOrdinalOnPage !== null ? `ord${row.expectedOrdinalOnPage}` : 'ord?';
+  const familyText = row.expectedDocusignTabType ?? 'family?';
+  return `${pageText} ${ordinalText} ${familyText}${coordinateText}`;
+}
+
+function formatTargetResolutionTrace(trace: InteractiveTargetResolutionTrace | null): string | null {
+  if (!trace) return null;
+  const listText = trace.nearestListCompatibleCandidates
+    .map((candidate) => candidate.signature)
+    .join(' ; ');
+  const textText = trace.nearestTextCandidates
+    .map((candidate) => candidate.signature)
+    .join(' ; ');
+  return [
+    `seed=${trace.seedField.signature}`,
+    `candidatePool=${trace.candidatePoolSize}/${trace.samePageCandidateCount}`,
+    `selected=${trace.selectedCandidate?.signature ?? trace.selectedCandidateId ?? 'none'}`,
+    `decision=${trace.decisionReason}`,
+    listText ? `nearestList=${listText}` : 'nearestList=none',
+    textText ? `nearestText=${textText}` : 'nearestText=none',
+  ].join('; ');
 }
 
 function toInteractiveCase(
@@ -3334,6 +3446,7 @@ function mappingGateResult(
 function createTargetDiagnostics(
   testCase: InteractiveValidationCase,
   field: DiscoveredField,
+  targetResolution: ReturnType<typeof resolveInteractiveTargetField>,
   actualElement: InteractiveElementSignature,
   originalValue: string | null,
 ): InteractiveTargetDiagnostics {
@@ -3347,15 +3460,23 @@ function createTargetDiagnostics(
     mappingConfidence: testCase.targetProfile.mappingConfidence,
     tabGuid: field.tabGuid ?? testCase.targetProfile.tabGuid,
     docusignTabType: field.docusignTabType ?? testCase.targetProfile.docusignTabType,
+    expectedDocusignTabType: testCase.targetProfile.expectedDocusignFieldFamily ?? testCase.targetProfile.docusignTabType,
     pageIndex: field.pageIndex ?? testCase.targetProfile.pageIndex,
+    expectedPageIndex: testCase.targetProfile.expectedPageIndex ?? testCase.targetProfile.pageIndex,
     ordinalOnPage: field.ordinalOnPage ?? testCase.targetProfile.ordinalOnPage,
+    expectedOrdinalOnPage: testCase.targetProfile.expectedOrdinalOnPage ?? testCase.targetProfile.ordinalOnPage,
     coordinates: {
       left: field.tabLeft ?? testCase.targetProfile.coordinates.left,
       top: field.tabTop ?? testCase.targetProfile.coordinates.top,
       width: field.tabWidth ?? testCase.targetProfile.coordinates.width,
       height: field.tabHeight ?? testCase.targetProfile.coordinates.height,
     },
+    expectedCoordinates: {
+      left: testCase.targetProfile.expectedCoordinates.left ?? testCase.targetProfile.coordinates.left,
+      top: testCase.targetProfile.expectedCoordinates.top ?? testCase.targetProfile.coordinates.top,
+    },
     locatorStrategy: formatLocatorStrategy(testCase.targetField),
+    targetResolution: targetResolution.resolutionTrace,
     actualElement,
     actualFieldSignature: formatActualFieldSignature(actualElement),
     targetConfidence: 'mapping_not_confident',
@@ -3379,9 +3500,13 @@ export function resolveInteractiveTargetField(
 ): {
   field: DiscoveredField;
   selection: ReturnType<typeof selectBestMappingCandidate>;
+  resolutionTrace: InteractiveTargetResolutionTrace;
 } {
   const expectedAnchor = buildExpectedAnchor(testCase);
   const proofOfAddressTypeCalibratedListTarget = usesProofOfAddressTypeCalibratedListTarget(testCase);
+  const samePageCandidates = allFields
+    .filter((candidate) => candidate.controlCategory === 'merchant_input' && candidate.visible && candidate.editable)
+    .filter((candidate) => candidate.pageIndex === expectedAnchor.pageIndex || expectedAnchor.pageIndex === null);
   const candidatePool = allFields
     .filter((candidate) => candidate.controlCategory === 'merchant_input' && candidate.visible && candidate.editable)
     .filter((candidate) => candidate.pageIndex === expectedAnchor.pageIndex || expectedAnchor.pageIndex === null)
@@ -3465,11 +3590,166 @@ export function resolveInteractiveTargetField(
   const selectedField = selection.trusted && selection.selectedCandidateId
     ? candidates.find((candidate) => String(sourceFieldIndex(candidate)) === selection.selectedCandidateId) ?? field
     : field;
+  const candidatePoolIds = new Set(candidates.map((candidate) => String(sourceFieldIndex(candidate))));
+  const candidateById = new Map(candidates.map((candidate) => [String(sourceFieldIndex(candidate)), candidate]));
+  const candidateTrace = (candidate: DiscoveredField): InteractiveTargetCandidateTrace => buildTargetCandidateTrace({
+    candidate,
+    candidateId: String(sourceFieldIndex(candidate)),
+    expectedAnchor,
+    includedInCandidatePool: candidatePoolIds.has(String(sourceFieldIndex(candidate))),
+    calibratedProofBacked: proofOfAddressTypeCalibratedListTarget &&
+      matchesProofOfAddressTypeCalibratedListCandidate(candidate, testCase, expectedAnchor),
+  });
+  const nearestScopedCandidates = samePageCandidates
+    .map(candidateTrace)
+    .sort(compareCandidateTraceDistance);
+  const resolutionTrace: InteractiveTargetResolutionTrace = {
+    calibrationBackedSeed: testCase.targetProfile.calibrationBackedSeed,
+    expectedTarget: {
+      displayName: testCase.targetProfile.intendedFieldDisplayName,
+      businessSection: testCase.targetProfile.intendedBusinessSection,
+      layoutSectionHeader: testCase.targetProfile.layoutSectionHeader,
+      layoutFieldLabel: testCase.targetProfile.layoutFieldLabel,
+      pageIndex: expectedAnchor.pageIndex,
+      ordinalOnPage: expectedAnchor.ordinalOnPage,
+      coordinates: {
+        left: expectedAnchor.tabLeft,
+        top: expectedAnchor.tabTop,
+      },
+      docusignFieldFamily: expectedAnchor.docusignFieldFamily,
+    },
+    seedField: candidateTrace(field),
+    samePageCandidateCount: samePageCandidates.length,
+    candidatePoolSize: candidates.length,
+    selectedCandidateId: selection.selectedCandidateId,
+    selectedCandidate: selectedField ? candidateTrace(selectedField) : null,
+    trusted: selection.trusted,
+    decisionReason: selection.decisionReason,
+    shiftReason: selection.shiftReason,
+    explanation: selection.explanation,
+    nearestListCompatibleCandidates: nearestScopedCandidates
+      .filter((candidate) => isSelectCompatibleTabType(candidate.docusignTabType))
+      .slice(0, 5),
+    nearestTextCandidates: nearestScopedCandidates
+      .filter((candidate) => /^text$/i.test(candidate.docusignTabType ?? ''))
+      .slice(0, 5),
+    topCandidateAssessments: selection.assessments
+      .slice(0, 8)
+      .map((assessment) => {
+        const candidate = candidateById.get(assessment.candidateId);
+        const trace = candidate
+          ? candidateTrace(candidate)
+          : buildSyntheticAssessmentTrace(assessment, expectedAnchor);
+        return {
+          ...trace,
+          trustScore: assessment.trustScore,
+          valueShape: assessment.valueShape,
+          labelMatches: assessment.labelMatches,
+          sectionMatches: assessment.sectionMatches,
+          typeMatches: assessment.typeMatches,
+          conceptSpecificProofMatches: assessment.conceptSpecificProofMatches,
+          mutatable: assessment.mutatable,
+          reasons: assessment.reasons,
+        };
+      }),
+  };
 
   return {
     field: selectedField,
     selection,
+    resolutionTrace,
   };
+}
+
+function buildTargetCandidateTrace(input: {
+  candidate: DiscoveredField;
+  candidateId: string;
+  expectedAnchor: ReturnType<typeof buildExpectedAnchor>;
+  includedInCandidatePool: boolean;
+  calibratedProofBacked: boolean;
+}): InteractiveTargetCandidateTrace {
+  const inferredType = typeof input.candidate.inferredType === 'string'
+    ? input.candidate.inferredType
+    : input.candidate.inferredType?.type ?? null;
+  return {
+    candidateId: input.candidateId,
+    fieldIndex: input.candidate.index,
+    signature: formatCandidateTraceSignature(input.candidate),
+    inferredType,
+    docusignTabType: input.candidate.docusignTabType ?? null,
+    pageIndex: input.candidate.pageIndex ?? null,
+    ordinalOnPage: input.candidate.ordinalOnPage ?? null,
+    coordinates: {
+      left: input.candidate.tabLeft ?? null,
+      top: input.candidate.tabTop ?? null,
+    },
+    coordinateDistance: expectedAnchorCoordinateDistance(input.candidate, input.expectedAnchor),
+    ordinalDistance: expectedAnchorOrdinalDistance(input.candidate, input.expectedAnchor),
+    controlCategory: input.candidate.controlCategory ?? null,
+    visible: input.candidate.visible ?? null,
+    editable: input.candidate.editable ?? null,
+    labelSource: input.candidate.labelSource ?? null,
+    labelConfidence: input.candidate.labelConfidence ?? null,
+    includedInCandidatePool: input.includedInCandidatePool,
+    calibratedProofBacked: input.calibratedProofBacked,
+  };
+}
+
+function buildSyntheticAssessmentTrace(
+  assessment: ReturnType<typeof selectBestMappingCandidate>['assessments'][number],
+  expectedAnchor: ReturnType<typeof buildExpectedAnchor>,
+): InteractiveTargetCandidateTrace {
+  return {
+    candidateId: assessment.candidateId,
+    fieldIndex: Number(assessment.candidateId),
+    signature: `candidateId=${assessment.candidateId}; tabType=${assessment.docusignTabType ?? 'n/a'}; p${assessment.pageIndex ?? '?'}; ord${assessment.ordinalOnPage ?? '?'}; @${assessment.tabLeft ?? '?'},${assessment.tabTop ?? '?'}`,
+    inferredType: null,
+    docusignTabType: assessment.docusignTabType,
+    pageIndex: assessment.pageIndex,
+    ordinalOnPage: assessment.ordinalOnPage,
+    coordinates: {
+      left: assessment.tabLeft,
+      top: assessment.tabTop,
+    },
+    coordinateDistance: expectedAnchorCoordinateDistance(assessment, expectedAnchor),
+    ordinalDistance: expectedAnchorOrdinalDistance(assessment, expectedAnchor),
+    controlCategory: null,
+    visible: null,
+    editable: null,
+    labelSource: null,
+    labelConfidence: null,
+    includedInCandidatePool: true,
+    calibratedProofBacked: false,
+  };
+}
+
+function formatCandidateTraceSignature(candidate: DiscoveredField): string {
+  const inferredType = typeof candidate.inferredType === 'string'
+    ? candidate.inferredType
+    : candidate.inferredType?.type ?? null;
+  return [
+    `fieldIndex=${candidate.index}`,
+    inferredType ? `type=${inferredType}` : null,
+    candidate.docusignTabType ? `tabType=${candidate.docusignTabType}` : null,
+    candidate.pageIndex !== null && candidate.pageIndex !== undefined ? `p${candidate.pageIndex}` : null,
+    candidate.ordinalOnPage !== null && candidate.ordinalOnPage !== undefined ? `ord${candidate.ordinalOnPage}` : null,
+    candidate.tabLeft !== null && candidate.tabLeft !== undefined && candidate.tabTop !== null && candidate.tabTop !== undefined
+      ? `@${candidate.tabLeft},${candidate.tabTop}`
+      : null,
+  ].filter(Boolean).join('; ');
+}
+
+function compareCandidateTraceDistance(
+  left: InteractiveTargetCandidateTrace,
+  right: InteractiveTargetCandidateTrace,
+): number {
+  const leftDistance = left.coordinateDistance ?? Number.POSITIVE_INFINITY;
+  const rightDistance = right.coordinateDistance ?? Number.POSITIVE_INFINITY;
+  if (leftDistance !== rightDistance) return leftDistance - rightDistance;
+  const leftOrdinal = left.ordinalDistance ?? Number.POSITIVE_INFINITY;
+  const rightOrdinal = right.ordinalDistance ?? Number.POSITIVE_INFINITY;
+  if (leftOrdinal !== rightOrdinal) return leftOrdinal - rightOrdinal;
+  return left.fieldIndex - right.fieldIndex;
 }
 
 function usesProofOfAddressTypeCalibratedListTarget(testCase: InteractiveValidationCase): boolean {
@@ -3527,6 +3807,22 @@ function expectedAnchorCoordinateDistance(
     Math.abs(candidate.tabLeft - expectedAnchor.tabLeft),
     Math.abs(candidate.tabTop - expectedAnchor.tabTop),
   );
+}
+
+function expectedAnchorOrdinalDistance(
+  candidate: Pick<DiscoveredField, 'ordinalOnPage'>,
+  expectedAnchor: ReturnType<typeof buildExpectedAnchor>,
+): number | null {
+  if (
+    expectedAnchor.ordinalOnPage === null ||
+    expectedAnchor.ordinalOnPage === undefined ||
+    candidate.ordinalOnPage === null ||
+    candidate.ordinalOnPage === undefined
+  ) {
+    return null;
+  }
+
+  return Math.abs(candidate.ordinalOnPage - expectedAnchor.ordinalOnPage);
 }
 
 export function buildExpectedAnchor(testCase: InteractiveValidationCase): {
