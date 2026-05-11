@@ -2391,6 +2391,35 @@ function toInteractiveCase(
 ): InteractiveValidationCase {
   const calibrationEvidence = match.calibrationEvidence;
   const calibrationSeeded = calibrationBackedSeed && Boolean(calibrationEvidence);
+  const targetLayoutSectionHeader = calibrationSeeded
+    ? calibrationEvidence?.layoutSectionHeader ?? sourceField.enrichment?.layoutSectionHeader ?? null
+    : sourceField.enrichment?.layoutSectionHeader ?? calibrationEvidence?.layoutSectionHeader ?? null;
+  const targetLayoutFieldLabel = calibrationSeeded
+    ? calibrationEvidence?.layoutFieldLabel ?? sourceField.enrichment?.layoutFieldLabel ?? null
+    : sourceField.enrichment?.layoutFieldLabel ?? calibrationEvidence?.layoutFieldLabel ?? null;
+  const targetLayoutEvidenceSource = calibrationSeeded
+    ? calibrationEvidence?.layoutEvidenceSource ?? sourceField.enrichment?.layoutEvidenceSource ?? null
+    : sourceField.enrichment?.layoutEvidenceSource ?? calibrationEvidence?.layoutEvidenceSource ?? null;
+  const targetJsonKeyPath = calibrationSeeded
+    ? calibrationEvidence?.jsonKeyPath ?? sourceField.enrichment?.jsonKeyPath ?? null
+    : sourceField.enrichment?.jsonKeyPath ?? calibrationEvidence?.jsonKeyPath ?? null;
+  const targetExpectedPageIndex = calibrationSeeded
+    ? calibrationEvidence?.expectedPageIndex ?? sourceField.enrichment?.expectedPageIndex ?? null
+    : sourceField.enrichment?.expectedPageIndex ?? calibrationEvidence?.expectedPageIndex ?? null;
+  const targetExpectedOrdinalOnPage = calibrationSeeded
+    ? calibrationEvidence?.expectedOrdinalOnPage ?? sourceField.enrichment?.expectedOrdinalOnPage ?? null
+    : sourceField.enrichment?.expectedOrdinalOnPage ?? calibrationEvidence?.expectedOrdinalOnPage ?? null;
+  const targetExpectedDocusignFieldFamily = calibrationSeeded
+    ? calibrationEvidence?.expectedDocusignFieldFamily ?? sourceField.enrichment?.expectedDocusignFieldFamily ?? null
+    : sourceField.enrichment?.expectedDocusignFieldFamily ?? calibrationEvidence?.expectedDocusignFieldFamily ?? null;
+  const targetExpectedCoordinates = {
+    left: calibrationSeeded
+      ? calibrationEvidence?.expectedTabLeft ?? sourceField.enrichment?.expectedTabLeft ?? null
+      : sourceField.enrichment?.expectedTabLeft ?? calibrationEvidence?.expectedTabLeft ?? null,
+    top: calibrationSeeded
+      ? calibrationEvidence?.expectedTabTop ?? sourceField.enrichment?.expectedTabTop ?? null
+      : sourceField.enrichment?.expectedTabTop ?? calibrationEvidence?.expectedTabTop ?? null,
+  };
   return {
     id: `${concept}:${validation.id}:${matrixCase.caseName}`,
     concept,
@@ -2402,10 +2431,10 @@ function toInteractiveCase(
       intendedBusinessSection: match.businessSection,
       intendedSectionName: sourceField.section,
       calibrationBackedSeed: calibrationSeeded,
-      layoutSectionHeader: sourceField.enrichment?.layoutSectionHeader ?? calibrationEvidence?.layoutSectionHeader ?? null,
-      layoutFieldLabel: sourceField.enrichment?.layoutFieldLabel ?? calibrationEvidence?.layoutFieldLabel ?? null,
-      layoutEvidenceSource: sourceField.enrichment?.layoutEvidenceSource ?? calibrationEvidence?.layoutEvidenceSource ?? null,
-      jsonKeyPath: sourceField.enrichment?.jsonKeyPath ?? calibrationEvidence?.jsonKeyPath ?? null,
+      layoutSectionHeader: targetLayoutSectionHeader,
+      layoutFieldLabel: targetLayoutFieldLabel,
+      layoutEvidenceSource: targetLayoutEvidenceSource,
+      jsonKeyPath: targetJsonKeyPath,
       enrichmentMatchedBy: sourceField.enrichment?.matchedBy ?? null,
       enrichmentPositionalFingerprint: sourceField.enrichment?.positionalFingerprint ?? null,
       inferredType: calibrationSeeded ? match.inferredType : sourceField.inferredType,
@@ -2420,19 +2449,16 @@ function toInteractiveCase(
       ordinalOnPage: calibrationSeeded
         ? calibrationEvidence?.expectedOrdinalOnPage ?? sourceField.ordinalOnPage
         : sourceField.ordinalOnPage,
-      expectedPageIndex: sourceField.enrichment?.expectedPageIndex ?? calibrationEvidence?.expectedPageIndex ?? null,
-      expectedOrdinalOnPage: sourceField.enrichment?.expectedOrdinalOnPage ?? calibrationEvidence?.expectedOrdinalOnPage ?? null,
-      expectedDocusignFieldFamily: sourceField.enrichment?.expectedDocusignFieldFamily ?? calibrationEvidence?.expectedDocusignFieldFamily ?? null,
+      expectedPageIndex: targetExpectedPageIndex,
+      expectedOrdinalOnPage: targetExpectedOrdinalOnPage,
+      expectedDocusignFieldFamily: targetExpectedDocusignFieldFamily,
       coordinates: {
         left: calibrationSeeded ? calibrationEvidence?.expectedTabLeft ?? sourceField.tabLeft : sourceField.tabLeft,
         top: calibrationSeeded ? calibrationEvidence?.expectedTabTop ?? sourceField.tabTop : sourceField.tabTop,
         width: sourceField.tabWidth,
         height: sourceField.tabHeight,
       },
-      expectedCoordinates: {
-        left: sourceField.enrichment?.expectedTabLeft ?? calibrationEvidence?.expectedTabLeft ?? null,
-        top: sourceField.enrichment?.expectedTabTop ?? calibrationEvidence?.expectedTabTop ?? null,
-      },
+      expectedCoordinates: targetExpectedCoordinates,
     },
     validationId: validation.id,
     caseName: matrixCase.caseName,

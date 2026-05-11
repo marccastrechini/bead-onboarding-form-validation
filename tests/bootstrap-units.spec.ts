@@ -10909,6 +10909,22 @@ test.describe('interactive validation safety', () => {
           inferredType: 'phone',
           inferredClassification: 'manual_review',
           currentValueShape: 'phone',
+          enrichment: {
+            jsonKeyPath: 'merchantData.proofOfAddressType',
+            matchedBy: 'enrichment-position',
+            confidence: 'high',
+            suggestedDisplayName: 'Proof Of Address Type',
+            suggestedBusinessSection: 'Attachments',
+            layoutSectionHeader: 'Registered Legal Address',
+            layoutFieldLabel: 'Proof of Address Type',
+            layoutEvidenceSource: 'mapping-calibration',
+            positionalFingerprint: 'page:1|Text|ord:34',
+            expectedPageIndex: 1,
+            expectedOrdinalOnPage: 34,
+            expectedDocusignFieldFamily: 'Text',
+            expectedTabLeft: 663.04,
+            expectedTabTop: 433.92,
+          },
           pageIndex: 1,
           ordinalOnPage: 36,
           tabLeft: 663.04,
@@ -11099,6 +11115,10 @@ test.describe('interactive validation safety', () => {
         expectedPageIndex: 1,
         expectedOrdinalOnPage: 37,
         expectedDocusignFieldFamily: 'List',
+        expectedCoordinates: {
+          left: 663.6800000000001,
+          top: 512.64,
+        },
       });
       expect(testCase.cleanupStrategy).toBe('restore_original_value_then_blur');
       expect(testCase.safetyNotes).toContain('Does not exercise signature or completion flows.');
@@ -11112,6 +11132,10 @@ test.describe('interactive validation safety', () => {
         layoutFieldLabel: 'Proof of Address Type',
         pageIndex: 1,
         ordinalOnPage: 37,
+        coordinates: {
+          left: 663.6800000000001,
+          top: 512.64,
+        },
         docusignFieldFamily: 'List',
       });
       expect(resolved.resolutionTrace.seedField).toMatchObject({
@@ -11248,6 +11272,22 @@ test.describe('interactive validation safety', () => {
           inferredType: 'phone',
           inferredClassification: 'manual_review',
           currentValueShape: 'phone',
+          enrichment: {
+            jsonKeyPath: 'merchantData.proofOfAddressType',
+            matchedBy: 'enrichment-position',
+            confidence: 'high',
+            suggestedDisplayName: 'Proof Of Address Type',
+            suggestedBusinessSection: 'Attachments',
+            layoutSectionHeader: 'Registered Legal Address',
+            layoutFieldLabel: 'Proof of Address Type',
+            layoutEvidenceSource: 'mapping-calibration',
+            positionalFingerprint: 'page:1|Text|ord:34',
+            expectedPageIndex: 1,
+            expectedOrdinalOnPage: 34,
+            expectedDocusignFieldFamily: 'Text',
+            expectedTabLeft: 663.04,
+            expectedTabTop: 433.92,
+          },
           pageIndex: 1,
           ordinalOnPage: 36,
           tabLeft: 663.04,
@@ -11298,6 +11338,17 @@ test.describe('interactive validation safety', () => {
           currentValueShape: 'text_name_like',
         }),
         mockDiscoveredField({
+          index: 63,
+          sectionName: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
+          inferredType: 'unknown_manual_review',
+          docusignTabType: 'List',
+          pageIndex: 1,
+          ordinalOnPage: 39,
+          tabLeft: 350.08,
+          tabTop: 544.64,
+          currentValueShape: 'text_name_like',
+        }),
+        mockDiscoveredField({
           index: 95,
           sectionName: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
           inferredType: 'upload',
@@ -11333,16 +11384,33 @@ test.describe('interactive validation safety', () => {
       expect(resolved.field.index).toBe(17);
       expect(resolved.field.docusignTabType).toBe('Text');
       expect(resolved.selection.trusted).toBe(false);
-      expect(resolved.selection.selectedCandidateId).not.toBe('3');
+      expect(resolved.selection.selectedCandidateId).toBe('3');
+      expect(testCase.targetProfile.expectedCoordinates).toEqual({
+        left: 663.6800000000001,
+        top: 512.64,
+      });
       expect(resolved.resolutionTrace.expectedTarget.docusignFieldFamily).toBe('List');
       expect(resolved.resolutionTrace.seedField.docusignTabType).toBe('Text');
-      expect(resolved.resolutionTrace.nearestListCompatibleCandidates).toEqual([]);
+      expect(resolved.resolutionTrace.nearestListCompatibleCandidates[0]).toMatchObject({
+        fieldIndex: 63,
+        docusignTabType: 'List',
+        includedInCandidatePool: true,
+        calibratedProofBacked: false,
+      });
       expect(resolved.resolutionTrace.nearestTextCandidates[0]).toMatchObject({
         fieldIndex: 18,
         docusignTabType: 'Text',
         includedInCandidatePool: false,
         calibratedProofBacked: false,
       });
+      expect(resolved.resolutionTrace.topCandidateAssessments[0]).toMatchObject({
+        fieldIndex: 63,
+        docusignTabType: 'List',
+        conceptSpecificProofMatches: false,
+      });
+      expect(resolved.resolutionTrace.topCandidateAssessments[0]?.reasons).toContain(
+        'missing Registered Legal Address Proof of Address Type layout proof',
+      );
       expect(resolved.resolutionTrace.selectedCandidate).toMatchObject({
         fieldIndex: 17,
         docusignTabType: 'Text',
