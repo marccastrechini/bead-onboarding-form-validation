@@ -593,8 +593,9 @@ function buildConceptRow(
   let missingProof = missingProofForSelection(context, selection, selectedField, nearestShapeMatch);
   let humanConfirmation = buildHumanConfirmationRequest(context, selection, selectedField, nearestShapeMatch, missingProof);
 
-  const proofPromotionField = proofPromotableField(context, resolution.blockedCandidateIds);
-  const proofPromoted = shouldPromoteWithHumanProof(context, proofPromotionField);
+  const documentTypeHumanProofField = documentTypeHumanProofPromotableField(context, selection, selectedField);
+  const proofPromotionField = documentTypeHumanProofField ?? proofPromotableField(context, resolution.blockedCandidateIds);
+  const proofPromoted = documentTypeHumanProofField !== null || shouldPromoteWithHumanProof(context, proofPromotionField);
   if (proofPromoted && proofPromotionField) {
     selectedField = proofPromotionField;
     decision = context.currentField && sourceFieldIndex(context, context.currentField) === sourceFieldIndex(context, selectedField)
@@ -733,6 +734,25 @@ function shouldPromoteWithHumanProof(context: ConceptCalibrationContext, matched
   }
 }
 
+function documentTypeHumanProofPromotableField(
+  context: ConceptCalibrationContext,
+  selection: ReturnType<typeof resolveMappingClaims>[number]['selection'],
+  selectedField: FieldRecord | null,
+): FieldRecord | null {
+  if (context.concept !== 'document_type') return null;
+  if (!context.humanProof || context.humanProof.status !== 'confirmed_editable_dropdown') return null;
+  if (!selectedField || !selection.selectedCandidateId) return null;
+  if (selectedField.controlCategory && selectedField.controlCategory !== 'merchant_input') return null;
+  if (selectedField.visible === false || selectedField.editable === false) return null;
+  if (!isTrustedControlledChoiceFamily(selectedField.docusignTabType)) return null;
+
+  const selectedAssessment = selection.assessments.find((assessment) => assessment.candidateId === selection.selectedCandidateId) ?? null;
+  if (!selectedAssessment || !selectedAssessment.mutatable || selectedAssessment.valueShapeMismatch) return null;
+  if (!selectedAssessment.conceptSpecificProofMatches) return null;
+
+  return selectedField;
+}
+
 function rewriteMissingProofFromHumanProof(
   context: ConceptCalibrationContext,
   missingProof: string[],
@@ -746,6 +766,16 @@ function rewriteMissingProofFromHumanProof(
     if (!context.inferMissingCountryFromOtherDropdowns) {
       rewritten.push('Do not infer this missing country field from other visible country dropdowns in the flow.');
     }
+    return unique(rewritten);
+  }
+
+  if (context.concept === 'document_type') {
+    const rewritten = missingProof.filter((entry) =>
+      !entry.startsWith('A human screenshot is needed to confirm') &&
+      !entry.startsWith('Need a visible editable stakeholder ID Type or Document Type selector'),
+    );
+    rewritten.push(humanProof.summary);
+    rewritten.push('The current safe-mode report still needs the stakeholder document-type selector to remain the best editable list candidate, separate from attachment controls and file-value echoes.');
     return unique(rewritten);
   }
 

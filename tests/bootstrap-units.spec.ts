@@ -10124,6 +10124,107 @@ test.describe('interactive validation safety', () => {
     });
   });
 
+  test('document_type trusts stakeholder idType fallback evidence once local human proof confirms the selector', () => {
+    const calibration = buildMappingCalibration({
+      report: mockValidationReport([
+        mockField({
+          index: 1,
+          kind: 'combobox',
+          section: 'Bead Onboarding Application US-02604-2.pdf Page 3 of 4.',
+          rawCandidateLabels: [{ source: 'label-for', value: 'Required - stakeholder1IdType' }],
+          rejectedLabelCandidates: [{ source: 'label-for', value: 'Required - stakeholder1IdType', reason: 'docusign-stub' }],
+          helperText: 'Required - AttachmentRequired - Attachment - SignerAttachmentOptional',
+          docusignTabType: 'List',
+          inferredType: 'document_type',
+          inferredClassification: 'manual_review',
+          pageIndex: 3,
+          ordinalOnPage: 10,
+          tabLeft: 37.12,
+          tabTop: 186.88,
+        }),
+      ]),
+      targetDiagnostics: {
+        schemaVersion: 1,
+        runStartedAt: '2026-04-28T00:00:00.000Z',
+        runFinishedAt: '2026-04-28T00:00:01.000Z',
+        summary: {
+          total: 0,
+          trusted: 0,
+          tool_mapping_suspect: 0,
+          mapping_not_confident: 0,
+          error_ownership_suspect: 0,
+          product_failure: 0,
+          observer_ambiguous: 0,
+          passed: 0,
+          skipped: 0,
+          manual_review: 0,
+        },
+        rows: [],
+      },
+      enrichment: {
+        schemaVersion: 1,
+        generatedAt: '2026-04-28T00:00:00.000Z',
+        sourceJson: 'sample.json',
+        sourceMhtml: 'sample.mhtml',
+        records: [],
+      },
+      alignment: {
+        rows: [{
+          jsonKeyPath: 'merchantData.stakeholders[0].idType',
+          jsonFieldFamily: 'Stakeholder',
+          jsonValueSample: 'driverLicense',
+          jsonTypeHint: 'enum',
+          matchedTabGuid: null,
+          matchedRenderedValue: null,
+          candidateRenderedPrompt: null,
+          candidateDocuSignFieldFamily: null,
+          tabPageIndex: null,
+          tabOrdinalOnPage: null,
+          tabLeft: null,
+          tabTop: null,
+          layoutSectionHeader: null,
+          layoutFieldLabel: null,
+          layoutEvidenceSource: null,
+          layoutValueShape: null,
+          layoutNeighboringLabels: [],
+          layoutEditability: null,
+          businessSection: 'Stakeholder',
+          confidence: 'none',
+          matchingMethod: 'unmatched',
+          notes: 'no rendered value matched any variant',
+        }],
+      },
+      humanProof: {
+        byConcept: {
+          document_type: {
+            status: 'confirmed_editable_dropdown',
+            summary: 'Existing mock proof confirms Stakeholder > Required - stakeholder1IdType is visible and editable as a dropdown/list, separate from Attachment controls and not a file-value echo.',
+          },
+        },
+        inferMissingCountryFromOtherDropdowns: false,
+      },
+      summaryPath: 'summary.json',
+      targetDiagnosticsPath: 'diagnostics.json',
+      enrichmentPath: 'enrichment.json',
+      alignmentPath: 'alignment.json',
+    });
+
+    const row = calibration.rows.find((entry) => entry.concept === 'document_type');
+
+    expect(row).toBeDefined();
+    expect(row).toMatchObject({
+      decision: 'trust_likely_better_candidate',
+      mappingDecisionReason: 'trusted_by_label',
+      appliedHumanProof: {
+        status: 'confirmed_editable_dropdown',
+      },
+      humanConfirmation: null,
+    });
+    expect(row!.selectedCandidate).toContain('#1');
+    expect(row!.missingProof).toEqual([]);
+    expect(row!.explanation).toContain('Human proof: Existing mock proof confirms Stakeholder > Required - stakeholder1IdType is visible and editable as a dropdown/list, separate from Attachment controls and not a file-value echo.');
+  });
+
   test('trusted findings do not request human mapping confirmation', () => {
     const input = mockFindingsInput({
       results: [mockFindingsResult({
