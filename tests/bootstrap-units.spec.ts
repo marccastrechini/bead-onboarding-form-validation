@@ -10579,6 +10579,502 @@ test.describe('interactive validation safety', () => {
     expect(row!.missingProof).toContain('The saved safe-mode report still does not surface a matching field-local Registered Legal Address Proof of Address Type selector.');
   });
 
+  test('proof_of_address_type scorecard handoff materializes the calibrated registered-address selector without changing document_type', () => {
+    const report = mockValidationReport([
+      mockField({
+        index: 37,
+        kind: 'combobox',
+        section: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
+        docusignTabType: 'List',
+        inferredType: 'unknown_manual_review',
+        inferredClassification: 'manual_review',
+        currentValueShape: 'empty',
+        pageIndex: 1,
+        ordinalOnPage: 37,
+        tabLeft: 663.68,
+        tabTop: 512.64,
+      }),
+      mockField({
+        index: 76,
+        kind: 'combobox',
+        section: 'Bead Onboarding Application US-02604-2.pdf Page 3 of 4.',
+        resolvedLabel: 'Proof Of Address Type',
+        label: 'Proof Of Address Type',
+        labelSource: 'aria-label',
+        labelConfidence: 'low',
+        docusignTabType: 'List',
+        inferredType: 'proof_of_address_type',
+        inferredClassification: 'manual_review',
+        currentValueShape: 'empty',
+        helperText: 'Required - AttachmentRequired - Attachment - SignerAttachmentOptional',
+        pageIndex: 3,
+        ordinalOnPage: 10,
+        tabLeft: 37.12,
+        tabTop: 186.88,
+      }),
+      mockField({
+        index: 77,
+        kind: 'combobox',
+        section: 'Bead Onboarding Application US-02604-2.pdf Page 3 of 4.',
+        docusignTabType: 'List',
+        inferredType: 'document_type',
+        inferredClassification: 'manual_review',
+        currentValueShape: 'empty',
+        helperText: 'Required - AttachmentRequired - Attachment - SignerAttachmentOptional',
+        pageIndex: 3,
+        ordinalOnPage: 11,
+        tabLeft: 37.12,
+        tabTop: 218.88,
+      }),
+    ]);
+
+    const scorecard = buildValidationScorecard(report, null, {
+      schemaVersion: 1,
+      rows: [{
+        concept: 'proof_of_address_type',
+        conceptDisplayName: 'Proof Of Address Type',
+        jsonKeyPath: 'merchantData.proofOfAddressType',
+        currentCandidateFieldIndex: 76,
+        selectedCandidate: '#101 Proof of Address Type Attachments p1 ord37 List shape=empty editable=editable layout=Registered Legal Address > Proof of Address Type @ 663.68,512.64',
+        decision: 'trust_likely_better_candidate',
+        calibrationReason: 'offline_layout_target_after_safe_mode_gap',
+        mappingDecisionReason: 'trusted_by_label',
+        missingProof: [],
+        neighborWindow: [{
+          fieldIndex: 76,
+          businessSection: 'Attachments',
+          layoutSectionHeader: 'Stakeholder',
+          layoutFieldLabel: 'Proof of Address Type',
+          pageIndex: 3,
+          ordinalOnPage: 10,
+          coordinates: '37.12,186.88',
+          tabType: 'List',
+        }],
+      }],
+    });
+
+    const proofOfAddressTypeScore = scorecard.conceptScores.find((entry) => entry.key === 'proof_of_address_type')!;
+    const documentTypeScore = scorecard.conceptScores.find((entry) => entry.key === 'document_type')!;
+
+    expect(proofOfAddressTypeScore.identifiedWithConfidence).toBe(true);
+    expect(proofOfAddressTypeScore.identificationConfidence).toBe('high');
+    expect(proofOfAddressTypeScore.cannotRunValidationCount).toBe(0);
+    expect(proofOfAddressTypeScore.bestPracticeValidations.every((entry) => entry.status === 'not_run')).toBe(true);
+    expect(proofOfAddressTypeScore.mappedFields[0]).toMatchObject({
+      fieldIndex: 37,
+      displayName: 'Proof Of Address Type',
+      identificationConfidence: 'high',
+      calibrationEvidence: {
+        layoutSectionHeader: 'Registered Legal Address',
+        layoutFieldLabel: 'Proof of Address Type',
+        expectedPageIndex: 1,
+        expectedOrdinalOnPage: 37,
+        expectedDocusignFieldFamily: 'List',
+      },
+    });
+    expect(documentTypeScore.identifiedWithConfidence).toBe(false);
+    expect(documentTypeScore.mappedFields.every((field) => field.fieldIndex !== 37)).toBe(true);
+  });
+
+  test('proof_of_address_type interactive handoff emits controlled-choice cases from the calibrated registered-address selector', () => {
+    const calibrationDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bead-proof-of-address-handoff-'));
+    const calibrationPath = path.join(calibrationDir, 'latest-mapping-calibration.json');
+
+    fs.writeFileSync(calibrationPath, JSON.stringify({
+      schemaVersion: 1,
+      rows: [{
+        concept: 'proof_of_address_type',
+        conceptDisplayName: 'Proof Of Address Type',
+        jsonKeyPath: 'merchantData.proofOfAddressType',
+        currentCandidateFieldIndex: 76,
+        selectedCandidate: '#101 Proof of Address Type Attachments p1 ord37 List shape=empty editable=editable layout=Registered Legal Address > Proof of Address Type @ 663.68,512.64',
+        decision: 'trust_likely_better_candidate',
+        calibrationReason: 'offline_layout_target_after_safe_mode_gap',
+        mappingDecisionReason: 'trusted_by_label',
+        missingProof: [],
+        neighborWindow: [{
+          fieldIndex: 76,
+          businessSection: 'Attachments',
+          layoutSectionHeader: 'Stakeholder',
+          layoutFieldLabel: 'Proof of Address Type',
+          pageIndex: 3,
+          ordinalOnPage: 10,
+          coordinates: '37.12,186.88',
+          tabType: 'List',
+        }],
+      }],
+    }), 'utf8');
+
+    try {
+      const report = mockValidationReport([
+        mockField({
+          index: 37,
+          kind: 'combobox',
+          section: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
+          docusignTabType: 'List',
+          inferredType: 'unknown_manual_review',
+          inferredClassification: 'manual_review',
+          currentValueShape: 'empty',
+          pageIndex: 1,
+          ordinalOnPage: 37,
+          tabLeft: 663.68,
+          tabTop: 512.64,
+        }),
+        mockField({
+          index: 76,
+          kind: 'combobox',
+          section: 'Bead Onboarding Application US-02604-2.pdf Page 3 of 4.',
+          resolvedLabel: 'Proof Of Address Type',
+          label: 'Proof Of Address Type',
+          labelSource: 'aria-label',
+          labelConfidence: 'low',
+          docusignTabType: 'List',
+          inferredType: 'proof_of_address_type',
+          inferredClassification: 'manual_review',
+          currentValueShape: 'empty',
+          helperText: 'Required - AttachmentRequired - Attachment - SignerAttachmentOptional',
+          pageIndex: 3,
+          ordinalOnPage: 10,
+          tabLeft: 37.12,
+          tabTop: 186.88,
+        }),
+      ]);
+
+      const plan = buildInteractiveValidationPlan(report, {
+        INTERACTIVE_CONCEPTS: 'proof_of_address_type',
+        INTERACTIVE_MAPPING_CALIBRATION_PATH: calibrationPath,
+      } as NodeJS.ProcessEnv);
+      const proofOfAddressTypeCases = plan.cases.filter((entry) => entry.concept === 'proof_of_address_type');
+
+      expect(plan.skippedConcepts).toEqual([]);
+      expect(proofOfAddressTypeCases.map((entry) => entry.validationId)).toEqual(
+        FIELD_CONCEPT_REGISTRY.proof_of_address_type.bestPracticeValidations.map((entry) => entry.id),
+      );
+      expect(proofOfAddressTypeCases.every((entry) => entry.targetField.fieldIndex === 37)).toBe(true);
+      expect(proofOfAddressTypeCases.every((entry) => entry.cleanupStrategy === 'restore_original_value_then_blur')).toBe(true);
+      expect(proofOfAddressTypeCases.every((entry) => entry.safetyNotes.includes('Does not exercise signature or completion flows.'))).toBe(true);
+    } finally {
+      fs.rmSync(calibrationDir, { recursive: true, force: true });
+    }
+  });
+
+  test('proof_of_address_type scorecard handoff stays confident when calibration is trusted but the live summary has no direct field', () => {
+    const report = mockValidationReport([
+      mockField({
+        index: 14,
+        kind: 'textbox',
+        section: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
+        inferredType: 'unknown_manual_review',
+        inferredClassification: 'manual_review',
+        currentValueShape: 'text_name_like',
+        pageIndex: 1,
+        ordinalOnPage: 33,
+        tabLeft: 35.2,
+        tabTop: 433.92,
+      }),
+      mockField({
+        index: 17,
+        kind: 'textbox',
+        section: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
+        inferredType: 'phone',
+        inferredClassification: 'manual_review',
+        currentValueShape: 'phone',
+        pageIndex: 1,
+        ordinalOnPage: 36,
+        tabLeft: 663.04,
+        tabTop: 433.92,
+      }),
+      mockField({
+        index: 19,
+        kind: 'textbox',
+        section: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
+        inferredType: 'unknown_manual_review',
+        inferredClassification: 'manual_review',
+        currentValueShape: 'empty',
+        pageIndex: 1,
+        ordinalOnPage: 38,
+        tabLeft: 348.16,
+        tabTop: 512.64,
+      }),
+      mockField({
+        index: 76,
+        kind: 'combobox',
+        section: 'Bead Onboarding Application US-02604-2.pdf Page 3 of 4.',
+        docusignTabType: 'List',
+        inferredType: 'proof_of_address_type',
+        inferredClassification: 'manual_review',
+        currentValueShape: 'text_name_like',
+        observedValueLikeTextNearControl: '-- select -- Driver’s License Passport National ID',
+        helperText: 'Required - AttachmentRequired - Attachment - SignerAttachmentOptional',
+        pageIndex: 3,
+        ordinalOnPage: 16,
+        tabLeft: 663.68,
+        tabTop: 186.88,
+      }),
+    ]);
+
+    const scorecard = buildValidationScorecard(report, null, {
+      schemaVersion: 1,
+      rows: [{
+        concept: 'proof_of_address_type',
+        conceptDisplayName: 'Proof Of Address Type',
+        jsonKeyPath: 'merchantData.proofOfAddressType',
+        currentCandidateFieldIndex: null,
+        selectedCandidate: '#101 Proof of Address Type Attachments p1 ord37 List shape=empty editable=editable layout=Registered Legal Address > Proof of Address Type @ 663.6800000000001,512.64',
+        decision: 'trust_likely_better_candidate',
+        calibrationReason: 'none',
+        mappingDecisionReason: 'trusted_by_label',
+        missingProof: [],
+        neighborWindow: [{
+          fieldIndex: 17,
+          businessSection: null,
+          layoutSectionHeader: null,
+          layoutFieldLabel: null,
+          pageIndex: 1,
+          ordinalOnPage: 36,
+          coordinates: '663.04,433.92',
+          tabType: 'Text',
+        }],
+      }],
+    });
+
+    const proofOfAddressTypeScore = scorecard.conceptScores.find((entry) => entry.key === 'proof_of_address_type')!;
+
+    expect(proofOfAddressTypeScore.identifiedWithConfidence).toBe(true);
+    expect(proofOfAddressTypeScore.cannotRunValidationCount).toBe(0);
+    expect(proofOfAddressTypeScore.notRunValidationCount).toBe(4);
+    expect(proofOfAddressTypeScore.mappedFields[0]).toMatchObject({
+      fieldIndex: 101,
+      identificationConfidence: 'high',
+      calibrationEvidence: {
+        layoutSectionHeader: 'Registered Legal Address',
+        layoutFieldLabel: 'Proof of Address Type',
+        expectedPageIndex: 1,
+        expectedOrdinalOnPage: 37,
+        expectedTabLeft: 663.6800000000001,
+        expectedTabTop: 512.64,
+        expectedDocusignFieldFamily: 'List',
+      },
+    });
+  });
+
+  test('proof_of_address_type interactive handoff seeds planned cases from nearby page-1 fields when calibration is synthetic', () => {
+    const calibrationDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bead-proof-of-address-synthetic-handoff-'));
+    const calibrationPath = path.join(calibrationDir, 'latest-mapping-calibration.json');
+
+    fs.writeFileSync(calibrationPath, JSON.stringify({
+      schemaVersion: 1,
+      rows: [{
+        concept: 'proof_of_address_type',
+        conceptDisplayName: 'Proof Of Address Type',
+        jsonKeyPath: 'merchantData.proofOfAddressType',
+        currentCandidateFieldIndex: null,
+        selectedCandidate: '#101 Proof of Address Type Attachments p1 ord37 List shape=empty editable=editable layout=Registered Legal Address > Proof of Address Type @ 663.6800000000001,512.64',
+        decision: 'trust_likely_better_candidate',
+        calibrationReason: 'none',
+        mappingDecisionReason: 'trusted_by_label',
+        missingProof: [],
+        neighborWindow: [{
+          fieldIndex: 17,
+          businessSection: null,
+          layoutSectionHeader: null,
+          layoutFieldLabel: null,
+          pageIndex: 1,
+          ordinalOnPage: 36,
+          coordinates: '663.04,433.92',
+          tabType: 'Text',
+        }],
+      }],
+    }), 'utf8');
+
+    try {
+      const report = mockValidationReport([
+        mockField({
+          index: 14,
+          kind: 'textbox',
+          section: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
+          inferredType: 'unknown_manual_review',
+          inferredClassification: 'manual_review',
+          currentValueShape: 'text_name_like',
+          pageIndex: 1,
+          ordinalOnPage: 33,
+          tabLeft: 35.2,
+          tabTop: 433.92,
+        }),
+        mockField({
+          index: 17,
+          kind: 'textbox',
+          section: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
+          inferredType: 'phone',
+          inferredClassification: 'manual_review',
+          currentValueShape: 'phone',
+          pageIndex: 1,
+          ordinalOnPage: 36,
+          tabLeft: 663.04,
+          tabTop: 433.92,
+        }),
+        mockField({
+          index: 19,
+          kind: 'textbox',
+          section: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
+          inferredType: 'unknown_manual_review',
+          inferredClassification: 'manual_review',
+          currentValueShape: 'empty',
+          pageIndex: 1,
+          ordinalOnPage: 38,
+          tabLeft: 348.16,
+          tabTop: 512.64,
+        }),
+        mockField({
+          index: 76,
+          kind: 'combobox',
+          section: 'Bead Onboarding Application US-02604-2.pdf Page 3 of 4.',
+          docusignTabType: 'List',
+          inferredType: 'proof_of_address_type',
+          inferredClassification: 'manual_review',
+          currentValueShape: 'text_name_like',
+          observedValueLikeTextNearControl: '-- select -- Driver’s License Passport National ID',
+          helperText: 'Required - AttachmentRequired - Attachment - SignerAttachmentOptional',
+          pageIndex: 3,
+          ordinalOnPage: 16,
+          tabLeft: 663.68,
+          tabTop: 186.88,
+        }),
+      ]);
+
+      const plan = buildInteractiveValidationPlan(report, {
+        INTERACTIVE_CONCEPTS: 'proof_of_address_type',
+        INTERACTIVE_MAPPING_CALIBRATION_PATH: calibrationPath,
+      } as NodeJS.ProcessEnv);
+      const proofOfAddressTypeCases = plan.cases.filter((entry) => entry.concept === 'proof_of_address_type');
+
+      expect(plan.skippedConcepts).toEqual([]);
+      expect(proofOfAddressTypeCases.every((entry) => entry.targetField.fieldIndex === 17)).toBe(true);
+      expect(proofOfAddressTypeCases.every((entry) => entry.targetProfile.calibrationBackedSeed)).toBe(true);
+      expect(proofOfAddressTypeCases.every((entry) => entry.targetProfile.pageIndex === 1)).toBe(true);
+      expect(proofOfAddressTypeCases.every((entry) => entry.targetProfile.ordinalOnPage === 37)).toBe(true);
+      expect(proofOfAddressTypeCases.every((entry) => entry.targetProfile.docusignTabType === 'List')).toBe(true);
+    } finally {
+      fs.rmSync(calibrationDir, { recursive: true, force: true });
+    }
+  });
+
+  test('proof_of_address_type scorecard handoff does not let uploaded file echoes satisfy the calibrated selector', () => {
+    const report = mockValidationReport([
+      mockField({
+        index: 37,
+        kind: 'textbox',
+        section: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
+        docusignTabType: 'Text',
+        inferredType: 'unknown_manual_review',
+        inferredClassification: 'manual_review',
+        currentValueShape: 'text_name_like',
+        observedValueLikeTextNearControl: 'utility-bill.pdf',
+        pageIndex: 1,
+        ordinalOnPage: 37,
+        tabLeft: 663.68,
+        tabTop: 512.64,
+      }),
+      mockField({
+        index: 76,
+        kind: 'combobox',
+        section: 'Bead Onboarding Application US-02604-2.pdf Page 3 of 4.',
+        resolvedLabel: 'Proof Of Address Type',
+        label: 'Proof Of Address Type',
+        labelSource: 'aria-label',
+        labelConfidence: 'low',
+        docusignTabType: 'List',
+        inferredType: 'proof_of_address_type',
+        inferredClassification: 'manual_review',
+        currentValueShape: 'empty',
+        helperText: 'Required - AttachmentRequired - Attachment - SignerAttachmentOptional',
+        pageIndex: 3,
+        ordinalOnPage: 10,
+        tabLeft: 37.12,
+        tabTop: 186.88,
+      }),
+    ]);
+
+    const scorecard = buildValidationScorecard(report, null, {
+      schemaVersion: 1,
+      rows: [{
+        concept: 'proof_of_address_type',
+        conceptDisplayName: 'Proof Of Address Type',
+        jsonKeyPath: 'merchantData.proofOfAddressType',
+        currentCandidateFieldIndex: 76,
+        selectedCandidate: '#101 Proof of Address Type Attachments p1 ord37 List shape=empty editable=editable layout=Registered Legal Address > Proof of Address Type @ 663.68,512.64',
+        decision: 'trust_likely_better_candidate',
+        calibrationReason: 'offline_layout_target_after_safe_mode_gap',
+        mappingDecisionReason: 'trusted_by_label',
+        missingProof: [],
+        neighborWindow: [{
+          fieldIndex: 76,
+          businessSection: 'Attachments',
+          layoutSectionHeader: 'Stakeholder',
+          layoutFieldLabel: 'Proof of Address Type',
+          pageIndex: 3,
+          ordinalOnPage: 10,
+          coordinates: '37.12,186.88',
+          tabType: 'List',
+        }],
+      }],
+    });
+
+    const proofOfAddressTypeScore = scorecard.conceptScores.find((entry) => entry.key === 'proof_of_address_type')!;
+
+    expect(proofOfAddressTypeScore.identifiedWithConfidence).toBe(true);
+    expect(proofOfAddressTypeScore.mappedFields.some((field) => field.fieldIndex === 37)).toBe(false);
+    expect(proofOfAddressTypeScore.mappedFields[0]).toMatchObject({
+      fieldIndex: 101,
+      identificationConfidence: 'high',
+    });
+
+    const calibrationDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bead-proof-of-address-file-echo-'));
+    const calibrationPath = path.join(calibrationDir, 'latest-mapping-calibration.json');
+
+    fs.writeFileSync(calibrationPath, JSON.stringify({
+      schemaVersion: 1,
+      rows: [{
+        concept: 'proof_of_address_type',
+        conceptDisplayName: 'Proof Of Address Type',
+        jsonKeyPath: 'merchantData.proofOfAddressType',
+        currentCandidateFieldIndex: 76,
+        selectedCandidate: '#101 Proof of Address Type Attachments p1 ord37 List shape=empty editable=editable layout=Registered Legal Address > Proof of Address Type @ 663.68,512.64',
+        decision: 'trust_likely_better_candidate',
+        calibrationReason: 'offline_layout_target_after_safe_mode_gap',
+        mappingDecisionReason: 'trusted_by_label',
+        missingProof: [],
+        neighborWindow: [{
+          fieldIndex: 76,
+          businessSection: 'Attachments',
+          layoutSectionHeader: 'Stakeholder',
+          layoutFieldLabel: 'Proof of Address Type',
+          pageIndex: 3,
+          ordinalOnPage: 10,
+          coordinates: '37.12,186.88',
+          tabType: 'List',
+        }],
+      }],
+    }), 'utf8');
+
+    try {
+      const plan = buildInteractiveValidationPlan(report, {
+        INTERACTIVE_CONCEPTS: 'proof_of_address_type',
+        INTERACTIVE_MAPPING_CALIBRATION_PATH: calibrationPath,
+      } as NodeJS.ProcessEnv);
+
+      expect(plan.cases).toEqual([]);
+      expect(plan.skippedConcepts).toEqual([{
+        concept: 'proof_of_address_type',
+        conceptDisplayName: 'Proof Of Address Type',
+        status: 'skipped',
+        reason: 'field is not confidently mapped in the scorecard source report',
+      }]);
+    } finally {
+      fs.rmSync(calibrationDir, { recursive: true, force: true });
+    }
+  });
+
   test('trusted findings do not request human mapping confirmation', () => {
     const input = mockFindingsInput({
       results: [mockFindingsResult({

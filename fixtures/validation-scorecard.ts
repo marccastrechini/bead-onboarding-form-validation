@@ -1181,12 +1181,19 @@ function buildCalibratedMatch(
     return null;
   }
 
+  const candidateIndex = calibratedCandidateIndex(calibrationRow);
   const fieldIndex = calibratedFieldIndex(report, concept, calibrationRow);
-  if (!fieldIndex) return null;
+  const evidenceFieldIndex = fieldIndex ?? candidateIndex;
+  if (!evidenceFieldIndex) return null;
+
+  const calibrationEvidence = buildScorecardCalibrationEvidence(concept, calibrationRow, evidenceFieldIndex);
+  if (!fieldIndex) {
+    if (concept.key !== 'proof_of_address_type') return null;
+    return buildSyntheticCalibratedMatch(concept, calibrationRow, candidateIndex, calibrationEvidence);
+  }
 
   const field = findReportFieldByDiscoveryIndex(report, fieldIndex);
   if (!field || field.controlCategory !== 'merchant_input') return null;
-  const calibrationEvidence = buildScorecardCalibrationEvidence(concept, calibrationRow, fieldIndex);
   return {
     fieldIndex,
     displayName: displayNameForCalibratedMatch(field, concept),
@@ -1208,6 +1215,34 @@ function buildCalibratedMatch(
   };
 }
 
+function buildSyntheticCalibratedMatch(
+  concept: FieldConceptDefinition,
+  calibrationRow: MappingCalibrationRow,
+  fieldIndex: number | null,
+  calibrationEvidence?: ScorecardCalibrationEvidence,
+): ScorecardFieldMatch | null {
+  if (!fieldIndex || !calibrationEvidence) return null;
+
+  return {
+    fieldIndex,
+    displayName: concept.displayName,
+    businessSection: calibrationEvidence.businessSection ?? concept.businessSection,
+    controlCategory: 'merchant_input',
+    inferredType: (concept.fieldTypes[0] ?? 'unknown_manual_review') as FieldRecord['inferredType'],
+    labelSource: 'layout-cell',
+    labelConfidence: 'high',
+    identificationConfidence: 'high',
+    evidence: [
+      `mapping calibration ${calibrationRow.decision}`,
+      `calibration reason: ${calibrationRow.calibrationReason}`,
+      `calibration decision: ${calibrationRow.mappingDecisionReason}`,
+      `layout proof: ${calibrationEvidence.layoutSectionHeader} > ${calibrationEvidence.layoutFieldLabel}`,
+      'scorecard is carrying a synthetic calibration-backed target because the saved report lacks a direct field slot for this selector',
+    ],
+    calibrationEvidence,
+  };
+}
+
 function buildScorecardCalibrationEvidence(
   concept: FieldConceptDefinition,
   calibrationRow: MappingCalibrationRow,
@@ -1216,6 +1251,7 @@ function buildScorecardCalibrationEvidence(
   const neighbor = calibrationRow.neighborWindow?.find((entry) => entry.fieldIndex === fieldIndex)
     ?? businessTypeCalibrationNeighbor(concept, calibrationRow)
     ?? bankAccountTypeCalibrationNeighbor(concept, calibrationRow)
+    ?? proofOfAddressTypeCalibrationNeighbor(concept, calibrationRow)
     ?? registeredStateCalibrationNeighbor(concept, calibrationRow)
     ?? null;
   const coordinates = parseCalibrationCoordinates(neighbor?.coordinates ?? calibrationRow.currentCandidateCoordinates ?? null);
@@ -1281,6 +1317,13 @@ function calibratedFieldIndex(
       : null;
   }
 
+  if (concept.key === 'proof_of_address_type') {
+    const proofOfAddressTypeNeighbor = proofOfAddressTypeCalibrationNeighbor(concept, calibrationRow);
+    return proofOfAddressTypeNeighbor
+      ? resolveReportFieldIndexByCalibrationAnchor(report, proofOfAddressTypeNeighbor, concept)
+      : null;
+  }
+
   return resolveReportFieldIndex(report, concept, candidateIndex);
 }
 
@@ -1334,6 +1377,20 @@ function registeredStateCalibrationNeighbor(
     ?? null;
 }
 
+function proofOfAddressTypeCalibrationNeighbor(
+  concept: FieldConceptDefinition,
+  calibrationRow: MappingCalibrationRow,
+): MappingCalibrationNeighbor | null {
+  if (concept.key !== 'proof_of_address_type') return null;
+  if (!/merchantData\.proofOfAddressType$/i.test(calibrationRow.jsonKeyPath ?? '')) return null;
+  const candidateIndex = calibratedCandidateIndex(calibrationRow);
+  const neighbors = calibrationRow.neighborWindow ?? [];
+  return neighbors.find((entry) => entry.fieldIndex === candidateIndex && isRegisteredLegalAddressProofOfAddressTypeNeighbor(entry))
+    ?? neighbors.find(isRegisteredLegalAddressProofOfAddressTypeNeighbor)
+    ?? parseProofOfAddressTypeSelectedCandidateNeighbor(calibrationRow.selectedCandidate, candidateIndex)
+    ?? null;
+}
+
 function isLocationDetailsBusinessTypeNeighbor(neighbor: MappingCalibrationNeighbor): boolean {
   return Boolean(
     neighbor.businessSection === 'Business Details' &&
@@ -1359,6 +1416,38 @@ function isRegisteredLegalAddressStateNeighbor(neighbor: MappingCalibrationNeigh
     /^(state|province|region)$/i.test(neighbor.layoutFieldLabel ?? '') &&
     /^list$/i.test(neighbor.tabType ?? ''),
   );
+}
+
+function isRegisteredLegalAddressProofOfAddressTypeNeighbor(neighbor: MappingCalibrationNeighbor): boolean {
+  return Boolean(
+    neighbor.businessSection === 'Attachments' &&
+    /^registered\s*legal\s*address$/i.test(neighbor.layoutSectionHeader ?? '') &&
+    /^proof\s*of\s*address\s*type$/i.test(neighbor.layoutFieldLabel ?? '') &&
+    /^(list|radio)$/i.test(neighbor.tabType ?? ''),
+  );
+}
+
+function parseProofOfAddressTypeSelectedCandidateNeighbor(
+  selectedCandidate: string | null,
+  candidateIndex: number | null,
+): MappingCalibrationNeighbor | null {
+  if (!selectedCandidate || !candidateIndex) return null;
+  const match = /p(\d+)\s+ord(\d+)\s+([A-Za-z]+)\b.*?\blayout=(.*?)\s*>\s*(.*?)\s*@\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/i.exec(selectedCandidate);
+  if (!match) return null;
+
+  const [, pageIndex, ordinalOnPage, tabType, layoutSectionHeader, layoutFieldLabel, left, top] = match;
+  const parsedNeighbor: MappingCalibrationNeighbor = {
+    fieldIndex: candidateIndex,
+    businessSection: 'Attachments',
+    layoutSectionHeader: layoutSectionHeader.trim(),
+    layoutFieldLabel: layoutFieldLabel.trim(),
+    pageIndex: Number(pageIndex),
+    ordinalOnPage: Number(ordinalOnPage),
+    coordinates: `${left},${top}`,
+    tabType,
+  };
+
+  return isRegisteredLegalAddressProofOfAddressTypeNeighbor(parsedNeighbor) ? parsedNeighbor : null;
 }
 
 function resolveReportFieldIndexByCalibrationAnchor(
@@ -1405,6 +1494,15 @@ function scoreCalibrationAnchorCandidate(
   )) {
     return null;
   }
+  if (concept?.key === 'proof_of_address_type' && (
+    inferredType.includes('document_type') ||
+    inferredType.includes('proof_of_business_type') ||
+    inferredType.includes('proof_of_bank_account_type') ||
+    /proof\s*of\s*address\s*document|document\s*type|id\s*type/.test(labelText) ||
+    looksLikeUploadedFileEcho(field.observedValueLikeTextNearControl)
+  )) {
+    return null;
+  }
 
   const hasCoordinates = coordinates.left !== null && coordinates.top !== null && field.tabLeft !== null && field.tabTop !== null;
   const hasOrdinal = neighbor.ordinalOnPage !== null && field.ordinalOnPage !== null;
@@ -1432,6 +1530,13 @@ function scoreCalibrationAnchorCandidate(
   if (inferredType.includes('bank_account_type')) score += 10;
   if (concept?.key === 'business_type' && inferredType.includes('business_type')) score += 10;
   return score;
+}
+
+function looksLikeUploadedFileEcho(value: string | null | undefined): boolean {
+  const normalized = (value ?? '').trim().toLowerCase();
+  if (!normalized) return false;
+  return /\b[\w.-]+\.(pdf|png|jpe?g|gif|tiff?|heic|docx?|xlsx?|csv)\b/.test(normalized) ||
+    /\b(uploaded|selected\s*file|attachment\s*uploaded|download)\b/.test(normalized);
 }
 
 function resolveReportFieldIndex(

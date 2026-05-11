@@ -177,6 +177,7 @@ export interface InteractiveTargetProfile {
   intendedFieldDisplayName: string;
   intendedBusinessSection: string | null;
   intendedSectionName: string | null;
+  calibrationBackedSeed: boolean;
   layoutSectionHeader: string | null;
   layoutFieldLabel: string | null;
   layoutEvidenceSource: string | null;
@@ -1541,7 +1542,8 @@ export function buildInteractiveValidationPlan(
     const concept = FIELD_CONCEPT_REGISTRY[conceptKey];
     const score = scoreByConcept.get(conceptKey);
     const match = score?.mappedFields.find(isConfidentMatch);
-    const sourceField = match ? findValidationReportFieldByDiscoveryIndex(report, match.fieldIndex) : null;
+    const sourceFieldResolution = match ? findValidationPlanSourceField(report, conceptKey, match) : null;
+    const sourceField = sourceFieldResolution?.field ?? null;
 
     if (!score?.identifiedWithConfidence || !match || !sourceField) {
       skippedConcepts.push({
@@ -1576,7 +1578,18 @@ export function buildInteractiveValidationPlan(
       const validation = concept.bestPracticeValidations.find((candidate) => candidate.id === matrixCase.validationId);
       if (!validation) continue;
 
-      cases.push(toInteractiveCase(conceptKey, concept.displayName, match, sourceField, locatorStrategy, validation, matrixCase));
+      cases.push(
+        toInteractiveCase(
+          conceptKey,
+          concept.displayName,
+          match,
+          sourceField,
+          locatorStrategy,
+          validation,
+          matrixCase,
+          sourceFieldResolution?.calibrationBackedSeed ?? false,
+        ),
+      );
     }
   }
 
@@ -1617,6 +1630,112 @@ export function skippedConceptToResult(skipped: InteractiveSkippedConcept): Inte
     safetyNotes: ['No field was mutated for this concept.'],
     skippedReason: skipped.reason,
   };
+}
+
+function findValidationPlanSourceField(
+  report: ValidationReport,
+  conceptKey: FieldConceptKey,
+  match: ScorecardFieldMatch,
+): { field: ValidationReport['fields'][number] | null; calibrationBackedSeed: boolean } {
+  const directField = findValidationReportFieldByDiscoveryIndex(report, match.fieldIndex);
+  if (directField) {
+    return {
+      field: directField,
+      calibrationBackedSeed: false,
+    };
+  }
+
+  const calibrationBackedSeed = findCalibrationSeedValidationField(report, conceptKey, match);
+  return {
+    field: calibrationBackedSeed,
+    calibrationBackedSeed: Boolean(calibrationBackedSeed),
+  };
+}
+
+function findCalibrationSeedValidationField(
+  report: ValidationReport,
+  conceptKey: FieldConceptKey,
+  match: ScorecardFieldMatch,
+): ValidationReport['fields'][number] | null {
+  const evidence = match.calibrationEvidence;
+  if (!evidence) return null;
+
+  const candidates = report.fields
+    .filter((field) => field.controlCategory === 'merchant_input' && field.visible !== false && field.editable !== false)
+    .filter((field) => evidence.expectedPageIndex === null || field.pageIndex === evidence.expectedPageIndex)
+    .filter((field) => {
+      if (evidence.expectedOrdinalOnPage === null || field.ordinalOnPage === null) return true;
+      return Math.abs(field.ordinalOnPage - evidence.expectedOrdinalOnPage) <= 6;
+    })
+    .map((field) => ({
+      field,
+      score: scoreCalibrationSeedField(field, conceptKey, match, evidence),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score || a.field.index - b.field.index);
+
+  return candidates[0]?.field ?? null;
+}
+
+function scoreCalibrationSeedField(
+  field: ValidationReport['fields'][number],
+  conceptKey: FieldConceptKey,
+  match: ScorecardFieldMatch,
+  evidence: NonNullable<ScorecardFieldMatch['calibrationEvidence']>,
+): number {
+  let score = 0;
+  const expectedFamily = evidence.expectedDocusignFieldFamily?.toLowerCase() ?? null;
+  const actualFamily = (field.docusignTabType ?? '').toLowerCase();
+  const labelText = [field.resolvedLabel, field.enrichment?.suggestedDisplayName, field.enrichment?.layoutFieldLabel]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  if (
+    conceptKey === 'proof_of_address_type' && (
+      /proof\s*of\s*address\s*document|document\s*type|id\s*type/.test(labelText) ||
+      looksLikeUploadedFileEchoText(field.observedValueLikeTextNearControl)
+    )
+  ) {
+    return 0;
+  }
+
+  if (expectedFamily && actualFamily === expectedFamily) score += 20;
+  if (FIELD_CONCEPT_REGISTRY[conceptKey].labelPatterns.some((pattern) => pattern.test(labelText))) score += 10;
+
+  if (
+    evidence.expectedTabLeft !== null &&
+    evidence.expectedTabTop !== null &&
+    field.tabLeft !== null &&
+    field.tabTop !== null
+  ) {
+    const distance = Math.max(
+      Math.abs(field.tabLeft - evidence.expectedTabLeft),
+      Math.abs(field.tabTop - evidence.expectedTabTop),
+    );
+    if (distance <= 20) score += 60;
+    else if (distance <= 80) score += 45;
+    else if (distance <= 160) score += 25;
+    else if (distance <= 320) score += 10;
+  }
+
+  if (evidence.expectedOrdinalOnPage !== null && field.ordinalOnPage !== null) {
+    const distance = Math.abs(field.ordinalOnPage - evidence.expectedOrdinalOnPage);
+    if (distance === 0) score += 20;
+    else if (distance <= 1) score += 15;
+    else if (distance <= 3) score += 10;
+    else if (distance <= 6) score += 5;
+  }
+
+  if (match.businessSection === field.enrichment?.suggestedBusinessSection) score += 5;
+  return score;
+}
+
+function looksLikeUploadedFileEchoText(value: string | null | undefined): boolean {
+  const normalized = (value ?? '').trim().toLowerCase();
+  if (!normalized) return false;
+  return /\b[\w.-]+\.(pdf|png|jpe?g|gif|tiff?|heic|docx?|xlsx?|csv)\b/.test(normalized) ||
+    /\b(uploaded|selected\s*file|attachment\s*uploaded|download)\b/.test(normalized);
 }
 
 export async function runInteractiveCase(
@@ -2156,8 +2275,10 @@ function toInteractiveCase(
   targetField: InteractiveLocatorStrategy,
   validation: BestPracticeValidation,
   matrixCase: MatrixCaseDefinition,
+  calibrationBackedSeed = false,
 ): InteractiveValidationCase {
   const calibrationEvidence = match.calibrationEvidence;
+  const calibrationSeeded = calibrationBackedSeed && Boolean(calibrationEvidence);
   return {
     id: `${concept}:${validation.id}:${matrixCase.caseName}`,
     concept,
@@ -2168,26 +2289,31 @@ function toInteractiveCase(
       intendedFieldDisplayName: match.displayName,
       intendedBusinessSection: match.businessSection,
       intendedSectionName: sourceField.section,
+      calibrationBackedSeed: calibrationSeeded,
       layoutSectionHeader: sourceField.enrichment?.layoutSectionHeader ?? calibrationEvidence?.layoutSectionHeader ?? null,
       layoutFieldLabel: sourceField.enrichment?.layoutFieldLabel ?? calibrationEvidence?.layoutFieldLabel ?? null,
       layoutEvidenceSource: sourceField.enrichment?.layoutEvidenceSource ?? calibrationEvidence?.layoutEvidenceSource ?? null,
       jsonKeyPath: sourceField.enrichment?.jsonKeyPath ?? calibrationEvidence?.jsonKeyPath ?? null,
       enrichmentMatchedBy: sourceField.enrichment?.matchedBy ?? null,
       enrichmentPositionalFingerprint: sourceField.enrichment?.positionalFingerprint ?? null,
-      inferredType: sourceField.inferredType,
-      labelSource: sourceField.labelSource,
-      labelConfidence: sourceField.labelConfidence,
+      inferredType: calibrationSeeded ? match.inferredType : sourceField.inferredType,
+      labelSource: calibrationSeeded ? 'layout-cell' : sourceField.labelSource,
+      labelConfidence: calibrationSeeded ? 'high' : sourceField.labelConfidence,
       mappingConfidence: match.identificationConfidence,
-      tabGuid: sourceField.tabGuid,
-      docusignTabType: sourceField.docusignTabType,
-      pageIndex: sourceField.pageIndex,
-      ordinalOnPage: sourceField.ordinalOnPage,
+      tabGuid: calibrationSeeded ? null : sourceField.tabGuid,
+      docusignTabType: calibrationSeeded
+        ? calibrationEvidence?.expectedDocusignFieldFamily ?? sourceField.docusignTabType
+        : sourceField.docusignTabType,
+      pageIndex: calibrationSeeded ? calibrationEvidence?.expectedPageIndex ?? sourceField.pageIndex : sourceField.pageIndex,
+      ordinalOnPage: calibrationSeeded
+        ? calibrationEvidence?.expectedOrdinalOnPage ?? sourceField.ordinalOnPage
+        : sourceField.ordinalOnPage,
       expectedPageIndex: sourceField.enrichment?.expectedPageIndex ?? calibrationEvidence?.expectedPageIndex ?? null,
       expectedOrdinalOnPage: sourceField.enrichment?.expectedOrdinalOnPage ?? calibrationEvidence?.expectedOrdinalOnPage ?? null,
       expectedDocusignFieldFamily: sourceField.enrichment?.expectedDocusignFieldFamily ?? calibrationEvidence?.expectedDocusignFieldFamily ?? null,
       coordinates: {
-        left: sourceField.tabLeft,
-        top: sourceField.tabTop,
+        left: calibrationSeeded ? calibrationEvidence?.expectedTabLeft ?? sourceField.tabLeft : sourceField.tabLeft,
+        top: calibrationSeeded ? calibrationEvidence?.expectedTabTop ?? sourceField.tabTop : sourceField.tabTop,
         width: sourceField.tabWidth,
         height: sourceField.tabHeight,
       },
@@ -3272,13 +3398,13 @@ export function resolveInteractiveTargetField(
     return index >= 0 ? index + 1 : candidate.index + 1;
   };
 
-  const currentCandidateId = String(sourceFieldIndex(field));
+  const currentCandidateId = testCase.targetProfile.calibrationBackedSeed ? null : String(sourceFieldIndex(field));
   const intendedGuid = testCase.targetProfile.tabGuid?.toLowerCase() ?? null;
 
   const toMappingCandidate = (candidate: DiscoveredField) => {
     const candidateId = String(sourceFieldIndex(candidate));
     const sameTabGuid = Boolean(intendedGuid && candidate.tabGuid?.toLowerCase() === intendedGuid);
-    const isCurrentTarget = candidateId === currentCandidateId || sameTabGuid;
+    const isCurrentTarget = sameTabGuid || (currentCandidateId !== null && candidateId === currentCandidateId);
     const layoutBacked = isCurrentTarget && Boolean(testCase.targetProfile.layoutSectionHeader && testCase.targetProfile.layoutFieldLabel);
 
     return {
