@@ -3381,10 +3381,17 @@ export function resolveInteractiveTargetField(
   selection: ReturnType<typeof selectBestMappingCandidate>;
 } {
   const expectedAnchor = buildExpectedAnchor(testCase);
+  const proofOfAddressTypeCalibratedListTarget = usesProofOfAddressTypeCalibratedListTarget(testCase);
   const candidatePool = allFields
     .filter((candidate) => candidate.controlCategory === 'merchant_input' && candidate.visible && candidate.editable)
     .filter((candidate) => candidate.pageIndex === expectedAnchor.pageIndex || expectedAnchor.pageIndex === null)
     .filter((candidate) => {
+      if (
+        proofOfAddressTypeCalibratedListTarget &&
+        matchesProofOfAddressTypeCalibratedListCandidate(candidate, testCase, expectedAnchor)
+      ) {
+        return true;
+      }
       if (expectedAnchor.ordinalOnPage === null) return true;
       if (candidate.ordinalOnPage === null) return false;
       return Math.abs(candidate.ordinalOnPage - expectedAnchor.ordinalOnPage) <= 3;
@@ -3405,7 +3412,10 @@ export function resolveInteractiveTargetField(
     const candidateId = String(sourceFieldIndex(candidate));
     const sameTabGuid = Boolean(intendedGuid && candidate.tabGuid?.toLowerCase() === intendedGuid);
     const isCurrentTarget = sameTabGuid || (currentCandidateId !== null && candidateId === currentCandidateId);
-    const layoutBacked = isCurrentTarget && Boolean(testCase.targetProfile.layoutSectionHeader && testCase.targetProfile.layoutFieldLabel);
+    const calibratedProofBacked = proofOfAddressTypeCalibratedListTarget &&
+      matchesProofOfAddressTypeCalibratedListCandidate(candidate, testCase, expectedAnchor);
+    const layoutBacked = (isCurrentTarget || calibratedProofBacked) &&
+      Boolean(testCase.targetProfile.layoutSectionHeader && testCase.targetProfile.layoutFieldLabel);
 
     return {
       id: candidateId,
@@ -3414,7 +3424,7 @@ export function resolveInteractiveTargetField(
         : candidate.resolvedLabel,
       labelSource: layoutBacked ? 'layout-cell' : candidate.labelSource,
       labelConfidence: layoutBacked ? 'high' : candidate.labelConfidence,
-      businessSection: isCurrentTarget ? testCase.targetProfile.intendedBusinessSection : null,
+      businessSection: isCurrentTarget || calibratedProofBacked ? testCase.targetProfile.intendedBusinessSection : null,
       sectionName: candidate.sectionName,
       layoutSectionHeader: layoutBacked ? testCase.targetProfile.layoutSectionHeader : null,
       layoutFieldLabel: layoutBacked ? testCase.targetProfile.layoutFieldLabel : null,
@@ -3430,7 +3440,7 @@ export function resolveInteractiveTargetField(
       controlCategory: candidate.controlCategory,
       visible: candidate.visible,
       editable: candidate.editable,
-      enrichment: isCurrentTarget && testCase.targetProfile.jsonKeyPath ? {
+      enrichment: (isCurrentTarget || calibratedProofBacked) && testCase.targetProfile.jsonKeyPath ? {
         jsonKeyPath: testCase.targetProfile.jsonKeyPath,
         matchedBy: testCase.targetProfile.enrichmentMatchedBy,
         confidence: testCase.targetProfile.mappingConfidence === 'high'
@@ -3460,6 +3470,63 @@ export function resolveInteractiveTargetField(
     field: selectedField,
     selection,
   };
+}
+
+function usesProofOfAddressTypeCalibratedListTarget(testCase: InteractiveValidationCase): boolean {
+  return testCase.concept === 'proof_of_address_type' &&
+    testCase.targetProfile.calibrationBackedSeed &&
+    /^registered\s*legal\s*address$/i.test(testCase.targetProfile.layoutSectionHeader ?? '') &&
+    /^proof\s*of\s*address\s*type$/i.test(testCase.targetProfile.layoutFieldLabel ?? '') &&
+    isSelectCompatibleTabType(
+      testCase.targetProfile.expectedDocusignFieldFamily ?? testCase.targetProfile.docusignTabType,
+    );
+}
+
+function matchesProofOfAddressTypeCalibratedListCandidate(
+  candidate: DiscoveredField,
+  testCase: InteractiveValidationCase,
+  expectedAnchor: ReturnType<typeof buildExpectedAnchor>,
+): boolean {
+  if (!usesProofOfAddressTypeCalibratedListTarget(testCase)) return false;
+  if (!isSelectCompatibleTabType(candidate.docusignTabType)) return false;
+  if (looksLikeUploadedFileEchoText(candidate.observedValueLikeTextNearControl)) return false;
+
+  const inferredType = typeof candidate.inferredType === 'string'
+    ? candidate.inferredType
+    : candidate.inferredType?.type ?? '';
+  const candidateText = [candidate.sectionName, candidate.resolvedLabel, inferredType].filter(Boolean).join(' ').toLowerCase();
+  if (/(^|\b)(document_type|address_option)(\b|$)/.test(inferredType)) return false;
+  if (/stakeholder|document\s*type|id\s*type|proof\s*of\s*address\s*document/.test(candidateText)) return false;
+
+  const coordinateDistance = expectedAnchorCoordinateDistance(candidate, expectedAnchor);
+  return coordinateDistance !== null && coordinateDistance <= 60;
+}
+
+function isSelectCompatibleTabType(value: string | null | undefined): boolean {
+  return /^(list|radio)$/i.test(value ?? '');
+}
+
+function expectedAnchorCoordinateDistance(
+  candidate: Pick<DiscoveredField, 'tabLeft' | 'tabTop'>,
+  expectedAnchor: ReturnType<typeof buildExpectedAnchor>,
+): number | null {
+  if (
+    expectedAnchor.tabLeft === null ||
+    expectedAnchor.tabLeft === undefined ||
+    expectedAnchor.tabTop === null ||
+    expectedAnchor.tabTop === undefined ||
+    candidate.tabLeft === null ||
+    candidate.tabLeft === undefined ||
+    candidate.tabTop === null ||
+    candidate.tabTop === undefined
+  ) {
+    return null;
+  }
+
+  return Math.max(
+    Math.abs(candidate.tabLeft - expectedAnchor.tabLeft),
+    Math.abs(candidate.tabTop - expectedAnchor.tabTop),
+  );
 }
 
 export function buildExpectedAnchor(testCase: InteractiveValidationCase): {

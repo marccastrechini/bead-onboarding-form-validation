@@ -10959,6 +10959,298 @@ test.describe('interactive validation safety', () => {
     }
   });
 
+  test('proof_of_address_type live resolver searches calibrated coordinates for a nearby list selector instead of trusting the text seed', () => {
+    const calibrationDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bead-proof-of-address-live-resolver-'));
+    const calibrationPath = path.join(calibrationDir, 'latest-mapping-calibration.json');
+
+    fs.writeFileSync(calibrationPath, JSON.stringify({
+      schemaVersion: 1,
+      rows: [{
+        concept: 'proof_of_address_type',
+        conceptDisplayName: 'Proof Of Address Type',
+        jsonKeyPath: 'merchantData.proofOfAddressType',
+        currentCandidateFieldIndex: null,
+        selectedCandidate: '#101 Proof of Address Type Attachments p1 ord37 List shape=empty editable=editable layout=Registered Legal Address > Proof of Address Type @ 663.6800000000001,512.64',
+        decision: 'trust_likely_better_candidate',
+        calibrationReason: 'none',
+        mappingDecisionReason: 'trusted_by_label',
+        missingProof: [],
+        neighborWindow: [{
+          fieldIndex: 17,
+          businessSection: null,
+          layoutSectionHeader: null,
+          layoutFieldLabel: null,
+          pageIndex: 1,
+          ordinalOnPage: 36,
+          coordinates: '663.04,433.92',
+          tabType: 'Text',
+        }],
+      }],
+    }), 'utf8');
+
+    try {
+      const report = mockValidationReport([
+        mockField({
+          index: 14,
+          kind: 'textbox',
+          section: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
+          inferredType: 'unknown_manual_review',
+          inferredClassification: 'manual_review',
+          currentValueShape: 'text_name_like',
+          pageIndex: 1,
+          ordinalOnPage: 33,
+          tabLeft: 35.2,
+          tabTop: 433.92,
+        }),
+        mockField({
+          index: 17,
+          kind: 'textbox',
+          section: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
+          inferredType: 'phone',
+          inferredClassification: 'manual_review',
+          currentValueShape: 'phone',
+          pageIndex: 1,
+          ordinalOnPage: 36,
+          tabLeft: 663.04,
+          tabTop: 433.92,
+        }),
+        mockField({
+          index: 19,
+          kind: 'textbox',
+          section: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
+          inferredType: 'unknown_manual_review',
+          inferredClassification: 'manual_review',
+          currentValueShape: 'empty',
+          pageIndex: 1,
+          ordinalOnPage: 38,
+          tabLeft: 348.16,
+          tabTop: 512.64,
+        }),
+        mockField({
+          index: 76,
+          kind: 'combobox',
+          section: 'Bead Onboarding Application US-02604-2.pdf Page 3 of 4.',
+          docusignTabType: 'List',
+          inferredType: 'proof_of_address_type',
+          inferredClassification: 'manual_review',
+          currentValueShape: 'text_name_like',
+          observedValueLikeTextNearControl: '-- select -- Driver’s License Passport National ID',
+          helperText: 'Required - AttachmentRequired - Attachment - SignerAttachmentOptional',
+          pageIndex: 3,
+          ordinalOnPage: 16,
+          tabLeft: 663.68,
+          tabTop: 186.88,
+        }),
+      ]);
+
+      const plan = buildInteractiveValidationPlan(report, {
+        INTERACTIVE_CONCEPTS: 'proof_of_address_type',
+        INTERACTIVE_MAPPING_CALIBRATION_PATH: calibrationPath,
+      } as NodeJS.ProcessEnv);
+      const testCase = plan.cases[0]!;
+      const liveFields = [
+        mockDiscoveredField({
+          index: 17,
+          sectionName: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
+          inferredType: 'phone',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 36,
+          tabLeft: 663.04,
+          tabTop: 433.92,
+          currentValue: '+18039311286',
+          currentValueShape: 'phone',
+        }),
+        mockDiscoveredField({
+          index: 18,
+          sectionName: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
+          inferredType: 'unknown_manual_review',
+          docusignTabType: 'List',
+          pageIndex: 1,
+          ordinalOnPage: 41,
+          tabLeft: 663.68,
+          tabTop: 512.64,
+          currentValueShape: 'empty',
+        }),
+        mockDiscoveredField({
+          index: 76,
+          sectionName: 'Bead Onboarding Application US-02604-2.pdf Page 3 of 4.',
+          inferredType: 'document_type',
+          docusignTabType: 'List',
+          pageIndex: 3,
+          ordinalOnPage: 10,
+          tabLeft: 37.12,
+          tabTop: 186.88,
+          currentValueShape: 'empty',
+        }),
+      ];
+
+      const resolved = resolveInteractiveTargetField(
+        testCase,
+        liveFields.find((entry) => entry.index === testCase.targetField.fieldIndex)!,
+        liveFields,
+      );
+
+      expect(testCase.targetProfile).toMatchObject({
+        calibrationBackedSeed: true,
+        layoutSectionHeader: 'Registered Legal Address',
+        layoutFieldLabel: 'Proof of Address Type',
+        expectedPageIndex: 1,
+        expectedOrdinalOnPage: 37,
+        expectedDocusignFieldFamily: 'List',
+      });
+      expect(testCase.cleanupStrategy).toBe('restore_original_value_then_blur');
+      expect(testCase.safetyNotes).toContain('Does not exercise signature or completion flows.');
+      expect(resolved.field.index).toBe(18);
+      expect(resolved.field.docusignTabType).toBe('List');
+      expect(resolved.selection.trusted).toBe(true);
+      expect(resolved.selection.decisionReason).toBe('trusted_by_label');
+    } finally {
+      fs.rmSync(calibrationDir, { recursive: true, force: true });
+    }
+  });
+
+  test('proof_of_address_type live resolver does not let text seeds, file echoes, uploads, or stakeholder selectors satisfy the calibrated anchor', () => {
+    const calibrationDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bead-proof-of-address-live-rejections-'));
+    const calibrationPath = path.join(calibrationDir, 'latest-mapping-calibration.json');
+
+    fs.writeFileSync(calibrationPath, JSON.stringify({
+      schemaVersion: 1,
+      rows: [{
+        concept: 'proof_of_address_type',
+        conceptDisplayName: 'Proof Of Address Type',
+        jsonKeyPath: 'merchantData.proofOfAddressType',
+        currentCandidateFieldIndex: null,
+        selectedCandidate: '#101 Proof of Address Type Attachments p1 ord37 List shape=empty editable=editable layout=Registered Legal Address > Proof of Address Type @ 663.6800000000001,512.64',
+        decision: 'trust_likely_better_candidate',
+        calibrationReason: 'none',
+        mappingDecisionReason: 'trusted_by_label',
+        missingProof: [],
+        neighborWindow: [{
+          fieldIndex: 17,
+          businessSection: null,
+          layoutSectionHeader: null,
+          layoutFieldLabel: null,
+          pageIndex: 1,
+          ordinalOnPage: 36,
+          coordinates: '663.04,433.92',
+          tabType: 'Text',
+        }],
+      }],
+    }), 'utf8');
+
+    try {
+      const report = mockValidationReport([
+        mockField({
+          index: 14,
+          kind: 'textbox',
+          section: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
+          inferredType: 'unknown_manual_review',
+          inferredClassification: 'manual_review',
+          currentValueShape: 'text_name_like',
+          pageIndex: 1,
+          ordinalOnPage: 33,
+          tabLeft: 35.2,
+          tabTop: 433.92,
+        }),
+        mockField({
+          index: 17,
+          kind: 'textbox',
+          section: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
+          inferredType: 'phone',
+          inferredClassification: 'manual_review',
+          currentValueShape: 'phone',
+          pageIndex: 1,
+          ordinalOnPage: 36,
+          tabLeft: 663.04,
+          tabTop: 433.92,
+        }),
+        mockField({
+          index: 19,
+          kind: 'textbox',
+          section: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
+          inferredType: 'unknown_manual_review',
+          inferredClassification: 'manual_review',
+          currentValueShape: 'empty',
+          pageIndex: 1,
+          ordinalOnPage: 38,
+          tabLeft: 348.16,
+          tabTop: 512.64,
+        }),
+      ]);
+
+      const plan = buildInteractiveValidationPlan(report, {
+        INTERACTIVE_CONCEPTS: 'proof_of_address_type',
+        INTERACTIVE_MAPPING_CALIBRATION_PATH: calibrationPath,
+      } as NodeJS.ProcessEnv);
+      const testCase = plan.cases[0]!;
+      const liveFields = [
+        mockDiscoveredField({
+          index: 17,
+          sectionName: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
+          inferredType: 'phone',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 36,
+          tabLeft: 663.04,
+          tabTop: 433.92,
+          currentValue: '+18039311286',
+          currentValueShape: 'phone',
+        }),
+        mockDiscoveredField({
+          index: 18,
+          sectionName: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
+          inferredType: 'unknown_manual_review',
+          docusignTabType: 'Text',
+          pageIndex: 1,
+          ordinalOnPage: 41,
+          tabLeft: 663.68,
+          tabTop: 512.64,
+          observedValueLikeTextNearControl: 'utility-bill.pdf',
+          currentValueShape: 'text_name_like',
+        }),
+        mockDiscoveredField({
+          index: 95,
+          sectionName: 'Bead Onboarding Application US-02604-2.pdf Page 1 of 4.',
+          inferredType: 'upload',
+          docusignTabType: 'SignerAttachment',
+          controlCategory: 'attachment_control',
+          editable: false,
+          pageIndex: 1,
+          ordinalOnPage: 41,
+          tabLeft: 663.68,
+          tabTop: 512.64,
+          currentValueShape: 'empty',
+        }),
+        mockDiscoveredField({
+          index: 76,
+          sectionName: 'Stakeholder',
+          resolvedLabel: 'Document Type',
+          inferredType: 'document_type',
+          docusignTabType: 'List',
+          pageIndex: 3,
+          ordinalOnPage: 10,
+          tabLeft: 37.12,
+          tabTop: 186.88,
+          currentValueShape: 'empty',
+        }),
+      ];
+
+      const resolved = resolveInteractiveTargetField(
+        testCase,
+        liveFields.find((entry) => entry.index === testCase.targetField.fieldIndex)!,
+        liveFields,
+      );
+
+      expect(resolved.field.index).toBe(17);
+      expect(resolved.field.docusignTabType).toBe('Text');
+      expect(resolved.selection.trusted).toBe(false);
+      expect(resolved.selection.selectedCandidateId).not.toBe('3');
+    } finally {
+      fs.rmSync(calibrationDir, { recursive: true, force: true });
+    }
+  });
+
   test('proof_of_address_type scorecard handoff does not let uploaded file echoes satisfy the calibrated selector', () => {
     const report = mockValidationReport([
       mockField({
