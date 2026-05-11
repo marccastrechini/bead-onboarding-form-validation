@@ -10223,6 +10223,7 @@ test.describe('interactive validation safety', () => {
     expect(row!.selectedCandidate).toContain('#1');
     expect(row!.missingProof).toEqual([]);
     expect(row!.explanation).toContain('Human proof: Existing mock proof confirms Stakeholder > Required - stakeholder1IdType is visible and editable as a dropdown/list, separate from Attachment controls and not a file-value echo.');
+    expect(row!.explanation).toContain('Human proof plus the selected stakeholder metadata selector are strong enough to trust this field conservatively.');
   });
 
   test('trusted findings do not request human mapping confirmation', () => {

@@ -62,6 +62,8 @@ export interface HumanProofAnswers {
   inferMissingCountryFromOtherDropdowns: boolean;
 }
 
+type ProofPromotionKind = 'none' | 'layout_target' | 'selected_candidate';
+
 interface CalibrationCandidateSummary {
   fieldIndex: number;
   label: string;
@@ -596,6 +598,11 @@ function buildConceptRow(
   const documentTypeHumanProofField = documentTypeHumanProofPromotableField(context, selection, selectedField);
   const proofPromotionField = documentTypeHumanProofField ?? proofPromotableField(context, resolution.blockedCandidateIds);
   const proofPromoted = documentTypeHumanProofField !== null || shouldPromoteWithHumanProof(context, proofPromotionField);
+  const proofPromotionKind: ProofPromotionKind = documentTypeHumanProofField
+    ? 'selected_candidate'
+    : proofPromoted
+      ? 'layout_target'
+      : 'none';
   if (proofPromoted && proofPromotionField) {
     selectedField = proofPromotionField;
     decision = context.currentField && sourceFieldIndex(context, context.currentField) === sourceFieldIndex(context, selectedField)
@@ -637,7 +644,7 @@ function buildConceptRow(
     missingProof,
     appliedHumanProof: context.humanProof,
     humanConfirmation,
-    explanation: explainDecision(context, selection, selectedField, nearestShapeMatch, calibrationReason, context.humanProof, proofPromoted),
+    explanation: explainDecision(context, selection, selectedField, nearestShapeMatch, calibrationReason, context.humanProof, proofPromotionKind),
     neighborWindow: context.nearbyFields.map((field) => {
       const summary = summarizeField(context, field);
       return {
@@ -1174,7 +1181,7 @@ function explainDecision(
   nearestShapeMatch: FieldRecord | null,
   calibrationReason: CalibrationReason,
   appliedHumanProof: AppliedHumanProof | null,
-  proofPromoted: boolean,
+  proofPromotionKind: ProofPromotionKind,
 ): string {
   const parts: string[] = [];
 
@@ -1199,8 +1206,10 @@ function explainDecision(
   if (appliedHumanProof) {
     parts.push(`Human proof: ${appliedHumanProof.summary}`);
   }
-  if (proofPromoted) {
+  if (proofPromotionKind === 'layout_target') {
     parts.push('Human proof plus a matching live layout target are strong enough to trust this field conservatively.');
+  } else if (proofPromotionKind === 'selected_candidate') {
+    parts.push('Human proof plus the selected stakeholder metadata selector are strong enough to trust this field conservatively.');
   }
   parts.push(`Decision reason: ${selection.decisionReason}.`);
 
