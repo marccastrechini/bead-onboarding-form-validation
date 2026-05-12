@@ -78,8 +78,8 @@ Update docs/validation-coverage-ledger.md only if the non-live evidence changes 
 ## Commit / Push Status
 - Branch: `main`.
 - Commit before handoff update: `9a1452ac19ccb5136ee0e1ba8672630f3c8b56f7`.
-- Handoff commit: pending.
-- Push result: pending.
+- Handoff commit: `0796c5d` (`AI-HANDOFF: BANKNAMELEDGER ready for ChatGPT review`).
+- Push result: pushed to `origin/main`.
 
 ## Commit Safety Confirmation
 - Only `docs/validation-coverage-ledger.md` plus the two AI handoff files should be staged for this run.
