@@ -3,6 +3,7 @@
 Generated for the COVERAGESPRINT workstream on 2026-05-08.
 Updated during ADDRESSLEDGER on 2026-05-08.
 Updated during PROOFOFADDRESSLEDGER on 2026-05-12.
+Updated during BANKNAMELEDGER on 2026-05-12.
 
 ## Scope And Safety
 
@@ -12,11 +13,11 @@ No raw field values, PII, DocuSign URLs, tokens, screenshots, tax IDs, routing n
 
 ## Latest Focused Scorecard
 
-- Latest focused run scope: `stakeholder_job_title`.
-- Latest scorecard coverage: 6/277 (2%), grade D.
-- Latest findings summary: product findings 0; ambiguous findings 2; mapping-blocked 0; ready-for-rerun 0.
-- Latest focused run added 5 trusted executed observations across 1 concept.
-- Interpretation: the latest scorecard remains latest-run scoped rather than cumulative. The focused `stakeholder_job_title` canary produced trusted live evidence on the `stakeholders #0 > Job Title` text control, with 5 executed checks, 3 passed results after report refresh, 2 field-local non-product manual-review rows, 0 product findings, 0 mapping-blocked findings, 0 ready-for-rerun findings, and no drift into stakeholder first name, last name, email, phone, `date_of_birth`, ownership percentage, upload controls, signature controls, acknowledgement controls, or finalization controls.
+- Latest focused run scope: `bank_name`.
+- Latest scorecard coverage: 7/277 (3%), grade D.
+- Latest findings summary: product findings 0; ambiguous findings 4; mapping-blocked 0; ready-for-rerun 0.
+- Latest focused run added 6 trusted executed observations across 1 concept.
+- Interpretation: the latest scorecard remains latest-run scoped rather than cumulative. The focused `bank_name` canary produced trusted live evidence on the Bank Name page-1 DocuSign Text control at ordinal 62 / field index 32, with 6 executed checks, 2 passed results after report refresh, 4 field-local non-product manual-review rows, 0 product findings, 0 mapping-blocked findings, 0 ready-for-rerun findings, and no drift into routing number, account number, `bank_account_type`, deposit method, bank-address, phone, email, date, numeric, upload, signature, acknowledgement, or finalization controls.
 
 ## Live-Proven Concepts
 
@@ -25,6 +26,7 @@ The following concepts have trusted live evidence from prior completed guarded r
 - `legal_entity_type`
 - `business_type`
 - `bank_account_type`
+- `bank_name`
 - `proof_of_bank_account_type`
 - `email`
 - `phone`
@@ -52,6 +54,7 @@ The following concepts have trusted live evidence from prior completed guarded r
 ## Live-Proven Field Families
 
 - Controlled-choice metadata: legal entity type, business type, bank account type, proof-of-bank-account type, proof-of-business type, federal tax ID type, proof-of-address type.
+- Banking text behavior: bank name.
 - Contact channels: email and phone.
 - Business and contact text-name fields: business name, DBA name, location name, contact first name, contact last name.
 - Long/free text: business description.
@@ -69,6 +72,7 @@ The following concepts have trusted live evidence from prior completed guarded r
 - Text-name symbol-heavy behavior for location and contact names.
 - Business description very-short and garbage-text behavior.
 - Registration date alternate format and future-date behavior.
+- Bank name very-short behavior remains a policy question; numeric-only behavior still needs stronger field-local text evidence; excessive-length truncation remains acceptable documented behavior; and special-characters behavior remains expected text leniency.
 - Stakeholder job title very-short and special-character behavior: the trusted live canary left `very-short-behavior` as a policy question and `special-characters-behavior` as expected text leniency; both remain field-local non-product manual-review rows unless later policy resolves them.
 - Registered legal address text punctuation and symbol-heavy behavior remains field-local non-product manual-review territory after the live batch; the open rows are two expected-text-leniency observations and three stronger-text-evidence observations.
 - Proof-of-address type current/default option observation can remain field-local `observer_ambiguous` even when the target is trusted, the control is a native select/List, options are discoverable, and the mutating checks pass.
@@ -86,10 +90,10 @@ The following concepts have trusted live evidence from prior completed guarded r
 
 ## Cumulative Coverage Estimate
 
-- Current live-proven concept count: 26 concepts.
-- Current live-proven behavior-family count: approximately 10 families.
-- Latest focused scorecard coverage is 6/277 (2%) because it is latest-run scoped.
-- Latest focused `stakeholder_job_title` canary added 5 trusted executed observations, 0 product findings, 0 mapping-blocked findings, 0 ready-for-rerun findings, and 2 field-local non-product manual-review rows.
+- Current live-proven concept count: 27 concepts.
+- Current live-proven behavior-family count: approximately 11 families.
+- Latest focused scorecard coverage is 7/277 (3%) because it is latest-run scoped.
+- Latest focused `bank_name` canary added 6 trusted executed observations, 0 product findings, 0 mapping-blocked findings, 0 ready-for-rerun findings, and 4 field-local non-product manual-review rows.
 - Cumulative concept coverage is tracked here rather than inferred from the latest focused scorecard alone.
 
 ## COVERAGESPRINT Candidate Plan
@@ -147,49 +151,51 @@ The following concepts have trusted live evidence from prior completed guarded r
 - No drift appeared into stakeholder first name, stakeholder last name, stakeholder email, stakeholder phone, `date_of_birth`, ownership percentage, upload controls, signature controls, acknowledgement controls, or finalization-adjacent controls.
 - This adds `stakeholder_job_title` to cumulative live-proven concept coverage and raises the cumulative live-proven concept count to 26.
 
-## STAKEHOLDERJOBTITLELEDGER Candidate Classification
+## BANKNAMECANARY Results
 
-- Clean live candidate: no safe multi-concept batch remains. `bank_name` is high-confidence and non-sensitive as a label concept, but because it sits in the Banking section next to routing/account/deposit controls, it should be run only as a guarded singleton with strict drift stops.
-- Live candidate likely to produce manual-review rows: `bank_name`; expected name/text behavior may leave field-local manual-review rows, and any such rows are acceptable only if target-trusted, non-product, and not mapping drift.
-- Missing-proof capture unlock: `stakeholder_first_name`, `stakeholder_last_name`.
-- Resolver work required: `document_type`.
-- Product-policy decision required: `website`.
-- Sensitive/defer: `date_of_birth`, raw SSN/EIN/tax-value fields, routing number, account number, bank-value fields, upload/signature/acknowledgement controls, and finalization-adjacent controls.
-- Frozen/address/live-discovery blocked: `registered_state`, `registered_country`, `business_mailing_*`, bank-address fields, and Physical Operating Address post-toggle capture.
-- Amount/capture blocker: `annual_revenue`, `highest_monthly_volume`, `average_ticket`, `max_ticket`.
-- Already live-proven: the live-proven concepts listed above, now including `stakeholder_job_title`, `proof_of_address_type`, `proof_of_business_type`, `federal_tax_id_type`, `registered_address_line_1`, `registered_address_line_2`, `registered_city`, `naics`, `merchant_category_code`, and `postal_code`. The latest scorecard still lists many of these as not-run because it is latest-run scoped; do not treat those latest-run gaps as cumulative regressions.
-- Remaining high-confidence non-sensitive metadata after excluding already-live-proven and policy/sensitive lanes: `bank_name` is the best immediate coverage singleton, but it is not suitable for a batch because of Banking-section adjacency risk.
+- `bank_name`: completed through the operator watchdog as a guarded live singleton.
+- Result after report refresh was 6/6 executed, 2 passed, 4 manual-review, 0 skipped, product findings 0, mapping-blocked findings 0, and ready-for-rerun 0.
+- All 6 target-resolution rows were trusted and resolved to the Bank Name page-1 DocuSign Text control at ordinal 62 / field index 32.
+- The selected target was a visible/editable merchant input, and mapping remained `trusted_by_anchor_and_value_shape`.
+- The 4 manual-review rows remained field-local and non-product: `very-short-behavior` / `policy_question`, `numeric-only-behavior` / `observer_needs_stronger_text_evidence`, `excessive-length-behavior` / `acceptable_behavior_documented`, and `special-characters-behavior` / `expected_text_leniency`.
+- No drift appeared into routing number, account number, `bank_account_type`, deposit method, bank-address, phone, email, date, numeric, upload, signature, acknowledgement, or finalization-adjacent controls.
+- This adds `bank_name` to cumulative live-proven concept coverage and raises the cumulative live-proven concept count to 27.
+
+## BANKNAMELEDGER Candidate Classification
+
+- Clean live candidate: `document_type`; latest calibration now trusts a stakeholder metadata dropdown candidate on page 3 with existing mock proof, so it is the cleanest remaining singleton if a live move is preferred.
+- Live candidate likely to produce manual-review rows: `website`; mapping is stronger again, but URL acceptance and rejection still sits in product-policy territory and is not the best immediate coverage-over-complexity move.
+- Missing-proof capture unlock: `stakeholder_first_name`, `stakeholder_last_name`; both still need field-local screenshot or capture proof before any mutating run.
+- Resolver work required: `business_mailing_address_line_1`, `business_mailing_city`, `business_mailing_state`, `business_mailing_postal_code`; the latest findings explicitly say the post-toggle Physical Operating Address capture still fails to isolate field-local labels.
+- Product-policy or sensitivity constrained: `date_of_birth`; calibration is strong, but expanded checks are sensitivity-heavy and likely to stay policy-driven.
+- Frozen/address/live-discovery blocked: `registered_state`, `registered_country`, bank-address fields, and the Physical Operating Address block until the post-toggle capture is isolated; `registered_state` still lacks live target availability even though offline label trust exists.
+- Amount/capture blocker: `annual_revenue`, `highest_monthly_volume`, `average_ticket`, `max_ticket`; no separate editable controls are currently proven in this saved US flow.
+- Already live-proven: the live-proven concepts listed above, now including `bank_name`. The latest scorecard still lists many of these as not-run because it is latest-run scoped; do not treat those latest-run gaps as cumulative regressions.
+- Remaining high-confidence non-sensitive metadata after excluding already-live-proven and blocked or sensitive lanes: `document_type` is the best remaining singleton, but the higher-yield unlock is still the four-concept Physical Operating Address capture fix.
 
 ## Recommended Next Action
 
-- Recommended next action: B. One guarded live singleton for `bank_name`.
-- Coverage rationale: there is still no remaining safe multi-concept live batch, and `stakeholder_job_title` is now closed as live-proven. The best coverage-over-complexity move is the next high-confidence, non-sensitive singleton. `bank_name` can expand coverage if and only if the verifier stays on the Bank Name text target and does not drift into nearby sensitive banking controls.
-- Why this beats `document_type` first: `document_type` remains resolver work in attachment metadata territory and does not yet offer a cleaner or higher-yield live lane.
-- Why this beats `stakeholder_first_name` and `stakeholder_last_name` first: both remain unresolved in calibration and still need missing-proof/capture unlock work before a guarded live attempt.
-- Why this beats `website` or `date_of_birth` first: `website` remains product-policy territory, and `date_of_birth` is sensitive even though calibration is strong.
-- Why not a batch: Banking adjacency makes `bank_name` unsafe to batch with routing number, account number, bank account type, bank address, deposit-method controls, or any other Banking-section field.
-- Why not `registered_state`, bank-address fields, or `business_mailing_*` first: they remain blocked by live-discovery availability or field-local address-capture issues, so they are less efficient for immediate cumulative coverage expansion.
-- Exact next watchdog command: `npm run interactive:watchdog -- -Concepts bank_name -TimeoutSeconds 240 -PollSeconds 15`.
-- Hard stop conditions for that next prompt: stop with no retry if target verification is not trusted, target resolves outside Bank Name, target drifts to routing number, account number, bank account type, deposit method, bank address, phone/email/date/numeric controls, upload/signature/acknowledgement/finalization controls, any product finding appears, any mapping-blocked output appears, the run times out, artifacts look partial, or any raw bank value/PII exposure risk appears.
-- The next prompt must use the repo AI handoff workflow and commit only allowed handoff files plus any explicitly eligible docs/source/test changes.
+- Recommended next action: C. One non-live resolver/capture workstream for Physical Operating Address / `business_mailing_*`.
+- Coverage rationale: the latest findings explicitly recommend tightening the post-toggle capture anchor, bounds, or DOM selector so the sanitized review payload isolates the Physical Operating Address block and recovers field-local labels before trusting geometry. That one non-live workstream can unlock four currently blocked concepts, which is a better coverage return than any remaining singleton.
+- Why this beats `document_type` first: `document_type` is now a plausible guarded singleton, but it advances only one concept and does not resolve the repo's largest current blocker cluster.
+- Why this beats `stakeholder_first_name` and `stakeholder_last_name` first: both still require missing-proof evidence before any guarded live attempt can be trusted.
+- Why this beats `website` or `date_of_birth` first: `website` still carries product-policy ambiguity, and `date_of_birth` is sensitivity-heavy even with strong calibration.
+- Why this beats stopping at reporting: the blocker is concrete, non-live, and already described by the latest findings as the next tooling task.
+- Non-live resolver objective: tighten the post-toggle Physical Operating Address capture so field-local labels for line 1, city, state, and postal code are isolated in the sanitized payload, then refresh calibration and coverage accounting from those artifacts before any live rerun.
+- The next prompt must use the repo AI handoff workflow and commit only eligible docs or code changes plus the two allowed handoff files.
 
 ### Exact Next Copilot Prompt
 
 ```text
-CHAT ID: BANKNAMECANARY
+CHAT ID: PHYSICALOPERATINGADDRESSRESOLVER
 
 Use the repo AI handoff workflow. Work inside C:\Projects\bead-onboarding-form-validation.
 
-Goal: run exactly one guarded live singleton for bank_name to determine whether it can be added to cumulative live-proven coverage. Do not run a full batch. Do not include any concept outside bank_name. Do not enable DESTRUCTIVE_VALIDATION. Do not upload files or click Submit, Sign, Adopt, Finish, Complete, or any envelope-finalizing control. Do not expose raw DocuSign URLs, tokens, raw values, IDs, screenshots, raw bank values, account numbers, routing numbers, or PII.
+Goal: run one strictly non-live resolver/capture workstream to isolate the Physical Operating Address block that backs `business_mailing_address_line_1`, `business_mailing_city`, `business_mailing_state`, and `business_mailing_postal_code`. Do not run live validation. Do not run bootstrap:interactive. Do not run interactive:watchdog. Do not enable DESTRUCTIVE_VALIDATION. Do not upload files or click Submit, Sign, Adopt, Finish, Complete, or any envelope-finalizing control.
 
-Preflight: run git status --short, the repo-owned process scan, and the live env cleanup check from the ledger workflow. Stop and write a blocked handoff if live-related residue or dirty unrelated changes are present.
+Inspect the existing Physical Operating Address artifacts plus the capture fixtures/scripts that generate them. Tighten the post-toggle capture anchor, bounds, or DOM selector so the sanitized review payload isolates the Physical Operating Address block and recovers field-local labels without relying on geometry alone.
 
-Run exactly:
-npm run interactive:watchdog -- -Concepts bank_name -TimeoutSeconds 240 -PollSeconds 15
+After code changes, run the relevant non-live capture/report refresh commands only, inspect the regenerated sanitized artifacts, and determine whether the four Physical Operating Address concepts can move from capture-blocked to calibration-ready. Keep unresolved concepts out of product findings if field-local proof is still missing.
 
-Do not retry. If the wrapper completes, run npm run reports:refresh and npm run findings:open. Inspect only the allowed summary, target diagnostics, validation results, findings, scorecard, and mapping calibration JSON artifacts. Determine whether bank_name reached trusted live target verification, whether any manual-review rows are field-local and non-product, whether product findings or mapping-blocked rows appeared, and whether the target stayed separate from routing number, account number, bank account type, deposit method, bank address, phone/email/date/numeric controls, upload, signature, acknowledgement, and finalization controls.
-
-Hard stop with no retry if target verification is not trusted, target drifts outside Bank Name, product findings appear, mapping-blocked output appears, the run times out, artifacts look partial, or any raw bank value/PII exposure risk appears.
-
-Update artifacts/ai-handoff/status.json and artifacts/ai-handoff/latest-copilot-result.md, then commit and push only the allowed handoff files with a message starting AI-HANDOFF: BANKNAMECANARY ready for ChatGPT review.
+Update docs/validation-coverage-ledger.md only if the non-live evidence changes the blocker classification, then update artifacts/ai-handoff/status.json and artifacts/ai-handoff/latest-copilot-result.md. Commit and push only eligible docs/code changes plus the two allowed handoff files with a message starting AI-HANDOFF: PHYSICALOPERATINGADDRESSRESOLVER ready for ChatGPT review.
 ```

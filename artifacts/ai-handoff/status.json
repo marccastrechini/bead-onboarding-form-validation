@@ -1,65 +1,53 @@
 {
   "status": "completed",
-  "run_id": "BANKNAMECANARY",
+  "run_id": "BANKNAMELEDGER",
   "model_used": "GitHub Copilot (GPT-5.4 xhigh)",
   "branch": "main",
-  "commit": "8568842",
-  "started_at": "2026-05-12T19:48:04Z",
-  "completed_at": "2026-05-12T19:51:13Z",
-  "git_commit_before": "03798eb02714eb5ca79d53687ef5b19398ba69f6",
-  "git_commit_after": "856884222b5fb03759c55f47a9f95e01eb9cc6a5",
+  "commit": "PENDING",
+  "started_at": "2026-05-12T20:14:39Z",
+  "completed_at": "PENDING",
+  "git_commit_before": "9a1452ac19ccb5136ee0e1ba8672630f3c8b56f7",
+  "git_commit_after": "PENDING",
   "summary_file": "artifacts/ai-handoff/latest-copilot-result.md",
   "needs_chatgpt_review": true,
+  "files_changed": [
+    "docs/validation-coverage-ledger.md",
+    "artifacts/ai-handoff/status.json",
+    "artifacts/ai-handoff/latest-copilot-result.md"
+  ],
   "commands_run": [
     "Read .github/copilot-instructions.md and .github/prompts/ai-handoff-run.prompt.md",
-    "git status --short",
-    "Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'node|chrome|msedge|powershell|pwsh' -and $_.CommandLine -match 'bead-onboarding-form-validation|playwright|bootstrap|interactive|npm|tsx|run-interactive-watchdog' } | Select-Object ProcessId, Name, CreationDate, CommandLine | Format-Table -Wrap",
-    "Get-ChildItem Env:INTERACTIVE_VALIDATION,Env:DISPOSABLE_ENVELOPE,Env:BEAD_SAMPLE_ENRICHMENT,Env:BEAD_SAMPLE_ENRICHMENT_PATH,Env:INTERACTIVE_CONCEPTS,Env:DESTRUCTIVE_VALIDATION,Env:INTERACTIVE_RUN_TIMEOUT_MS -ErrorAction SilentlyContinue",
-    "git rev-parse HEAD",
-    "Get-Date -AsUTC -Format yyyy-MM-ddTHH:mm:ssZ",
-    "npm run interactive:watchdog -- -Concepts bank_name -TimeoutSeconds 240 -PollSeconds 15",
+    "Read docs/validation-coverage-ledger.md, docs/LIVE_BOOTSTRAP.md, artifacts/latest-interactive-target-diagnostics.json, artifacts/latest-interactive-validation-results.json, artifacts/latest-validation-findings.json, artifacts/latest-validation-scorecard.json, and artifacts/latest-mapping-calibration.json",
     "npm run reports:refresh",
     "npm run findings:open",
-    "Read artifacts/latest-validation-summary.json",
-    "Read artifacts/latest-interactive-target-diagnostics.json",
-    "Read artifacts/latest-interactive-validation-results.json",
-    "Read artifacts/latest-validation-findings.json",
-    "Read artifacts/latest-validation-scorecard.json",
-    "Read artifacts/latest-mapping-calibration.json",
-    "Search latest target diagnostics and findings for drift and blocker terms",
-    "git status --short",
-    "Get-ChildItem Env:INTERACTIVE_VALIDATION,Env:DISPOSABLE_ENVELOPE,Env:BEAD_SAMPLE_ENRICHMENT,Env:BEAD_SAMPLE_ENRICHMENT_PATH,Env:INTERACTIVE_CONCEPTS,Env:DESTRUCTIVE_VALIDATION,Env:INTERACTIVE_RUN_TIMEOUT_MS -ErrorAction SilentlyContinue",
-    "Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'node|chrome|msedge|powershell|pwsh' -and $_.CommandLine -match 'bead-onboarding-form-validation|playwright|bootstrap|interactive|npm|tsx|run-interactive-watchdog' } | Select-Object ProcessId, Name, CreationDate, CommandLine | Format-Table -Wrap"
+    "git rev-parse HEAD",
+    "Get-Date -AsUTC -Format yyyy-MM-ddTHH:mm:ssZ",
+    "git status --short"
   ],
   "tests_run": [
     {
-      "command": "npm run interactive:watchdog -- -Concepts bank_name -TimeoutSeconds 240 -PollSeconds 15",
-      "result": "passed",
-      "details": "Guarded singleton completed via the watchdog with exit code 0; no retry; bootstrap:interactive ran only through the wrapper; Playwright interactive test passed 1/1."
-    },
-    {
       "command": "npm run reports:refresh",
       "result": "passed",
-      "details": "Reports regenerated; coverage 7/277 (3%), grade D; product findings 0, ambiguous findings 4, mapping-blocked 0, ready-for-rerun 0."
+      "details": "Regenerated mapping calibration, scorecard, and findings; coverage 7/277 (3%), grade D; product findings 0, ambiguous findings 4, mapping-blocked 0, ready-for-rerun 0."
     },
     {
       "command": "npm run findings:open",
       "result": "passed",
-      "details": "Findings opened and confirmed 6 trusted executed bank_name observations, 2 passed, 4 manual-review, 0 skipped."
+      "details": "Confirmed the bank_name-focused findings export: 6 trusted executed observations, 2 passed, 4 manual-review, 0 skipped, and recommended next tooling work that explicitly points to tightening the Physical Operating Address post-toggle capture."
     }
   ],
   "validation_summary": {
     "run_scope": [
-      "bank_name"
+      "bank_name non-live ledger pass"
     ],
     "hard_stop_triggered": false,
-    "trusted_live_evidence_created": true,
-    "eligible_for_cumulative_ledger": true,
+    "live_validation_ran": false,
+    "ledger_updated": true,
     "recommended_cumulative_live_proven_count": 27,
     "latest_focused_scorecard": "7/277 (3%), grade D",
     "latest_scorecard_is_cumulative": false,
     "bank_name": {
-      "status": "trusted_live_evidence_created",
+      "status": "recorded_as_live_proven_in_ledger",
       "target": "Bank Name",
       "control": "page-1 DocuSign Text visible/editable merchant input at ordinal 62",
       "field_index": 32,
@@ -77,9 +65,23 @@
       "mapping_blocked": 0,
       "ready_for_rerun": 0,
       "target_resolution": "trusted_by_anchor_and_value_shape",
-      "separation": "Selected target stayed on Bank Name. Diagnostics again rejected nearby bank_account_type and nearby numeric- or phone-shaped alternatives as bank_name conflicts, and no artifact showed drift to routing number, account number, deposit method, bank-address, upload, signature, acknowledgement, or finalization controls."
+      "separation": "The trusted bank_name evidence stayed off routing number, account number, bank_account_type, deposit method, bank-address, phone, email, date, numeric, upload, signature, acknowledgement, and finalization controls."
+    },
+    "next_move": {
+      "choice": "C",
+      "workstream": "Physical Operating Address resolver",
+      "reason": "The latest findings explicitly say to tighten the post-toggle capture anchor, bounds, or DOM selector so the sanitized payload isolates the Physical Operating Address block and recovers field-local labels. That one non-live workstream can unlock four blocked business_mailing concepts, which is a better coverage return than the remaining single-concept live options."
     }
   },
-  "key_outcome": "A fresh guarded bank_name singleton rerun completed successfully and reconfirmed trusted live Bank Name evidence with 6 trusted executed observations, 0 product findings, and 0 mapping-blocked findings. bank_name remains eligible to be added to cumulative live-proven coverage in the next non-live ledger pass.",
-  "next_recommendation": "Run a strictly non-live ledger/accounting pass to record bank_name as live-proven, raise the cumulative live-proven concept count from 26 to 27, and choose the next best coverage move from repo artifacts only."
+  "key_outcome": "BANKNAMELEDGER updated the cumulative coverage ledger to record bank_name as live-proven, raised the cumulative live-proven concept count from 26 to 27, and replaced the stale bank_name-next recommendation with a non-live Physical Operating Address capture resolver recommendation.",
+  "blockers": [
+    "Physical Operating Address post-toggle capture still does not isolate field-local labels for business_mailing_*.",
+    "registered_state remains blocked by live target availability despite offline label trust.",
+    "document_type is plausible but only a one-concept singleton, so it is not the highest-yield next move."
+  ],
+  "uncertainty": [
+    "document_type remains a credible follow-up singleton after the address capture resolver, but the current artifacts point more strongly to the four-concept Physical Operating Address unlock.",
+    "The latest scorecard and findings remain latest-run scoped and should not be treated as cumulative coverage snapshots."
+  ],
+  "next_recommendation": "Run PHYSICALOPERATINGADDRESSRESOLVER as a strictly non-live capture-isolation workstream for business_mailing_address_line_1, business_mailing_city, business_mailing_state, and business_mailing_postal_code."
 }
