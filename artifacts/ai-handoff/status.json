@@ -1,72 +1,101 @@
 {
   "status": "completed",
-  "run_id": "PROOFOFADDRESSLEDGER",
+  "run_id": "STAKEHOLDERJOBTITLECANARY",
   "model_used": "GitHub Copilot (user requested GPT-5.4 xhigh)",
   "branch": "main",
-  "commit": "pending_handoff_commit",
-  "completed_at": "2026-05-12T15:32:46Z",
-  "git_commit_before": "7ccb90243a4713400bc57337aec79db922139076",
-  "git_commit_after": "pending_handoff_commit",
+  "commit": "reported_in_final_chat_after_push",
+  "started_at": "2026-05-12T15:41:46.509Z",
+  "completed_at": "2026-05-12T15:44:41Z",
+  "git_commit_before": "2036d23abcd778db705e63d797c35d4fd1aca49e",
+  "git_commit_after": "reported_in_final_chat_after_push_self_referential_sha_not_embedded",
   "summary_file": "artifacts/ai-handoff/latest-copilot-result.md",
   "needs_chatgpt_review": true,
   "commands_run": [
     "git status --short",
     "Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'node|chrome|msedge|powershell|pwsh' -and $_.CommandLine -match 'bead-onboarding-form-validation|playwright|bootstrap|interactive|npm|tsx|run-interactive-watchdog' } | Select-Object ProcessId, Name, CreationDate, CommandLine | Format-Table -Wrap",
     "Get-ChildItem Env:INTERACTIVE_VALIDATION,Env:DISPOSABLE_ENVELOPE,Env:BEAD_SAMPLE_ENRICHMENT,Env:BEAD_SAMPLE_ENRICHMENT_PATH,Env:INTERACTIVE_CONCEPTS,Env:DESTRUCTIVE_VALIDATION,Env:INTERACTIVE_RUN_TIMEOUT_MS -ErrorAction SilentlyContinue",
-    "Read docs/validation-coverage-ledger.md and docs/LIVE_BOOTSTRAP.md",
-    "Non-live JSON inspection of latest validation results, target diagnostics, findings, scorecard, mapping calibration, and validation summary artifacts",
-    "Non-live candidate inspection for stakeholder_job_title, document_type, registered address/country, business_mailing_*, amount fields, stakeholder names, website, date_of_birth, bank_name, and high-confidence metadata concepts",
-    "npm run test:units",
+    "git rev-parse HEAD",
+    "npm run interactive:watchdog -- -Concepts stakeholder_job_title -TimeoutSeconds 240 -PollSeconds 15",
     "npm run reports:refresh",
     "npm run findings:open",
-    "git status --short --untracked-files=all"
+    "Allowed-artifact JSON summaries and assertions for stakeholder_job_title target resolution",
+    "git status --short",
+    "Get-ChildItem Env:INTERACTIVE_VALIDATION,Env:DISPOSABLE_ENVELOPE,Env:BEAD_SAMPLE_ENRICHMENT,Env:BEAD_SAMPLE_ENRICHMENT_PATH,Env:INTERACTIVE_CONCEPTS,Env:DESTRUCTIVE_VALIDATION,Env:INTERACTIVE_RUN_TIMEOUT_MS -ErrorAction SilentlyContinue",
+    "Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'node|chrome|msedge|powershell|pwsh' -and $_.CommandLine -match 'bead-onboarding-form-validation|playwright|bootstrap|interactive|npm|tsx|run-interactive-watchdog' } | Select-Object ProcessId, Name, CreationDate, CommandLine | Format-Table -Wrap"
   ],
   "tests_run": [
     {
-      "command": "npm run test:units",
+      "command": "npm run interactive:watchdog -- -Concepts stakeholder_job_title -TimeoutSeconds 240 -PollSeconds 15",
       "result": "passed",
-      "details": "244 tests passed in 12.0 seconds."
+      "details": "Guarded singleton completed with 1 Playwright test passed; no retry and no full batch."
     },
     {
       "command": "npm run reports:refresh",
       "result": "passed",
-      "details": "Reports regenerated; coverage 5/277 (2%), grade D; product findings 0, ambiguous findings 1, mapping-blocked 0, ready-for-rerun 0."
+      "details": "Reports regenerated; coverage 6/277 (2%), grade D; product findings 0, ambiguous findings 2, mapping-blocked 0, ready-for-rerun 0."
     },
     {
       "command": "npm run findings:open",
       "result": "passed",
-      "details": "Findings opened and confirmed the focused proof_of_address_type run scope and 4 trusted executed observations."
+      "details": "Findings opened and confirmed 5 trusted executed stakeholder_job_title observations."
     }
   ],
   "validation_summary": {
-    "latest_focused_scope": ["proof_of_address_type"],
-    "latest_focused_scorecard": "5/277 (2%), grade D",
-    "latest_scorecard_is_cumulative": false,
-    "cumulative_live_proven_concepts": 25,
-    "proof_of_address_type": {
-      "status": "live_proven",
-      "target": "Registered Legal Address > Proof of Address Type",
-      "control": "page-1 DocuSign List/native-select",
-      "checks_executed": 4,
-      "passed": 3,
-      "manual_review": 1,
-      "manual_review_reason": "current-option-documented / observer_ambiguous",
-      "product_findings": 0,
-      "mapping_blocked": 0,
-      "ready_for_rerun": 0,
-      "drift": "none: no document_type, stakeholder selector, upload widget, or file-value echo drift"
+    "target_concepts": ["stakeholder_job_title"],
+    "skipped_concepts": [],
+    "target_verification": "trusted",
+    "trusted_target_observations": 5,
+    "selected_target": {
+      "field_index": 58,
+      "page_index": 3,
+      "ordinal_on_page": 26,
+      "docusign_tab_type": "Text",
+      "control_kind": "text",
+      "control_category": "merchant_input",
+      "visible": true,
+      "editable": true,
+      "coordinate_distance": 0,
+      "ordinal_distance": 0,
+      "resolved_field": "stakeholders #0 > Job Title"
     },
-    "candidate_classification": {
-      "clean_live_candidate": "No safe multi-concept batch; bank_name is a later singleton because of Banking-section adjacency risk.",
-      "live_candidate_likely_manual_review": ["stakeholder_job_title"],
-      "missing_proof_capture_unlock": ["stakeholder_first_name", "stakeholder_last_name"],
-      "resolver_work_required": ["document_type"],
-      "product_policy_decision_required": ["website"],
-      "sensitive_defer": ["date_of_birth", "raw tax fields", "routing_number", "account_number", "bank-value fields", "upload/signature/acknowledgement/finalization controls"],
-      "frozen_address_live_discovery_blocked": ["registered_state", "registered_country", "business_mailing_*", "bank-address fields", "Physical Operating Address post-toggle capture"],
-      "amount_capture_blocker": ["annual_revenue", "highest_monthly_volume", "average_ticket", "max_ticket"]
-    }
+    "raw_interactive_results": {
+      "total": 5,
+      "passed": 2,
+      "manual_review": 3,
+      "failed": 0,
+      "warning": 0,
+      "skipped": 0
+    },
+    "refreshed_findings_results": {
+      "total": 5,
+      "passed": 3,
+      "manual_review": 2,
+      "failed": 0,
+      "warning": 0,
+      "skipped": 0
+    },
+    "manual_review_rows": [
+      {
+        "validation_id": "very-short-behavior",
+        "classification": "policy_question",
+        "target_confidence": "trusted",
+        "product_finding": false,
+        "mapping_drift": false
+      },
+      {
+        "validation_id": "special-characters-behavior",
+        "classification": "expected_text_leniency",
+        "target_confidence": "trusted",
+        "product_finding": false,
+        "mapping_drift": false
+      }
+    ],
+    "product_findings": 0,
+    "mapping_blocked": 0,
+    "ready_for_rerun": 0,
+    "scorecard_coverage": "6/277 (2%)",
+    "separation": "No drift to stakeholder first name, last name, email, phone, date_of_birth, ownership percentage, upload, signature, acknowledgement, or finalization controls."
   },
-  "key_outcome": "Updated the cumulative coverage ledger to record proof_of_address_type as live-proven, raising cumulative live-proven concept coverage to 25 while preserving the latest-run-scoped scorecard interpretation.",
-  "next_recommendation": "Choose option B: one guarded live singleton for stakeholder_job_title using npm run interactive:watchdog -- -Concepts stakeholder_job_title -TimeoutSeconds 240 -PollSeconds 15, with hard stops for untrusted target verification, target drift, product findings, mapping-blocked output, timeout, partial artifacts, or PII exposure risk."
+  "key_outcome": "stakeholder_job_title created trusted live evidence: 5 trusted target observations on the Stakeholder Job Title text field, with 3 passed and 2 field-local non-product manual-review findings after report refresh.",
+  "next_recommendation": "Run a strictly non-live ledger accounting pass to record stakeholder_job_title as live-proven, raise cumulative live-proven concept coverage from 25 to 26, and choose the next best coverage move."
 }
