@@ -1262,6 +1262,53 @@ function tabGuidFromElementId(elementId: string | null): string | null {
   return m ? m[1].toLowerCase() : null;
 }
 
+async function locatorDomIdentityKey(loc: Locator): Promise<string | null> {
+  try {
+    return await loc.evaluate((el) => {
+      const tab = el.closest('.doc-tab');
+      const pathParts: string[] = [];
+      let cur: Element | null = el;
+      let depth = 0;
+      while (cur && cur.parentElement && depth < 5) {
+        const parent = cur.parentElement;
+        const siblings = Array.from(parent.children).filter((candidate) => candidate.tagName === cur!.tagName);
+        const ordinal = siblings.indexOf(cur) + 1;
+        pathParts.unshift(`${cur.tagName.toLowerCase()}:nth-of-type(${ordinal})`);
+        cur = parent;
+        depth++;
+      }
+
+      return [
+        el.tagName.toLowerCase(),
+        el.getAttribute('id') ?? '',
+        el.getAttribute('name') ?? '',
+        el.getAttribute('data-qa') ?? '',
+        el.getAttribute('role') ?? '',
+        tab?.getAttribute('id') ?? '',
+        tab?.getAttribute('data-id') ?? '',
+        tab?.getAttribute('data-type') ?? '',
+        pathParts.join('>'),
+      ].join('|');
+    }, { timeout: 1_000 });
+  } catch {
+    return null;
+  }
+}
+
+async function dedupeLocators(locators: Locator[]): Promise<Locator[]> {
+  const seen = new Set<string>();
+  const unique: Locator[] = [];
+
+  for (const loc of locators) {
+    const key = await locatorDomIdentityKey(loc);
+    if (key && seen.has(key)) continue;
+    if (key) seen.add(key);
+    unique.push(loc);
+  }
+
+  return unique;
+}
+
 /**
  * Discover up to `maxPerKind` controls of each kind.  The cap prevents a
  * pathological DocuSign layout from producing a 500-field sweep.
@@ -1284,10 +1331,15 @@ export async function discoverFields(
     }
   }
 
+  const comboboxLocators = await dedupeLocators([
+    ...(await frame.getByRole('combobox').all()),
+    ...(await frame.locator('.doc-tab[data-type="List"] select, select.main-list-tab-select').all()),
+  ]);
+
   const kinds: Array<{ kind: FieldKind; list: Locator[] }> = [
     { kind: 'textbox', list: textboxOnly },
     { kind: 'textarea', list: textareaAll },
-    { kind: 'combobox', list: await frame.getByRole('combobox').all() },
+    { kind: 'combobox', list: comboboxLocators },
     { kind: 'checkbox', list: await frame.getByRole('checkbox').all() },
     { kind: 'radio', list: await frame.getByRole('radio').all() },
     { kind: 'upload', list: await frame.locator('input[type="file"]').all() },

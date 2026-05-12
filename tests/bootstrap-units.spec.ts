@@ -15,7 +15,7 @@ import {
   findPhysicalOperatingAddressToggle,
   guardedPhysicalOperatingAddressDiscoveryEnabled,
 } from '../fixtures/conditional-discovery';
-import type { DiscoveredField } from '../fixtures/field-discovery';
+import { discoverFields, type DiscoveredField } from '../fixtures/field-discovery';
 import {
   buildPhysicalOperatingAddressDomProbeReport,
   collectPhysicalOperatingAddressProbeTextFragments,
@@ -148,6 +148,72 @@ test.describe('bead-client: buildResendUrl', () => {
     expect(() => normalizeResendMethod('DELETE')).toThrow(
       'Unsupported BEAD_ONBOARDING_RESEND_METHOD: DELETE',
     );
+  });
+});
+
+test.describe('field-discovery: combobox fallback', () => {
+  test('discovers DocuSign native select list tabs when combobox role lookup misses them', async ({ page }) => {
+    await page.setContent(`
+      <div class="page-shell">
+        <img class="page-image" src="https://example.test/signing?p=1" />
+        <div class="doc-tab list-tab signing-required is-off" id="tab-legal-address-type" data-id="legal-address-type" data-type="List" style="left:663.68px; top:512.64px; width:136px; height:18px;">
+          <select id="tab-form-element-legal-address-type" class="tab-form-element main-list-tab-select inked">
+            <option value="">-- select --</option>
+            <option value="UtilityBill">Utility Bill</option>
+            <option value="BankStatement">Bank Statement</option>
+          </select>
+          <label for="tab-form-element-legal-address-type" class="tab-label inked">Required - legalAddressType</label>
+        </div>
+      </div>
+    `);
+
+    const frame = {
+      locator: page.locator.bind(page),
+      getByLabel: page.getByLabel.bind(page),
+      getByRole: ((role: Parameters<typeof page.getByRole>[0], options?: Parameters<typeof page.getByRole>[1]) => {
+        if (role === 'combobox') return page.locator('[data-no-combobox-match]');
+        return page.getByRole(role, options);
+      }) as typeof page.getByRole,
+      getByText: page.getByText.bind(page),
+      getByTestId: page.getByTestId.bind(page),
+    } as Parameters<typeof discoverFields>[0];
+
+    const fields = await discoverFields(frame);
+    const listField = fields.find((field) => field.kind === 'combobox');
+
+    expect(listField).toBeTruthy();
+    expect(listField).toMatchObject({
+      kind: 'combobox',
+      docusignTabType: 'List',
+      controlCategory: 'merchant_input',
+      pageIndex: 1,
+      tabLeft: 663.68,
+      tabTop: 512.64,
+    });
+  });
+
+  test('does not duplicate DocuSign native selects already exposed as comboboxes', async ({ page }) => {
+    await page.setContent(`
+      <div class="page-shell">
+        <img class="page-image" src="https://example.test/signing?p=1" />
+        <div class="doc-tab list-tab signing-required is-off" id="tab-legal-address-type" data-id="legal-address-type" data-type="List" style="left:663.68px; top:512.64px; width:136px; height:18px;">
+          <select id="tab-form-element-legal-address-type" class="tab-form-element main-list-tab-select inked">
+            <option value="">-- select --</option>
+            <option value="UtilityBill">Utility Bill</option>
+          </select>
+          <label for="tab-form-element-legal-address-type" class="tab-label inked">Required - legalAddressType</label>
+        </div>
+      </div>
+    `);
+
+    const fields = await discoverFields(page);
+    const matchingFields = fields.filter((field) => field.elementId === 'tab-form-element-legal-address-type');
+
+    expect(matchingFields).toHaveLength(1);
+    expect(matchingFields[0]).toMatchObject({
+      kind: 'combobox',
+      docusignTabType: 'List',
+    });
   });
 });
 
