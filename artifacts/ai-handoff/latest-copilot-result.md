@@ -7,17 +7,19 @@ Completed
 BANKNAMELEDGER
 
 ## Objective
-Run a strictly non-live coverage accounting pass to record `bank_name` as cumulative live-proven coverage, refresh the ledger from the latest allowed artifacts only, and choose exactly one next best coverage move.
+Re-run the strictly non-live BANKNAMELEDGER accounting pass, verify that the cumulative ledger still matches the requested bank_name coverage state from allowed artifacts only, and refresh the handoff result for ChatGPT review.
 
-## What Changed
-- Updated `docs/validation-coverage-ledger.md` to record `bank_name` as live-proven.
-- Raised the cumulative live-proven concept count from 26 to 27.
-- Refreshed the latest-focused summary to the `bank_name` run at 7/277 (3%), grade D.
-- Added the `BANKNAMECANARY` results section and replaced the stale `bank_name`-next recommendation with a Physical Operating Address resolver recommendation.
+## Current Verification Result
+- The cumulative ledger already matches the requested BANKNAMELEDGER outcome.
+- `bank_name` is already recorded as live-proven.
+- The cumulative live-proven concept count is already 27.
+- The latest-focused scorecard already reflects `bank_name` at 7/277 (3%), grade D, and is still correctly described as latest-run scoped rather than cumulative.
+- The existing next-step recommendation is still `C`: one non-live Physical Operating Address resolver/capture workstream.
 
-## Bank Name Ledger Outcome
-- `bank_name` is now recorded as cumulative live-proven coverage.
-- Trusted target remained the Bank Name page-1 DocuSign Text merchant input at ordinal 62 / field index 32.
+## Bank Name Evidence Reconfirmed
+- Trusted target: Bank Name.
+- Target location: page 1, ordinal 62, visible/editable DocuSign Text merchant input.
+- Field index: 32.
 - Trusted executed observations: 6.
 - Passed after refresh: 2.
 - Manual-review after refresh: 4.
@@ -32,32 +34,25 @@ Run a strictly non-live coverage accounting pass to record `bank_name` as cumula
 - `special-characters-behavior` / `expected_text_leniency`
 
 ## Target Separation Confirmation
-- The trusted `bank_name` evidence stayed off routing number, account number, `bank_account_type`, deposit method, bank-address, phone, email, date, numeric, upload, signature, acknowledgement, and finalization controls.
-- The ledger now records that separation explicitly so future coverage accounting does not need to infer it again.
+- The trusted `bank_name` evidence remains separated from routing number, account number, `bank_account_type`, deposit method, bank-address, phone, email, date, numeric, upload, signature, acknowledgement, and finalization controls.
 
-## Non-Live Validation Run
-- `npm run reports:refresh` passed and regenerated mapping calibration, scorecard, and findings with coverage 7/277 (3%), grade D, product 0, ambiguous 4, mapping-blocked 0, ready-for-rerun 0.
-- `npm run findings:open` passed and confirmed the bank_name-focused findings export, including the Physical Operating Address tooling recommendation.
-- No live validation ran in this task.
-
-## Files Changed
-- `docs/validation-coverage-ledger.md`
-- `artifacts/ai-handoff/status.json`
-- `artifacts/ai-handoff/latest-copilot-result.md`
-
-## Blockers And Uncertainty
-- The Physical Operating Address post-toggle capture still does not isolate field-local labels for `business_mailing_*`, so those four concepts remain capture-blocked.
-- `registered_state` still lacks live target availability despite offline label trust.
-- `document_type` is now a plausible guarded singleton, but it only advances one concept; the current artifacts point more strongly to the four-concept Physical Operating Address unlock.
-- The latest scorecard and findings remain latest-run scoped, not cumulative.
+## Concept Reclassification Recheck
+- Clean live candidate: `document_type` remains the cleanest remaining singleton.
+- Live candidate likely to produce manual-review rows: `website` remains policy-heavy despite stronger calibration.
+- Missing-proof capture unlock: `stakeholder_first_name`, `stakeholder_last_name`.
+- Resolver work required: `business_mailing_address_line_1`, `business_mailing_city`, `business_mailing_state`, `business_mailing_postal_code`.
+- Product-policy decision required: `website` and parts of `date_of_birth` behavior.
+- Sensitive/defer: `date_of_birth` and raw tax/bank identifiers.
+- Frozen/address/live-discovery blocked: `registered_state`, `registered_country`, Physical Operating Address capture lane.
+- Amount/capture blocker: `annual_revenue`, `highest_monthly_volume`, `average_ticket`, `max_ticket`.
+- Already live-proven: unchanged from the current ledger, including `bank_name`.
 
 ## Recommended Next Step
 Choose `C`: one strictly non-live resolver/capture workstream for Physical Operating Address / `business_mailing_*`.
 
-Why this is next:
-- The latest findings explicitly say to tighten the post-toggle capture anchor, bounds, or DOM selector so the sanitized payload isolates the Physical Operating Address block and recovers field-local labels before trusting geometry.
-- That single non-live workstream can unlock four currently blocked concepts, which is a better coverage return than the remaining one-concept live options.
-- `document_type` remains the cleanest remaining singleton, but it is lower-yield than the address-capture unlock.
+Why this is still next:
+- The latest findings and calibration still explicitly call out the Physical Operating Address post-toggle capture as the highest-yield blocker.
+- That one non-live workstream can unlock four concepts, which remains a better coverage return than `document_type` or any other remaining singleton.
 
 ## Proposed Next Copilot Prompt
 
@@ -75,13 +70,17 @@ After code changes, run only the relevant non-live capture/report refresh comman
 Update docs/validation-coverage-ledger.md only if the non-live evidence changes the blocker classification, then update artifacts/ai-handoff/status.json and artifacts/ai-handoff/latest-copilot-result.md. Commit and push only eligible docs/code changes plus the two allowed handoff files with a message starting AI-HANDOFF: PHYSICALOPERATINGADDRESSRESOLVER ready for ChatGPT review.
 ```
 
-## Commit / Push Status
-- Branch: `main`.
-- Commit before handoff update: `9a1452ac19ccb5136ee0e1ba8672630f3c8b56f7`.
-- Handoff commit: `0796c5d` (`AI-HANDOFF: BANKNAMELEDGER ready for ChatGPT review`).
-- Push result: pushed to `origin/main`.
+## Validation And Commit Status
+- `npm run reports:refresh` passed and reproduced the same coverage state: 7/277 (3%), grade D, product 0, ambiguous 4, mapping-blocked 0, ready-for-rerun 0.
+- `npm run findings:open` passed and reproduced the same bank_name-focused findings plus the unchanged Physical Operating Address capture recommendation.
+- No live validation ran.
+- Commit/push: pending.
+
+## Files Changed
+- `artifacts/ai-handoff/status.json`
+- `artifacts/ai-handoff/latest-copilot-result.md`
 
 ## Commit Safety Confirmation
-- Only `docs/validation-coverage-ledger.md` plus the two AI handoff files should be staged for this run.
+- No ledger edit was needed in this verification pass because `docs/validation-coverage-ledger.md` already matched the requested BANKNAMELEDGER state.
+- Only the two AI handoff files should be staged for this refresh.
 - No `artifacts/latest-*`, `artifacts/playwright*`, `samples/private/**`, raw screenshots, or private proof files should be staged.
-- No raw DocuSign URLs, tokens, raw field values, raw bank values, account numbers, routing numbers, IDs, or PII are included in this handoff.

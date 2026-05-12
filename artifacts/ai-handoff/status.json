@@ -3,51 +3,53 @@
   "run_id": "BANKNAMELEDGER",
   "model_used": "GitHub Copilot (GPT-5.4 xhigh)",
   "branch": "main",
-  "commit": "0796c5d",
-  "started_at": "2026-05-12T20:14:39Z",
-  "completed_at": "2026-05-12T20:16:34Z",
-  "git_commit_before": "9a1452ac19ccb5136ee0e1ba8672630f3c8b56f7",
-  "git_commit_after": "0796c5d432543ee42aa2d550d37bcbe959b1607b",
+  "commit": "PENDING",
+  "started_at": "2026-05-12T20:20:07Z",
+  "completed_at": "2026-05-12T20:20:07Z",
+  "git_commit_before": "6abfc6c29d3d61a82f72df8338ca04cb8689c049",
+  "git_commit_after": "PENDING",
   "summary_file": "artifacts/ai-handoff/latest-copilot-result.md",
   "needs_chatgpt_review": true,
   "files_changed": [
-    "docs/validation-coverage-ledger.md",
     "artifacts/ai-handoff/status.json",
     "artifacts/ai-handoff/latest-copilot-result.md"
   ],
   "commands_run": [
     "Read .github/copilot-instructions.md and .github/prompts/ai-handoff-run.prompt.md",
-    "Read docs/validation-coverage-ledger.md, docs/LIVE_BOOTSTRAP.md, artifacts/latest-interactive-target-diagnostics.json, artifacts/latest-interactive-validation-results.json, artifacts/latest-validation-findings.json, artifacts/latest-validation-scorecard.json, and artifacts/latest-mapping-calibration.json",
-    "npm run reports:refresh",
-    "npm run findings:open",
+    "git status --short",
+    "Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'node|chrome|msedge|powershell|pwsh' -and $_.CommandLine -match 'bead-onboarding-form-validation|playwright|bootstrap|interactive|npm|tsx|run-interactive-watchdog' } | Select-Object ProcessId, Name, CreationDate, CommandLine | Format-Table -Wrap",
+    "Get-ChildItem Env:INTERACTIVE_VALIDATION,Env:DISPOSABLE_ENVELOPE,Env:BEAD_SAMPLE_ENRICHMENT,Env:BEAD_SAMPLE_ENRICHMENT_PATH,Env:INTERACTIVE_CONCEPTS,Env:DESTRUCTIVE_VALIDATION,Env:INTERACTIVE_RUN_TIMEOUT_MS -ErrorAction SilentlyContinue",
+    "Read docs/validation-coverage-ledger.md, docs/LIVE_BOOTSTRAP.md, artifacts/latest-validation-summary.json, artifacts/latest-interactive-target-diagnostics.json, artifacts/latest-interactive-validation-results.json, artifacts/latest-validation-findings.json, artifacts/latest-validation-scorecard.json, and artifacts/latest-mapping-calibration.json",
+    "Search explicit reconsideration concepts in latest-validation-scorecard.json, latest-mapping-calibration.json, and latest-validation-findings.json",
     "git rev-parse HEAD",
     "Get-Date -AsUTC -Format yyyy-MM-ddTHH:mm:ssZ",
-    "git status --short"
+    "npm run reports:refresh",
+    "npm run findings:open"
   ],
   "tests_run": [
     {
       "command": "npm run reports:refresh",
       "result": "passed",
-      "details": "Regenerated mapping calibration, scorecard, and findings; coverage 7/277 (3%), grade D; product findings 0, ambiguous findings 4, mapping-blocked 0, ready-for-rerun 0."
+      "details": "Regenerated mapping calibration, scorecard, and findings with unchanged coverage 7/277 (3%), grade D; product findings 0, ambiguous findings 4, mapping-blocked 0, ready-for-rerun 0."
     },
     {
       "command": "npm run findings:open",
       "result": "passed",
-      "details": "Confirmed the bank_name-focused findings export: 6 trusted executed observations, 2 passed, 4 manual-review, 0 skipped, and recommended next tooling work that explicitly points to tightening the Physical Operating Address post-toggle capture."
+      "details": "Reconfirmed 6 trusted executed bank_name observations, 2 passed, 4 manual-review, 0 skipped, and the unchanged recommendation to tighten the Physical Operating Address post-toggle capture."
     }
   ],
   "validation_summary": {
     "run_scope": [
-      "bank_name non-live ledger pass"
+      "bank_name non-live ledger verification refresh"
     ],
     "hard_stop_triggered": false,
     "live_validation_ran": false,
-    "ledger_updated": true,
+    "ledger_already_matched_request": true,
     "recommended_cumulative_live_proven_count": 27,
     "latest_focused_scorecard": "7/277 (3%), grade D",
     "latest_scorecard_is_cumulative": false,
     "bank_name": {
-      "status": "recorded_as_live_proven_in_ledger",
+      "status": "already_recorded_as_live_proven_in_ledger",
       "target": "Bank Name",
       "control": "page-1 DocuSign Text visible/editable merchant input at ordinal 62",
       "field_index": 32,
@@ -70,17 +72,17 @@
     "next_move": {
       "choice": "C",
       "workstream": "Physical Operating Address resolver",
-      "reason": "The latest findings explicitly say to tighten the post-toggle capture anchor, bounds, or DOM selector so the sanitized payload isolates the Physical Operating Address block and recovers field-local labels. That one non-live workstream can unlock four blocked business_mailing concepts, which is a better coverage return than the remaining single-concept live options."
+      "reason": "The existing ledger classification is still supported by the latest findings, calibration, and scorecard artifacts: the Physical Operating Address capture blocker can unlock four business_mailing concepts, which is a better coverage return than the remaining singleton options."
     }
   },
-  "key_outcome": "BANKNAMELEDGER updated the cumulative coverage ledger to record bank_name as live-proven, raised the cumulative live-proven concept count from 26 to 27, and replaced the stale bank_name-next recommendation with a non-live Physical Operating Address capture resolver recommendation.",
+  "key_outcome": "Verification found that BANKNAMELEDGER was already correctly recorded in the cumulative ledger, including bank_name as live-proven and next-step choice C, so this run completed as a handoff refresh plus non-live revalidation with no ledger changes required.",
   "blockers": [
     "Physical Operating Address post-toggle capture still does not isolate field-local labels for business_mailing_*.",
     "registered_state remains blocked by live target availability despite offline label trust.",
     "document_type is plausible but only a one-concept singleton, so it is not the highest-yield next move."
   ],
   "uncertainty": [
-    "document_type remains a credible follow-up singleton after the address capture resolver, but the current artifacts point more strongly to the four-concept Physical Operating Address unlock.",
+    "document_type remains a credible follow-up singleton after the address capture resolver, but the current artifacts still point more strongly to the four-concept Physical Operating Address unlock.",
     "The latest scorecard and findings remain latest-run scoped and should not be treated as cumulative coverage snapshots."
   ],
   "next_recommendation": "Run PHYSICALOPERATINGADDRESSRESOLVER as a strictly non-live capture-isolation workstream for business_mailing_address_line_1, business_mailing_city, business_mailing_state, and business_mailing_postal_code."
