@@ -137,21 +137,47 @@ The following concepts have trusted live evidence from prior completed guarded r
 
 ## COVERAGEACCOUNTING Candidate Classification
 
-- Clean live candidate: none remaining. No remaining non-sensitive multi-concept batch currently meets the clean trusted-target expansion bar without first resolving proof, policy, or live-discovery blockers.
-- Live candidate likely to produce manual-review rows: `stakeholder_job_title`.
+- Clean live candidate: no safe multi-concept batch remains. `bank_name` is high-confidence and non-sensitive as a label concept, but it sits in the Banking section next to routing/account/deposit controls and should be kept as a later singleton rather than batched.
+- Live candidate likely to produce manual-review rows: `stakeholder_job_title`; high-confidence, non-sensitive, and outside finalization/upload controls, but prior text-name/title policy means some field-local manual-review rows are expected.
 - Missing-proof capture unlock: `stakeholder_first_name`, `stakeholder_last_name`.
 - Resolver work required: `document_type`.
 - Product-policy decision required: `website`.
 - Sensitive/defer: `date_of_birth`, raw SSN/EIN/tax-value fields, routing number, account number, bank-value fields, upload/signature/acknowledgement controls, and finalization-adjacent controls.
 - Frozen/address/live-discovery blocked: `registered_state`, `registered_country`, `business_mailing_*`, bank-address fields, and Physical Operating Address post-toggle capture.
 - Amount/capture blocker: `annual_revenue`, `highest_monthly_volume`, `average_ticket`, `max_ticket`.
-- Already live-proven: the live-proven concepts listed above, now including `proof_of_address_type`, `proof_of_business_type`, `federal_tax_id_type`, `registered_address_line_1`, `registered_address_line_2`, `registered_city`, `naics`, `merchant_category_code`, and `postal_code`.
+- Already live-proven: the live-proven concepts listed above, now including `proof_of_address_type`, `proof_of_business_type`, `federal_tax_id_type`, `registered_address_line_1`, `registered_address_line_2`, `registered_city`, `naics`, `merchant_category_code`, and `postal_code`. The latest scorecard still lists many of these as not-run because it is latest-run scoped; do not treat those latest-run gaps as cumulative regressions.
+- Remaining high-confidence non-sensitive metadata after excluding already-live-proven and policy/sensitive lanes: `stakeholder_job_title` is the best immediate coverage singleton; `bank_name` is a lower-priority later singleton because of Banking-section adjacency risk.
 
 ## Recommended Next Action
 
-- Recommended next action: run one guarded live singleton for `stakeholder_job_title`.
+- Recommended next action: B. One guarded live singleton for `stakeholder_job_title`.
 - Coverage rationale: there is still no remaining clean multi-concept live batch, but `proof_of_address_type` is now closed as live-proven. The best coverage-over-complexity move is the next non-sensitive singleton whose expected outcome can tolerate field-local manual-review rows as long as the target stays trusted and no mapping drift appears.
 - Why this beats `document_type` first: `document_type` still sits in page-3 metadata resolver territory and does not yet offer a clearly lower-risk or higher-yield path than a single job-title canary.
 - Why this beats `stakeholder_first_name` and `stakeholder_last_name` first: both remain unresolved in calibration and still depend on stale page-3 neighbor collapse or missing field-local proof.
+- Why this beats `bank_name` first: `bank_name` is high-confidence, but it is adjacent to sensitive Banking-section controls and should remain a later singleton instead of the immediate next move.
 - Why not `website` or `date_of_birth` first: `website` still sits in product-policy territory, and `date_of_birth` is sensitive even though calibration is strong.
 - Why not `registered_state`, bank-address fields, or `business_mailing_*` first: they remain blocked by live-discovery availability or field-local address-capture issues, so they are less efficient for immediate cumulative coverage expansion.
+- Exact next watchdog command: `npm run interactive:watchdog -- -Concepts stakeholder_job_title -TimeoutSeconds 240 -PollSeconds 15`.
+- Hard stop conditions for that next prompt: stop with no retry if target verification is not trusted, target resolves outside the Stakeholder Job Title field, target drifts to stakeholder name/email/phone/date-of-birth/ownership fields, target drifts to upload/signature/acknowledgement/finalization controls, any product finding appears, any mapping-blocked output appears, the run times out, artifacts look partial, or any raw value/PII exposure risk appears.
+- The next prompt must use the repo AI handoff workflow and commit only allowed handoff files plus any explicitly eligible docs/source/test changes.
+
+### Exact Next Copilot Prompt
+
+```text
+CHAT ID: STAKEHOLDERJOBTITLECANARY
+
+Use the repo AI handoff workflow. Work inside C:\Projects\bead-onboarding-form-validation.
+
+Goal: run exactly one guarded live singleton for stakeholder_job_title to determine whether it can be added to cumulative live-proven coverage. Do not run a full batch. Do not include any concept outside stakeholder_job_title. Do not enable DESTRUCTIVE_VALIDATION. Do not upload files or click Submit, Sign, Adopt, Finish, Complete, or any envelope-finalizing control. Do not expose raw DocuSign URLs, tokens, raw values, IDs, screenshots, or PII.
+
+Preflight: run git status --short, the repo-owned process scan, and the live env cleanup check from the ledger workflow. Stop and write a blocked handoff if live-related residue or dirty unrelated changes are present.
+
+Run exactly:
+npm run interactive:watchdog -- -Concepts stakeholder_job_title -TimeoutSeconds 240 -PollSeconds 15
+
+Do not retry. If the wrapper completes, run npm run reports:refresh and npm run findings:open. Inspect only the allowed summary, target diagnostics, validation results, findings, scorecard, and mapping calibration JSON artifacts. Determine whether stakeholder_job_title reached trusted live target verification, whether any manual-review rows are field-local and non-product, whether product findings or mapping-blocked rows appeared, and whether the target stayed separate from stakeholder names, email, phone, date_of_birth, ownership, upload, signature, acknowledgement, and finalization controls.
+
+Hard stop with no retry if target verification is not trusted, target drifts outside Stakeholder Job Title, product findings appear, mapping-blocked output appears, the run times out, artifacts look partial, or any raw value/PII exposure risk appears.
+
+Update artifacts/ai-handoff/status.json and artifacts/ai-handoff/latest-copilot-result.md, then commit and push only the allowed handoff files with a message starting AI-HANDOFF: STAKEHOLDERJOBTITLECANARY ready for ChatGPT review.
+```
