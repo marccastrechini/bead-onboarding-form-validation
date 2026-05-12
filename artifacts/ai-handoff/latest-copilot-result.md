@@ -7,7 +7,7 @@ Completed
 BANKNAMELEDGER
 
 ## Objective
-Run the strictly non-live BANKNAMELEDGER accounting pass again, confirm that the cumulative ledger still reflects the requested bank_name evidence from allowed artifacts only, and refresh the AI handoff result for ChatGPT review.
+Run the strictly non-live BANKNAMELEDGER accounting pass again, confirm that the cumulative ledger still reflects the requested bank_name evidence from allowed artifacts only, and refresh the AI handoff result for ChatGPT review without changing the ledger.
 
 ## Current Verification Result
 - The cumulative ledger still matches the requested BANKNAMELEDGER outcome.
@@ -74,7 +74,7 @@ Update docs/validation-coverage-ledger.md only if the non-live evidence changes 
 - `npm run reports:refresh` passed and reproduced the same coverage state: 7/277 (3%), grade D, product 0, ambiguous 4, mapping-blocked 0, ready-for-rerun 0.
 - `npm run findings:open` passed and reproduced the same bank_name-focused findings plus the unchanged Physical Operating Address capture recommendation.
 - No live validation ran.
-- Commit/push: `01f565f` (`AI-HANDOFF: BANKNAMELEDGER ready for ChatGPT review handoff refresh`) pushed to `origin/main`.
+- Commit/push: pending.
 
 ## Files Changed
 - `artifacts/ai-handoff/status.json`
