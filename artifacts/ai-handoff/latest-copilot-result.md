@@ -103,8 +103,8 @@ Not run. No docs/source/test/package files changed in this pass; the requested n
 ## Commit / Push Status
 - Branch: `main`.
 - Commit before handoff update: `fad38a5b25dd53020795096766f8cf53bd1a3939`.
-- Handoff commit: pending creation with message `AI-HANDOFF: STAKEHOLDERJOBTITLELEDGER ready for ChatGPT review`.
-- Push result: pending until this handoff commit is created and pushed; final chat summary should report the pushed commit hash.
+- Handoff commit: `78c2159` (`AI-HANDOFF: STAKEHOLDERJOBTITLELEDGER ready for ChatGPT review`).
+- Push result: pushed to `origin/main`.
 
 ## Commit Safety Confirmation
 - Eligible for staging: [artifacts/ai-handoff/status.json](status.json) and [artifacts/ai-handoff/latest-copilot-result.md](latest-copilot-result.md).
