@@ -1,9 +1,75 @@
 {
-  "status": "ready_for_review",
-  "run_id": "SETUP_AI_HANDOFF-2026-05-12",
+  "status": "completed",
+  "run_id": "PROOFOFADDRESSDISCOVERYCANARY",
+  "model_used": "GitHub Copilot (user requested GPT-5.4 xhigh)",
   "branch": "main",
-  "commit": "5a31b8d",
-  "completed_at": "2026-05-12T14:17:43Z",
+  "commit": "pending_handoff_commit",
+  "started_at": "2026-05-12T14:58:25.308Z",
+  "completed_at": "2026-05-12T15:01:59Z",
+  "git_commit_before": "6a01cd1b83d880a39b08d4c4dc9b7ec505bc1cf0",
+  "git_commit_after": "6a01cd1b83d880a39b08d4c4dc9b7ec505bc1cf0",
   "summary_file": "artifacts/ai-handoff/latest-copilot-result.md",
-  "needs_chatgpt_review": true
+  "needs_chatgpt_review": true,
+  "commands_run": [
+    "git status --short",
+    "Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'node|chrome|msedge|powershell|pwsh' -and $_.CommandLine -match 'bead-onboarding-form-validation|playwright|bootstrap|interactive|npm|tsx|run-interactive-watchdog' } | Select-Object ProcessId, Name, CreationDate, CommandLine | Format-Table -Wrap",
+    "Get-ChildItem Env:INTERACTIVE_VALIDATION,Env:DISPOSABLE_ENVELOPE,Env:BEAD_SAMPLE_ENRICHMENT,Env:BEAD_SAMPLE_ENRICHMENT_PATH,Env:INTERACTIVE_CONCEPTS,Env:DESTRUCTIVE_VALIDATION,Env:INTERACTIVE_RUN_TIMEOUT_MS -ErrorAction SilentlyContinue",
+    "git fetch origin; git rev-parse HEAD; git log --oneline --decorate -6; git branch --contains 770f908",
+    "npm run interactive:watchdog -- -Concepts proof_of_address_type -TimeoutSeconds 240 -PollSeconds 15",
+    "npm run reports:refresh",
+    "npm run findings:open",
+    "Allowed-artifact JSON summaries and assertions for proof_of_address_type target resolution",
+    "git status --short",
+    "Get-ChildItem Env:INTERACTIVE_VALIDATION,Env:DISPOSABLE_ENVELOPE,Env:BEAD_SAMPLE_ENRICHMENT,Env:BEAD_SAMPLE_ENRICHMENT_PATH,Env:INTERACTIVE_CONCEPTS,Env:DESTRUCTIVE_VALIDATION,Env:INTERACTIVE_RUN_TIMEOUT_MS -ErrorAction SilentlyContinue",
+    "Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'node|chrome|msedge|powershell|pwsh' -and $_.CommandLine -match 'bead-onboarding-form-validation|playwright|bootstrap|interactive|npm|tsx|run-interactive-watchdog' } | Select-Object ProcessId, Name, CreationDate, CommandLine | Format-Table -Wrap"
+  ],
+  "tests_run": [
+    {
+      "command": "npm run interactive:watchdog -- -Concepts proof_of_address_type -TimeoutSeconds 240 -PollSeconds 15",
+      "result": "passed",
+      "details": "Guarded singleton completed with 1 Playwright test passed; no retry and no full batch."
+    },
+    {
+      "command": "npm run reports:refresh",
+      "result": "passed",
+      "details": "Reports regenerated; product findings 0, ambiguous findings 1, mapping-blocked 0, ready-for-rerun 0."
+    },
+    {
+      "command": "npm run findings:open",
+      "result": "passed",
+      "details": "Findings summary opened after refresh."
+    }
+  ],
+  "validation_summary": {
+    "target_concepts": ["proof_of_address_type"],
+    "skipped_concepts": [],
+    "observations_total": 4,
+    "trusted_target_observations": 4,
+    "passed": 3,
+    "failed": 0,
+    "warning": 0,
+    "manual_review": 1,
+    "skipped": 0,
+    "product_findings": 0,
+    "ambiguous_findings": 1,
+    "mapping_blocked": 0,
+    "ready_for_rerun": 0,
+    "scorecard_coverage": "5/277 (2%)",
+    "selected_target": {
+      "field_index": 63,
+      "page_index": 1,
+      "ordinal_on_page": 37,
+      "coordinates": { "left": 663.6800000000001, "top": 512.64 },
+      "docusign_tab_type": "List",
+      "control_kind": "native-select",
+      "inferred_type": "address_option",
+      "control_category": "merchant_input",
+      "visible": true,
+      "editable": true,
+      "coordinate_distance": 0,
+      "ordinal_distance": 0
+    }
+  },
+  "key_outcome": "Native DocuSign List/select discovery now surfaced and trusted the calibrated Registered Legal Address > Proof of Address Type control at page 1 ordinal 37; document_type, stakeholder selectors, upload widgets, and file-value echoes stayed separate.",
+  "next_recommendation": "Have ChatGPT review the handoff and, if accepted, treat proof_of_address_type as live-proven with one non-product current/default-option manual-review observation."
 }
