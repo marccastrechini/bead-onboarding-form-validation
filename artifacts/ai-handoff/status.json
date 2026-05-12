@@ -3,19 +3,19 @@
   "run_id": "STAKEHOLDERJOBTITLELEDGER",
   "model_used": "GitHub Copilot (user requested GPT-5.4 xhigh)",
   "branch": "main",
-  "commit": "pending_handoff_commit",
-  "completed_at": "2026-05-12T16:21:03Z",
-  "git_commit_before": "5dbc9281fb7f286103ae46fa8b765b5247bcbbff",
-  "git_commit_after": "pending_handoff_commit",
+  "commit": "self_referential_commit_hash_reported_in_final_chat",
+  "completed_at": "2026-05-12T16:27:06Z",
+  "git_commit_before": "fad38a5b25dd53020795096766f8cf53bd1a3939",
+  "git_commit_after": "self_referential_commit_hash_reported_in_final_chat",
   "summary_file": "artifacts/ai-handoff/latest-copilot-result.md",
   "needs_chatgpt_review": true,
   "commands_run": [
+    "Read .github/copilot-instructions.md and .github/prompts/ai-handoff-run.prompt.md",
+    "Read docs/validation-coverage-ledger.md and confirmed the requested stakeholder_job_title accounting was already present",
     "git status --short",
     "Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'node|chrome|msedge|powershell|pwsh' -and $_.CommandLine -match 'bead-onboarding-form-validation|playwright|bootstrap|interactive|npm|tsx|run-interactive-watchdog' } | Select-Object ProcessId, Name, CreationDate, CommandLine | Format-Table -Wrap",
     "Get-ChildItem Env:INTERACTIVE_VALIDATION,Env:DISPOSABLE_ENVELOPE,Env:BEAD_SAMPLE_ENRICHMENT,Env:BEAD_SAMPLE_ENRICHMENT_PATH,Env:INTERACTIVE_CONCEPTS,Env:DESTRUCTIVE_VALIDATION,Env:INTERACTIVE_RUN_TIMEOUT_MS -ErrorAction SilentlyContinue",
-    "Read .github/copilot-instructions.md, .github/prompts/ai-handoff-run.prompt.md, docs/validation-coverage-ledger.md, and docs/LIVE_BOOTSTRAP.md",
-    "Non-live sanitized JSON inspections of latest interactive results, target diagnostics, validation findings, scorecard, mapping calibration, and validation summary artifacts",
-    "Non-live candidate classification for bank_name, document_type, stakeholder_first_name, stakeholder_last_name, registered_state, registered_country, business_mailing_* fields, amount fields, website, date_of_birth, and high-confidence non-sensitive metadata concepts",
+    "Sanitized non-live artifact inspection for stakeholder_job_title evidence and remaining candidate classification",
     "npm run reports:refresh",
     "npm run findings:open",
     "git status --short --untracked-files=all; git diff --name-only",
@@ -35,6 +35,8 @@
     }
   ],
   "validation_summary": {
+    "ledger_update_needed": false,
+    "ledger_already_recorded": true,
     "latest_focused_scope": ["stakeholder_job_title"],
     "latest_focused_scorecard": "6/277 (2%), grade D",
     "latest_scorecard_is_cumulative": false,
@@ -66,6 +68,6 @@
       "amount_capture_blocker": ["annual_revenue", "highest_monthly_volume", "average_ticket", "max_ticket"]
     }
   },
-  "key_outcome": "Updated cumulative coverage accounting to record stakeholder_job_title as live-proven and raise cumulative live-proven concept coverage to 26.",
+  "key_outcome": "Confirmed the cumulative coverage ledger already records stakeholder_job_title as live-proven and cumulative live-proven concept coverage as 26; no docs changes were needed in this repeated pass.",
   "next_recommendation": "Choose option B: one guarded live singleton for bank_name using npm run interactive:watchdog -- -Concepts bank_name -TimeoutSeconds 240 -PollSeconds 15, with strict hard stops for untrusted target verification, Banking-section drift, product findings, mapping-blocked output, timeout, partial artifacts, or raw bank value/PII exposure risk."
 }
