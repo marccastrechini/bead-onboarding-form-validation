@@ -35,14 +35,15 @@ Not applicable; workflow setup only.
 - `artifacts/ai-handoff/status.json`
 
 ## Blockers or Uncertainty
-No blockers. The exact commit hash is assigned after this file is committed; use the pushed `AI-HANDOFF: setup handoff protocol` commit for review.
+No blockers. The setup commit was pushed successfully.
 
 ## Recommended Next Copilot Prompt
 Use `.github/prompts/ai-handoff-run.prompt.md` with `RUN_ID`, `OBJECTIVE`, `FOCUS_AREA`, `TEST_COMMANDS`, and `EXPECTED_OUTPUT` filled in for the next substantial agent-mode task.
 
 ## Commit / Branch
 Branch: main
-Commit: pending creation with message `AI-HANDOFF: setup handoff protocol`
+Setup commit: `5a31b8d` (`AI-HANDOFF: setup handoff protocol`)
+Push: `origin/main`
 
 ## Notes for ChatGPT Review
-Review the new protocol, reusable prompt, and `.gitignore` exception. No application logic or validation behavior was changed.
+Review the new protocol, reusable prompt, handoff artifact structure, and `.gitignore` exception. No application logic or validation behavior was changed.
