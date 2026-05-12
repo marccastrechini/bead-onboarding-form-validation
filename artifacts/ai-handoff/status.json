@@ -1,73 +1,86 @@
 {
   "status": "completed",
-  "run_id": "STAKEHOLDERJOBTITLELEDGER",
-  "model_used": "GitHub Copilot (user requested GPT-5.4 xhigh)",
+  "run_id": "BANKNAMECANARY",
+  "model_used": "GitHub Copilot (GPT-5.4 xhigh)",
   "branch": "main",
-  "commit": "db796c5",
-  "completed_at": "2026-05-12T17:49:05Z",
-  "git_commit_before": "4bd638a8c1bfa980c278193beea1cbf1953f2f27",
-  "git_commit_after": "db796c513609d74d59e5ca6add8b00f90a93eb60",
+  "commit": "pending_current_handoff_commit",
+  "started_at": "2026-05-12T17:57:53Z",
+  "completed_at": "2026-05-12T18:00:18Z",
+  "git_commit_before": "1c45f6602e71377e03c576f4bbff0263f662d9cd",
+  "git_commit_after": "pending_current_handoff_commit",
   "summary_file": "artifacts/ai-handoff/latest-copilot-result.md",
   "needs_chatgpt_review": true,
   "commands_run": [
     "Read .github/copilot-instructions.md and .github/prompts/ai-handoff-run.prompt.md",
-    "Read docs/validation-coverage-ledger.md, docs/LIVE_BOOTSTRAP.md, and the latest summary/scorecard/findings/calibration/interactive JSON artifacts; confirmed the requested stakeholder_job_title accounting was already present",
+    "Read /memories/repo/interactive-bootstrap-notes.md",
     "git status --short",
     "Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'node|chrome|msedge|powershell|pwsh' -and $_.CommandLine -match 'bead-onboarding-form-validation|playwright|bootstrap|interactive|npm|tsx|run-interactive-watchdog' } | Select-Object ProcessId, Name, CreationDate, CommandLine | Format-Table -Wrap",
     "Get-ChildItem Env:INTERACTIVE_VALIDATION,Env:DISPOSABLE_ENVELOPE,Env:BEAD_SAMPLE_ENRICHMENT,Env:BEAD_SAMPLE_ENRICHMENT_PATH,Env:INTERACTIVE_CONCEPTS,Env:DESTRUCTIVE_VALIDATION,Env:INTERACTIVE_RUN_TIMEOUT_MS -ErrorAction SilentlyContinue",
-    "Sanitized non-live artifact inspection for stakeholder_job_title evidence and remaining candidate classification",
+    "git rev-parse HEAD",
+    "Get-Date -AsUTC -Format yyyy-MM-ddTHH:mm:ssZ",
+    "npm run interactive:watchdog -- -Concepts bank_name -TimeoutSeconds 240 -PollSeconds 15",
     "npm run reports:refresh",
     "npm run findings:open",
-    "git status --short --untracked-files=all; git diff --name-only",
-    "git rev-parse HEAD",
-    "Get-Date -AsUTC -Format yyyy-MM-ddTHH:mm:ssZ"
+    "Read artifacts/latest-validation-summary.json",
+    "Read artifacts/latest-interactive-target-diagnostics.json",
+    "Read artifacts/latest-interactive-validation-results.json",
+    "Read artifacts/latest-validation-findings.json",
+    "Read artifacts/latest-validation-scorecard.json",
+    "Read artifacts/latest-mapping-calibration.json",
+    "Search latest target diagnostics and findings for drift and blocker terms",
+    "git status --short",
+    "Get-ChildItem Env:INTERACTIVE_VALIDATION,Env:DISPOSABLE_ENVELOPE,Env:BEAD_SAMPLE_ENRICHMENT,Env:BEAD_SAMPLE_ENRICHMENT_PATH,Env:INTERACTIVE_CONCEPTS,Env:DESTRUCTIVE_VALIDATION,Env:INTERACTIVE_RUN_TIMEOUT_MS -ErrorAction SilentlyContinue",
+    "Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'node|chrome|msedge|powershell|pwsh' -and $_.CommandLine -match 'bead-onboarding-form-validation|playwright|bootstrap|interactive|npm|tsx|run-interactive-watchdog' } | Select-Object ProcessId, Name, CreationDate, CommandLine | Format-Table -Wrap"
   ],
   "tests_run": [
     {
+      "command": "npm run interactive:watchdog -- -Concepts bank_name -TimeoutSeconds 240 -PollSeconds 15",
+      "result": "passed",
+      "details": "Guarded singleton completed via the watchdog with exit code 0; no retry; bootstrap:interactive ran only through the wrapper; Playwright interactive test passed 1/1."
+    },
+    {
       "command": "npm run reports:refresh",
       "result": "passed",
-      "details": "Reports regenerated; coverage 6/277 (2%), grade D; product findings 0, ambiguous findings 2, mapping-blocked 0, ready-for-rerun 0."
+      "details": "Reports regenerated; coverage 7/277 (3%), grade D; product findings 0, ambiguous findings 4, mapping-blocked 0, ready-for-rerun 0."
     },
     {
       "command": "npm run findings:open",
       "result": "passed",
-      "details": "Findings opened and confirmed 5 trusted executed stakeholder_job_title observations, 3 passed, 2 manual-review."
+      "details": "Findings opened and confirmed 6 trusted executed bank_name observations, 2 passed, 4 manual-review, 0 skipped."
     }
   ],
   "validation_summary": {
-    "ledger_update_needed": false,
-    "ledger_already_recorded": true,
-    "latest_focused_scope": ["stakeholder_job_title"],
-    "latest_focused_scorecard": "6/277 (2%), grade D",
+    "run_scope": [
+      "bank_name"
+    ],
+    "hard_stop_triggered": false,
+    "trusted_live_evidence_created": true,
+    "eligible_for_cumulative_ledger": true,
+    "recommended_cumulative_live_proven_count": 27,
+    "latest_focused_scorecard": "7/277 (3%), grade D",
     "latest_scorecard_is_cumulative": false,
-    "cumulative_live_proven_concepts": 26,
-    "stakeholder_job_title": {
-      "status": "live_proven",
-      "target": "stakeholders #0 > Job Title",
-      "control": "page-3 DocuSign Text visible/editable merchant input at ordinal 26",
-      "checks_executed": 5,
-      "passed_after_refresh": 3,
-      "manual_review_after_refresh": 2,
+    "bank_name": {
+      "status": "trusted_live_evidence_created",
+      "target": "Bank Name",
+      "control": "page-1 DocuSign Text visible/editable merchant input at ordinal 62",
+      "field_index": 32,
+      "checks_executed": 6,
+      "passed_after_refresh": 2,
+      "manual_review_after_refresh": 4,
+      "skipped": 0,
       "manual_review_rows": [
         "very-short-behavior / policy_question",
+        "numeric-only-behavior / observer_needs_stronger_text_evidence",
+        "excessive-length-behavior / acceptable_behavior_documented",
         "special-characters-behavior / expected_text_leniency"
       ],
       "product_findings": 0,
       "mapping_blocked": 0,
       "ready_for_rerun": 0,
-      "drift": "none: no stakeholder name/email/phone/date_of_birth/ownership/upload/signature/acknowledgement/finalization drift"
-    },
-    "candidate_classification": {
-      "clean_live_candidate": "No safe multi-concept batch; bank_name is high-confidence but Banking-adjacent, so singleton only.",
-      "live_candidate_likely_manual_review": ["bank_name"],
-      "missing_proof_capture_unlock": ["stakeholder_first_name", "stakeholder_last_name"],
-      "resolver_work_required": ["document_type"],
-      "product_policy_decision_required": ["website"],
-      "sensitive_defer": ["date_of_birth", "raw tax fields", "routing_number", "account_number", "bank-value fields", "upload/signature/acknowledgement/finalization controls"],
-      "frozen_address_live_discovery_blocked": ["registered_state", "registered_country", "business_mailing_*", "bank-address fields", "Physical Operating Address post-toggle capture"],
-      "amount_capture_blocker": ["annual_revenue", "highest_monthly_volume", "average_ticket", "max_ticket"]
+      "target_resolution": "trusted_by_anchor_and_value_shape",
+      "separation": "Selected target stayed on Bank Name. Diagnostics rejected nearby bank_account_type and nearby numeric- or phone-shaped alternatives as bank_name conflicts, and no artifact showed drift to routing number, account number, deposit method, bank-address, upload, signature, acknowledgement, or finalization controls."
     }
   },
-  "key_outcome": "Confirmed the cumulative coverage ledger already records stakeholder_job_title as live-proven and cumulative live-proven concept coverage as 26; no docs changes were needed in this repeated pass.",
-  "next_recommendation": "Choose option B: one guarded live singleton for bank_name using npm run interactive:watchdog -- -Concepts bank_name -TimeoutSeconds 240 -PollSeconds 15, with strict hard stops for untrusted target verification, Banking-section drift, product findings, mapping-blocked output, timeout, partial artifacts, or raw bank value/PII exposure risk."
+  "key_outcome": "The guarded bank_name singleton completed successfully and produced trusted live Bank Name evidence with 6 trusted executed observations, 0 product findings, and 0 mapping-blocked findings. This can be added to cumulative live-proven coverage in the next non-live ledger pass.",
+  "next_recommendation": "Run a strictly non-live ledger/accounting pass to record bank_name as live-proven, raise the cumulative live-proven concept count from 26 to 27, and choose the next best coverage move from repo artifacts only."
 }
