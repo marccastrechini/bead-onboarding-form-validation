@@ -2,6 +2,7 @@
 
 Generated for the COVERAGESPRINT workstream on 2026-05-08.
 Updated during ADDRESSLEDGER on 2026-05-08.
+Updated during PROOFOFADDRESSLEDGER on 2026-05-12.
 
 ## Scope And Safety
 
@@ -11,11 +12,11 @@ No raw field values, PII, DocuSign URLs, tokens, screenshots, tax IDs, routing n
 
 ## Latest Focused Scorecard
 
-- Latest focused run scope: `registered_address_line_1`, `registered_address_line_2`, `registered_city`.
-- Latest scorecard coverage: 14/277 (5%), grade D.
-- Latest findings summary: product findings 0; ambiguous findings 5; mapping-blocked 0; ready-for-rerun 0.
-- Latest focused run added 13 trusted executed observations across 3 concepts.
-- Interpretation: the latest scorecard still reflects only the most recent focused run artifacts, not the cumulative set of concepts validated across the project. The latest focused registered legal address text batch produced trusted live evidence for all three concepts, with 0 skipped checks, 0 mapping-blocked findings, 0 target drift, and 5 field-local non-product ambiguous/manual-review rows.
+- Latest focused run scope: `proof_of_address_type`.
+- Latest scorecard coverage: 5/277 (2%), grade D.
+- Latest findings summary: product findings 0; ambiguous findings 1; mapping-blocked 0; ready-for-rerun 0.
+- Latest focused run added 4 trusted executed observations across 1 concept.
+- Interpretation: the latest scorecard remains latest-run scoped rather than cumulative. The focused `proof_of_address_type` canary produced trusted live evidence on the Registered Legal Address proof-of-address selector, with 4 executed checks, 3 passed results, 1 field-local observational manual-review row, 0 product findings, 0 mapping-blocked findings, 0 ready-for-rerun findings, and no drift into `document_type`, stakeholder selectors, upload widgets, or file-value echoes.
 
 ## Live-Proven Concepts
 
@@ -45,10 +46,11 @@ The following concepts have trusted live evidence from prior completed guarded r
 - `registered_address_line_1`
 - `registered_address_line_2`
 - `registered_city`
+- `proof_of_address_type`
 
 ## Live-Proven Field Families
 
-- Controlled-choice metadata: legal entity type, business type, bank account type, proof-of-bank-account type, proof-of-business type, federal tax ID type.
+- Controlled-choice metadata: legal entity type, business type, bank account type, proof-of-bank-account type, proof-of-business type, federal tax ID type, proof-of-address type.
 - Contact channels: email and phone.
 - Business and contact text-name fields: business name, DBA name, location name, contact first name, contact last name.
 - Long/free text: business description.
@@ -67,6 +69,7 @@ The following concepts have trusted live evidence from prior completed guarded r
 - Registration date alternate format and future-date behavior.
 - Stakeholder job title very-short and special-character behavior unless later policy resolves it.
 - Registered legal address text punctuation and symbol-heavy behavior remains field-local non-product manual-review territory after the live batch; the open rows are two expected-text-leniency observations and three stronger-text-evidence observations.
+- Proof-of-address type current/default option observation can remain field-local `observer_ambiguous` even when the target is trusted, the control is a native select/List, options are discoverable, and the mutating checks pass.
 
 ## Blocked Or Deferred Areas
 
@@ -81,10 +84,10 @@ The following concepts have trusted live evidence from prior completed guarded r
 
 ## Cumulative Coverage Estimate
 
-- Current live-proven concept count: 24 concepts.
+- Current live-proven concept count: 25 concepts.
 - Current live-proven behavior-family count: approximately 10 families.
-- Latest focused scorecard coverage is 14/277 (5%) because it is latest-run scoped.
-- Latest focused registered legal address batch added 13 trusted executed observations, 0 product findings, 0 mapping-blocked findings, 0 target drift, and 5 field-local non-product ambiguous/manual-review rows.
+- Latest focused scorecard coverage is 5/277 (2%) because it is latest-run scoped.
+- Latest focused `proof_of_address_type` canary added 4 trusted executed observations, 0 product findings, 0 mapping-blocked findings, 0 ready-for-rerun findings, and 1 field-local observational manual-review row.
 - Cumulative concept coverage is tracked here rather than inferred from the latest focused scorecard alone.
 
 ## COVERAGESPRINT Candidate Plan
@@ -123,23 +126,32 @@ The following concepts have trusted live evidence from prior completed guarded r
 - The 5 ambiguous/manual-review rows remained field-local and non-product: punctuation handling for line 1 and line 2 stayed in expected-text-leniency territory, while garbage or digits handling for line 1, line 2, and city still need stronger field-local text evidence before any product-defect claim.
 - This adds `registered_address_line_1`, `registered_address_line_2`, and `registered_city` to cumulative live-proven concept coverage and establishes the registered legal address text family as trusted live evidence.
 
+## PROOFOFADDRESSDISCOVERYCANARY Results
+
+- `proof_of_address_type`: completed through the operator watchdog as a guarded live singleton.
+- Result was 4/4 executed, 3 passed, 1 manual-review, 0 skipped, product findings 0, mapping-blocked findings 0, and ready-for-rerun 0.
+- All 4 target-resolution rows were trusted and resolved to the expected Registered Legal Address > Proof of Address Type page-1 List/select control at the calibrated ord37 anchor.
+- The remaining manual-review row was field-local and observational only: `current-option-documented` stayed `observer_ambiguous` because the current/default value could not be documented stably without overclaiming.
+- No drift appeared into `document_type`, stakeholder selectors, upload widgets, uploaded file-value echoes, signature controls, acknowledgement controls, or finalization-adjacent controls.
+- This adds `proof_of_address_type` to cumulative live-proven concept coverage and closes the prior proof-of-address discovery fallback workstream as a mapping blocker.
+
 ## COVERAGEACCOUNTING Candidate Classification
 
 - Clean live candidate: none remaining. No remaining non-sensitive multi-concept batch currently meets the clean trusted-target expansion bar without first resolving proof, policy, or live-discovery blockers.
 - Live candidate likely to produce manual-review rows: `stakeholder_job_title`.
-- Missing-proof capture unlock: `proof_of_address_type`, `stakeholder_first_name`, `stakeholder_last_name`.
+- Missing-proof capture unlock: `stakeholder_first_name`, `stakeholder_last_name`.
 - Resolver work required: `document_type`.
 - Product-policy decision required: `website`.
 - Sensitive/defer: `date_of_birth`, raw SSN/EIN/tax-value fields, routing number, account number, bank-value fields, upload/signature/acknowledgement controls, and finalization-adjacent controls.
 - Frozen/address/live-discovery blocked: `registered_state`, `registered_country`, `business_mailing_*`, bank-address fields, and Physical Operating Address post-toggle capture.
 - Amount/capture blocker: `annual_revenue`, `highest_monthly_volume`, `average_ticket`, `max_ticket`.
-- Already live-proven: the live-proven concepts listed above, now including `proof_of_business_type`, `federal_tax_id_type`, `registered_address_line_1`, `registered_address_line_2`, `registered_city`, `naics`, `merchant_category_code`, and `postal_code`.
+- Already live-proven: the live-proven concepts listed above, now including `proof_of_address_type`, `proof_of_business_type`, `federal_tax_id_type`, `registered_address_line_1`, `registered_address_line_2`, `registered_city`, `naics`, `merchant_category_code`, and `postal_code`.
 
 ## Recommended Next Action
 
-- Recommended next action: run one non-live resolver/capture workstream for the attachment metadata selectors `document_type` and `proof_of_address_type`.
-- Coverage rationale: there is no remaining clean multi-concept live batch. The highest-yield next move is to unlock two non-sensitive metadata concepts at once by proving that the visible editable list controls are document-category selectors and not upload/file widgets.
-- Why this beats `stakeholder_job_title` first: `stakeholder_job_title` is the best remaining live singleton, but it adds only one concept and still likely produces manual-review rows.
-- Why this beats `stakeholder_first_name` and `stakeholder_last_name` first: both remain `Not Found` in the scorecard and still depend on stale page-3 neighbor collapse, while `document_type` and `proof_of_address_type` already surface as visible editable list controls in the current validation summary.
+- Recommended next action: run one guarded live singleton for `stakeholder_job_title`.
+- Coverage rationale: there is still no remaining clean multi-concept live batch, but `proof_of_address_type` is now closed as live-proven. The best coverage-over-complexity move is the next non-sensitive singleton whose expected outcome can tolerate field-local manual-review rows as long as the target stays trusted and no mapping drift appears.
+- Why this beats `document_type` first: `document_type` still sits in page-3 metadata resolver territory and does not yet offer a clearly lower-risk or higher-yield path than a single job-title canary.
+- Why this beats `stakeholder_first_name` and `stakeholder_last_name` first: both remain unresolved in calibration and still depend on stale page-3 neighbor collapse or missing field-local proof.
 - Why not `website` or `date_of_birth` first: `website` still sits in product-policy territory, and `date_of_birth` is sensitive even though calibration is strong.
 - Why not `registered_state`, bank-address fields, or `business_mailing_*` first: they remain blocked by live-discovery availability or field-local address-capture issues, so they are less efficient for immediate cumulative coverage expansion.
