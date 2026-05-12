@@ -92,8 +92,8 @@ Confirmed. The selected target stayed on Stakeholder Job Title and did not drift
 ## Commit / Push Status
 - Branch: `main`.
 - Commit before canary: `2036d23abcd778db705e63d797c35d4fd1aca49e`.
-- Handoff commit: recorded by the Git commit that contains this file; the exact pushed commit hash is reported in the final chat because embedding a commit's own SHA in the committed file would change that SHA.
-- Push result: pending until this handoff commit is created and pushed.
+- Handoff commit: `3deea031e5bc4353b9a8d62a9f39f1d0965c1fc5` (`AI-HANDOFF: STAKEHOLDERJOBTITLECANARY ready for ChatGPT review`).
+- Push result: pushed to `origin/main`.
 
 ## Recommended Next Step
 Run a strictly non-live ledger accounting pass to record `stakeholder_job_title` as live-proven, raise cumulative live-proven concept coverage from 25 to 26, and choose the next best coverage move. Suggested chat id: `STAKEHOLDERJOBTITLELEDGER`.
