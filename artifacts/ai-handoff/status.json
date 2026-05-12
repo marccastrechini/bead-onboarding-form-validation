@@ -1,0 +1,9 @@
+{
+  "status": "ready_for_review",
+  "run_id": "SETUP_AI_HANDOFF-2026-05-12",
+  "branch": "main",
+  "commit": null,
+  "completed_at": "2026-05-12T14:14:15Z",
+  "summary_file": "artifacts/ai-handoff/latest-copilot-result.md",
+  "needs_chatgpt_review": true
+}

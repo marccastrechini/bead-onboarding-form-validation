@@ -6,7 +6,9 @@ node_modules/
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
-artifacts/
+artifacts/*
+!artifacts/ai-handoff/
+!artifacts/ai-handoff/**
 *.log
 .env
 .secrets/
