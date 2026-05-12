@@ -4,96 +4,118 @@
 Completed
 
 ## CHAT ID
-STAKEHOLDERJOBTITLECANARY
+STAKEHOLDERJOBTITLELEDGER
 
 ## Objective
-Run exactly one guarded live singleton for `stakeholder_job_title` only to determine whether it can be added to cumulative live-proven coverage. Manual-review rows are acceptable only if field-local, target-trusted, non-product, and not mapping drift.
+Run a strictly non-live coverage accounting pass after `STAKEHOLDERJOBTITLECANARY`, update cumulative coverage accounting for `stakeholder_job_title`, and choose exactly one next coverage move.
 
 ## Preflight Status
 - `git status --short` was clean.
 - Required repo-owned process scan returned no matching live-related residue rows.
 - Required env cleanup check returned no live-run variables.
-- Starting commit: `2036d23abcd778db705e63d797c35d4fd1aca49e`.
+- No live bootstrap, watchdog, or DocuSign validation command was run in this prompt.
 
-## Singleton Run Confirmation
-- Ran exactly: `npm run interactive:watchdog -- -Concepts stakeholder_job_title -TimeoutSeconds 240 -PollSeconds 15`.
-- The wrapper completed with exit code 0.
-- Playwright result: 1 test passed.
-- Target concepts: `stakeholder_job_title` only.
-- Skipped concepts: none.
-- No retry and no full batch happened.
+## Ledger Update Summary
+Updated [docs/validation-coverage-ledger.md](../../docs/validation-coverage-ledger.md) to record:
 
-## Target-Resolution Result
-- `stakeholder_job_title` reached trusted live target verification for all 5 observations.
-- Selected live target: field index 58, page index 3, ordinal 26.
-- Selected target type: DocuSign `Text`, observed as a text control.
-- Control category: `merchant_input`; visible and editable.
-- Coordinate distance: 0; ordinal distance: 0.
-- Expected target resolved to `stakeholders #0 > Job Title` in the Stakeholder section.
-- Calibration decision after refresh: `trust_current_mapping`.
+- `stakeholder_job_title` is live-proven.
+- Target resolved to `stakeholders #0 > Job Title`.
+- Target was page 3, ordinal 26, DocuSign Text, visible/editable merchant input.
+- 5 checks executed.
+- 3 passed after report refresh.
+- 2 manual-review rows remained field-local and non-product.
+- Product findings 0, mapping-blocked findings 0, ready-for-rerun 0.
+- No drift to stakeholder first name, last name, email, phone, `date_of_birth`, ownership percentage, upload controls, signature controls, acknowledgement controls, or finalization controls.
+- Latest focused scorecard remains latest-run scoped, not cumulative.
 
-## Trusted Live Evidence
-Trusted live evidence was created. All 5 target-resolution rows were trusted and stayed on the Stakeholder Job Title text field.
+## Cumulative Live-Proven Concept Count
+26 concepts.
 
-The raw interactive artifact recorded 5 total checks: 2 passed, 3 manual-review, 0 failed, 0 skipped. After `npm run reports:refresh`, findings normalized the excessive-length behavior as acceptable enforcement, so the refreshed findings show 5 total checks: 3 passed, 2 manual-review, 0 failed, 0 skipped.
+## Latest Focused Scorecard Coverage
+6/277 (2%), grade D. This remains latest-run scoped after the focused `stakeholder_job_title` canary and should not be read as cumulative regression.
 
-## Manual-Review Rows
-The refreshed manual-review rows are field-local, target-trusted, non-product, and not mapping drift:
-
-- `very-short-behavior`: policy question for Stakeholder Job Title.
-- `special-characters-behavior`: expected text leniency for Stakeholder Job Title.
-
-## Product Findings
-Product findings: 0.
-
-## Mapping-Blocked Output
-Mapping-blocked output: 0.
-
-## Target Separation
-Confirmed. The selected target stayed on Stakeholder Job Title and did not drift to stakeholder first name, last name, email, phone, `date_of_birth`, ownership percentage, upload controls, signature controls, acknowledgement controls, or finalization controls.
-
-## Findings Summary
-- `npm run reports:refresh` passed.
-- `npm run findings:open` passed.
-- Latest focused scorecard coverage: 6/277 (2%), grade D.
-- Refreshed findings: 5 observations, 3 passed, 2 manual-review, 0 failed, 0 skipped.
-- Trusted executed observations: 5.
+## Stakeholder Job Title Accounting
+- Live-proven concept: `stakeholder_job_title`.
+- Target: `stakeholders #0 > Job Title`.
+- Control: page-3 DocuSign Text, visible/editable merchant input, ordinal 26.
+- Checks executed: 5.
+- Passed after report refresh: 3.
+- Manual review after report refresh: 2.
+- Manual-review rows: `very-short-behavior` / `policy_question`; `special-characters-behavior` / `expected_text_leniency`.
 - Product findings: 0.
-- Ambiguous/manual-review findings: 2.
 - Mapping-blocked findings: 0.
 - Ready-for-rerun: 0.
+- Drift: none into stakeholder first name, last name, email, phone, `date_of_birth`, ownership percentage, upload controls, signature controls, acknowledgement controls, or finalization controls.
 
-## Final Safety Status
-- Final `git status --short` was clean before handoff edits.
-- Final env cleanup check returned no live-run variables.
-- Final repo-owned process scan returned no matching live-related residue rows.
-- No raw DocuSign URLs, tokens, raw field values, IDs, screenshots, private proof files, or PII are included in this handoff.
+## Remaining Candidate Classification
+- Clean live candidate: no safe multi-concept batch remains. `bank_name` is high-confidence and non-sensitive as a label concept, but Banking-section adjacency means singleton only.
+- Live candidate likely to produce manual-review rows: `bank_name`.
+- Missing-proof capture unlock: `stakeholder_first_name`, `stakeholder_last_name`.
+- Resolver work required: `document_type`.
+- Product-policy decision required: `website`.
+- Sensitive/defer: `date_of_birth`, raw tax fields, routing/account fields, bank-value fields, upload/signature/acknowledgement/finalization controls.
+- Frozen/address/live-discovery blocked: `registered_state`, `registered_country`, `business_mailing_*`, bank-address fields, Physical Operating Address post-toggle capture.
+- Amount/capture blocker: `annual_revenue`, `highest_monthly_volume`, `average_ticket`, `max_ticket`.
+- Already live-proven: the ledger's 26 listed concepts, now including `stakeholder_job_title`.
 
-## Safety Confirmations
-- No retry was performed.
-- No full batch was run.
-- `DESTRUCTIVE_VALIDATION` was not enabled.
-- No upload was performed.
-- No Submit, Sign, Adopt, Finish, Complete, or envelope-finalizing action was taken.
+## Recommended Next Step
+B. One guarded live singleton for `bank_name`.
 
-## Commands Run
-- `git status --short`
-- Required repo-owned process scan.
-- Required env cleanup check.
-- `git rev-parse HEAD`
-- `npm run interactive:watchdog -- -Concepts stakeholder_job_title -TimeoutSeconds 240 -PollSeconds 15`
-- `npm run reports:refresh`
-- `npm run findings:open`
-- Allowed-artifact JSON summaries and assertions against the six requested JSON files.
-- Final `git status --short`.
-- Final env cleanup check.
-- Final repo-owned process scan.
+## Rationale
+Coverage-over-complexity favors `bank_name` because it is the remaining high-confidence, non-sensitive coverage candidate after `stakeholder_job_title` closed. It is not safe to batch because the Banking section contains sensitive and same-neighborhood controls, so the next move should be a singleton with strict drift stops. This beats `document_type` because that is resolver work, beats stakeholder first/last name because they need proof/capture unlocks, beats `website` because it is product-policy territory, beats `date_of_birth` because it is sensitive, and beats address/amount lanes because they remain blocked by live-discovery, capture, or field-local proof issues.
+
+## Proposed Next Copilot Prompt
+
+```text
+CHAT ID: BANKNAMECANARY
+
+Use the repo AI handoff workflow. Work inside C:\Projects\bead-onboarding-form-validation.
+
+Goal: run exactly one guarded live singleton for bank_name to determine whether it can be added to cumulative live-proven coverage. Do not run a full batch. Do not include any concept outside bank_name. Do not enable DESTRUCTIVE_VALIDATION. Do not upload files or click Submit, Sign, Adopt, Finish, Complete, or any envelope-finalizing control. Do not expose raw DocuSign URLs, tokens, raw values, IDs, screenshots, raw bank values, account numbers, routing numbers, or PII.
+
+Preflight: run git status --short, the repo-owned process scan, and the live env cleanup check from the ledger workflow. Stop and write a blocked handoff if live-related residue or dirty unrelated changes are present.
+
+Run exactly:
+npm run interactive:watchdog -- -Concepts bank_name -TimeoutSeconds 240 -PollSeconds 15
+
+Do not retry. If the wrapper completes, run npm run reports:refresh and npm run findings:open. Inspect only the allowed summary, target diagnostics, validation results, findings, scorecard, and mapping calibration JSON artifacts. Determine whether bank_name reached trusted live target verification, whether any manual-review rows are field-local and non-product, whether product findings or mapping-blocked rows appeared, and whether the target stayed separate from routing number, account number, bank account type, deposit method, bank address, phone/email/date/numeric controls, upload, signature, acknowledgement, and finalization controls.
+
+Hard stop with no retry if target verification is not trusted, target drifts outside Bank Name, product findings appear, mapping-blocked output appears, the run times out, artifacts look partial, or any raw bank value/PII exposure risk appears.
+
+Update artifacts/ai-handoff/status.json and artifacts/ai-handoff/latest-copilot-result.md, then commit and push only the allowed handoff files with a message starting AI-HANDOFF: BANKNAMECANARY ready for ChatGPT review.
+```
+
+## Docs / Source / Test Changes
+- Changed [docs/validation-coverage-ledger.md](../../docs/validation-coverage-ledger.md).
+- No source, test, package, private sample, or non-handoff artifact files were changed for commit.
+
+## Unit Test Status
+Not run. This was a docs-only ledger update, so the requested validation path was `npm run reports:refresh` and `npm run findings:open`.
+
+## Report Refresh Status
+- `npm run reports:refresh` passed.
+- Regenerated reports show coverage 6/277 (2%), grade D.
+- Product findings 0; ambiguous findings 2; mapping-blocked 0; ready-for-rerun 0.
+
+## Findings Open Status
+- `npm run findings:open` passed.
+- Findings confirmed 5 observations for `stakeholder_job_title`, with 3 passed and 2 manual-review rows.
 
 ## Commit / Push Status
 - Branch: `main`.
-- Commit before canary: `2036d23abcd778db705e63d797c35d4fd1aca49e`.
-- Handoff commit: `3deea031e5bc4353b9a8d62a9f39f1d0965c1fc5` (`AI-HANDOFF: STAKEHOLDERJOBTITLECANARY ready for ChatGPT review`).
-- Push result: pushed to `origin/main`.
+- Commit before ledger update: `5dbc9281fb7f286103ae46fa8b765b5247bcbbff`.
+- Handoff commit: pending creation with message `AI-HANDOFF: STAKEHOLDERJOBTITLELEDGER ready for ChatGPT review`.
+- Push result: pending until the handoff commit is created and pushed; final chat summary should report the pushed commit hash.
 
-## Recommended Next Step
-Run a strictly non-live ledger accounting pass to record `stakeholder_job_title` as live-proven, raise cumulative live-proven concept coverage from 25 to 26, and choose the next best coverage move. Suggested chat id: `STAKEHOLDERJOBTITLELEDGER`.
+## Commit Safety Confirmation
+- Eligible for staging: [docs/validation-coverage-ledger.md](../../docs/validation-coverage-ledger.md), [artifacts/ai-handoff/status.json](status.json), and [artifacts/ai-handoff/latest-copilot-result.md](latest-copilot-result.md).
+- No other `artifacts/**` files are to be committed.
+- No `samples/private/**` files are to be committed.
+- No raw DocuSign URLs, tokens, raw field values, IDs, screenshots, raw bank values, or PII are included in the committed files.
+
+## Live Safety Confirmation
+- No live DocuSign validation was run.
+- `bootstrap:interactive` was not run.
+- `interactive:watchdog` was not run.
+- `DESTRUCTIVE_VALIDATION` was not enabled.
+- No Submit, Sign, Adopt, Finish, Complete, or envelope-finalizing action was taken.

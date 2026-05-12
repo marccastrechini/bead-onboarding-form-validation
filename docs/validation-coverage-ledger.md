@@ -12,11 +12,11 @@ No raw field values, PII, DocuSign URLs, tokens, screenshots, tax IDs, routing n
 
 ## Latest Focused Scorecard
 
-- Latest focused run scope: `proof_of_address_type`.
-- Latest scorecard coverage: 5/277 (2%), grade D.
-- Latest findings summary: product findings 0; ambiguous findings 1; mapping-blocked 0; ready-for-rerun 0.
-- Latest focused run added 4 trusted executed observations across 1 concept.
-- Interpretation: the latest scorecard remains latest-run scoped rather than cumulative. The focused `proof_of_address_type` canary produced trusted live evidence on the Registered Legal Address proof-of-address selector, with 4 executed checks, 3 passed results, 1 field-local observational manual-review row, 0 product findings, 0 mapping-blocked findings, 0 ready-for-rerun findings, and no drift into `document_type`, stakeholder selectors, upload widgets, or file-value echoes.
+- Latest focused run scope: `stakeholder_job_title`.
+- Latest scorecard coverage: 6/277 (2%), grade D.
+- Latest findings summary: product findings 0; ambiguous findings 2; mapping-blocked 0; ready-for-rerun 0.
+- Latest focused run added 5 trusted executed observations across 1 concept.
+- Interpretation: the latest scorecard remains latest-run scoped rather than cumulative. The focused `stakeholder_job_title` canary produced trusted live evidence on the `stakeholders #0 > Job Title` text control, with 5 executed checks, 3 passed results after report refresh, 2 field-local non-product manual-review rows, 0 product findings, 0 mapping-blocked findings, 0 ready-for-rerun findings, and no drift into stakeholder first name, last name, email, phone, `date_of_birth`, ownership percentage, upload controls, signature controls, acknowledgement controls, or finalization controls.
 
 ## Live-Proven Concepts
 
@@ -37,6 +37,7 @@ The following concepts have trusted live evidence from prior completed guarded r
 - `registration_date`
 - `stakeholder_email`
 - `stakeholder_phone`
+- `stakeholder_job_title`
 - `ownership_percentage`
 - `naics`
 - `merchant_category_code`
@@ -56,6 +57,7 @@ The following concepts have trusted live evidence from prior completed guarded r
 - Long/free text: business description.
 - Date behavior: registration date.
 - Stakeholder contact channels: stakeholder email and stakeholder phone.
+- Stakeholder profile text: stakeholder job title.
 - Ownership percentage.
 - Numeric/code fields: NAICS and merchant category code.
 - Registered legal address text behavior: address line 1, address line 2, and city.
@@ -67,7 +69,7 @@ The following concepts have trusted live evidence from prior completed guarded r
 - Text-name symbol-heavy behavior for location and contact names.
 - Business description very-short and garbage-text behavior.
 - Registration date alternate format and future-date behavior.
-- Stakeholder job title very-short and special-character behavior unless later policy resolves it.
+- Stakeholder job title very-short and special-character behavior: the trusted live canary left `very-short-behavior` as a policy question and `special-characters-behavior` as expected text leniency; both remain field-local non-product manual-review rows unless later policy resolves them.
 - Registered legal address text punctuation and symbol-heavy behavior remains field-local non-product manual-review territory after the live batch; the open rows are two expected-text-leniency observations and three stronger-text-evidence observations.
 - Proof-of-address type current/default option observation can remain field-local `observer_ambiguous` even when the target is trusted, the control is a native select/List, options are discoverable, and the mutating checks pass.
 
@@ -84,10 +86,10 @@ The following concepts have trusted live evidence from prior completed guarded r
 
 ## Cumulative Coverage Estimate
 
-- Current live-proven concept count: 25 concepts.
+- Current live-proven concept count: 26 concepts.
 - Current live-proven behavior-family count: approximately 10 families.
-- Latest focused scorecard coverage is 5/277 (2%) because it is latest-run scoped.
-- Latest focused `proof_of_address_type` canary added 4 trusted executed observations, 0 product findings, 0 mapping-blocked findings, 0 ready-for-rerun findings, and 1 field-local observational manual-review row.
+- Latest focused scorecard coverage is 6/277 (2%) because it is latest-run scoped.
+- Latest focused `stakeholder_job_title` canary added 5 trusted executed observations, 0 product findings, 0 mapping-blocked findings, 0 ready-for-rerun findings, and 2 field-local non-product manual-review rows.
 - Cumulative concept coverage is tracked here rather than inferred from the latest focused scorecard alone.
 
 ## COVERAGESPRINT Candidate Plan
@@ -135,49 +137,59 @@ The following concepts have trusted live evidence from prior completed guarded r
 - No drift appeared into `document_type`, stakeholder selectors, upload widgets, uploaded file-value echoes, signature controls, acknowledgement controls, or finalization-adjacent controls.
 - This adds `proof_of_address_type` to cumulative live-proven concept coverage and closes the prior proof-of-address discovery fallback workstream as a mapping blocker.
 
-## COVERAGEACCOUNTING Candidate Classification
+## STAKEHOLDERJOBTITLECANARY Results
 
-- Clean live candidate: no safe multi-concept batch remains. `bank_name` is high-confidence and non-sensitive as a label concept, but it sits in the Banking section next to routing/account/deposit controls and should be kept as a later singleton rather than batched.
-- Live candidate likely to produce manual-review rows: `stakeholder_job_title`; high-confidence, non-sensitive, and outside finalization/upload controls, but prior text-name/title policy means some field-local manual-review rows are expected.
+- `stakeholder_job_title`: completed through the operator watchdog as a guarded live singleton.
+- Result after report refresh was 5/5 executed, 3 passed, 2 manual-review, 0 skipped, product findings 0, mapping-blocked findings 0, and ready-for-rerun 0.
+- All 5 target-resolution rows were trusted and resolved to the expected `stakeholders #0 > Job Title` page-3 DocuSign Text control at ordinal 26.
+- The selected target was a visible/editable merchant input and stayed on the Stakeholder Job Title field.
+- The 2 manual-review rows remained field-local and non-product: `very-short-behavior` is a policy question, and `special-characters-behavior` is expected text leniency.
+- No drift appeared into stakeholder first name, stakeholder last name, stakeholder email, stakeholder phone, `date_of_birth`, ownership percentage, upload controls, signature controls, acknowledgement controls, or finalization-adjacent controls.
+- This adds `stakeholder_job_title` to cumulative live-proven concept coverage and raises the cumulative live-proven concept count to 26.
+
+## STAKEHOLDERJOBTITLELEDGER Candidate Classification
+
+- Clean live candidate: no safe multi-concept batch remains. `bank_name` is high-confidence and non-sensitive as a label concept, but because it sits in the Banking section next to routing/account/deposit controls, it should be run only as a guarded singleton with strict drift stops.
+- Live candidate likely to produce manual-review rows: `bank_name`; expected name/text behavior may leave field-local manual-review rows, and any such rows are acceptable only if target-trusted, non-product, and not mapping drift.
 - Missing-proof capture unlock: `stakeholder_first_name`, `stakeholder_last_name`.
 - Resolver work required: `document_type`.
 - Product-policy decision required: `website`.
 - Sensitive/defer: `date_of_birth`, raw SSN/EIN/tax-value fields, routing number, account number, bank-value fields, upload/signature/acknowledgement controls, and finalization-adjacent controls.
 - Frozen/address/live-discovery blocked: `registered_state`, `registered_country`, `business_mailing_*`, bank-address fields, and Physical Operating Address post-toggle capture.
 - Amount/capture blocker: `annual_revenue`, `highest_monthly_volume`, `average_ticket`, `max_ticket`.
-- Already live-proven: the live-proven concepts listed above, now including `proof_of_address_type`, `proof_of_business_type`, `federal_tax_id_type`, `registered_address_line_1`, `registered_address_line_2`, `registered_city`, `naics`, `merchant_category_code`, and `postal_code`. The latest scorecard still lists many of these as not-run because it is latest-run scoped; do not treat those latest-run gaps as cumulative regressions.
-- Remaining high-confidence non-sensitive metadata after excluding already-live-proven and policy/sensitive lanes: `stakeholder_job_title` is the best immediate coverage singleton; `bank_name` is a lower-priority later singleton because of Banking-section adjacency risk.
+- Already live-proven: the live-proven concepts listed above, now including `stakeholder_job_title`, `proof_of_address_type`, `proof_of_business_type`, `federal_tax_id_type`, `registered_address_line_1`, `registered_address_line_2`, `registered_city`, `naics`, `merchant_category_code`, and `postal_code`. The latest scorecard still lists many of these as not-run because it is latest-run scoped; do not treat those latest-run gaps as cumulative regressions.
+- Remaining high-confidence non-sensitive metadata after excluding already-live-proven and policy/sensitive lanes: `bank_name` is the best immediate coverage singleton, but it is not suitable for a batch because of Banking-section adjacency risk.
 
 ## Recommended Next Action
 
-- Recommended next action: B. One guarded live singleton for `stakeholder_job_title`.
-- Coverage rationale: there is still no remaining clean multi-concept live batch, but `proof_of_address_type` is now closed as live-proven. The best coverage-over-complexity move is the next non-sensitive singleton whose expected outcome can tolerate field-local manual-review rows as long as the target stays trusted and no mapping drift appears.
-- Why this beats `document_type` first: `document_type` still sits in page-3 metadata resolver territory and does not yet offer a clearly lower-risk or higher-yield path than a single job-title canary.
-- Why this beats `stakeholder_first_name` and `stakeholder_last_name` first: both remain unresolved in calibration and still depend on stale page-3 neighbor collapse or missing field-local proof.
-- Why this beats `bank_name` first: `bank_name` is high-confidence, but it is adjacent to sensitive Banking-section controls and should remain a later singleton instead of the immediate next move.
-- Why not `website` or `date_of_birth` first: `website` still sits in product-policy territory, and `date_of_birth` is sensitive even though calibration is strong.
+- Recommended next action: B. One guarded live singleton for `bank_name`.
+- Coverage rationale: there is still no remaining safe multi-concept live batch, and `stakeholder_job_title` is now closed as live-proven. The best coverage-over-complexity move is the next high-confidence, non-sensitive singleton. `bank_name` can expand coverage if and only if the verifier stays on the Bank Name text target and does not drift into nearby sensitive banking controls.
+- Why this beats `document_type` first: `document_type` remains resolver work in attachment metadata territory and does not yet offer a cleaner or higher-yield live lane.
+- Why this beats `stakeholder_first_name` and `stakeholder_last_name` first: both remain unresolved in calibration and still need missing-proof/capture unlock work before a guarded live attempt.
+- Why this beats `website` or `date_of_birth` first: `website` remains product-policy territory, and `date_of_birth` is sensitive even though calibration is strong.
+- Why not a batch: Banking adjacency makes `bank_name` unsafe to batch with routing number, account number, bank account type, bank address, deposit-method controls, or any other Banking-section field.
 - Why not `registered_state`, bank-address fields, or `business_mailing_*` first: they remain blocked by live-discovery availability or field-local address-capture issues, so they are less efficient for immediate cumulative coverage expansion.
-- Exact next watchdog command: `npm run interactive:watchdog -- -Concepts stakeholder_job_title -TimeoutSeconds 240 -PollSeconds 15`.
-- Hard stop conditions for that next prompt: stop with no retry if target verification is not trusted, target resolves outside the Stakeholder Job Title field, target drifts to stakeholder name/email/phone/date-of-birth/ownership fields, target drifts to upload/signature/acknowledgement/finalization controls, any product finding appears, any mapping-blocked output appears, the run times out, artifacts look partial, or any raw value/PII exposure risk appears.
+- Exact next watchdog command: `npm run interactive:watchdog -- -Concepts bank_name -TimeoutSeconds 240 -PollSeconds 15`.
+- Hard stop conditions for that next prompt: stop with no retry if target verification is not trusted, target resolves outside Bank Name, target drifts to routing number, account number, bank account type, deposit method, bank address, phone/email/date/numeric controls, upload/signature/acknowledgement/finalization controls, any product finding appears, any mapping-blocked output appears, the run times out, artifacts look partial, or any raw bank value/PII exposure risk appears.
 - The next prompt must use the repo AI handoff workflow and commit only allowed handoff files plus any explicitly eligible docs/source/test changes.
 
 ### Exact Next Copilot Prompt
 
 ```text
-CHAT ID: STAKEHOLDERJOBTITLECANARY
+CHAT ID: BANKNAMECANARY
 
 Use the repo AI handoff workflow. Work inside C:\Projects\bead-onboarding-form-validation.
 
-Goal: run exactly one guarded live singleton for stakeholder_job_title to determine whether it can be added to cumulative live-proven coverage. Do not run a full batch. Do not include any concept outside stakeholder_job_title. Do not enable DESTRUCTIVE_VALIDATION. Do not upload files or click Submit, Sign, Adopt, Finish, Complete, or any envelope-finalizing control. Do not expose raw DocuSign URLs, tokens, raw values, IDs, screenshots, or PII.
+Goal: run exactly one guarded live singleton for bank_name to determine whether it can be added to cumulative live-proven coverage. Do not run a full batch. Do not include any concept outside bank_name. Do not enable DESTRUCTIVE_VALIDATION. Do not upload files or click Submit, Sign, Adopt, Finish, Complete, or any envelope-finalizing control. Do not expose raw DocuSign URLs, tokens, raw values, IDs, screenshots, raw bank values, account numbers, routing numbers, or PII.
 
 Preflight: run git status --short, the repo-owned process scan, and the live env cleanup check from the ledger workflow. Stop and write a blocked handoff if live-related residue or dirty unrelated changes are present.
 
 Run exactly:
-npm run interactive:watchdog -- -Concepts stakeholder_job_title -TimeoutSeconds 240 -PollSeconds 15
+npm run interactive:watchdog -- -Concepts bank_name -TimeoutSeconds 240 -PollSeconds 15
 
-Do not retry. If the wrapper completes, run npm run reports:refresh and npm run findings:open. Inspect only the allowed summary, target diagnostics, validation results, findings, scorecard, and mapping calibration JSON artifacts. Determine whether stakeholder_job_title reached trusted live target verification, whether any manual-review rows are field-local and non-product, whether product findings or mapping-blocked rows appeared, and whether the target stayed separate from stakeholder names, email, phone, date_of_birth, ownership, upload, signature, acknowledgement, and finalization controls.
+Do not retry. If the wrapper completes, run npm run reports:refresh and npm run findings:open. Inspect only the allowed summary, target diagnostics, validation results, findings, scorecard, and mapping calibration JSON artifacts. Determine whether bank_name reached trusted live target verification, whether any manual-review rows are field-local and non-product, whether product findings or mapping-blocked rows appeared, and whether the target stayed separate from routing number, account number, bank account type, deposit method, bank address, phone/email/date/numeric controls, upload, signature, acknowledgement, and finalization controls.
 
-Hard stop with no retry if target verification is not trusted, target drifts outside Stakeholder Job Title, product findings appear, mapping-blocked output appears, the run times out, artifacts look partial, or any raw value/PII exposure risk appears.
+Hard stop with no retry if target verification is not trusted, target drifts outside Bank Name, product findings appear, mapping-blocked output appears, the run times out, artifacts look partial, or any raw bank value/PII exposure risk appears.
 
-Update artifacts/ai-handoff/status.json and artifacts/ai-handoff/latest-copilot-result.md, then commit and push only the allowed handoff files with a message starting AI-HANDOFF: STAKEHOLDERJOBTITLECANARY ready for ChatGPT review.
+Update artifacts/ai-handoff/status.json and artifacts/ai-handoff/latest-copilot-result.md, then commit and push only the allowed handoff files with a message starting AI-HANDOFF: BANKNAMECANARY ready for ChatGPT review.
 ```
