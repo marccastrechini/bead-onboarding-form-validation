@@ -3,10 +3,10 @@
   "run_id": "STAKEHOLDERJOBTITLELEDGER",
   "model_used": "GitHub Copilot (user requested GPT-5.4 xhigh)",
   "branch": "main",
-  "commit": "pending_current_handoff_commit",
-  "completed_at": "2026-05-12T17:47:27Z",
+  "commit": "db796c5",
+  "completed_at": "2026-05-12T17:49:05Z",
   "git_commit_before": "4bd638a8c1bfa980c278193beea1cbf1953f2f27",
-  "git_commit_after": "pending_current_handoff_commit",
+  "git_commit_after": "db796c513609d74d59e5ca6add8b00f90a93eb60",
   "summary_file": "artifacts/ai-handoff/latest-copilot-result.md",
   "needs_chatgpt_review": true,
   "commands_run": [
