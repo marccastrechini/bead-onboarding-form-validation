@@ -74,7 +74,7 @@ Update docs/validation-coverage-ledger.md only if the non-live evidence changes 
 - `npm run reports:refresh` passed and reproduced the same coverage state: 7/277 (3%), grade D, product 0, ambiguous 4, mapping-blocked 0, ready-for-rerun 0.
 - `npm run findings:open` passed and reproduced the same bank_name-focused findings plus the unchanged Physical Operating Address capture recommendation.
 - No live validation ran.
-- Commit/push: pending.
+- Commit/push: `1fcbb18` (`AI-HANDOFF: BANKNAMELEDGER ready for ChatGPT review refresh`) pushed to `origin/main`.
 
 ## Files Changed
 - `artifacts/ai-handoff/status.json`
