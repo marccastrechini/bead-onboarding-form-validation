@@ -7,13 +7,13 @@ Completed
 BANKNAMELEDGER
 
 ## Objective
-Re-run the strictly non-live BANKNAMELEDGER accounting pass, verify that the cumulative ledger still matches the requested bank_name coverage state from allowed artifacts only, and refresh the handoff result for ChatGPT review.
+Run the strictly non-live BANKNAMELEDGER accounting pass again, confirm that the cumulative ledger still reflects the requested bank_name evidence from allowed artifacts only, and refresh the AI handoff result for ChatGPT review.
 
 ## Current Verification Result
-- The cumulative ledger already matches the requested BANKNAMELEDGER outcome.
-- `bank_name` is already recorded as live-proven.
-- The cumulative live-proven concept count is already 27.
-- The latest-focused scorecard already reflects `bank_name` at 7/277 (3%), grade D, and is still correctly described as latest-run scoped rather than cumulative.
+- The cumulative ledger still matches the requested BANKNAMELEDGER outcome.
+- `bank_name` is still recorded as live-proven.
+- The cumulative live-proven concept count remains 27.
+- The latest-focused scorecard still reflects `bank_name` at 7/277 (3%), grade D, and is still correctly described as latest-run scoped rather than cumulative.
 - The existing next-step recommendation is still `C`: one non-live Physical Operating Address resolver/capture workstream.
 
 ## Bank Name Evidence Reconfirmed
@@ -74,13 +74,13 @@ Update docs/validation-coverage-ledger.md only if the non-live evidence changes 
 - `npm run reports:refresh` passed and reproduced the same coverage state: 7/277 (3%), grade D, product 0, ambiguous 4, mapping-blocked 0, ready-for-rerun 0.
 - `npm run findings:open` passed and reproduced the same bank_name-focused findings plus the unchanged Physical Operating Address capture recommendation.
 - No live validation ran.
-- Commit/push: `616b765` (`AI-HANDOFF: BANKNAMELEDGER ready for ChatGPT review verification refresh`) pushed to `origin/main`.
+- Commit/push: pending.
 
 ## Files Changed
 - `artifacts/ai-handoff/status.json`
 - `artifacts/ai-handoff/latest-copilot-result.md`
 
 ## Commit Safety Confirmation
-- No ledger edit was needed in this verification pass because `docs/validation-coverage-ledger.md` already matched the requested BANKNAMELEDGER state.
+- No ledger edit was needed because `docs/validation-coverage-ledger.md` already matched the requested BANKNAMELEDGER state.
 - Only the two AI handoff files should be staged for this refresh.
 - No `artifacts/latest-*`, `artifacts/playwright*`, `samples/private/**`, raw screenshots, or private proof files should be staged.

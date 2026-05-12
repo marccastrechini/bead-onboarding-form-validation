@@ -3,11 +3,11 @@
   "run_id": "BANKNAMELEDGER",
   "model_used": "GitHub Copilot (GPT-5.4 xhigh)",
   "branch": "main",
-  "commit": "616b765",
-  "started_at": "2026-05-12T20:20:07Z",
-  "completed_at": "2026-05-12T20:22:11Z",
-  "git_commit_before": "6abfc6c29d3d61a82f72df8338ca04cb8689c049",
-  "git_commit_after": "616b76572433f2aac2f16374126fc88a7e467aae",
+  "commit": "PENDING",
+  "started_at": "2026-05-12T20:26:22Z",
+  "completed_at": "PENDING",
+  "git_commit_before": "4e514fe7ce2b9b5cf4ea70b604856a90def929bb",
+  "git_commit_after": "PENDING",
   "summary_file": "artifacts/ai-handoff/latest-copilot-result.md",
   "needs_chatgpt_review": true,
   "files_changed": [
@@ -72,10 +72,10 @@
     "next_move": {
       "choice": "C",
       "workstream": "Physical Operating Address resolver",
-      "reason": "The existing ledger classification is still supported by the latest findings, calibration, and scorecard artifacts: the Physical Operating Address capture blocker can unlock four business_mailing concepts, which is a better coverage return than the remaining singleton options."
+      "reason": "The existing ledger classification is still supported by the latest findings, calibration, and scorecard artifacts: the Physical Operating Address capture blocker can unlock four business_mailing concepts, which remains a better coverage return than the remaining singleton options."
     }
   },
-  "key_outcome": "Verification found that BANKNAMELEDGER was already correctly recorded in the cumulative ledger, including bank_name as live-proven and next-step choice C, so this run completed as a handoff refresh plus non-live revalidation with no ledger changes required.",
+  "key_outcome": "This BANKNAMELEDGER run revalidated that the cumulative ledger already contains the requested bank_name coverage accounting and next-step choice C, so no ledger edit was needed and the work completed as a handoff-only refresh plus non-live revalidation.",
   "blockers": [
     "Physical Operating Address post-toggle capture still does not isolate field-local labels for business_mailing_*.",
     "registered_state remains blocked by live target availability despite offline label trust.",
