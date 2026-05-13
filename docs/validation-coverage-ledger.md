@@ -156,6 +156,7 @@ The following concepts have trusted live evidence from prior completed guarded r
 - `bank_name`: completed through the operator watchdog as a guarded live singleton.
 - Result after report refresh was 6/6 executed, 2 passed, 4 manual-review, 0 skipped, product findings 0, mapping-blocked findings 0, and ready-for-rerun 0.
 - All 6 target-resolution rows were trusted and resolved to the Bank Name page-1 DocuSign Text control at ordinal 62 / field index 32.
+- Target resolution stayed exclusive to Bank Name across all 6 checks.
 - The selected target was a visible/editable merchant input, and mapping remained `trusted_by_anchor_and_value_shape`.
 - The 4 manual-review rows remained field-local and non-product: `very-short-behavior` / `policy_question`, `numeric-only-behavior` / `observer_needs_stronger_text_evidence`, `excessive-length-behavior` / `acceptable_behavior_documented`, and `special-characters-behavior` / `expected_text_leniency`.
 - No drift appeared into routing number, account number, `bank_account_type`, deposit method, bank-address, phone, email, date, numeric, upload, signature, acknowledgement, or finalization-adjacent controls.

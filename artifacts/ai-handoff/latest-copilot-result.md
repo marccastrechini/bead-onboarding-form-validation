@@ -7,7 +7,7 @@ Completed
 BANKNAMELEDGER
 
 ## Objective
-Run a strictly non-live BANKNAMELEDGER coverage-accounting pass, update the cumulative ledger to reflect the May 13 accounting confirmation for `bank_name`, recheck the remaining concept classes from existing artifacts only, and leave one exact next prompt for ChatGPT review.
+Run a strictly non-live BANKNAMELEDGER coverage-accounting pass for `bank_name`, verify that cumulative coverage still reflects the trusted live evidence from existing artifacts only, make the smallest ledger update needed, and leave one exact next prompt for ChatGPT review.
 
 ## Files Changed
 - `docs/validation-coverage-ledger.md`
@@ -15,14 +15,14 @@ Run a strictly non-live BANKNAMELEDGER coverage-accounting pass, update the cumu
 - `artifacts/ai-handoff/latest-copilot-result.md`
 
 ## What Changed
-- Updated the ledger date to mark the 2026-05-13 BANKNAMELEDGER accounting pass.
-- Added an explicit note that the May 13 BANKNAMELEDGER work is non-live only and does not change the latest-run-scoped focused scorecard.
-- Tightened the `document_type` classification wording so it matches refreshed artifacts: plausible guarded singleton, but still `Needs Mapping` in the refreshed scorecard.
-- Kept the chosen next move as `C`: a non-live Physical Operating Address resolver/capture workstream.
+- Added one explicit ledger line that target resolution stayed exclusive to `Bank Name` across all 6 `bank_name` checks.
+- Revalidated the same non-live accounting state from current artifacts only.
+- Kept the next-step recommendation unchanged: `C`, one non-live Physical Operating Address resolver/capture workstream.
 
 ## Verified Bank Name Coverage State
 - `bank_name` remains live-proven in the cumulative ledger.
 - Trusted target remained `Bank Name` on page 1, ordinal 62, field index 32, DocuSign Text, visible/editable merchant input.
+- Target resolution stayed exclusive to `Bank Name` across all 6 checks.
 - 6 checks executed; 2 passed after report refresh; 4 manual-review rows remain field-local and non-product.
 - Manual-review rows preserved: `very-short-behavior` / `policy_question`, `numeric-only-behavior` / `observer_needs_stronger_text_evidence`, `excessive-length-behavior` / `acceptable_behavior_documented`, `special-characters-behavior` / `expected_text_leniency`.
 - Product findings: 0. Mapping-blocked findings: 0. Ready-for-rerun: 0.
@@ -50,13 +50,14 @@ Why this is next:
 - `document_type` is still a plausible singleton, but it advances one concept and the refreshed scorecard remains conservative about its mapping confidence.
 
 ## Tests Run
+- `npm run test:units` -> passed. 244 tests passed.
 - `npm run reports:refresh` -> passed. Regenerated calibration, scorecard, and findings with unchanged high-level state: coverage 7/277 (3%), grade D, product findings 0, ambiguous findings 4, mapping-blocked 0, ready-for-rerun 0.
 - `npm run findings:open` -> passed. Reconfirmed 6 trusted executed `bank_name` observations, 2 passed, 4 manual-review, and the unchanged Physical Operating Address capture recommendation.
 
 ## Results
 - No live validation ran.
 - No bootstrap or watchdog commands ran.
-- The ledger now explicitly reflects this run as a May 13 non-live accounting pass.
+- The ledger now states the exclusivity point directly: all trusted target resolution for this focused run stayed on `Bank Name`.
 - Generated `artifacts/latest-*` report outputs were refreshed locally for validation and must remain unstaged by rule.
 
 ## Blockers
@@ -71,7 +72,7 @@ Why this is next:
 
 ## Branch And Commit Status
 - Branch at handoff write time: `main`.
-- Pre-commit HEAD at handoff write time: `578ae7988a1628ff2619175f44260fc7719fe532`.
+- Pre-commit HEAD at handoff write time: `27a98fbed530f4ebf7130d0d4ec23644c4c0ab5f`.
 - Commit and push were pending at handoff write time; this run should commit the three changed files with a message starting `AI-HANDOFF: BANKNAMELEDGER ready for ChatGPT review` and should not stage refreshed generated artifacts.
 
 ## Recommended Next Copilot Prompt
@@ -87,7 +88,7 @@ Use the repo AI handoff workflow:
 - Update artifacts/ai-handoff/status.json
 - Update artifacts/ai-handoff/latest-copilot-result.md
 - Commit and push the handoff result with a commit message starting:
-	AI-HANDOFF: PHYSICALOPERATINGADDRESSRESOLVER ready for ChatGPT review
+  AI-HANDOFF: PHYSICALOPERATINGADDRESSRESOLVER ready for ChatGPT review
 
 Work inside:
 C:\Projects\bead-onboarding-form-validation

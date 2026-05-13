@@ -6,9 +6,9 @@
   "commit": null,
   "commit_message": "AI-HANDOFF: BANKNAMELEDGER ready for ChatGPT review",
   "push_status": "pending_at_write_time",
-  "started_at": "2026-05-13T13:08:31Z",
-  "completed_at": "2026-05-13T13:08:31Z",
-  "git_commit_before": "578ae7988a1628ff2619175f44260fc7719fe532",
+  "started_at": "2026-05-13T13:21:54Z",
+  "completed_at": "2026-05-13T13:21:54Z",
+  "git_commit_before": "27a98fbed530f4ebf7130d0d4ec23644c4c0ab5f",
   "git_commit_after": null,
   "summary_file": "artifacts/ai-handoff/latest-copilot-result.md",
   "needs_chatgpt_review": true,
@@ -22,15 +22,21 @@
     "git status --short",
     "Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'node|chrome|msedge|powershell|pwsh' -and $_.CommandLine -match 'bead-onboarding-form-validation|playwright|bootstrap|interactive|npm|tsx|run-interactive-watchdog' } | Select-Object ProcessId, Name, CreationDate, CommandLine | Format-Table -Wrap",
     "Get-ChildItem Env:INTERACTIVE_VALIDATION,Env:DISPOSABLE_ENVELOPE,Env:BEAD_SAMPLE_ENRICHMENT,Env:BEAD_SAMPLE_ENRICHMENT_PATH,Env:INTERACTIVE_CONCEPTS,Env:DESTRUCTIVE_VALIDATION,Env:INTERACTIVE_RUN_TIMEOUT_MS -ErrorAction SilentlyContinue",
-    "Read package.json, docs/validation-coverage-ledger.md, docs/LIVE_BOOTSTRAP.md, artifacts/latest-validation-summary.json, artifacts/latest-interactive-target-diagnostics.json, artifacts/latest-interactive-validation-results.json, artifacts/latest-validation-findings.json, artifacts/latest-validation-scorecard.json, and artifacts/latest-mapping-calibration.json",
+    "Read package.json, docs/validation-coverage-ledger.md, artifacts/latest-interactive-validation-results.json, artifacts/latest-validation-findings.json, artifacts/latest-mapping-calibration.json, and artifacts/latest-validation-scorecard.json",
     "Search explicit reconsideration concepts in latest-validation-scorecard.json, latest-mapping-calibration.json, and latest-validation-findings.json",
     "git branch --show-current",
     "git rev-parse HEAD",
     "Get-Date -AsUTC -Format yyyy-MM-ddTHH:mm:ssZ",
+    "npm run test:units",
     "npm run reports:refresh",
     "npm run findings:open"
   ],
   "tests_run": [
+    {
+      "command": "npm run test:units",
+      "result": "passed",
+      "details": "244 tests passed."
+    },
     {
       "command": "npm run reports:refresh",
       "result": "passed",
@@ -44,12 +50,10 @@
   ],
   "validation_summary": {
     "run_scope": [
-      "bank_name non-live coverage accounting"
+      "bank_name non-live coverage accounting rerun"
     ],
     "hard_stop_triggered": false,
     "live_validation_ran": false,
-    "ledger_bank_name_evidence_already_present": true,
-    "ledger_updated_for_current_pass": true,
     "recommended_cumulative_live_proven_count": 27,
     "latest_focused_scorecard": "7/277 (3%), grade D",
     "latest_scorecard_is_cumulative": false,
@@ -62,6 +66,7 @@
       "passed_after_refresh": 2,
       "manual_review_after_refresh": 4,
       "skipped": 0,
+      "target_resolution_exclusive": true,
       "manual_review_rows": [
         "very-short-behavior / policy_question",
         "numeric-only-behavior / observer_needs_stronger_text_evidence",
@@ -117,7 +122,7 @@
       "reason": "The latest findings still say the post-toggle Physical Operating Address capture does not isolate field-local labels, and resolving that blocker can unlock four business_mailing concepts with better coverage return than the remaining singleton options."
     }
   },
-  "key_outcome": "This BANKNAMELEDGER run performed a non-live coverage-accounting pass, updated the cumulative ledger for the May 13 accounting confirmation, revalidated reports without running live validation, and reaffirmed Physical Operating Address resolver work as the single best next move.",
+  "key_outcome": "This BANKNAMELEDGER rerun made one narrow ledger clarification, revalidated the same non-live bank_name accounting state, and reaffirmed Physical Operating Address resolver work as the single best next move.",
   "blockers": [
     "Physical Operating Address post-toggle capture still does not isolate field-local labels for business_mailing_*.",
     "registered_state remains blocked by live target availability despite offline trust.",
