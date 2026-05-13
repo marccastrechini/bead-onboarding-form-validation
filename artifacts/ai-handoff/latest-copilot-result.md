@@ -3,9 +3,9 @@
 CHAT ID: PHYSICALADDRESSCAPTUREVERIFY
 
 ## ChatGPT Review Summary
-- What changed: no source, test, package, ledger, or capture artifacts changed; only the AI handoff was refreshed for the current blocked rerun.
+- What changed: no source, test, package, ledger, or capture artifacts changed; only the AI handoff was refreshed for this current blocked rerun.
 - Whether the capture moved coverage forward: no; a fresh capture was not run.
-- Tests/commands run and pass/fail: required preflight checks passed; current artifact JSON parse/label check passed; two shell-quoting attempts failed before recovery; no capture, unit, report-refresh, or findings commands were run because the only supported fresh-capture path is the full live signer discovery sweep, which this prompt forbids.
+- Tests/commands run and pass/fail: required preflight checks passed; path inspection completed; current artifact JSON parse/label check passed; no capture, unit, report-refresh, or findings commands were run because the only supported fresh-capture path is the full live signer discovery sweep, which this prompt forbids.
 - Whether field-local Physical Operating Address labels were found: no; the latest saved sanitized artifact still lacks Address Line 1, City, State, ZIP, and Postal Code label strings.
 - Exact recommended next step: either approve the existing non-destructive signer discovery sweep as the sanctioned capture route for this verification run, or add a dedicated capture-only runner that reuses the existing guarded Physical Operating Address expansion/capture path, then rerun PHYSICALADDRESSCAPTUREVERIFY.
 
@@ -48,7 +48,7 @@ Run one fresh guarded non-finalizing Physical Operating Address post-toggle capt
 - Inspected `.github/copilot-instructions.md` and `.github/prompts/ai-handoff-run.prompt.md`.
 - Inspected `package.json`, `fixtures/physical-address-post-toggle-capture.ts`, `fixtures/conditional-discovery.ts`, `tests/signer-discovery.spec.ts`, `tests/bootstrap-units.spec.ts`, `artifacts/latest-physical-operating-address-post-toggle-structure.json`, and `artifacts/latest-physical-operating-address-post-toggle-dom.html`.
 - Parsed `artifacts/latest-validation-scorecard.json`, `artifacts/latest-mapping-calibration.json`, `artifacts/latest-validation-findings.json`, and `artifacts/latest-physical-operating-address-post-toggle-structure.json` with PowerShell `ConvertFrom-Json` -> passed.
-- Attempted two read-only Node artifact parsing commands first; both failed due shell/REPL quoting, then the terminal was recovered with `.exit`.
+- Current saved artifact label check returned `Address Line 1=False`, `City=False`, `State=False`, `ZIP=False`, `Postal Code=False`.
 
 ## Report Refresh Status
 - Not run.
@@ -65,8 +65,8 @@ Run one fresh guarded non-finalizing Physical Operating Address post-toggle capt
 
 ## Commit Hash And Push Result
 - Branch at handoff write time: `main`
-- Pre-commit HEAD at handoff write time: `798c6c7b8a1b819aa0d85de1ecd9bbcbf23481a5`
-- A prior blocked PHYSICALADDRESSCAPTUREVERIFY handoff was already pushed at `798c6c7b8a1b819aa0d85de1ecd9bbcbf23481a5`.
+- Pre-commit HEAD at handoff write time: `cd7ff10550592f594e814c307d22bc0491428dd1`
+- A prior blocked PHYSICALADDRESSCAPTUREVERIFY handoff was already pushed at `cd7ff10550592f594e814c307d22bc0491428dd1`.
 - This refreshed blocked handoff commit and push were pending at handoff write time so the handoff could remain a single eligible change set.
 
 ## Safety Confirmations
