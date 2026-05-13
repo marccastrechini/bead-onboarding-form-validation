@@ -224,7 +224,9 @@ export async function resolveSigningFrame(
     const scored: ScoredCandidate[] = [];
 
     // Build candidate list: all sub-frames first, then main page as a
-    // fallback candidate (scored without URL/attribute bonuses).
+    // fallback candidate. The main page still gets content-signal bonuses so
+    // safe-redirect landings can resolve once DocuSign's signing shell is
+    // visible before native form controls appear.
     type FrameCandidate = {
       host: FrameHost;
       isMain: boolean;
@@ -304,9 +306,9 @@ export async function resolveSigningFrame(
       if (!cand.isMain) {
         if (/signing|docusign/i.test(cand.url)) score += 100;
         if (/signing|tacticframe|docusign/i.test(`${iframeId} ${iframeTitle} ${cand.name}`)) score += 80;
-        if (hasSigningLink) score += 150;
-        if (hasBusinessDetails) score += 200;
       }
+      if (hasSigningLink) score += 150;
+      if (hasBusinessDetails) score += 200;
       score += textboxCount * 5;
       score += comboboxCount * 2;
 

@@ -1,103 +1,60 @@
 {
-  "status": "blocked",
-  "run_id": "PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN02",
-  "model_used": "GitHub Copilot (GPT-5.4 xhigh requested)",
+  "status": "ready_for_review",
+  "run_id": "PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN03",
+  "model_used": "GitHub Copilot (GPT-5.4)",
   "branch": "main",
   "commit": null,
-  "commit_message": "AI-HANDOFF: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN02 ready for ChatGPT review",
+  "commit_message": "AI-HANDOFF: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN03 ready for ChatGPT review",
   "push_status": "pending_at_write_time",
   "started_at": null,
-  "completed_at": "2026-05-13T23:11:31Z",
-  "git_commit_before": "1ad26eeb63612cff197e4839f4b735d0efaaa741",
+  "completed_at": "2026-05-13T23:25:12Z",
+  "git_commit_before": "d9f967861363143a294f7ce69f90de31f5da6bd3",
   "git_commit_after": null,
   "summary_file": "artifacts/ai-handoff/latest-copilot-result.md",
   "needs_chatgpt_review": true,
-  "command_run_exactly_once": "npm run bootstrap:capture:physical-address",
+  "command_run_exactly_once": "RUN03 intentionally did not run any live bootstrap/capture command.",
   "files_changed": [
+    "fixtures/signer-helpers.ts",
+    "tests/signer-readiness.spec.ts",
     "artifacts/ai-handoff/status.json",
     "artifacts/ai-handoff/latest-copilot-result.md"
   ],
   "commands_run": [
-    "Read .github/copilot-instructions.md and .github/prompts/ai-handoff-run.prompt.md",
+    "Read .github/copilot-instructions.md, .github/prompts/ai-handoff-run.prompt.md, and artifacts/ai-handoff/README.md",
     "git status --short",
-    "Repo-owned process scan -> no matching output",
-    "Environment residue check -> DOCUSIGN_SIGNING_URL, DESTRUCTIVE_VALIDATION, SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS, SAFE_DISCOVERY_CAPTURE_PHYSICAL_ADDRESS, SAFE_DISCOVERY_PROBE_PHYSICAL_ADDRESS all absent from active shell",
-    "npm run bootstrap:capture:physical-address -> ran exactly once, exited 1 after capture child failed to resolve signer surface/frame",
-    "Post-run metadata and git status check",
-    "Existing sanitized structure artifact summary and safe label-string checks",
-    "Continuation git status/log check -> HEAD and origin/main already at RUN02 handoff commit a1e1f76; live command not rerun to preserve the exactly-once constraint",
-    "Safe artifact metadata/label probe -> requested post-toggle structure and DOM exist; generatedAt=2026-05-01T16:41:27.153Z; target labels absent in both",
-    "Handoff summary compliance update -> handoff files only"
+    "Inspect fixtures/signer-helpers.ts, scripts/capture-physical-operating-address.ts, and tests/bootstrap-units.spec.ts for the signer readiness path",
+    "npx playwright test tests/signer-readiness.spec.ts --project=chromium -> passed",
+    "npm run test:units -> passed",
+    "git diff --name-only and post-validation git status checks",
+    "RUN03 intentionally skipped bootstrap:capture:physical-address, bootstrap:interactive, interactive:watchdog, full signer discovery, uploads, and destructive validation"
   ],
   "tests_run": [
-    "npm run bootstrap:capture:physical-address -> failed/blocking result, exit code 1"
+    "npx playwright test tests/signer-readiness.spec.ts --project=chromium -> passed (2 passed)",
+    "npm run test:units -> passed (255 passed)"
   ],
   "validation_summary": {
-    "preflight_clean": true,
-    "fresh_signer_url_acquired": true,
-    "bead_resend_succeeded": true,
-    "gmail_invite_found": true,
-    "docusign_link_extracted": true,
+    "live_capture_rerun_performed": false,
+    "safe_redirect_main_page_scoring_added": true,
+    "safe_redirect_unit_spec_passed": true,
+    "safe_redirect_unit_spec_test_count": 2,
+    "bootstrap_units_passed": true,
+    "bootstrap_unit_test_count": 255,
+    "readiness_coverage_moved_forward": true,
+    "live_field_local_label_coverage_moved_forward": false,
     "raw_url_exposed": false,
-    "capture_child_script": "capture:physical-address",
-    "capture_child_exit_code": 1,
-    "capture_completed": false,
-    "fresh_capture_artifacts_produced": false,
-    "capture_blocked_reason": "capture:physical-address could not resolve a visible signer surface/frame from the DocuSign safe-redirect surface within the configured wait.",
-    "saved_artifact_unchanged": true,
-    "saved_artifact_generated_at": "2026-05-01T16:41:27.153Z",
-    "saved_capture_bounds": {
-      "width": 876.71,
-      "height": 457.68,
-      "left": 208.72,
-      "top": 587.91
-    },
-    "field_local_labels_found": false,
-    "saved_capture_label_string_check": {
-      "Address Line 1": false,
-      "City": false,
-      "State": false,
-      "ZIP": false,
-      "Postal Code": false
-    },
-    "business_mailing": {
-      "business_mailing_address_line_1": "still capture-blocked",
-      "business_mailing_city": "still capture-blocked",
-      "business_mailing_state": "still capture-blocked",
-      "business_mailing_postal_code": "still capture-blocked"
-    },
-    "reports_refresh_run": false,
-    "findings_open_run": false,
-    "coverage_moved_forward": false,
-    "continuation_verified_existing_pushed_handoff": true,
-    "continuation_no_second_live_run": true,
-    "safe_artifact_probe": {
-      "structure_exists": true,
-      "dom_exists": true,
-      "structure_label_hits": {
-        "Address Line 1": false,
-        "City": false,
-        "State": false,
-        "ZIP": false,
-        "Postal Code": false
-      },
-      "dom_label_hits": {
-        "Address Line 1": false,
-        "City": false,
-        "State": false,
-        "ZIP": false,
-        "Postal Code": false
-      }
-    }
+    "env_mutated": false,
+    "destructive_validation_enabled": false,
+    "uploads_performed": false,
+    "finalization_controls_clicked": false
   },
-  "key_outcome": "The no-manual email-bootstrap path obtained a fresh DocuSign signing URL and launched only capture:physical-address, but capture blocked before artifact creation because the signer surface/frame did not resolve from the safe-redirect landing surface.",
+  "key_outcome": "RUN03 improved the non-finalizing signer readiness path by letting resolveSigningFrame() treat main-page DocuSign shell signals as valid signer-surface candidates, and validated that behavior with focused and broad unit coverage without spending another live capture.",
   "blockers": [
-    "Signer surface/frame readiness failed before the capture-only runner could discover fields or write fresh Physical Operating Address post-toggle artifacts.",
-    "No fresh capture artifacts were produced, so field-local Physical Operating Address labels could not be re-evaluated."
+    "The improved readiness path has not yet been validated against a fresh live DocuSign safe-redirect landing.",
+    "Physical Operating Address field-local proof for business_mailing_* remains unconfirmed until a later authorized live capture reaches the signer surface."
   ],
   "uncertainty": [
-    "The safe-redirect landing path may need additional non-finalizing readiness handling before frame resolution.",
-    "The stale saved artifact still lacks target labels, but that does not prove the newly acquired signer session lacks them because capture never reached the form surface."
+    "A live landing that omits both the screen-reader link and the 1. Business Details heading before controls appear may still need additional non-finalizing readiness signals.",
+    "RUN03 did not produce fresh Physical Operating Address artifacts because no live capture was authorized."
   ],
-  "next_recommendation": "Run PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN03 to inspect and fix the non-finalizing signer readiness path around safe-redirect before attempting another authorized live capture."
+  "next_recommendation": "If explicitly authorized, run PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN04 to validate the improved safe-redirect readiness path with exactly one safe bootstrap capture-only run."
 }

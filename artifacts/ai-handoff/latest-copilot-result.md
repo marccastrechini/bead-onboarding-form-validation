@@ -1,94 +1,88 @@
 ## ChatGPT Review Summary
-- What changed: RUN02 handoff files were updated and pushed; no source/test/doc/package files changed, and no generated capture artifacts were committed. In this continuation, the existing pushed RUN02 evidence was verified rather than rerunning the live command because the handoff commit already records the one allowed capture attempt.
-- Result / coverage: `npm run bootstrap:capture:physical-address` ran exactly once for RUN02 and exited 1, so coverage did not move forward.
-- Artifact outcome: no fresh Physical Operating Address post-toggle capture artifacts were produced. The saved structure/DOM artifacts remain the stale 2026-05-01 capture, and safe string checks still find no field-local `Address Line 1`, `City`, `State`, `ZIP`, or `Postal Code` labels.
-- Classification: `business_mailing_address_line_1`, `business_mailing_city`, `business_mailing_state`, and `business_mailing_postal_code` all remain `still capture-blocked`.
-- Tests/commands run and results: handoff instructions read; preflight git/process/env checks passed; `npm run bootstrap:capture:physical-address` ran once and failed with exit 1; safe artifact label probes passed; `npm run reports:refresh` and `npm run findings:open` were not run because capture did not succeed.
-- Remaining blocker / uncertainty: the safe-redirect signer landing did not resolve a visible signer surface/frame, so fresh field-local label proof is still unavailable.
-- Recommendation: continue with RUN03 only for non-finalizing signer readiness investigation and mocked/unit coverage; do not run another live capture unless explicitly authorized.
-- Next best Copilot prompt: inspect and fix the non-finalizing signer readiness path around `fixtures/signer-helpers.ts` and the DocuSign safe-redirect behavior observed by `bootstrap:capture:physical-address`, then add mocked/unit coverage before any further authorized live capture.
+- What changed: `resolveSigningFrame()` now lets main-page DocuSign shell signals (`Press enter to use the screen reader...`, `1. Business Details`) score as signer-surface candidates before native inputs appear. Added `tests/signer-readiness.spec.ts` to cover delayed safe-redirect shell behavior and main-page signer readiness. No live bootstrap/capture command was run in RUN03.
+- Result moved forward: yes for non-finalizing signer readiness and unit coverage. No fresh Physical Operating Address field-local proof was captured in RUN03, so live `business_mailing_*` coverage is unchanged.
+- Tests/commands run and results: inspected the targeted helper path; `npx playwright test tests/signer-readiness.spec.ts --project=chromium` passed (2/2); `npm run test:units` passed (255/255).
+- Remaining blocker / uncertainty: the fix is validated only against unit-style safe-redirect simulations. A live DocuSign landing that omits both the screen-reader link and the `1. Business Details` heading may still need additional non-finalizing readiness signals.
+- Continue / stop / redirect: continue.
+- Another live capture recommended next: yes, but only if explicitly authorized. Exact next run ID: `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN04`.
 
 # Copilot Handoff Result
 
-CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN02
+CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN03
 
 ## Status
-Blocked
+Ready for ChatGPT review
 
 ## Objective
-Run `npm run bootstrap:capture:physical-address` exactly once, using the email-bootstrap signer URL acquisition path, then inspect Physical Operating Address capture artifacts only if the capture succeeds.
+Improve the non-finalizing signer readiness path so the next explicitly authorized live Physical Operating Address capture has a better chance of reaching the signer form surface, without running another live capture in RUN03.
 
-## Preflight
-- Read `.github/copilot-instructions.md`.
-- Read `.github/prompts/ai-handoff-run.prompt.md`.
-- `git status --short` before the run was clean.
-- Repo-owned process scan returned no matching live automation processes.
-- Active-shell residue check found `DOCUSIGN_SIGNING_URL`, `DESTRUCTIVE_VALIDATION`, and Physical Address safe-discovery flags absent.
+## Focus Area
+- `fixtures/signer-helpers.ts`
+- `scripts/capture-physical-operating-address.ts` inspected for call-path reuse
+- Narrow unit coverage for safe-redirect readiness
 
-## One-Shot Command Run
-- Command: `npm run bootstrap:capture:physical-address`
-- Run count: exactly once.
-- Retry count: zero.
-- Raw signer URL, tokens, raw values, screenshots, and PII were not exposed in this handoff.
+## What Changed
+- `resolveSigningFrame()` now gives main-page DocuSign shell signals the same content-signal weight already used for iframe candidates, so safe-redirect landings can resolve the main page as the signer surface before native controls appear.
+- Added `tests/signer-readiness.spec.ts` covering:
+  - delayed safe-redirect transition from `EmailStart.aspx` into a main-page screen-reader shell
+  - main-page `1. Business Details` heading readiness
+- `scripts/capture-physical-operating-address.ts` was intentionally left unchanged; it continues to reuse `openSigner()` and the guarded capture-only path.
 
-## Execution Result
-- Bead resend succeeded.
-- Gmail polling found a fresh invite.
-- DocuSign signing URL extraction succeeded via direct link with redacted target logging.
-- The command launched only `npm run capture:physical-address` as the child script.
-- The capture child exited with code 1.
-- Safe blocker: signer surface/frame resolution did not find a visible signing control after waiting from the DocuSign safe-redirect surface.
+## Files Changed
+- `fixtures/signer-helpers.ts`
+- `tests/signer-readiness.spec.ts`
+- `artifacts/ai-handoff/status.json`
+- `artifacts/ai-handoff/latest-copilot-result.md`
 
-## Capture Artifact Inspection
-- No fresh post-toggle capture completed, so no fresh artifact evidence was produced.
-- Existing sanitized structure artifact remained stale with `generatedAt=2026-05-01T16:41:27.153Z`.
-- Existing saved capture bounds remained `876.71 x 457.68 @ 208.72, 587.91`.
-- Safe label string checks against the existing structure artifact:
-  - `Address Line 1`: absent
-  - `City`: absent
-  - `State`: absent
-  - `ZIP`: absent
-  - `Postal Code`: absent
+## Validation
+- `npx playwright test tests/signer-readiness.spec.ts --project=chromium` -> passed (2 passed)
+- `npm run test:units` -> passed (255 passed)
+- `npm run bootstrap:capture:physical-address` was not run in RUN03 by design
+- `bootstrap:interactive`, `interactive:watchdog`, full signer discovery, uploads, and destructive validation were not run
 
-## `business_mailing_*` Classification
-- `business_mailing_address_line_1`: `still capture-blocked`
-- `business_mailing_city`: `still capture-blocked`
-- `business_mailing_state`: `still capture-blocked`
-- `business_mailing_postal_code`: `still capture-blocked`
+## Result
+- Forward progress: yes for signer-readiness robustness and unit coverage.
+- Live capture coverage: unchanged. No fresh Physical Operating Address capture artifacts or new field-local label proof were produced in RUN03 because no live capture was authorized.
 
-## Reports And Findings
-- `npm run reports:refresh` was not run.
-- `npm run findings:open` was not run.
-- Reason: the capture did not succeed, and the prompt only authorized report refresh after successful capture.
+## Branch / Commit Status
+- Branch: `main`
+- Pre-RUN03 commit: `d9f967861363143a294f7ce69f90de31f5da6bd3`
+- RUN03 handoff commit: pending at write time
+
+## Safety Confirmation
+- No live bootstrap/capture command was run.
+- `DESTRUCTIVE_VALIDATION` was not enabled.
+- `.env` was not mutated.
+- No raw signer URL was printed or committed.
+- No uploads were performed.
+- No Finish, Complete, Submit, Sign, Adopt, or finalization controls were clicked.
+- Generated capture artifacts were not staged or committed.
+
+## Remaining Blocker / Uncertainty
+- The readiness improvement is validated only against unit-style safe-redirect simulations.
+- If the live DocuSign landing omits both the screen-reader link and the `1. Business Details` heading before controls appear, additional non-finalizing readiness signals may still be needed.
+- Field-local proof for `business_mailing_address_line_1`, `business_mailing_city`, `business_mailing_state`, and `business_mailing_postal_code` remains unconfirmed until a later authorized live run.
+
+## Recommendation
+Continue.
+
+Another live capture is recommended next only if explicitly authorized, using:
+`PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN04`
+
+## Recommended Next Copilot Prompt
+Run `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN04`: execute exactly one authorized `npm run bootstrap:capture:physical-address`, keep the existing safety constraints, inspect whether the improved `resolveSigningFrame()` now reaches the signer form surface from the DocuSign safe-redirect landing, and classify Physical Operating Address `business_mailing_*` field-local label proof without committing generated artifacts.
 
 ## Commit Scope
-- Intended staged files:
+- Stage and commit:
+  - `fixtures/signer-helpers.ts`
+  - `tests/signer-readiness.spec.ts`
   - `artifacts/ai-handoff/status.json`
   - `artifacts/ai-handoff/latest-copilot-result.md`
-- Excluded from staging:
+- Do not commit:
   - `artifacts/latest-*`
   - `artifacts/latest-physical-operating-address-*`
   - `artifacts/playwright*`
   - `.env`
   - `samples/private/**`
 
-## Safety Confirmation
-- `bootstrap:interactive` was not run.
-- `interactive:watchdog` was not run.
-- Full signer discovery was not run.
-- `DESTRUCTIVE_VALIDATION` was not enabled.
-- No uploads were performed.
-- No Finish, Complete, Submit, Sign, Adopt, or finalization controls were clicked.
-
-## Blockers
-- The fresh signer URL acquisition path worked, but the signer surface did not resolve into visible signing controls for the capture-only runner.
-- No fresh post-toggle Physical Operating Address capture artifact was produced, so field-local label proof could not be re-evaluated.
-
-## Uncertainty
-- It is unclear whether the safe-redirect surface needed additional handling, a longer readiness path, or a different post-email DocuSign landing transition before `openSigner()` attempts frame resolution.
-- Because no fresh capture artifact was written, the current label absence reflects the stale May 1 artifact rather than the newly acquired signer session.
-
-## Recommended Next Copilot Prompt
-Run `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN03`: use the repo AI handoff workflow, do not run bootstrap:interactive, interactive:watchdog, full signer discovery, destructive validation, uploads, or finalization controls; inspect the non-finalizing signer readiness path in `fixtures/signer-helpers.ts` and the safe-redirect behavior observed by `bootstrap:capture:physical-address`, add mocked/unit coverage for any readiness fix, and do not run another live capture unless explicitly authorized.
-
-CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN02
+CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN03
