@@ -1,26 +1,19 @@
 {
-  "status": "implemented",
-  "run_id": "PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN01",
-  "model_used": "GitHub Copilot (GPT-5.5 Thinking Heavy requested)",
+  "status": "blocked",
+  "run_id": "PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN02",
+  "model_used": "GitHub Copilot (GPT-5.4 xhigh requested)",
   "branch": "main",
   "commit": null,
-  "commit_message": "AI-HANDOFF: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN01 ready for ChatGPT review",
+  "commit_message": "AI-HANDOFF: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN02 ready for ChatGPT review",
   "push_status": "pending_at_write_time",
   "started_at": null,
-  "completed_at": "2026-05-13T21:49:07Z",
-  "git_commit_before": "b349a46af447834d236825ba26adaa0e514d3007",
+  "completed_at": "2026-05-13T22:16:58Z",
+  "git_commit_before": "1ad26eeb63612cff197e4839f4b735d0efaaa741",
   "git_commit_after": null,
   "summary_file": "artifacts/ai-handoff/latest-copilot-result.md",
   "needs_chatgpt_review": true,
-  "command_added": "npm run bootstrap:capture:physical-address",
-  "live_email_capture_run": false,
+  "command_run_exactly_once": "npm run bootstrap:capture:physical-address",
   "files_changed": [
-    "lib/bootstrap-email-runner.ts",
-    "scripts/bootstrap-live-run.ts",
-    "scripts/bootstrap-capture-physical-operating-address.ts",
-    "package.json",
-    "docs/LIVE_BOOTSTRAP.md",
-    "tests/bootstrap-units.spec.ts",
     "artifacts/ai-handoff/status.json",
     "artifacts/ai-handoff/latest-copilot-result.md"
   ],
@@ -29,42 +22,59 @@
     "git status --short",
     "Repo-owned process scan -> no matching output",
     "Environment residue check -> DOCUSIGN_SIGNING_URL, DESTRUCTIVE_VALIDATION, SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS, SAFE_DISCOVERY_CAPTURE_PHYSICAL_ADDRESS, SAFE_DISCOVERY_PROBE_PHYSICAL_ADDRESS all absent from active shell",
-    "Inspected docs/LIVE_BOOTSTRAP.md, package.json, scripts/bootstrap-live-run.ts, lib/gmail-client.ts, lib/link-extractor.ts, fixtures/signer-helpers.ts, scripts/capture-physical-operating-address.ts, tests/bootstrap-units.spec.ts",
-    "npm run test:units",
-    "npm run reports:refresh",
-    "npm run findings:open",
-    "Get-Date -AsUTC -Format yyyy-MM-ddTHH:mm:ssZ; git branch --show-current; git rev-parse HEAD; git status --short"
+    "npm run bootstrap:capture:physical-address -> ran exactly once, exited 1 after capture child failed to resolve signer surface/frame",
+    "Post-run metadata and git status check",
+    "Existing sanitized structure artifact summary and safe label-string checks"
   ],
   "tests_run": [
-    "npm run test:units -> passed, 255 tests",
-    "npm run reports:refresh -> passed",
-    "npm run findings:open -> passed"
+    "npm run bootstrap:capture:physical-address -> failed/blocking result, exit code 1"
   ],
   "validation_summary": {
     "preflight_clean": true,
-    "source_diagnostics_clean": true,
-    "new_command": "bootstrap:capture:physical-address",
-    "reuses_email_monitoring": true,
-    "manual_signer_url_required": false,
-    "passes_signer_url_child_env_only": true,
-    "mutates_dot_env": false,
-    "redacts_raw_urls": true,
-    "clears_destructive_validation_for_child": true,
-    "runs_capture_only_child": true,
-    "runs_smoke_discovery_interactive_watchdog_or_full_validation": false,
-    "live_capture_run": false,
-    "reports_refresh_run": true,
-    "findings_open_run": true,
-    "findings_summary": {
-      "likely_product_findings": 0,
-      "ambiguous_observations": 4,
-      "coverage": "0/277 (0%)"
-    }
+    "fresh_signer_url_acquired": true,
+    "bead_resend_succeeded": true,
+    "gmail_invite_found": true,
+    "docusign_link_extracted": true,
+    "raw_url_exposed": false,
+    "capture_child_script": "capture:physical-address",
+    "capture_child_exit_code": 1,
+    "capture_completed": false,
+    "fresh_capture_artifacts_produced": false,
+    "capture_blocked_reason": "capture:physical-address could not resolve a visible signer surface/frame from the DocuSign safe-redirect surface within the configured wait.",
+    "saved_artifact_unchanged": true,
+    "saved_artifact_generated_at": "2026-05-01T16:41:27.153Z",
+    "saved_capture_bounds": {
+      "width": 876.71,
+      "height": 457.68,
+      "left": 208.72,
+      "top": 587.91
+    },
+    "field_local_labels_found": false,
+    "saved_capture_label_string_check": {
+      "Address Line 1": false,
+      "City": false,
+      "State": false,
+      "ZIP": false,
+      "Postal Code": false
+    },
+    "business_mailing": {
+      "business_mailing_address_line_1": "still capture-blocked",
+      "business_mailing_city": "still capture-blocked",
+      "business_mailing_state": "still capture-blocked",
+      "business_mailing_postal_code": "still capture-blocked"
+    },
+    "reports_refresh_run": false,
+    "findings_open_run": false,
+    "coverage_moved_forward": false
   },
-  "key_outcome": "Added a non-manual, email-bootstraped Physical Operating Address capture command that reuses the existing resend/Gmail/link extraction flow and launches only capture:physical-address with the signer URL in child env.",
-  "blockers": [],
-  "uncertainty": [
-    "The live email capture command was not executed in this implementation prompt, so current Bead/Gmail/DocuSign live availability is unverified."
+  "key_outcome": "The no-manual email-bootstrap path obtained a fresh DocuSign signing URL and launched only capture:physical-address, but capture blocked before artifact creation because the signer surface/frame did not resolve from the safe-redirect landing surface.",
+  "blockers": [
+    "Signer surface/frame readiness failed before the capture-only runner could discover fields or write fresh Physical Operating Address post-toggle artifacts.",
+    "No fresh capture artifacts were produced, so field-local Physical Operating Address labels could not be re-evaluated."
   ],
-  "next_recommendation": "Run PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN02 to execute npm run bootstrap:capture:physical-address exactly once, then inspect the refreshed Physical Operating Address artifacts if capture succeeds."
+  "uncertainty": [
+    "The safe-redirect landing path may need additional non-finalizing readiness handling before frame resolution.",
+    "The stale saved artifact still lacks target labels, but that does not prove the newly acquired signer session lacks them because capture never reached the form surface."
+  ],
+  "next_recommendation": "Run PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN03 to inspect and fix the non-finalizing signer readiness path around safe-redirect before attempting another authorized live capture."
 }

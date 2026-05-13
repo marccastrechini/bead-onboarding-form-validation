@@ -1,77 +1,91 @@
 ## ChatGPT Review Summary
-- What changed: added `npm run bootstrap:capture:physical-address`, backed by a shared email-bootstrap runner that reuses Bead resend, Gmail polling, and DocuSign link extraction before launching only `npm run capture:physical-address`.
-- Safety posture: the signer URL is passed only through the child process environment, `.env` is not mutated, raw URLs are redacted in logs/errors, and `DESTRUCTIVE_VALIDATION` is cleared for child execution.
-- Live execution status: no live/email capture command was run in this implementation prompt; the new path was validated through mocked unit coverage only.
-- Tests/commands run and results: `npm run test:units` passed with 255 tests; `npm run reports:refresh` passed; `npm run findings:open` passed and showed 0 product findings, 4 ambiguous observations, coverage 0/277.
-- Exact recommended next step: run a new guarded execution prompt for `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN02` that executes `npm run bootstrap:capture:physical-address` exactly once, then inspects the refreshed Physical Operating Address artifacts if the capture succeeds.
+- What happened: ran `npm run bootstrap:capture:physical-address` exactly once. The command successfully triggered Bead resend, found a Gmail invite, extracted a DocuSign signing URL with redacted logging, and launched only `npm run capture:physical-address`.
+- Result: blocked during the capture child process. `capture:physical-address` exited with code 1 because the signer surface/frame did not resolve from the DocuSign safe-redirect page within the configured wait; no retry was attempted.
+- Artifact outcome: no fresh Physical Operating Address post-toggle capture artifacts were produced. The saved structure artifact remains the stale 2026-05-01 capture, and the safe string check still finds no field-local `Address Line 1`, `City`, `State`, `ZIP`, or `Postal Code` labels.
+- Classification: `business_mailing_address_line_1`, `business_mailing_city`, `business_mailing_state`, and `business_mailing_postal_code` all remain `still capture-blocked`.
+- Tests/commands run and results: handoff instructions read; preflight git/process/env checks passed; `npm run bootstrap:capture:physical-address` ran once and exited 1; `npm run reports:refresh` and `npm run findings:open` were not run because capture did not succeed.
 
 # Copilot Handoff Result
 
-CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN01
+CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN02
 
 ## Status
-Implemented
+Blocked
 
 ## Objective
-Add a safe bootstrap capture command that obtains a fresh DocuSign signing URL through the existing Bead resend plus Gmail polling flow, then runs the already-validated Physical Operating Address capture-only runner with `DOCUSIGN_SIGNING_URL` passed only through child environment.
+Run `npm run bootstrap:capture:physical-address` exactly once, using the email-bootstrap signer URL acquisition path, then inspect Physical Operating Address capture artifacts only if the capture succeeds.
 
-## Command Added
-- `npm run bootstrap:capture:physical-address`
-- Script path: `scripts/bootstrap-capture-physical-operating-address.ts`
+## Preflight
+- Read `.github/copilot-instructions.md`.
+- Read `.github/prompts/ai-handoff-run.prompt.md`.
+- `git status --short` before the run was clean.
+- Repo-owned process scan returned no matching live automation processes.
+- Active-shell residue check found `DOCUSIGN_SIGNING_URL`, `DESTRUCTIVE_VALIDATION`, and Physical Address safe-discovery flags absent.
 
-## How It Reuses Email Monitoring
-- Added `lib/bootstrap-email-runner.ts` to centralize the existing live bootstrap mechanics: `loadBeadConfig`, `loadGmailConfig`, `triggerResend`, `pollForSigningEmail`, `extractSigningUrl`, redacted logging, and child npm script execution.
-- Refactored `scripts/bootstrap-live-run.ts` to use the shared runner with `test:smoke` and `test:discovery` as its child scripts.
-- Added `scripts/bootstrap-capture-physical-operating-address.ts` to use the same shared runner with only `capture:physical-address` as its child script.
+## One-Shot Command Run
+- Command: `npm run bootstrap:capture:physical-address`
+- Run count: exactly once.
+- Retry count: zero.
+- Raw signer URL, tokens, raw values, screenshots, and PII were not exposed in this handoff.
 
-## How It Avoids Pasted URLs
-- The new command does not require or read a manually pasted signer URL.
-- It acquires the signer URL from the fresh email flow and passes it to the capture child process as `DOCUSIGN_SIGNING_URL`.
-- `.env` is not written or mutated.
+## Execution Result
+- Bead resend succeeded.
+- Gmail polling found a fresh invite.
+- DocuSign signing URL extraction succeeded via direct link with redacted target logging.
+- The command launched only `npm run capture:physical-address` as the child script.
+- The capture child exited with code 1.
+- Safe blocker: signer surface/frame resolution did not find a visible signing control after waiting from the DocuSign safe-redirect surface.
 
-## Safety Details
-- Raw DocuSign URLs are not printed; logs use the existing sanitized form.
-- URL-bearing error messages are scrubbed through `formatSafeError`.
-- `DESTRUCTIVE_VALIDATION` is set to an empty value for the child process.
-- The capture bootstrap script launches only `capture:physical-address`; it does not run smoke, discovery, interactive validation, watchdog, full signer discovery, or full validation.
-- No Finish, Complete, Submit, Sign, Adopt, upload, or finalization control is used by this implementation path.
+## Capture Artifact Inspection
+- No fresh post-toggle capture completed, so no fresh artifact evidence was produced.
+- Existing sanitized structure artifact remained stale with `generatedAt=2026-05-01T16:41:27.153Z`.
+- Existing saved capture bounds remained `876.71 x 457.68 @ 208.72, 587.91`.
+- Safe label string checks against the existing structure artifact:
+  - `Address Line 1`: absent
+  - `City`: absent
+  - `State`: absent
+  - `ZIP`: absent
+  - `Postal Code`: absent
 
-## Files Changed
-- `lib/bootstrap-email-runner.ts`
-- `scripts/bootstrap-live-run.ts`
-- `scripts/bootstrap-capture-physical-operating-address.ts`
-- `package.json`
-- `docs/LIVE_BOOTSTRAP.md`
-- `tests/bootstrap-units.spec.ts`
-- `artifacts/ai-handoff/status.json`
-- `artifacts/ai-handoff/latest-copilot-result.md`
+## `business_mailing_*` Classification
+- `business_mailing_address_line_1`: `still capture-blocked`
+- `business_mailing_city`: `still capture-blocked`
+- `business_mailing_state`: `still capture-blocked`
+- `business_mailing_postal_code`: `still capture-blocked`
 
-## Tests And Commands Run
-- `git status --short` before edits: clean.
-- Repo-owned process scan: no matching live automation process output.
-- Environment residue check: `DOCUSIGN_SIGNING_URL`, `DESTRUCTIVE_VALIDATION`, and Physical Address safe-discovery flags were not present in the active shell.
-- `npm run test:units`: passed, 255 tests.
-- `npm run reports:refresh`: passed; regenerated mapping calibration, scorecard, and findings artifacts.
-- `npm run findings:open`: passed; findings output reported 0 likely product findings, 4 ambiguous observations, coverage 0/277.
+## Reports And Findings
+- `npm run reports:refresh` was not run.
+- `npm run findings:open` was not run.
+- Reason: the capture did not succeed, and the prompt only authorized report refresh after successful capture.
 
-## Live/Email Capture Run Status
-- Not run.
-- Reason: the prompt explicitly prohibited running live capture unless an existing safe mocked/test path was available; validation used mocked unit tests only.
+## Commit Scope
+- Intended staged files:
+  - `artifacts/ai-handoff/status.json`
+  - `artifacts/ai-handoff/latest-copilot-result.md`
+- Excluded from staging:
+  - `artifacts/latest-*`
+  - `artifacts/latest-physical-operating-address-*`
+  - `artifacts/playwright*`
+  - `.env`
+  - `samples/private/**`
 
-## Generated Artifacts
-- `npm run reports:refresh` may rewrite generated `artifacts/latest-*` outputs, but those are intentionally excluded from staging.
-- No generated capture artifacts, Playwright report artifacts, `.env`, raw proof files, or `samples/private/**` files are intended for staging.
+## Safety Confirmation
+- `bootstrap:interactive` was not run.
+- `interactive:watchdog` was not run.
+- Full signer discovery was not run.
+- `DESTRUCTIVE_VALIDATION` was not enabled.
+- No uploads were performed.
+- No Finish, Complete, Submit, Sign, Adopt, or finalization controls were clicked.
 
-## Commit And Push Status
-- Branch: `main`
-- Base commit before this work: `b349a46af447834d236825ba26adaa0e514d3007`
-- Commit hash: pending at handoff write time.
-- Push result: pending at handoff write time.
+## Blockers
+- The fresh signer URL acquisition path worked, but the signer surface did not resolve into visible signing controls for the capture-only runner.
+- No fresh post-toggle Physical Operating Address capture artifact was produced, so field-local label proof could not be re-evaluated.
 
 ## Uncertainty
-- The live Gmail/resend/capture flow itself was not executed in this prompt, so this run proves wiring and safety behavior through tests but does not prove current Gmail credentials, Bead resend config, or a fresh DocuSign invite are available.
+- It is unclear whether the safe-redirect surface needed additional handling, a longer readiness path, or a different post-email DocuSign landing transition before `openSigner()` attempts frame resolution.
+- Because no fresh capture artifact was written, the current label absence reflects the stale May 1 artifact rather than the newly acquired signer session.
 
 ## Recommended Next Copilot Prompt
-Run `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN02`: use the repo AI handoff workflow, do not run bootstrap:interactive, interactive:watchdog, full signer discovery, destructive validation, uploads, or finalization controls, then run exactly once `npm run bootstrap:capture:physical-address`. If it succeeds, inspect `artifacts/latest-physical-operating-address-post-toggle-structure.json` and `artifacts/latest-physical-operating-address-post-toggle-dom.html` for Address Line 1, City, State, ZIP, and Postal Code field-local labels, run `npm run reports:refresh` and `npm run findings:open`, and commit only the AI handoff files plus no generated artifacts.
+Run `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN03`: use the repo AI handoff workflow, do not run bootstrap:interactive, interactive:watchdog, full signer discovery, destructive validation, uploads, or finalization controls; inspect the non-finalizing signer readiness path in `fixtures/signer-helpers.ts` and the safe-redirect behavior observed by `bootstrap:capture:physical-address`, add mocked/unit coverage for any readiness fix, and do not run another live capture unless explicitly authorized.
 
-CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN01
+CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN02
