@@ -28,8 +28,19 @@ export type FrameDiagnostic = {
  * all scoring passes.
  */
 const EXCLUDE_FRAME_RE = /comment|sidebar|auxiliary|notification|chat|toolbar|header|footer|panel/i;
+const SAFE_REDIRECT_RE = /\/safe-redirect(?:[/?#]|$)/i;
+const SIGNING_IFRAME_SELECTOR =
+  'iframe:is([id*="signing"], [id*="tactic"], [title*="DocuSign"], [title*="Signing"], [name*="signing"], [src*="docusign"])';
+const SCREEN_READER_SHELL_TEXT = 'Press enter to use the screen reader';
+const BUSINESS_DETAILS_SHELL_TEXT = '1. Business Details';
 
 type SignerGuardStage = 'after-goto' | 'after-start-click' | 'before-frame-resolution';
+type SafeRedirectTransitionSignal =
+  | 'not-on-safe-redirect'
+  | 'url-transition'
+  | 'signing-iframe'
+  | 'screen-reader-shell'
+  | 'business-details-shell';
 
 type ExpiredSignerLinkEvidence = {
   stage: SignerGuardStage;
@@ -180,6 +191,65 @@ export function getSignerUrl(): string {
   return url;
 }
 
+async function detectMainPageShellSignal(page: Page): Promise<Exclude<SafeRedirectTransitionSignal, 'not-on-safe-redirect' | 'url-transition' | 'signing-iframe'> | null> {
+  if (await isQuicklyVisible(page.getByText(SCREEN_READER_SHELL_TEXT), 250)) {
+    return 'screen-reader-shell';
+  }
+
+  if (await isQuicklyVisible(page.getByText(BUSINESS_DETAILS_SHELL_TEXT), 250)) {
+    return 'business-details-shell';
+  }
+
+  return null;
+}
+
+export async function waitForSafeRedirectTransition(
+  page: Page,
+  timeout = 8_000,
+): Promise<{ signal: SafeRedirectTransitionSignal; diagnostics: string[] }> {
+  const startingUrl = page.url();
+  if (!SAFE_REDIRECT_RE.test(startingUrl)) {
+    return { signal: 'not-on-safe-redirect', diagnostics: [] };
+  }
+
+  const diagnostics = [`safe-redirect landing observed: ${redactUrl(startingUrl)}`];
+  const deadline = Date.now() + timeout;
+
+  while (Date.now() < deadline) {
+    const currentUrl = page.url();
+
+    if (!SAFE_REDIRECT_RE.test(currentUrl)) {
+      diagnostics.push(`safe-redirect transition observed: url changed to ${redactUrl(currentUrl)}`);
+      return { signal: 'url-transition', diagnostics };
+    }
+
+    const iframeCount = await page.locator(SIGNING_IFRAME_SELECTOR).count().catch(() => 0);
+    if (iframeCount > 0) {
+      diagnostics.push(`safe-redirect transition observed: signing iframe appeared on ${redactUrl(currentUrl)}`);
+      return { signal: 'signing-iframe', diagnostics };
+    }
+
+    const shellSignal = await detectMainPageShellSignal(page);
+    if (shellSignal === 'screen-reader-shell') {
+      diagnostics.push(`safe-redirect transition observed: screen-reader shell appeared on ${redactUrl(currentUrl)}`);
+      return { signal: shellSignal, diagnostics };
+    }
+
+    if (shellSignal === 'business-details-shell') {
+      diagnostics.push(`safe-redirect transition observed: Business Details heading appeared on ${redactUrl(currentUrl)}`);
+      return { signal: shellSignal, diagnostics };
+    }
+
+    await page.waitForTimeout(250);
+  }
+
+  throw new Error(
+    'DocuSign safe-redirect did not transition to a signer surface before frame resolution. ' +
+    `Current page: ${redactUrl(page.url())}. ` +
+    'Observed signals: no URL transition, no signing iframe, no screen-reader shell, no 1. Business Details heading.',
+  );
+}
+
 /**
  * Resolve the DocuSign signing iframe (or main page) at runtime.
  *
@@ -285,13 +355,13 @@ export async function resolveSigningFrame(
       }
 
       const hasSigningLink = await cand.host
-        .getByText('Press enter to use the screen reader')
+        .getByText(SCREEN_READER_SHELL_TEXT)
         .first()
         .isVisible({ timeout: 300 })
         .catch(() => false);
 
       const hasBusinessDetails = await cand.host
-        .getByText('1. Business Details')
+        .getByText(BUSINESS_DETAILS_SHELL_TEXT)
         .first()
         .isVisible({ timeout: 200 })
         .catch(() => false);
@@ -346,8 +416,7 @@ export async function resolveSigningFrame(
   }
 
   // FRAGILE fallback – inspect the signing iframe in DevTools to harden.
-  const fallback =
-    'iframe:is([id*="signing"], [id*="tactic"], [title*="DocuSign"], [title*="Signing"], [name*="signing"], [src*="docusign"])';
+  const fallback = SIGNING_IFRAME_SELECTOR;
   return {
     frame: page.frameLocator(fallback) as unknown as FrameHost,
     diagnostic: `FRAGILE fallback iframe selector in use – inspect in DevTools: ${fallback}`,
@@ -364,9 +433,7 @@ function escapeAttr(v: string): string {
  * diagnostic string.
  */
 export function signingFrame(page: Page): FrameLocator {
-  return page.frameLocator(
-    'iframe:is([id*="signing"], [id*="tactic"], [title*="DocuSign"], [name*="signing"], [src*="docusign"])',
-  );
+  return page.frameLocator(SIGNING_IFRAME_SELECTOR);
 }
 
 /**
@@ -624,10 +691,14 @@ export async function openSigner(
 
   diagnostics.push(...await handleDisclosureIfPresent(page, 'after-goto'));
 
+  const safeRedirectTransition = await waitForSafeRedirectTransition(page, 12_000);
+  diagnostics.push(...safeRedirectTransition.diagnostics);
+
   // The initial disclosure/start surface can render a few seconds after the
   // auth redirect settles, so poll for one safe entry control before falling
   // through to frame discovery.
-  const startStrategy = await clickStartIfPresent(page, 10_000);
+  const startTimeout = safeRedirectTransition.signal === 'not-on-safe-redirect' ? 10_000 : 3_000;
+  const startStrategy = await clickStartIfPresent(page, startTimeout);
   diagnostics.push(`start-button strategy: ${startStrategy}`);
 
   // Clicking Start triggers a page navigation to the signing page (Sign.aspx).
