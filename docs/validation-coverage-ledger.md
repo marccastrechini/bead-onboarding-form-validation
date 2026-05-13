@@ -3,7 +3,7 @@
 Generated for the COVERAGESPRINT workstream on 2026-05-08.
 Updated during ADDRESSLEDGER on 2026-05-08.
 Updated during PROOFOFADDRESSLEDGER on 2026-05-12.
-Updated during BANKNAMELEDGER on 2026-05-12.
+Updated during BANKNAMELEDGER on 2026-05-13.
 
 ## Scope And Safety
 
@@ -160,10 +160,11 @@ The following concepts have trusted live evidence from prior completed guarded r
 - The 4 manual-review rows remained field-local and non-product: `very-short-behavior` / `policy_question`, `numeric-only-behavior` / `observer_needs_stronger_text_evidence`, `excessive-length-behavior` / `acceptable_behavior_documented`, and `special-characters-behavior` / `expected_text_leniency`.
 - No drift appeared into routing number, account number, `bank_account_type`, deposit method, bank-address, phone, email, date, numeric, upload, signature, acknowledgement, or finalization-adjacent controls.
 - This adds `bank_name` to cumulative live-proven concept coverage and raises the cumulative live-proven concept count to 27.
+- The 2026-05-13 ledger pass is non-live only; it confirms cumulative accounting without changing the latest-run-scoped focused scorecard.
 
 ## BANKNAMELEDGER Candidate Classification
 
-- Clean live candidate: `document_type`; latest calibration now trusts a stakeholder metadata dropdown candidate on page 3 with existing mock proof, so it is the cleanest remaining singleton if a live move is preferred.
+- Clean live candidate: `document_type`; latest calibration plus existing mock proof make the stakeholder metadata dropdown on page 3 the cleanest remaining guarded singleton, but the refreshed scorecard still labels it `Needs Mapping`, so it is a plausible next singleton rather than a better immediate move than the higher-yield non-live resolver.
 - Live candidate likely to produce manual-review rows: `website`; mapping is stronger again, but URL acceptance and rejection still sits in product-policy territory and is not the best immediate coverage-over-complexity move.
 - Missing-proof capture unlock: `stakeholder_first_name`, `stakeholder_last_name`; both still need field-local screenshot or capture proof before any mutating run.
 - Resolver work required: `business_mailing_address_line_1`, `business_mailing_city`, `business_mailing_state`, `business_mailing_postal_code`; the latest findings explicitly say the post-toggle Physical Operating Address capture still fails to isolate field-local labels.
@@ -177,7 +178,7 @@ The following concepts have trusted live evidence from prior completed guarded r
 
 - Recommended next action: C. One non-live resolver/capture workstream for Physical Operating Address / `business_mailing_*`.
 - Coverage rationale: the latest findings explicitly recommend tightening the post-toggle capture anchor, bounds, or DOM selector so the sanitized review payload isolates the Physical Operating Address block and recovers field-local labels before trusting geometry. That one non-live workstream can unlock four currently blocked concepts, which is a better coverage return than any remaining singleton.
-- Why this beats `document_type` first: `document_type` is now a plausible guarded singleton, but it advances only one concept and does not resolve the repo's largest current blocker cluster.
+- Why this beats `document_type` first: `document_type` is now a plausible guarded singleton, but it advances only one concept, the refreshed scorecard still treats it conservatively as `Needs Mapping`, and it does not resolve the repo's largest current blocker cluster.
 - Why this beats `stakeholder_first_name` and `stakeholder_last_name` first: both still require missing-proof evidence before any guarded live attempt can be trusted.
 - Why this beats `website` or `date_of_birth` first: `website` still carries product-policy ambiguity, and `date_of_birth` is sensitivity-heavy even with strong calibration.
 - Why this beats stopping at reporting: the blocker is concrete, non-live, and already described by the latest findings as the next tooling task.
