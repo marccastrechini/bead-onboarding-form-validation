@@ -1,18 +1,20 @@
 {
   "status": "completed",
-  "run_id": "BANKNAMELEDGER",
-  "model_used": "GitHub Copilot (GPT-5.4 xhigh)",
+  "run_id": "PHYSICALOPERATINGADDRESSRESOLVER",
+  "model_used": "GitHub Copilot (GPT-5.4)",
   "branch": "main",
   "commit": null,
-  "commit_message": "AI-HANDOFF: BANKNAMELEDGER ready for ChatGPT review",
+  "commit_message": "AI-HANDOFF: PHYSICALOPERATINGADDRESSRESOLVER ready for ChatGPT review",
   "push_status": "pending_at_write_time",
-  "started_at": "2026-05-13T13:46:25Z",
-  "completed_at": "2026-05-13T13:46:25Z",
-  "git_commit_before": "a5f69bc85432a069bb13b40fcb63e7296f7f7905",
+  "started_at": null,
+  "completed_at": "2026-05-13T14:25:58Z",
+  "git_commit_before": "3dd0301ed5c03a15321373c3c898f48ca13216be",
   "git_commit_after": null,
   "summary_file": "artifacts/ai-handoff/latest-copilot-result.md",
   "needs_chatgpt_review": true,
   "files_changed": [
+    "fixtures/physical-address-post-toggle-capture.ts",
+    "tests/bootstrap-units.spec.ts",
     "artifacts/ai-handoff/status.json",
     "artifacts/ai-handoff/latest-copilot-result.md"
   ],
@@ -21,110 +23,102 @@
     "git status --short",
     "Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'node|chrome|msedge|powershell|pwsh' -and $_.CommandLine -match 'bead-onboarding-form-validation|playwright|bootstrap|interactive|npm|tsx|run-interactive-watchdog' } | Select-Object ProcessId, Name, CreationDate, CommandLine | Format-Table -Wrap",
     "Get-ChildItem Env:INTERACTIVE_VALIDATION,Env:DISPOSABLE_ENVELOPE,Env:BEAD_SAMPLE_ENRICHMENT,Env:BEAD_SAMPLE_ENRICHMENT_PATH,Env:INTERACTIVE_CONCEPTS,Env:DESTRUCTIVE_VALIDATION,Env:INTERACTIVE_RUN_TIMEOUT_MS -ErrorAction SilentlyContinue",
-    "Read package.json, docs/validation-coverage-ledger.md, artifacts/latest-validation-findings.json, and artifacts/latest-interactive-validation-results.json",
-    "git branch --show-current",
-    "git rev-parse HEAD",
-    "Get-Date -AsUTC -Format yyyy-MM-ddTHH:mm:ssZ",
+    "Inspected current ledger, scorecard, findings, mapping calibration, and saved Physical Operating Address probe/capture artifacts",
+    "Confirmed no scripts/physical-address-*.ts files exist; owning code is under fixtures/",
+    "npm run test:units",
     "npm run reports:refresh",
     "npm run findings:open"
   ],
   "tests_run": [
     {
+      "command": "npm run test:units",
+      "result": "passed",
+      "details": "Full unit suite passed: 245 passed."
+    },
+    {
       "command": "npm run reports:refresh",
       "result": "passed",
-      "details": "Regenerated mapping calibration, scorecard, and findings with unchanged coverage 7/277 (3%), grade D; product findings 0, ambiguous findings 4, mapping-blocked 0, ready-for-rerun 0."
+      "details": "Regenerated calibration, scorecard, and findings. Coverage remained 7/277 (3%), grade D; findings remained product 0, ambiguous 4, mapping-blocked 0, ready-for-rerun 0."
     },
     {
       "command": "npm run findings:open",
       "result": "passed",
-      "details": "Reconfirmed 6 trusted executed bank_name observations, 2 passed, 4 manual-review, 0 skipped, and the unchanged recommendation to tighten the Physical Operating Address post-toggle capture."
+      "details": "Refreshed findings still report that the guarded post-toggle structure capture does not isolate field-local Physical Operating Address labels for business_mailing_*."
     }
   ],
   "validation_summary": {
     "run_scope": [
-      "bank_name non-live coverage accounting refresh"
+      "Physical Operating Address non-live resolver/capture diagnosis"
     ],
+    "preflight": {
+      "task_related_dirty_files_only": true,
+      "live_related_processes_found": 0,
+      "interactive_or_destructive_env_residue": false
+    },
     "hard_stop_triggered": false,
     "live_validation_ran": false,
     "ledger_change_required": false,
     "recommended_cumulative_live_proven_count": 27,
     "latest_focused_scorecard": "7/277 (3%), grade D",
     "latest_scorecard_is_cumulative": false,
-    "bank_name": {
-      "status": "live_proven",
-      "target": "Bank Name",
-      "control": "page-1 DocuSign Text visible/editable merchant input at ordinal 62",
-      "field_index": 32,
-      "checks_executed": 6,
-      "passed_after_refresh": 2,
-      "manual_review_after_refresh": 4,
-      "skipped": 0,
-      "target_resolution_exclusive": true,
-      "manual_review_rows": [
-        "very-short-behavior / policy_question",
-        "numeric-only-behavior / observer_needs_stronger_text_evidence",
-        "excessive-length-behavior / acceptable_behavior_documented",
-        "special-characters-behavior / expected_text_leniency"
+    "root_cause": {
+      "confirmed": [
+        "2. Capture bounds are too broad or too narrow",
+        "4. Geometry-only matching causes sibling/neighbor confusion"
       ],
-      "product_findings": 0,
-      "mapping_blocked": 0,
-      "ready_for_rerun": 0,
-      "target_resolution": "trusted_by_anchor_and_value_shape",
-      "separation": "The trusted bank_name evidence stayed off routing number, account number, bank_account_type, deposit method, bank-address, phone, email, date, numeric, upload, signature, acknowledgement, and finalization controls."
-    },
-    "classification": {
-      "clean_live_candidate": [
-        "document_type"
-      ],
-      "live_candidate_likely_manual_review": [
-        "website"
-      ],
-      "missing_proof_capture_unlock": [
-        "stakeholder_first_name",
-        "stakeholder_last_name"
-      ],
-      "resolver_work_required": [
-        "business_mailing_address_line_1",
-        "business_mailing_city",
-        "business_mailing_state",
-        "business_mailing_postal_code"
-      ],
-      "product_policy_decision_required": [
-        "website",
-        "date_of_birth"
-      ],
-      "sensitive_defer": [
-        "date_of_birth",
-        "raw_tax_and_bank_identifiers"
-      ],
-      "frozen_address_live_discovery_blocked": [
-        "registered_state",
-        "registered_country",
-        "physical_operating_address_capture_lane"
-      ],
-      "amount_capture_blocker": [
-        "annual_revenue",
-        "highest_monthly_volume",
-        "average_ticket",
-        "max_ticket"
+      "secondary": [
+        "8. Existing artifacts are stale relative to the new refinement and need a fresh guarded capture to validate the fix"
       ]
     },
-    "next_move": {
-      "choice": "C",
-      "workstream": "Physical Operating Address resolver",
-      "reason": "The latest findings still say the post-toggle Physical Operating Address capture does not isolate field-local labels, and resolving that blocker can unlock four business_mailing concepts with better coverage return than the remaining singleton options."
-    }
+    "business_mailing": {
+      "business_mailing_address_line_1": {
+        "scorecard_confidence": "none / Not Found",
+        "calibration_decision": "leave_unresolved",
+        "selected_candidate": "#93 addressOptions › Required - addressOptions - isLegalAddress",
+        "source_proof_missing": false,
+        "field_local_label_proof_missing": true,
+        "control_state": "present_editable_but_not_isolated",
+        "blocker": "capture_then_calibration"
+      },
+      "business_mailing_city": {
+        "scorecard_confidence": "none / Not Found",
+        "calibration_decision": "leave_unresolved",
+        "selected_candidate": "#94 addressOptions › Required - addressOptions - isOperatingAddress",
+        "source_proof_missing": false,
+        "field_local_label_proof_missing": true,
+        "control_state": "present_editable_but_not_isolated",
+        "blocker": "capture_then_calibration"
+      },
+      "business_mailing_state": {
+        "scorecard_confidence": "none / Not Found",
+        "calibration_decision": "leave_unresolved",
+        "selected_candidate": "#93 addressOptions › Required - addressOptions - isLegalAddress",
+        "source_proof_missing": false,
+        "field_local_label_proof_missing": true,
+        "control_state": "present_editable_dropdown_expected_but_not_isolated",
+        "blocker": "capture_then_calibration"
+      },
+      "business_mailing_postal_code": {
+        "scorecard_confidence": "none / Not Found",
+        "calibration_decision": "leave_unresolved",
+        "selected_candidate": "#94 addressOptions › Required - addressOptions - isOperatingAddress",
+        "source_proof_missing": false,
+        "field_local_label_proof_missing": true,
+        "control_state": "present_editable_but_not_isolated",
+        "blocker": "capture_then_calibration"
+      }
+    },
+    "coverage_moved_forward": false
   },
-  "key_outcome": "This BANKNAMELEDGER refresh confirmed the ledger already contained the requested non-live bank_name accounting, refreshed non-live sanity checks, and reaffirmed Physical Operating Address resolver work as the single best next move.",
+  "key_outcome": "This run tightened the Physical Operating Address post-toggle capture refinement and validated it with unit tests, but the refreshed non-live outputs still leave all four business_mailing concepts unresolved because the saved sanitized capture lacks field-local labels.",
   "blockers": [
-    "Physical Operating Address post-toggle capture still does not isolate field-local labels for business_mailing_*.",
-    "registered_state remains blocked by live target availability despite offline trust.",
-    "stakeholder_first_name and stakeholder_last_name still need field-local proof before guarded mutation.",
-    "amount fields still lack separate editable-control proof in this saved flow."
+    "The saved sanitized post-toggle capture still exposes generic controls instead of field-local Address Line 1 / City / State / ZIP labels.",
+    "Without fresh field-local capture evidence, geometry-only assignment remains unsafe for business_mailing_*.",
+    "A fresh guarded non-finalizing Physical Operating Address capture is required to validate the new refinement against the signer DOM."
   ],
   "uncertainty": [
-    "document_type remains a credible follow-up singleton after the address capture resolver, but the refreshed scorecard still treats it conservatively as Needs Mapping.",
-    "The latest scorecard and findings remain latest-run scoped and should not be treated as cumulative coverage snapshots."
+    "The new refinement removes the known spillover modes, but this strictly non-live run cannot prove whether the live DOM contains recoverable field-local labels after the fix.",
+    "If a fresh guarded capture still shows only generic controls, the remaining blocker is likely DOM label proof rather than bounds drift."
   ],
-  "next_recommendation": "Run PHYSICALOPERATINGADDRESSRESOLVER as a strictly non-live capture-isolation workstream for business_mailing_address_line_1, business_mailing_city, business_mailing_state, and business_mailing_postal_code."
+  "next_recommendation": "Run one fresh guarded non-finalizing Physical Operating Address post-toggle capture using the tightened refinement and inspect whether the sanitized artifact now exposes field-local Address Line 1, City, State, and ZIP labels."
 }

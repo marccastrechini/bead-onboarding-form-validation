@@ -4,108 +4,98 @@
 Completed
 
 ## CHAT ID
-BANKNAMELEDGER
+PHYSICALOPERATINGADDRESSRESOLVER
+
+## ChatGPT Review Summary
+- What changed: tightened the Physical Operating Address post-toggle capture refinement in `fixtures/physical-address-post-toggle-capture.ts` and added a regression in `tests/bootstrap-units.spec.ts` for the saved spillover pattern.
+- Coverage moved forward: no; refreshed non-live outputs still leave all four `business_mailing_*` concepts unresolved.
+- Tests/commands run: `npm run test:units` passed (245 passed); `npm run reports:refresh` passed; `npm run findings:open` passed.
+- Remaining blocker: the saved sanitized post-toggle capture still exposes generic controls instead of field-local `Address Line 1` / `City` / `State` / `ZIP` labels, so geometry-only matching remains unsafe.
+- Exact recommended next step: run one fresh guarded non-finalizing Physical Operating Address post-toggle capture using the tightened refinement and inspect whether field-local labels now surface in the sanitized artifact.
 
 ## Objective
-Run a strictly non-live BANKNAMELEDGER coverage-accounting pass for `bank_name`, verify that cumulative coverage still reflects the trusted live evidence from existing artifacts only, confirm the next coverage move using current artifacts, and refresh the AI handoff for ChatGPT review.
+Run one strictly non-live resolver/capture workstream to isolate the Physical Operating Address block that backs `business_mailing_address_line_1`, `business_mailing_city`, `business_mailing_state`, and `business_mailing_postal_code`, determine why post-toggle capture does not isolate field-local labels, and refresh the AI handoff.
 
-## Files Changed
-- `artifacts/ai-handoff/status.json`
-- `artifacts/ai-handoff/latest-copilot-result.md`
+## Preflight Status
+- `git status --short` showed only task-related edits in the Physical Operating Address fixture, unit test, and AI handoff files.
+- Repo-owned process scan found no active live, bootstrap, watchdog, or interactive residue.
+- Interactive/destructive env-var cleanup check found no residue.
 
-## What Changed
-- Rechecked the current ledger against the latest non-live artifacts.
-- Confirmed no `docs/validation-coverage-ledger.md` edit was needed because the requested `bank_name` accounting is already present.
-- Kept the next-step recommendation unchanged: `C`, one non-live Physical Operating Address resolver/capture workstream.
+## Evidence Inspected
+- `docs/validation-coverage-ledger.md`
+- `docs/LIVE_BOOTSTRAP.md`
+- `artifacts/latest-validation-summary.json`
+- `artifacts/latest-validation-scorecard.json`
+- `artifacts/latest-validation-findings.json`
+- `artifacts/latest-mapping-calibration.json`
+- `artifacts/latest-physical-operating-address-dom-probe.json`
+- `artifacts/latest-physical-operating-address-post-toggle-structure.json`
+- `artifacts/latest-physical-operating-address-post-toggle-dom.html`
+- No `scripts/physical-address-dom-probe.ts` or `scripts/physical-address-post-toggle-capture.ts` files exist; the owning implementation is under `fixtures/`.
+- `fixtures/field-discovery.ts`
+- `fixtures/validation-report.ts`
+- `fixtures/validation-scorecard.ts`
+- `fixtures/interactive-validation.ts`
+- `lib/mapping-calibration.ts`
+- `tests/bootstrap-units.spec.ts`
 
-## Verified Bank Name Coverage State
-- `bank_name` remains live-proven in the cumulative ledger.
-- Trusted target remained `Bank Name` on page 1, ordinal 62, field index 32, DocuSign Text, visible/editable merchant input.
-- Target resolution remained exclusive to `Bank Name` across all 6 checks.
-- 6 checks executed; 2 passed after report refresh; 4 manual-review rows remain field-local and non-product.
-- Manual-review rows preserved: `very-short-behavior` / `policy_question`, `numeric-only-behavior` / `observer_needs_stronger_text_evidence`, `excessive-length-behavior` / `acceptable_behavior_documented`, `special-characters-behavior` / `expected_text_leniency`.
-- Product findings: 0. Mapping-blocked findings: 0. Ready-for-rerun: 0.
-- No drift appeared into routing number, account number, `bank_account_type`, deposit method, bank-address, phone, email, date, numeric, upload, signature, acknowledgement, or finalization controls.
-- Cumulative live-proven concept count remains 27.
-- Latest focused scorecard remains latest-run scoped at 7/277 (3%), grade D; it is not cumulative coverage.
+## Root Cause
+- Confirmed `2. Capture bounds are too broad or too narrow.` The saved post-toggle structure artifact still showed pre-anchor spillover and later non-`.doc-tab` spillover in the captured region.
+- Confirmed `4. Geometry-only matching causes sibling/neighbor confusion.` Because field-local labels were absent in the saved sanitized capture, calibration kept drifting toward nearby `addressOptions` radio neighbors and other generic controls.
+- Not primary in the current saved evidence: `5. Fields exist but are hidden/read-only.` Human proof and saved controls indicate the expected Physical Operating Address controls are visible/editable, but not isolated with field-local proof.
+- Not primary in the current saved evidence: `6. Enrichment is not attached to discovered fields.` Sample layout evidence exists and still points to the right block; the missing piece is live field-local proof.
+- Not primary in the current saved evidence: `7. Calibration rules are too strict despite adequate proof.` The current rules are correctly refusing to trust generic neighboring radios/textboxes.
+- Secondary current limitation: `8. Existing artifacts are stale and need a non-live refresh path.` The code fix only affects future guarded captures; refreshed reports still consume the older saved sanitized capture artifact.
 
-## Remaining Concept Classification
-- Clean live candidate: `document_type`. Calibration plus existing mock proof make it the cleanest remaining guarded singleton, but the refreshed scorecard still labels it `Needs Mapping`.
-- Live candidate likely to produce manual-review rows: `website`. Calibration is stronger again, but URL behavior remains policy-heavy.
-- Missing-proof capture unlock: `stakeholder_first_name`, `stakeholder_last_name`. Both still need field-local screenshot or capture proof before any guarded mutating run.
-- Resolver work required: `business_mailing_address_line_1`, `business_mailing_city`, `business_mailing_state`, `business_mailing_postal_code`. The post-toggle Physical Operating Address capture still does not isolate field-local labels.
-- Product-policy decision required: `website` and parts of `date_of_birth` behavior.
-- Sensitive/defer: `date_of_birth` and raw tax or bank identifiers.
-- Frozen/address/live-discovery blocked: `registered_state`, `registered_country`, and the Physical Operating Address lane until field-local capture is isolated.
-- Amount/capture blocker: `annual_revenue`, `highest_monthly_volume`, `average_ticket`, `max_ticket`.
-- Already live-proven: unchanged from the current ledger, including `bank_name`.
+## Fix Made
+- Tightened `refinePhysicalOperatingAddressPostToggleCaptureRegion()` so capture refinement now:
+	- rejects partial top-overlap spillover,
+	- ignores non-`.doc-tab` controls in the refined result,
+	- trims before the first visible non-`.doc-tab` row below the `isOperatingAddress` anchor,
+	- recomputes compact bounds from the filtered Physical Operating Address rows.
 
-## Recommended Next Step
-Choose `C`: one non-live resolver/capture workstream for Physical Operating Address / `business_mailing_*`.
+## Tests Added Or Updated
+- Added a focused regression proving the refined post-toggle capture stops before the first non-`.doc-tab` row.
+- Existing capture-refinement tests continue to prove page-scale wrappers and pre-anchor rows are excluded.
 
-Why this is next:
-- The refreshed findings still explicitly say the guarded post-toggle structure capture does not isolate field-local Physical Operating Address labels.
-- One non-live resolver can unlock four currently blocked concepts, which is a better coverage return than the remaining singleton options.
-- `document_type` is still a plausible singleton, but it advances one concept and the refreshed scorecard remains conservative about its mapping confidence.
+## Unit Test Status
+- `npm run test:units` -> passed (`245 passed`).
 
-## Tests Run
-- `npm run reports:refresh` -> passed. Regenerated calibration, scorecard, and findings with unchanged high-level state: coverage 7/277 (3%), grade D, product findings 0, ambiguous findings 4, mapping-blocked 0, ready-for-rerun 0.
-- `npm run findings:open` -> passed. Reconfirmed 6 trusted executed `bank_name` observations, 2 passed, 4 manual-review, and the unchanged Physical Operating Address capture recommendation.
+## Report Refresh Status
+- `npm run reports:refresh` -> passed.
+- Refreshed outputs remained effectively unchanged for the four `business_mailing_*` concepts: scorecard coverage stayed `7/277 (3%)`, grade `D`; findings stayed `product 0`, `ambiguous 4`, `mapping-blocked 0`, `ready-for-rerun 0`.
 
-## Results
-- No live validation ran.
-- No bootstrap or watchdog commands ran.
-- No ledger or other eligible repo file change was required because the requested accounting was already present.
-- Generated `artifacts/latest-*` report outputs were refreshed locally for sanity checking and must remain unstaged by rule.
+## Findings Open Status
+- `npm run findings:open` -> passed.
+- Findings still say the guarded post-toggle structure capture runs after `isOperatingAddress` but does not yet isolate field-local Physical Operating Address labels.
 
-## Blockers
-- Physical Operating Address post-toggle capture still does not isolate field-local labels for `business_mailing_*`.
-- `registered_state` remains a live target-availability blocker despite offline trust.
-- `stakeholder_first_name` and `stakeholder_last_name` still lack the field-local proof needed for guarded mutation.
-- Amount fields still have no separate editable control proof in this saved flow.
+## Refreshed `business_mailing_*` Classification
+- `business_mailing_address_line_1`: scorecard confidence `none / Not Found`; calibration `leave_unresolved`; selected candidate `#93 addressOptions › Required - addressOptions - isLegalAddress`; source proof missing `no`; field-local label proof missing `yes`; control state `present/editable but not isolated`; blocker `capture -> calibration`.
+- `business_mailing_city`: scorecard confidence `none / Not Found`; calibration `leave_unresolved`; selected candidate `#94 addressOptions › Required - addressOptions - isOperatingAddress`; source proof missing `no`; field-local label proof missing `yes`; control state `present/editable but not isolated`; blocker `capture -> calibration`.
+- `business_mailing_state`: scorecard confidence `none / Not Found`; calibration `leave_unresolved`; selected candidate `#93 addressOptions › Required - addressOptions - isLegalAddress`; source proof missing `no`; field-local label proof missing `yes`; control state `present/editable dropdown/list expected, but not isolated`; blocker `capture -> calibration`.
+- `business_mailing_postal_code`: scorecard confidence `none / Not Found`; calibration `leave_unresolved`; selected candidate `#94 addressOptions › Required - addressOptions - isOperatingAddress`; source proof missing `no`; field-local label proof missing `yes`; control state `present/editable but not isolated`; blocker `capture -> calibration`.
+- `document_type` remains separate and was not changed by this workstream.
 
-## Uncertainty
-- `document_type` remains a credible follow-up singleton after the address capture resolver, but current artifacts still make the four-concept Physical Operating Address unlock the better next move.
-- The scorecard and findings remain latest-run scoped; they should not be read as cumulative coverage.
+## Docs/Source/Test Changes Made
+- Changed: `fixtures/physical-address-post-toggle-capture.ts`
+- Changed: `tests/bootstrap-units.spec.ts`
+- Changed: `artifacts/ai-handoff/status.json`
+- Changed: `artifacts/ai-handoff/latest-copilot-result.md`
+- Unchanged: `docs/validation-coverage-ledger.md` because blocker classification stayed `still capture-blocked / resolver-required` rather than moving to calibration-ready.
 
-## Branch And Commit Status
-- Branch at handoff write time: `main`.
-- Pre-commit HEAD at handoff write time: `a5f69bc85432a069bb13b40fcb63e7296f7f7905`.
-- Commit and push were pending at handoff write time; this run should commit the two handoff files with a message starting `AI-HANDOFF: BANKNAMELEDGER ready for ChatGPT review` and should not stage refreshed generated artifacts.
+## Commit Hash And Push Result
+- Branch at handoff write time: `main`
+- Pre-commit HEAD at handoff write time: `3dd0301ed5c03a15321373c3c898f48ca13216be`
+- Commit and push were still pending at handoff write time so the handoff could be committed in a single eligible change set.
 
-## Recommended Next Copilot Prompt
+## Safety Confirmations
+- No `artifacts/**` files other than the two allowed AI handoff files are intended for staging.
+- No `samples/private/**` files are intended for staging.
+- No live bootstrap, watchdog, or DocuSign validation was run.
+- No submit, sign, adopt, finish, or complete action was taken.
 
-```text
+## Recommended Next Workstream
+- Use the tightened refinement during one fresh guarded non-finalizing Physical Operating Address post-toggle capture.
+- If the refreshed sanitized artifact still shows only generic controls, treat the remaining blocker as missing DOM label proof rather than capture-bounds drift.
+
 CHAT ID: PHYSICALOPERATINGADDRESSRESOLVER
-
-Use GPT-5.4 xhigh.
-
-Use the repo AI handoff workflow:
-- Read .github/copilot-instructions.md
-- Follow .github/prompts/ai-handoff-run.prompt.md
-- Update artifacts/ai-handoff/status.json
-- Update artifacts/ai-handoff/latest-copilot-result.md
-- Commit and push the handoff result with a commit message starting:
-  AI-HANDOFF: PHYSICALOPERATINGADDRESSRESOLVER ready for ChatGPT review
-
-Work inside:
-C:\Projects\bead-onboarding-form-validation
-
-Goal:
-Run one strictly non-live resolver/capture workstream to isolate the Physical Operating Address block that backs `business_mailing_address_line_1`, `business_mailing_city`, `business_mailing_state`, and `business_mailing_postal_code`.
-
-Critical constraints:
-- Do not run live DocuSign validation.
-- Do not run bootstrap:interactive.
-- Do not run interactive:watchdog.
-- Do not enable DESTRUCTIVE_VALIDATION.
-- Do not click Finish, Complete, Submit, Sign, Adopt, or intentionally complete the envelope.
-- Do not expose secrets, raw DocuSign URLs, tokens, or PII.
-- Do not commit artifacts/** except `artifacts/ai-handoff/status.json` and `artifacts/ai-handoff/latest-copilot-result.md`.
-
-Inspect the existing Physical Operating Address artifacts plus the capture fixtures/scripts that generate them. Tighten the post-toggle capture anchor, bounds, or DOM selector so the sanitized review payload isolates the Physical Operating Address block and recovers field-local labels without relying on geometry alone.
-
-After code changes, run only the relevant non-live capture/report refresh commands, inspect the regenerated sanitized artifacts, and determine whether the four Physical Operating Address concepts can move from capture-blocked to calibration-ready. Keep unresolved concepts out of product findings if field-local proof is still missing.
-
-Update docs/validation-coverage-ledger.md only if the non-live evidence changes the blocker classification, then update artifacts/ai-handoff/status.json and artifacts/ai-handoff/latest-copilot-result.md. Commit and push only eligible docs/code changes plus the two allowed handoff files with a message starting AI-HANDOFF: PHYSICALOPERATINGADDRESSRESOLVER ready for ChatGPT review.
-```

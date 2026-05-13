@@ -90,6 +90,59 @@ function intersectsCaptureBounds(
   return right >= bounds.left && rect.left <= bounds.right && bottom >= bounds.top && rect.top <= bounds.bottom;
 }
 
+function mostlyWithinCaptureBounds(
+  bounds: { left: number; top: number; right: number; bottom: number },
+  rect: { left: number | null; top: number | null; width: number | null; height: number | null },
+  options: { topTolerance?: number; bottomTolerance?: number; minVerticalOverlapRatio?: number } = {},
+): boolean {
+  if (!intersectsCaptureBounds(bounds, rect)) return false;
+  if (rect.top === null || rect.height === null) return false;
+
+  const topTolerance = options.topTolerance ?? 8;
+  const bottomTolerance = options.bottomTolerance ?? 8;
+  const minVerticalOverlapRatio = options.minVerticalOverlapRatio ?? 0.65;
+  const rectBottom = rect.top + rect.height;
+  const overlapTop = Math.max(bounds.top, rect.top);
+  const overlapBottom = Math.min(bounds.bottom, rectBottom);
+  const verticalOverlapRatio = Math.max(0, overlapBottom - overlapTop) / Math.max(rect.height, 1);
+
+  if (rect.top < bounds.top - topTolerance || rectBottom > bounds.bottom + bottomTolerance) {
+    return verticalOverlapRatio >= minVerticalOverlapRatio;
+  }
+
+  return true;
+}
+
+function computeCaptureBounds(
+  entries: Array<{ left: number | null; top: number | null; width: number | null; height: number | null }>,
+  fallback: { left: number; top: number; right: number; bottom: number },
+): { left: number; top: number; right: number; bottom: number } {
+  if (entries.length === 0) return fallback;
+
+  return {
+    left: roundCaptureCoordinate(Math.max(0, Math.min(...entries.map((entry) => entry.left ?? Number.POSITIVE_INFINITY)) - 24)) ?? fallback.left,
+    top: roundCaptureCoordinate(Math.max(0, Math.min(...entries.map((entry) => entry.top ?? Number.POSITIVE_INFINITY)) - 24)) ?? fallback.top,
+    right: roundCaptureCoordinate(Math.max(...entries.map((entry) => (entry.left ?? 0) + (entry.width ?? 0))) + 24) ?? fallback.right,
+    bottom: roundCaptureCoordinate(Math.max(...entries.map((entry) => (entry.top ?? 0) + (entry.height ?? 0))) + 24) ?? fallback.bottom,
+  };
+}
+
+function firstOutsideDocTabCutoffTop(
+  controls: PhysicalOperatingAddressPostToggleCaptureControl[],
+  anchorTop: number | null,
+): number | null {
+  const cutoffCandidates = controls
+    .filter((control) => !control.withinDocTab)
+    .filter((control) => control.visible)
+    .filter((control) => (control.width ?? 0) > 5 && (control.height ?? 0) > 5)
+    .filter((control) => control.top !== null)
+    .filter((control) => anchorTop === null || (control.top ?? Number.NEGATIVE_INFINITY) > anchorTop + 24)
+    .map((control) => control.top as number)
+    .sort((a, b) => a - b);
+
+  return cutoffCandidates[0] ?? null;
+}
+
 function shouldSeedPostToggleCaptureBoundsFromControl(
   control: PhysicalOperatingAddressPostToggleCaptureControl,
   anchorTop: number | null,
@@ -136,14 +189,31 @@ export function refinePhysicalOperatingAddressPostToggleCaptureRegion(input: {
     ...nearbyTextNodes.filter((node) => shouldSeedPostToggleCaptureBoundsFromTextNode(node, input.anchorTop)),
   ];
 
-  const refinedBounds = boundsSeed.length > 0
-    ? {
-      left: roundCaptureCoordinate(Math.max(0, Math.min(...boundsSeed.map((entry) => entry.left ?? Number.POSITIVE_INFINITY)) - 24)) ?? defaultBounds.left,
-      top: roundCaptureCoordinate(Math.max(0, Math.min(...boundsSeed.map((entry) => entry.top ?? Number.POSITIVE_INFINITY)) - 24)) ?? defaultBounds.top,
-      right: roundCaptureCoordinate(Math.max(...boundsSeed.map((entry) => (entry.left ?? 0) + (entry.width ?? 0))) + 24) ?? defaultBounds.right,
-      bottom: roundCaptureCoordinate(Math.max(...boundsSeed.map((entry) => (entry.top ?? 0) + (entry.height ?? 0))) + 24) ?? defaultBounds.bottom,
-    }
-    : defaultBounds;
+  let refinedBounds = computeCaptureBounds(boundsSeed, defaultBounds);
+  const outsideDocTabCutoffTop = firstOutsideDocTabCutoffTop(
+    nearbyControls.filter((control) => mostlyWithinCaptureBounds(refinedBounds, control)),
+    input.anchorTop,
+  );
+
+  if (outsideDocTabCutoffTop !== null) {
+    refinedBounds = {
+      ...refinedBounds,
+      bottom: roundCaptureCoordinate(Math.min(refinedBounds.bottom, outsideDocTabCutoffTop - 12)) ?? refinedBounds.bottom,
+    };
+  }
+
+  const filteredControls = input.controls
+    .filter((control) => control.withinDocTab)
+    .filter((control) => mostlyWithinCaptureBounds(refinedBounds, control));
+  const filteredTextNodes = input.textNodes
+    .filter((node) => mostlyWithinCaptureBounds(refinedBounds, node))
+    .filter((node) => shouldSeedPostToggleCaptureBoundsFromTextNode(node, input.anchorTop));
+  const compactBoundsSeed = [
+    ...filteredControls.filter((control) => shouldSeedPostToggleCaptureBoundsFromControl(control, input.anchorTop)),
+    ...filteredTextNodes,
+  ];
+
+  refinedBounds = computeCaptureBounds(compactBoundsSeed, refinedBounds);
 
   return {
     captureBounds: {
@@ -152,10 +222,8 @@ export function refinePhysicalOperatingAddressPostToggleCaptureRegion(input: {
       width: roundCaptureCoordinate(refinedBounds.right - refinedBounds.left) ?? 0,
       height: roundCaptureCoordinate(refinedBounds.bottom - refinedBounds.top) ?? 0,
     },
-    controls: input.controls.filter((control) => intersectsCaptureBounds(refinedBounds, control)),
-    textNodes: input.textNodes
-      .filter((node) => intersectsCaptureBounds(refinedBounds, node))
-      .filter((node) => shouldSeedPostToggleCaptureBoundsFromTextNode(node, input.anchorTop)),
+    controls: filteredControls.filter((control) => mostlyWithinCaptureBounds(refinedBounds, control)),
+    textNodes: filteredTextNodes.filter((node) => mostlyWithinCaptureBounds(refinedBounds, node)),
   };
 }
 
