@@ -7,34 +7,29 @@
   "commit_message": "AI-HANDOFF: PHYSICALADDRESSCAPTUREONLYRUNNER ready for ChatGPT review",
   "push_status": "pending_at_write_time",
   "started_at": null,
-  "completed_at": "2026-05-13T16:54:39Z",
-  "git_commit_before": "597231d72625f1b9603aa55f6a970f45193671ba",
+  "completed_at": "2026-05-13T17:10:31Z",
+  "git_commit_before": "04da3fee0258ff5bb1c68bcef9dedf9116ce8c62",
   "git_commit_after": null,
   "summary_file": "artifacts/ai-handoff/latest-copilot-result.md",
   "needs_chatgpt_review": true,
   "files_changed": [
-    "package.json",
-    "fixtures/conditional-discovery.ts",
-    "scripts/capture-physical-operating-address.ts",
-    "tests/bootstrap-units.spec.ts",
     "artifacts/ai-handoff/status.json",
     "artifacts/ai-handoff/latest-copilot-result.md"
   ],
   "commands_run": [
     "Read .github/copilot-instructions.md and .github/prompts/ai-handoff-run.prompt.md",
+    "Read /memories/repo/physical-address-capture-only-runner.md",
     "git status --short",
     "Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'node|chrome|msedge|powershell|pwsh' -and $_.CommandLine -match 'bead-onboarding-form-validation|playwright|bootstrap|interactive|npm|tsx|run-interactive-watchdog' } | Select-Object ProcessId, Name, CreationDate, CommandLine | Format-Table -Wrap",
     "Get-ChildItem Env:INTERACTIVE_VALIDATION,Env:DISPOSABLE_ENVELOPE,Env:BEAD_SAMPLE_ENRICHMENT,Env:BEAD_SAMPLE_ENRICHMENT_PATH,Env:INTERACTIVE_CONCEPTS,Env:DESTRUCTIVE_VALIDATION,Env:INTERACTIVE_RUN_TIMEOUT_MS -ErrorAction SilentlyContinue",
     "Explicit zero-exit env residue check -> No live/discovery environment residue found.",
-    "Inspected package.json, tests/signer-discovery.spec.ts, fixtures/conditional-discovery.ts, fixtures/physical-address-post-toggle-capture.ts, fixtures/signer-helpers.ts, scripts/bootstrap-live-run.ts, playwright.config.ts, lib/config.ts, tests/bootstrap-units.spec.ts",
-    "npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g \"physical address capture-only runner|physical address post-toggle capture\"",
+    "Inspected package.json, scripts/capture-physical-operating-address.ts, fixtures/conditional-discovery.ts, tests/signer-discovery.spec.ts, fixtures/physical-address-post-toggle-capture.ts, fixtures/signer-helpers.ts, tests/bootstrap-units.spec.ts, and scripts/bootstrap-live-run.ts",
     "npm run test:units",
     "npm run reports:refresh",
     "npm run findings:open",
     "Get-Date -AsUTC -Format yyyy-MM-ddTHH:mm:ssZ; git branch --show-current; git rev-parse HEAD"
   ],
   "tests_run": [
-    "Focused unit slice -> passed (9 passed)",
     "npm run test:units -> passed (249 passed)",
     "npm run reports:refresh -> passed",
     "npm run findings:open -> passed"
@@ -46,9 +41,11 @@
       "interactive_or_destructive_env_residue": false
     },
     "implementation": {
+      "already_present_at_start_of_run": true,
+      "implementation_commit": "04da3fee0258ff5bb1c68bcef9dedf9116ce8c62",
       "command": "npm run capture:physical-address",
       "script": "scripts/capture-physical-operating-address.ts",
-      "guarded_runner_added": true,
+      "guarded_runner_present": true,
       "reuses_open_signer": true,
       "reuses_initial_discover_fields": true,
       "reuses_guarded_expand_capture_path": true,
@@ -56,20 +53,20 @@
       "writes_existing_sanitized_capture_bundle": true,
       "distinct_from_full_discovery_sweep": true,
       "disables_probe_path": true,
-      "disables_destructive_validation": true
+      "refuses_destructive_validation": true
     },
     "live_capture_run": false,
     "live_validation_run": false,
-    "focused_runner_slice_passed": true,
     "unit_tests_passed": true,
     "reports_refresh_passed": true,
-    "findings_open_passed": true
+    "findings_open_passed": true,
+    "coverage_moved_forward": false
   },
-  "key_outcome": "Added and validated a dedicated non-finalizing Physical Operating Address capture-only runner that reuses the guarded expansion/capture path and exits before the full signer discovery/validation sweep.",
+  "key_outcome": "Verified that the dedicated non-finalizing Physical Operating Address capture-only runner is present and validated; this repeat pass refreshed only the AI handoff files and did not run a live capture or live validation.",
   "blockers": [],
   "uncertainty": [
-    "The new runner was not executed against a live signer in this prompt, so live runtime behavior remains to be verified in the next prompt.",
-    "Field-local Address Line 1 / City / State / ZIP / Postal Code label recovery remains unknown until the new runner refreshes the sanitized capture artifacts."
+    "The capture-only runner still has not been executed against a live signer in this prompt, so live runtime behavior and field-local label recovery remain to be verified next.",
+    "Field-local Address Line 1 / City / State / ZIP / Postal Code label recovery remains unknown until npm run capture:physical-address refreshes the sanitized capture artifacts."
   ],
-  "next_recommendation": "Run npm run capture:physical-address with a fresh DOCUSIGN_SIGNING_URL, inspect the regenerated sanitized post-toggle artifacts for Address Line 1, City, State, ZIP, and Postal Code labels, and keep generated artifacts unstaged when writing the next handoff."
+  "next_recommendation": "Run npm run capture:physical-address with a fresh DOCUSIGN_SIGNING_URL, inspect the regenerated sanitized post-toggle structure and DOM artifacts for Address Line 1, City, State, ZIP, and Postal Code labels, and do not stage generated capture artifacts."
 }
