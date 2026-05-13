@@ -1,14 +1,14 @@
 {
   "status": "blocked",
-  "run_id": "PHYSICALADDRESSCAPTUREVERIFY",
+  "run_id": "PHYSICALADDRESSCAPTUREVERIFY-20260513-RUN02",
   "model_used": "GitHub Copilot (GPT-5.4 xhigh requested)",
   "branch": "main",
   "commit": null,
-  "commit_message": "AI-HANDOFF: PHYSICALADDRESSCAPTUREVERIFY ready for ChatGPT review",
+  "commit_message": "AI-HANDOFF: PHYSICALADDRESSCAPTUREVERIFY-20260513-RUN02 ready for ChatGPT review",
   "push_status": "pending_at_write_time",
   "started_at": null,
-  "completed_at": "2026-05-13T18:41:18Z",
-  "git_commit_before": "ba50b901ddbe63833df308e1461b6df550050462",
+  "completed_at": "2026-05-13T21:22:09Z",
+  "git_commit_before": "45fcd6d4cc1d6921aedcb53087aca52a28eb73a0",
   "git_commit_after": null,
   "summary_file": "artifacts/ai-handoff/latest-copilot-result.md",
   "needs_chatgpt_review": true,
@@ -20,25 +20,27 @@
     "Read .github/copilot-instructions.md and .github/prompts/ai-handoff-run.prompt.md",
     "git status --short",
     "Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'node|chrome|msedge|powershell|pwsh' -and $_.CommandLine -match 'bead-onboarding-form-validation|playwright|bootstrap|interactive|npm|tsx|run-interactive-watchdog' } | Select-Object ProcessId, Name, CreationDate, CommandLine | Format-Table -Wrap",
-    "Get-ChildItem Env:DESTRUCTIVE_VALIDATION,Env:INTERACTIVE_VALIDATION,Env:SAFE_DISCOVERY_CAPTURE_PHYSICAL_ADDRESS -ErrorAction SilentlyContinue",
-    "Explicit zero-exit env residue check -> No destructive or capture env residue found.",
-    "Baseline artifact summary parse -> generatedAt 2026-05-01T16:41:27.153Z; bounds 876.71x457.68; spillover observations unchanged",
-    "npm run capture:physical-address -> blocked: DOCUSIGN_SIGNING_URL is not set",
-    "Saved artifact label-string check after blocked run -> Address Line 1=False, City=False, State=False, ZIP=False, Postal Code=False",
-    "Get-Date -AsUTC -Format yyyy-MM-ddTHH:mm:ssZ; git branch --show-current; git rev-parse HEAD; git status --short"
+    "DOCUSIGN_SIGNING_URL availability check -> session=False; .env key present but empty",
+    "Baseline artifact summary parse -> generatedAt 2026-05-01T16:41:27.153Z; bounds 876.71x457.68; saved spillover observations unchanged",
+    "Stopped before npm run capture:physical-address because the prompt required an immediate block when the fresh signer URL was still missing",
+    "Get-Date -AsUTC -Format yyyy-MM-ddTHH:mm:ssZ; git branch --show-current; git rev-parse HEAD"
   ],
   "tests_run": [
-    "npm run capture:physical-address -> blocked before capture because DOCUSIGN_SIGNING_URL is not set"
+    "Signer URL availability check -> failed: DOCUSIGN_SIGNING_URL still missing/non-empty value unavailable"
   ],
   "validation_summary": {
     "preflight": {
       "dirty_tree_clean": true,
       "live_related_processes_found": 0,
-      "destructive_or_capture_env_residue": false
+      "env_residue_found": false
     },
-    "capture_command": "npm run capture:physical-address",
+    "signer_url": {
+      "session_present": false,
+      "dot_env_key_present": true,
+      "dot_env_value_present": false
+    },
     "fresh_capture_completed": false,
-    "capture_blocked_reason": "DOCUSIGN_SIGNING_URL is not set in the repo environment or .env, so the capture-only runner exited before opening the signer.",
+    "capture_blocked_reason": "DOCUSIGN_SIGNING_URL is still missing as a usable non-empty value in the session environment and repo .env.",
     "saved_artifact_unchanged": true,
     "saved_artifact_generated_at": "2026-05-01T16:41:27.153Z",
     "saved_capture_bounds": {
@@ -48,7 +50,6 @@
       "top": 587.91
     },
     "field_local_labels_found": false,
-    "field_local_labels_found_source": "unchanged saved sanitized artifact only; no fresh capture executed",
     "saved_capture_label_string_check": {
       "Address Line 1": false,
       "City": false,
@@ -66,14 +67,14 @@
     "findings_open_run": false,
     "coverage_moved_forward": false
   },
-  "key_outcome": "The existing capture-only runner was executed once as requested, but the run blocked immediately because DOCUSIGN_SIGNING_URL was not set, so no fresh Physical Operating Address capture artifacts were produced and coverage did not move forward.",
+  "key_outcome": "This second PHYSICALADDRESSCAPTUREVERIFY pass blocked before the capture command because DOCUSIGN_SIGNING_URL is still missing as a usable non-empty value, so no fresh Physical Operating Address artifacts were produced and coverage did not move forward.",
   "blockers": [
-    "DOCUSIGN_SIGNING_URL is not set in the repo environment or .env for the sanctioned capture-only run.",
-    "No fresh Physical Operating Address capture artifacts were produced, so field-local label verification could not advance."
+    "DOCUSIGN_SIGNING_URL is still missing as a usable non-empty value in the repo environment or .env.",
+    "No fresh capture artifacts were produced, so field-local Physical Operating Address label recovery could not be re-evaluated."
   ],
   "uncertainty": [
-    "Because the runner exited before opening the signer, this run cannot determine whether the tightened refinement now isolates field-local Address Line 1, City, State, ZIP, or Postal Code labels.",
-    "The saved artifact remains the old spillover capture from 2026-05-01, so its missing-label state may not reflect current live signer DOM behavior."
+    "Because the run stopped before capture, it cannot determine whether the tightened refinement now isolates Address Line 1, City, State, ZIP, or Postal Code labels.",
+    "The saved artifact remains the old spillover capture from 2026-05-01, so its missing-label state may not reflect current signer DOM behavior."
   ],
-  "next_recommendation": "Populate a fresh DOCUSIGN_SIGNING_URL in the repo environment or .env, rerun npm run capture:physical-address once, inspect the regenerated sanitized Physical Operating Address artifacts for field-local labels, and only then refresh the reports."
+  "next_recommendation": "Populate a fresh non-empty DOCUSIGN_SIGNING_URL in the repo environment or .env, then rerun PHYSICALADDRESSCAPTUREVERIFY-20260513-RUN02 and execute npm run capture:physical-address exactly once."
 }
