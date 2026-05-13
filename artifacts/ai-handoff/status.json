@@ -7,7 +7,7 @@
   "commit_message": "AI-HANDOFF: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN02 ready for ChatGPT review",
   "push_status": "pending_at_write_time",
   "started_at": null,
-  "completed_at": "2026-05-13T22:16:58Z",
+  "completed_at": "2026-05-13T23:11:31Z",
   "git_commit_before": "1ad26eeb63612cff197e4839f4b735d0efaaa741",
   "git_commit_after": null,
   "summary_file": "artifacts/ai-handoff/latest-copilot-result.md",
@@ -24,7 +24,10 @@
     "Environment residue check -> DOCUSIGN_SIGNING_URL, DESTRUCTIVE_VALIDATION, SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS, SAFE_DISCOVERY_CAPTURE_PHYSICAL_ADDRESS, SAFE_DISCOVERY_PROBE_PHYSICAL_ADDRESS all absent from active shell",
     "npm run bootstrap:capture:physical-address -> ran exactly once, exited 1 after capture child failed to resolve signer surface/frame",
     "Post-run metadata and git status check",
-    "Existing sanitized structure artifact summary and safe label-string checks"
+    "Existing sanitized structure artifact summary and safe label-string checks",
+    "Continuation git status/log check -> HEAD and origin/main already at RUN02 handoff commit a1e1f76; live command not rerun to preserve the exactly-once constraint",
+    "Safe artifact metadata/label probe -> requested post-toggle structure and DOM exist; generatedAt=2026-05-01T16:41:27.153Z; target labels absent in both",
+    "Handoff summary compliance update -> handoff files only"
   ],
   "tests_run": [
     "npm run bootstrap:capture:physical-address -> failed/blocking result, exit code 1"
@@ -65,7 +68,27 @@
     },
     "reports_refresh_run": false,
     "findings_open_run": false,
-    "coverage_moved_forward": false
+    "coverage_moved_forward": false,
+    "continuation_verified_existing_pushed_handoff": true,
+    "continuation_no_second_live_run": true,
+    "safe_artifact_probe": {
+      "structure_exists": true,
+      "dom_exists": true,
+      "structure_label_hits": {
+        "Address Line 1": false,
+        "City": false,
+        "State": false,
+        "ZIP": false,
+        "Postal Code": false
+      },
+      "dom_label_hits": {
+        "Address Line 1": false,
+        "City": false,
+        "State": false,
+        "ZIP": false,
+        "Postal Code": false
+      }
+    }
   },
   "key_outcome": "The no-manual email-bootstrap path obtained a fresh DocuSign signing URL and launched only capture:physical-address, but capture blocked before artifact creation because the signer surface/frame did not resolve from the safe-redirect landing surface.",
   "blockers": [
