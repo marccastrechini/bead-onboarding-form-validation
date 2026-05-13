@@ -1,160 +1,93 @@
 ## ChatGPT Review Summary
-- What changed: no source, test, package, ledger, or capture artifacts changed; only the AI handoff was refreshed for this blocked rerun.
-- Whether the capture moved coverage forward: no; a fresh capture was not run.
-- Tests/commands run and pass/fail: required preflight checks passed; capture-path inspection completed; current artifact JSON parse/label checks passed; no capture, unit, report-refresh, or findings commands were run because the only supported fresh-capture path is the full live signer discovery sweep, which this prompt forbids.
-- Whether field-local Physical Operating Address labels were found: no; the latest saved sanitized artifact still lacks Address Line 1, City, State, ZIP, and Postal Code label strings.
-- Exact recommended next step: either approve the existing non-destructive signer discovery sweep as the sanctioned capture route for this verification run, or add a dedicated capture-only runner that reuses the existing guarded Physical Operating Address expansion/capture path, then rerun PHYSICALADDRESSCAPTUREVERIFY.
+- What changed: added a dedicated `capture:physical-address` runner, a guarded stop-after-capture mode in the Physical Operating Address expansion path, and focused unit coverage for the new command and its safety boundaries.
+- Whether this unblocks the Physical Operating Address capture: yes; the repo now has a dedicated non-finalizing capture-only path for the next prompt, without routing through the full signer discovery/validation sweep.
+- Tests/commands run and pass/fail: focused capture slice passed; `npm run test:units` passed (`249 passed`); `npm run reports:refresh` passed; `npm run findings:open` passed.
+- Whether a live capture was run: no; the new runner was not executed against a live signer in this prompt.
+- Exact recommended next step: run `npm run capture:physical-address` with a fresh `DOCUSIGN_SIGNING_URL`, inspect the regenerated sanitized post-toggle artifacts for Address Line 1 / City / State / ZIP / Postal Code labels, then rerun the verification handoff.
 
 # Copilot Handoff Result
 
-CHAT ID: PHYSICALADDRESSCAPTUREVERIFY
+CHAT ID: PHYSICALADDRESSCAPTUREONLYRUNNER
 
 ## Status
-Blocked
+Completed
 
 ## Objective
-Run one fresh guarded non-finalizing Physical Operating Address post-toggle capture using the tightened refinement and verify whether the regenerated sanitized artifact isolates field-local labels for Address Line 1, City, State, and ZIP / Postal Code.
+Add a dedicated non-finalizing Physical Operating Address capture-only runner that reuses the existing guarded expansion/capture implementation, writes the existing sanitized post-toggle artifacts, and exits without running the full signer discovery/validation sweep.
 
 ## Preflight Status
 - `git status --short` was clean.
 - Repo-owned process scan found no active live, bootstrap, watchdog, npm, tsx, Playwright, or interactive residue tied to this workspace.
 - Interactive/destructive env-var cleanup check found no `INTERACTIVE_VALIDATION`, `DISPOSABLE_ENVELOPE`, `BEAD_SAMPLE_ENRICHMENT`, `BEAD_SAMPLE_ENRICHMENT_PATH`, `INTERACTIVE_CONCEPTS`, `DESTRUCTIVE_VALIDATION`, or `INTERACTIVE_RUN_TIMEOUT_MS` residue.
 
-## Capture Command/Path Used
-- No capture command was executed.
-- The only repo-supported fresh post-toggle artifact path is `npm run test:discovery:physical-address` plus `SAFE_DISCOVERY_CAPTURE_PHYSICAL_ADDRESS=1`.
-- That path sets guarded expansion, routes through `npm run test:discovery`, and runs `tests/signer-discovery.spec.ts`.
-- `tests/signer-discovery.spec.ts` is explicitly a live signer field discovery and validation sweep; it opens the signer, expands the Physical Operating Address section, writes capture artifacts if `expansion.captureReport` exists, then continues validation-summary discovery work.
-- The prompt forbids full live DocuSign validation, so this repo-supported path is blocked under the current constraints.
+## Implementation Summary
+- Added `scripts/capture-physical-operating-address.ts` as the dedicated capture-only runner.
+- Added `npm run capture:physical-address` to `package.json`.
+- Extended `maybeExpandPhysicalOperatingAddressSection()` in `fixtures/conditional-discovery.ts` with a capture-only `stopAfterCaptureAttempt` option so the runner can stop after the guarded toggle/capture path instead of flowing into the broader discovery sweep.
+- The runner loads `.env`, refuses `DESTRUCTIVE_VALIDATION=1`, forces `SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS=1` and `SAFE_DISCOVERY_CAPTURE_PHYSICAL_ADDRESS=1`, disables the Physical Operating Address probe path, opens the signer, performs one initial `discoverFields()` pass, invokes the guarded expansion/capture path, writes the existing sanitized capture artifact bundle, and exits.
 
-## Repo Wiring Inspected
-- `package.json`: exposes `test:discovery:physical-address`, but no capture-only script.
-- `fixtures/physical-address-post-toggle-capture.ts`: implements `SAFE_DISCOVERY_CAPTURE_PHYSICAL_ADDRESS`, sanitized structure capture, refined bounds, and artifact writing.
-- `fixtures/conditional-discovery.ts`: runs the capture only inside `maybeExpandPhysicalOperatingAddressSection()` when guarded expansion and capture flags are enabled.
-- `tests/signer-discovery.spec.ts`: the only production test path that calls `writePhysicalOperatingAddressPostToggleArtifacts()` against the live signer frame.
-- `tests/bootstrap-units.spec.ts`: confirms the capture flag is opt-in, does not enable guarded discovery by itself, preserves safe field-local labels, and writes artifact-only outputs in unit scope.
-- `artifacts/latest-physical-operating-address-post-toggle-structure.json` and `artifacts/latest-physical-operating-address-post-toggle-dom.html`: current saved artifacts are stale from 2026-05-01 and were inspected read-only.
+## New Command / Script
+- Command: `npm run capture:physical-address`
+- Script: `scripts/capture-physical-operating-address.ts`
 
-## Whether Fresh Capture Completed
-- No.
-- The repo does not expose a dedicated capture-only runner, and the only supported fresh-artifact path is embedded in the forbidden full live signer discovery/validation sweep.
-- No submit, sign, adopt, finish, complete, bootstrap, watchdog, destructive validation, or live validation command was run.
+## How It Differs From Full Signer Discovery
+- It reuses `openSigner()`, one initial `discoverFields()` pass, and the guarded Physical Operating Address expansion/capture path.
+- It does not instantiate `ReportBuilder`, does not loop through every field, does not run any validation matrix, does not write validation-summary artifacts, does not refresh reports internally, and does not continue into the full signer discovery/validation sweep.
+- It stops after the capture attempt and sanitized artifact write path.
 
-## Whether Field-Local Labels Were Found
-- No fresh capture was executed, so no new DOM/capture evidence was produced.
-- Current saved artifact inspection returned `Address Line 1=False`, `City=False`, `State=False`, `ZIP=False`, and `Postal Code=False`.
-- Saved artifact observations still say no field-local Physical Operating Address leaf labels were recovered, the bounds still include controls outside `.doc-tab`, and value-like text was redacted.
+## Tests Added / Updated
+- Added package-script coverage proving `capture:physical-address` exists and is distinct from `test:discovery` / `tests/signer-discovery.spec.ts`.
+- Added guard coverage proving the runner enables only the guarded expansion/capture flags, disables the Physical Operating Address probe path, and refuses `DESTRUCTIVE_VALIDATION=1`.
+- Added source-level coverage proving the runner reuses `openSigner()`, `discoverFields()`, `maybeExpandPhysicalOperatingAddressSection()`, and `writePhysicalOperatingAddressPostToggleArtifacts()` without pulling in the validation sweep/report path.
+- Added artifact-target coverage proving the runner targets only the sanitized Physical Operating Address capture bundle.
+- Existing Physical Operating Address capture refinement and artifact-only tests were rerun and still pass.
 
-## `business_mailing_*` Classification
-- `business_mailing_address_line_1`: still capture-blocked; missing field-local proof; do not mark live-proven.
-- `business_mailing_city`: still capture-blocked; missing field-local proof; do not mark live-proven.
-- `business_mailing_state`: still capture-blocked; missing field-local proof; do not mark live-proven.
-- `business_mailing_postal_code`: still capture-blocked; missing field-local proof; do not mark live-proven.
-
-## Tests/Commands Run
-- `git status --short` -> clean.
-- Repo-owned process scan -> clean.
-- Env cleanup check -> no live/destructive/interactivity residue.
-- Read `.github/copilot-instructions.md` and `.github/prompts/ai-handoff-run.prompt.md`.
-- Searched repo references for `SAFE_DISCOVERY_CAPTURE_PHYSICAL_ADDRESS`, `SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS`, Physical Operating Address, and post-toggle capture.
-- Inspected `package.json`, `fixtures/physical-address-post-toggle-capture.ts`, `fixtures/conditional-discovery.ts`, `tests/signer-discovery.spec.ts`, `tests/bootstrap-units.spec.ts`, `artifacts/latest-physical-operating-address-post-toggle-structure.json`, and `artifacts/latest-physical-operating-address-post-toggle-dom.html`.
-- Parsed `artifacts/latest-validation-findings.json`, `artifacts/latest-mapping-calibration.json`, `artifacts/latest-validation-scorecard.json`, and `artifacts/latest-physical-operating-address-post-toggle-structure.json` with PowerShell `ConvertFrom-Json` -> passed.
-- Current saved artifact label check -> `Address Line 1=False`, `City=False`, `State=False`, `ZIP=False`, `Postal Code=False`.
-
-## Report Refresh And Findings
-- `npm run reports:refresh` was not run because no fresh capture artifacts were generated and running it would update non-handoff `artifacts/**` outside the allowed commit scope.
-- `npm run findings:open` was not run because there was no report refresh or capture result to inspect.
-
-## Files Changed
-- Changed: `artifacts/ai-handoff/status.json`
-- Changed: `artifacts/ai-handoff/latest-copilot-result.md`
-- No source, test, package, docs ledger, capture artifact, screenshot, raw proof, or `samples/private/**` files were changed.
-
-## Commit Hash And Push Result
-- Branch at handoff write time: `main`
-- Pre-commit HEAD at handoff write time: `67ecc076235b614e7741f59401462d8c29f5753a`
-- This refreshed blocked handoff commit and push were pending at handoff write time so the handoff could remain a single eligible change set.
-
-## Blockers And Uncertainty
-- Blocker: no repo-supported capture-only command/path exists for refreshing Physical Operating Address post-toggle artifacts.
-- Blocker: the only supported fresh-artifact path is the full live signer discovery and validation sweep in `tests/signer-discovery.spec.ts`, which this prompt forbids.
-- Uncertainty: because no fresh capture ran, this run cannot determine whether the tightened refinement would now surface field-local labels in the signer DOM.
-
-## Recommended Next Workstream Or Canary
-- Smallest next step under current policy: approve the existing non-destructive signer discovery sweep as the sanctioned capture route for this verification run.
-- Safer tooling alternative: add a dedicated capture-only runner that reuses the existing guarded Physical Operating Address expansion/capture path without invoking the full signer discovery sweep, then rerun PHYSICALADDRESSCAPTUREVERIFY.
-
-CHAT ID: PHYSICALADDRESSCAPTUREVERIFY
-
-## Status
-Blocked
-
-## Objective
-Run one fresh guarded non-finalizing Physical Operating Address post-toggle capture using the tightened refinement and verify whether the regenerated sanitized artifact isolates field-local labels for Address Line 1, City, State, and ZIP.
-
-## Preflight Status
-- `git status --short` was clean.
-- Repo-owned process scan found no active live, bootstrap, watchdog, or interactive residue.
-- Interactive/destructive env-var cleanup check emitted no values, so no residue was present.
-
-## Capture Command/Path Used
-- No capture command was executed.
-- Identified but blocked: the repo-supported path is `npm run test:discovery:physical-address`, plus `SAFE_DISCOVERY_CAPTURE_PHYSICAL_ADDRESS=1`, which routes into `npm run test:discovery` and the single test in `tests/signer-discovery.spec.ts`.
-- The Physical Operating Address capture writer is wired under `maybeExpandPhysicalOperatingAddressSection()` in `fixtures/conditional-discovery.ts` and the artifact writer in `fixtures/physical-address-post-toggle-capture.ts`.
-- Fresh post-toggle capture artifacts require both the existing section-expansion path and the supported `SAFE_DISCOVERY_CAPTURE_PHYSICAL_ADDRESS=1` feature flag.
-
-## Whether Fresh Capture Completed
-- No.
-- The repo does not expose a dedicated capture-only runner. The only supported fresh-artifact path is embedded in the full live signer discovery and validation sweep in `tests/signer-discovery.spec.ts`, and this prompt explicitly forbids running full live DocuSign validation.
-
-## Whether Field-Local Labels Were Found
-- No fresh capture was executed, so no new evidence was produced.
-- Current saved artifact inspection confirmed `Address Line 1=False`, `City=False`, `State=False`, `ZIP=False`, and `Postal Code=False` in `artifacts/latest-physical-operating-address-post-toggle-structure.json`.
-- The saved artifact observations still include: no field-local Physical Operating Address leaf labels were recovered, bounds still include controls outside `.doc-tab`, and value-like text was redacted.
-
-## Refreshed `business_mailing_*` Classification
-- `business_mailing_address_line_1`: still capture-blocked; missing field-local proof; resolver-required.
-- `business_mailing_city`: still capture-blocked; missing field-local proof; resolver-required.
-- `business_mailing_state`: still capture-blocked; missing field-local proof; resolver-required.
-- `business_mailing_postal_code`: still capture-blocked; missing field-local proof; resolver-required.
-
-## Tests/Commands Run
-- `git status --short` -> clean.
-- Repo-owned process scan -> clean.
-- Env cleanup check -> clean.
-- Inspected `.github/copilot-instructions.md` and `.github/prompts/ai-handoff-run.prompt.md`.
-- Searched repo references for `SAFE_DISCOVERY_CAPTURE_PHYSICAL_ADDRESS`, `SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS`, Physical Operating Address, and post-toggle capture.
-- Inspected `package.json`, `fixtures/physical-address-post-toggle-capture.ts`, `fixtures/conditional-discovery.ts`, `tests/signer-discovery.spec.ts`, `tests/bootstrap-units.spec.ts`, `artifacts/latest-physical-operating-address-post-toggle-structure.json`, and `artifacts/latest-physical-operating-address-post-toggle-dom.html`.
-- Parsed `artifacts/latest-validation-scorecard.json`, `artifacts/latest-mapping-calibration.json`, `artifacts/latest-validation-findings.json`, and `artifacts/latest-physical-operating-address-post-toggle-structure.json` with PowerShell `ConvertFrom-Json` -> passed.
-- Current saved artifact label check returned `Address Line 1=False`, `City=False`, `State=False`, `ZIP=False`, `Postal Code=False`.
+## Unit Test Status
+- Focused validation: `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "physical address capture-only runner|physical address post-toggle capture"` -> passed (`9 passed`).
+- Full unit suite: `npm run test:units` -> passed (`249 passed`).
 
 ## Report Refresh Status
-- Not run.
-- Reason: the run stopped before any fresh capture because the only supported capture path is the forbidden full discovery/validation sweep.
+- `npm run reports:refresh` -> passed.
+- Regenerated mapping calibration, scorecard, and findings artifacts successfully.
 
 ## Findings Open Status
-- Not run.
-- Reason: no fresh capture or report refresh occurred.
+- `npm run findings:open` -> passed.
+- Findings still keep the four `business_mailing_*` concepts out of product findings until a refreshed sanitized capture isolates the same field-local Physical Operating Address labels.
 
-## Docs/Source/Test Changes Made
+## Whether Any Live Capture Or Live Validation Was Run
+- No live capture was run in this prompt.
+- No live validation was run in this prompt.
+- The new runner was implemented and validated only through static/focused unit coverage plus offline report refresh/open commands.
+
+## Docs / Source / Test / Package Changes Made
+- Changed: `package.json`
+- Changed: `fixtures/conditional-discovery.ts`
+- Added: `scripts/capture-physical-operating-address.ts`
+- Changed: `tests/bootstrap-units.spec.ts`
 - Changed: `artifacts/ai-handoff/status.json`
 - Changed: `artifacts/ai-handoff/latest-copilot-result.md`
-- No source, test, package, capture artifact, or ledger files were changed.
+- No `samples/private/**` files were changed.
+- No generated capture artifacts were committed.
 
 ## Commit Hash And Push Result
 - Branch at handoff write time: `main`
-- Pre-commit HEAD at handoff write time: `ba3cfa7e29c07fc9af4fcbba7c13030c2c05bf4d`
-- A prior blocked PHYSICALADDRESSCAPTUREVERIFY handoff was already pushed at `ba3cfa7e29c07fc9af4fcbba7c13030c2c05bf4d`.
-- This refreshed blocked handoff commit and push were pending at handoff write time so the handoff could remain a single eligible change set.
+- Pre-commit HEAD at handoff write time: `597231d72625f1b9603aa55f6a970f45193671ba`
+- This implementation commit and push were pending at handoff write time so the handoff could capture the exact eligible change set.
 
-## Safety Confirmations
-- No `artifacts/**` files other than the two allowed AI handoff files are intended for staging.
-- No `samples/private/**` files are intended for staging.
-- No live bootstrap, watchdog, or DocuSign validation was run.
+## Commit Scope Safety
+- Only source/test/package files plus the two allowed AI handoff files are intended for staging.
+- No `artifacts/**` files other than `artifacts/ai-handoff/status.json` and `artifacts/ai-handoff/latest-copilot-result.md` are intended for staging.
+- No `samples/private/**`, screenshots, or raw proof files are intended for staging.
+
+## Interaction Safety Confirmations
 - No submit, sign, adopt, finish, or complete action was taken.
+- No destructive validation was enabled.
+- No file uploads were performed.
+- No signer field mutation was performed in this prompt because the new capture-only runner was not executed live here.
 
-## Recommended Next Workstream Or Canary
-- Smallest next step under current policy: approve using the existing non-destructive `tests/signer-discovery.spec.ts` discovery sweep as the sanctioned capture route for this verification run.
-- Safer tooling alternative: add a dedicated capture-only runner that reuses the existing guarded Physical Operating Address expansion/capture path without invoking the full signer discovery sweep, then rerun PHYSICALADDRESSCAPTUREVERIFY.
-
+## Recommended Next Copilot Prompt
 CHAT ID: PHYSICALADDRESSCAPTUREVERIFY
+
+Run `npm run capture:physical-address` inside `C:\Projects\bead-onboarding-form-validation` with the existing safe signer URL setup. After the command completes, inspect `artifacts/latest-physical-operating-address-post-toggle-structure.json` and `artifacts/latest-physical-operating-address-post-toggle-dom.html` and determine whether the regenerated sanitized artifact now contains field-local labels for Address Line 1, City, State, ZIP, or Postal Code. Do not run full live validation. Do not commit generated capture artifacts. Update the AI handoff files and classify the four `business_mailing_*` concepts from the refreshed sanitized capture evidence.
+
+CHAT ID: PHYSICALADDRESSCAPTUREONLYRUNNER

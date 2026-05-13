@@ -14,6 +14,7 @@ import { buildResendUrl, normalizeResendMethod } from '../lib/bead-client';
 import {
   findPhysicalOperatingAddressToggle,
   guardedPhysicalOperatingAddressDiscoveryEnabled,
+  shouldStopAfterPhysicalAddressCaptureAttempt,
 } from '../fixtures/conditional-discovery';
 import { discoverFields, type DiscoveredField } from '../fixtures/field-discovery';
 import {
@@ -30,6 +31,14 @@ import {
   sanitizePhysicalOperatingAddressPostToggleCaptureText,
   writePhysicalOperatingAddressPostToggleArtifacts,
 } from '../fixtures/physical-address-post-toggle-capture';
+import {
+  assertPhysicalOperatingAddressCaptureOnlyGuards,
+  buildPhysicalOperatingAddressCaptureOnlyEnv,
+  PHYSICAL_ADDRESS_CAPTURE_ONLY_ARTIFACT_FILENAMES,
+  PHYSICAL_ADDRESS_CAPTURE_ONLY_COMMAND,
+  PHYSICAL_ADDRESS_CAPTURE_ONLY_DISCOVERY_OPTIONS,
+  PHYSICAL_ADDRESS_CAPTURE_ONLY_SCRIPT_PATH,
+} from '../scripts/capture-physical-operating-address';
 import { ReportBuilder } from '../fixtures/validation-report';
 import type { FieldRecord, ValidationReport } from '../fixtures/validation-report';
 import { FIELD_CONCEPT_REGISTRY } from '../fixtures/field-concepts';
@@ -5232,6 +5241,77 @@ test.describe('interactive validation safety', () => {
     expect(guardedPhysicalOperatingAddressDiscoveryEnabled({
       SAFE_DISCOVERY_CAPTURE_PHYSICAL_ADDRESS: '1',
     } as NodeJS.ProcessEnv)).toBe(false);
+  });
+
+  test('physical address capture-only runner command exists and stays distinct from the discovery sweep', () => {
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.resolve(__dirname, '..', 'package.json'), 'utf8'),
+    ) as { scripts: Record<string, string> };
+
+    expect(packageJson.scripts[PHYSICAL_ADDRESS_CAPTURE_ONLY_COMMAND]).toBe(
+      `tsx ${PHYSICAL_ADDRESS_CAPTURE_ONLY_SCRIPT_PATH}`,
+    );
+    expect(packageJson.scripts[PHYSICAL_ADDRESS_CAPTURE_ONLY_COMMAND]).not.toContain('test:discovery');
+    expect(packageJson.scripts[PHYSICAL_ADDRESS_CAPTURE_ONLY_COMMAND]).not.toContain('signer-discovery.spec.ts');
+  });
+
+  test('physical address capture-only runner enables guarded capture and refuses destructive mode', () => {
+    expect(() => assertPhysicalOperatingAddressCaptureOnlyGuards({
+      DESTRUCTIVE_VALIDATION: '1',
+    } as NodeJS.ProcessEnv)).toThrow(/DESTRUCTIVE_VALIDATION/);
+
+    const env = buildPhysicalOperatingAddressCaptureOnlyEnv({
+      DOCUSIGN_SIGNING_URL: 'https://example.test/signing',
+      DESTRUCTIVE_VALIDATION: '0',
+      SAFE_DISCOVERY_PROBE_PHYSICAL_ADDRESS: '1',
+    } as NodeJS.ProcessEnv);
+
+    expect(env.DESTRUCTIVE_VALIDATION).toBe('');
+    expect(env.SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS).toBe('1');
+    expect(env.SAFE_DISCOVERY_CAPTURE_PHYSICAL_ADDRESS).toBe('1');
+    expect(env.SAFE_DISCOVERY_PROBE_PHYSICAL_ADDRESS).toBe('');
+    expect(guardedPhysicalOperatingAddressDiscoveryEnabled(env)).toBe(true);
+    expect(guardedPhysicalOperatingAddressPostToggleCaptureEnabled(env)).toBe(true);
+    expect(guardedPhysicalOperatingAddressDomProbeEnabled(env)).toBe(false);
+    expect(shouldStopAfterPhysicalAddressCaptureAttempt(PHYSICAL_ADDRESS_CAPTURE_ONLY_DISCOVERY_OPTIONS)).toBe(true);
+    expect(shouldStopAfterPhysicalAddressCaptureAttempt()).toBe(false);
+  });
+
+  test('physical address capture-only runner source reuses guarded capture path and avoids validation sweep logic', () => {
+    const source = fs.readFileSync(
+      path.resolve(__dirname, '..', PHYSICAL_ADDRESS_CAPTURE_ONLY_SCRIPT_PATH),
+      'utf8',
+    );
+
+    expect(source).toContain('openSigner(');
+    expect(source).toContain('discoverFields(');
+    expect(source).toContain('maybeExpandPhysicalOperatingAddressSection(');
+    expect(source).toContain('writePhysicalOperatingAddressPostToggleArtifacts(');
+    expect(source).not.toContain('ReportBuilder');
+    expect(source).not.toContain('runCaseMatrix');
+    expect(source).not.toContain('writePhysicalOperatingAddressDomProbeArtifacts');
+    expect(source).not.toContain('test:discovery');
+    expect(source).not.toContain('Finish');
+    expect(source).not.toContain('Complete');
+    expect(source).not.toContain('Submit');
+    expect(source).not.toContain('Adopt');
+  });
+
+  test('physical address capture-only runner only targets sanitized capture artifacts', () => {
+    expect(PHYSICAL_ADDRESS_CAPTURE_ONLY_ARTIFACT_FILENAMES).toEqual([
+      'latest-physical-operating-address-post-toggle-screenshot.png',
+      'latest-physical-operating-address-post-toggle-dom.html',
+      'latest-physical-operating-address-post-toggle-structure.json',
+      'latest-physical-operating-address-post-toggle-structure.md',
+    ]);
+
+    const source = fs.readFileSync(
+      path.resolve(__dirname, '..', PHYSICAL_ADDRESS_CAPTURE_ONLY_SCRIPT_PATH),
+      'utf8',
+    );
+    expect(source).not.toContain('latest-validation-summary');
+    expect(source).not.toContain('latest-validation-findings');
+    expect(source).not.toContain('latest-validation-scorecard');
   });
 
   test('physical address post-toggle capture redacts raw values but preserves field-local labels', () => {

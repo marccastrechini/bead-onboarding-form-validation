@@ -27,6 +27,10 @@ export interface GuardedPhysicalOperatingAddressDiscoveryResult {
   captureReport: PhysicalOperatingAddressPostToggleCaptureReport | null;
 }
 
+export interface GuardedPhysicalOperatingAddressDiscoveryOptions {
+  stopAfterCaptureAttempt?: boolean;
+}
+
 const ADDRESS_OPTIONS_RE = /\baddressoptions\b/i;
 const OPERATING_ADDRESS_RE = /\bisoperatingaddress\b|\boperating\s+address\b/i;
 const LEGAL_ADDRESS_RE = /\bislegaladdress\b|\blegal\s+address\b/i;
@@ -102,6 +106,12 @@ export function findPhysicalOperatingAddressToggle<T extends GuardedToggleField>
   return matches.length === 1 ? matches[0] : null;
 }
 
+export function shouldStopAfterPhysicalAddressCaptureAttempt(
+  options?: GuardedPhysicalOperatingAddressDiscoveryOptions,
+): boolean {
+  return options?.stopAfterCaptureAttempt === true;
+}
+
 async function readCheckedState(field: DiscoveredField): Promise<boolean | null> {
   try {
     return await field.locator.isChecked({ timeout: 1_500 });
@@ -130,6 +140,7 @@ export async function maybeExpandPhysicalOperatingAddressSection(
   frame: FrameHost,
   initialFields: DiscoveredField[],
   env: NodeJS.ProcessEnv = process.env,
+  options?: GuardedPhysicalOperatingAddressDiscoveryOptions,
 ): Promise<GuardedPhysicalOperatingAddressDiscoveryResult> {
   const diagnostics: string[] = [];
 
@@ -174,6 +185,24 @@ export async function maybeExpandPhysicalOperatingAddressSection(
   const captureReport = captureEnabled
     ? await capturePhysicalOperatingAddressPostToggleStructure(frame)
     : null;
+
+  if (shouldStopAfterPhysicalAddressCaptureAttempt(options)) {
+    diagnostics.push('physical-operating-address discovery fields: skipped post-toggle rediscovery in capture-only mode');
+    if (beforeProbeSnapshot && afterProbeSnapshot) {
+      diagnostics.push('physical-operating-address dom probe report skipped in capture-only mode');
+    }
+    if (captureReport) {
+      diagnostics.push('physical-operating-address post-toggle capture: captured sanitized structural review payload');
+    }
+
+    return {
+      fields: initialFields,
+      diagnostics,
+      expanded: true,
+      probeReport: null,
+      captureReport,
+    };
+  }
 
   const fields = await discoverFields(frame);
   diagnostics.push(`physical-operating-address discovery fields: before=${initialFields.length}; after=${fields.length}`);

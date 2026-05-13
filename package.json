@@ -8,6 +8,7 @@
     "test:smoke": "playwright test tests/signer-smoke.spec.ts --project=chromium",
     "test:discovery": "playwright test tests/signer-discovery.spec.ts --project=chromium",
     "test:discovery:physical-address": "powershell -NoProfile -Command \"$env:SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS='1'; npm run test:discovery; $code=$LASTEXITCODE; Remove-Item Env:SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS -ErrorAction SilentlyContinue; exit $code\"",
+    "capture:physical-address": "tsx scripts/capture-physical-operating-address.ts",
     "test:interactive": "playwright test tests/signer-interactive-validation.spec.ts --project=chromium",
     "test:units": "playwright test tests/bootstrap-units.spec.ts --project=chromium",
     "test:destructive": "powershell -NoProfile -Command \"$env:DESTRUCTIVE_VALIDATION='1'; npx playwright test tests/signer-discovery.spec.ts --project=chromium; Remove-Item Env:DESTRUCTIVE_VALIDATION\"",
