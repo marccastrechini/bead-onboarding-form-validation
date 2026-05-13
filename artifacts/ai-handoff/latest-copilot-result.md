@@ -3,7 +3,7 @@
 CHAT ID: PHYSICALADDRESSCAPTUREVERIFY
 
 ## ChatGPT Review Summary
-- What changed: no source, test, package, ledger, or capture artifacts changed; only the AI handoff was refreshed for this latest blocked rerun.
+- What changed: no source, test, package, ledger, or capture artifacts changed; only the AI handoff was refreshed for this current blocked rerun.
 - Whether the capture moved coverage forward: no; a fresh capture was not run.
 - Tests/commands run and pass/fail: required preflight checks passed; path inspection completed; current artifact JSON parse/label check passed; no capture, unit, report-refresh, or findings commands were run because the only supported fresh-capture path is the full live signer discovery sweep, which this prompt forbids.
 - Whether field-local Physical Operating Address labels were found: no; the latest saved sanitized artifact still lacks Address Line 1, City, State, ZIP, and Postal Code label strings.
@@ -66,8 +66,8 @@ Run one fresh guarded non-finalizing Physical Operating Address post-toggle capt
 
 ## Commit Hash And Push Result
 - Branch at handoff write time: `main`
-- Pre-commit HEAD at handoff write time: `4c46639f4ca52e9445acc7d094282e3483a0ff0e`
-- A prior blocked PHYSICALADDRESSCAPTUREVERIFY handoff was already pushed at `4c46639f4ca52e9445acc7d094282e3483a0ff0e`.
+- Pre-commit HEAD at handoff write time: `ba3cfa7e29c07fc9af4fcbba7c13030c2c05bf4d`
+- A prior blocked PHYSICALADDRESSCAPTUREVERIFY handoff was already pushed at `ba3cfa7e29c07fc9af4fcbba7c13030c2c05bf4d`.
 - This refreshed blocked handoff commit and push were pending at handoff write time so the handoff could remain a single eligible change set.
 
 ## Safety Confirmations
