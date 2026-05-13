@@ -7,8 +7,8 @@
   "commit_message": "AI-HANDOFF: PHYSICALADDRESSCAPTUREVERIFY ready for ChatGPT review",
   "push_status": "pending_at_write_time",
   "started_at": null,
-  "completed_at": "2026-05-13T16:09:07Z",
-  "git_commit_before": "ba3cfa7e29c07fc9af4fcbba7c13030c2c05bf4d",
+  "completed_at": "2026-05-13T16:22:36Z",
+  "git_commit_before": "67ecc076235b614e7741f59401462d8c29f5753a",
   "git_commit_after": null,
   "summary_file": "artifacts/ai-handoff/latest-copilot-result.md",
   "needs_chatgpt_review": true,
@@ -21,10 +21,12 @@
     "git status --short",
     "Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'node|chrome|msedge|powershell|pwsh' -and $_.CommandLine -match 'bead-onboarding-form-validation|playwright|bootstrap|interactive|npm|tsx|run-interactive-watchdog' } | Select-Object ProcessId, Name, CreationDate, CommandLine | Format-Table -Wrap",
     "Get-ChildItem Env:INTERACTIVE_VALIDATION,Env:DISPOSABLE_ENVELOPE,Env:BEAD_SAMPLE_ENRICHMENT,Env:BEAD_SAMPLE_ENRICHMENT_PATH,Env:INTERACTIVE_CONCEPTS,Env:DESTRUCTIVE_VALIDATION,Env:INTERACTIVE_RUN_TIMEOUT_MS -ErrorAction SilentlyContinue",
-    "grep_search SAFE_DISCOVERY_CAPTURE_PHYSICAL_ADDRESS|SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS|post-toggle capture|Physical Operating Address|physical-address-post-toggle across repo files",
+    "Explicit zero-exit env residue check -> No live/discovery environment residue found.",
+    "grep_search SAFE_DISCOVERY_CAPTURE_PHYSICAL_ADDRESS|SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS|writePhysicalOperatingAddressPostToggleArtifacts|post-toggle across repo files",
     "Inspected package.json, fixtures/physical-address-post-toggle-capture.ts, fixtures/conditional-discovery.ts, tests/signer-discovery.spec.ts, tests/bootstrap-units.spec.ts, artifacts/latest-physical-operating-address-post-toggle-structure.json, and artifacts/latest-physical-operating-address-post-toggle-dom.html",
     "Traced the only repo-supported fresh capture path to npm run test:discovery:physical-address + SAFE_DISCOVERY_CAPTURE_PHYSICAL_ADDRESS=1 -> npm run test:discovery -> tests/signer-discovery.spec.ts",
     "PowerShell ConvertFrom-Json artifact parse and label-string check -> passed; Address Line 1=False, City=False, State=False, ZIP=False, Postal Code=False",
+    "PowerShell ConvertFrom-Json downstream parse for latest-validation-findings.json, latest-mapping-calibration.json, and latest-validation-scorecard.json -> passed",
     "Get-Date -AsUTC -Format yyyy-MM-ddTHH:mm:ssZ; git branch --show-current; git rev-parse HEAD; git status --short"
   ],
   "tests_run": [],
@@ -59,11 +61,11 @@
     },
     "coverage_moved_forward": false
   },
-  "key_outcome": "This run confirmed that the repo has no dedicated capture-only runner for Physical Operating Address post-toggle artifacts; the only supported fresh-artifact path is the forbidden full live signer discovery sweep, so no fresh capture was executed and coverage did not move forward.",
+  "key_outcome": "This rerun confirmed again that the repo has no dedicated capture-only runner for Physical Operating Address post-toggle artifacts; the only supported fresh-artifact path is the forbidden full live signer discovery sweep, so no fresh capture was executed and coverage did not move forward.",
   "blockers": [
     "No repo-supported capture-only command/path exists for refreshing Physical Operating Address post-toggle artifacts.",
     "The only supported fresh-artifact path is the full live signer discovery and validation sweep in tests/signer-discovery.spec.ts, which this prompt forbids.",
-    "The latest saved sanitized artifact still lacks field-local Address Line 1, City, State, and ZIP labels."
+    "The latest saved sanitized artifact still lacks field-local Address Line 1, City, State, ZIP, and Postal Code labels."
   ],
   "uncertainty": [
     "If the existing non-destructive signer discovery sweep were allowed for this verification run, it could likely refresh the capture artifacts safely, but that would exceed the current prompt constraints.",
