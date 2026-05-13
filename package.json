@@ -15,6 +15,7 @@
     "bootstrap:gmail-auth": "tsx scripts/gmail-auth.ts",
     "bootstrap:live": "tsx scripts/bootstrap-live-run.ts",
     "bootstrap:live:physical-address": "powershell -NoProfile -Command \"$env:SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS='1'; npm run bootstrap:live; $code=$LASTEXITCODE; Remove-Item Env:SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS -ErrorAction SilentlyContinue; exit $code\"",
+    "bootstrap:capture:physical-address": "tsx scripts/bootstrap-capture-physical-operating-address.ts",
     "bootstrap:interactive": "tsx scripts/bootstrap-interactive-run.ts",
     "interactive:watchdog": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\run-interactive-watchdog.ps1",
     "interactive:canary:legal-entity": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\run-interactive-watchdog.ps1 -Concepts legal_entity_type -TimeoutSeconds 240",

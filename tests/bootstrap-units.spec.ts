@@ -39,6 +39,16 @@ import {
   PHYSICAL_ADDRESS_CAPTURE_ONLY_DISCOVERY_OPTIONS,
   PHYSICAL_ADDRESS_CAPTURE_ONLY_SCRIPT_PATH,
 } from '../scripts/capture-physical-operating-address';
+import {
+  buildSignerChildEnv,
+  formatSafeError,
+  runBootstrapEmailScripts,
+} from '../lib/bootstrap-email-runner';
+import {
+  PHYSICAL_ADDRESS_BOOTSTRAP_CAPTURE_CHILD_SCRIPTS,
+  PHYSICAL_ADDRESS_BOOTSTRAP_CAPTURE_COMMAND,
+  PHYSICAL_ADDRESS_BOOTSTRAP_CAPTURE_SCRIPT_PATH,
+} from '../scripts/bootstrap-capture-physical-operating-address';
 import { ReportBuilder } from '../fixtures/validation-report';
 import type { FieldRecord, ValidationReport } from '../fixtures/validation-report';
 import { FIELD_CONCEPT_REGISTRY } from '../fixtures/field-concepts';
@@ -5312,6 +5322,246 @@ test.describe('interactive validation safety', () => {
     expect(source).not.toContain('latest-validation-summary');
     expect(source).not.toContain('latest-validation-findings');
     expect(source).not.toContain('latest-validation-scorecard');
+  });
+
+  test('physical address email-bootstrap capture command exists and launches only the capture runner', () => {
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.resolve(__dirname, '..', 'package.json'), 'utf8'),
+    ) as { scripts: Record<string, string> };
+
+    expect(packageJson.scripts[PHYSICAL_ADDRESS_BOOTSTRAP_CAPTURE_COMMAND]).toBe(
+      `tsx ${PHYSICAL_ADDRESS_BOOTSTRAP_CAPTURE_SCRIPT_PATH}`,
+    );
+    expect(PHYSICAL_ADDRESS_BOOTSTRAP_CAPTURE_CHILD_SCRIPTS).toEqual([
+      PHYSICAL_ADDRESS_CAPTURE_ONLY_COMMAND,
+    ]);
+    expect(PHYSICAL_ADDRESS_BOOTSTRAP_CAPTURE_CHILD_SCRIPTS).not.toContain('test:smoke');
+    expect(PHYSICAL_ADDRESS_BOOTSTRAP_CAPTURE_CHILD_SCRIPTS).not.toContain('test:discovery');
+    expect(PHYSICAL_ADDRESS_BOOTSTRAP_CAPTURE_CHILD_SCRIPTS).not.toContain('test:interactive');
+    expect(PHYSICAL_ADDRESS_BOOTSTRAP_CAPTURE_CHILD_SCRIPTS).not.toContain('interactive:watchdog');
+  });
+
+  test('physical address email-bootstrap capture reuses resend, Gmail polling, and link extraction', async () => {
+    const rawSignerUrl = 'https://na4.docusign.net/Signing/EmailStart.aspx?t=SECRET';
+    const calls: string[] = [];
+    const logs: string[] = [];
+    const parentEnv = {
+      DESTRUCTIVE_VALIDATION: '1',
+      DOCUSIGN_SIGNING_URL: undefined,
+    } as NodeJS.ProcessEnv;
+    let childEnv: NodeJS.ProcessEnv | null = null;
+
+    const result = await runBootstrapEmailScripts({
+      label: PHYSICAL_ADDRESS_BOOTSTRAP_CAPTURE_COMMAND,
+      scripts: PHYSICAL_ADDRESS_BOOTSTRAP_CAPTURE_CHILD_SCRIPTS,
+      dependencies: {
+        loadBeadConfig: () => ({
+          baseUrl: 'https://api.example.test',
+          resendMethod: 'POST',
+          resendPath: '/applications/{applicationId}/resend',
+          authHeaderName: 'Authorization',
+          authHeaderValue: 'Bearer secret',
+          applicationId: 'app-123',
+        }),
+        loadGmailConfig: () => ({
+          address: 'merchant@example.test',
+          credentialsPath: 'credentials.json',
+          tokenPath: 'token.json',
+          queryFrom: 'dse@docusign.net',
+          querySubjectContains: 'Please DocuSign',
+          pollTimeoutMs: 1000,
+          pollIntervalMs: 100,
+        }),
+        triggerResend: async () => {
+          calls.push('resend');
+          return {
+            triggeredAt: new Date('2026-05-13T21:30:00.000Z'),
+            triggeredAtEpochSec: 1_778_707_800,
+            method: 'POST',
+            status: 202,
+            url: 'https://api.example.test/applications/app-123/resend',
+          };
+        },
+        pollForSigningEmail: async (_config, afterEpochSec) => {
+          calls.push(`gmail:${afterEpochSec}`);
+          return {
+            id: 'message-123',
+            internalDateMs: Date.parse('2026-05-13T21:30:05.000Z'),
+            body: 'email body',
+          };
+        },
+        extractSigningUrl: async (body) => {
+          calls.push(`extract:${body}`);
+          return {
+            url: rawSignerUrl,
+            via: 'direct',
+            sanitized: 'https://na4.docusign.net/[redacted-path]?[redacted]',
+          };
+        },
+        runNpmScript: async (script, env) => {
+          calls.push(`child:${script}`);
+          childEnv = env;
+          return 0;
+        },
+        log: (line) => logs.push(line),
+        env: parentEnv,
+      },
+    });
+
+    expect(result).toEqual({ code: 0, reason: 'OK' });
+    expect(calls).toEqual([
+      'resend',
+      'gmail:1778707800',
+      'extract:email body',
+      `child:${PHYSICAL_ADDRESS_CAPTURE_ONLY_COMMAND}`,
+    ]);
+    expect(childEnv?.DOCUSIGN_SIGNING_URL).toBe(rawSignerUrl);
+    expect(childEnv?.DESTRUCTIVE_VALIDATION).toBe('');
+    expect(parentEnv.DOCUSIGN_SIGNING_URL).toBeUndefined();
+    expect(parentEnv.DESTRUCTIVE_VALIDATION).toBe('1');
+    expect(logs.join('\n')).not.toContain(rawSignerUrl);
+    expect(logs.join('\n')).not.toContain('SECRET');
+    expect(logs.join('\n')).toContain('https://na4.docusign.net/[redacted-path]?[redacted]');
+  });
+
+  test('physical address email-bootstrap capture does not mutate .env or enable destructive validation', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bead-bootstrap-capture-'));
+    const envPath = path.join(tempDir, '.env');
+    const originalEnvFile = 'DOCUSIGN_SIGNING_URL=\nDESTRUCTIVE_VALIDATION=1\n';
+    fs.writeFileSync(envPath, originalEnvFile, 'utf8');
+
+    try {
+      let childEnv: NodeJS.ProcessEnv | null = null;
+      const parentEnv = { DESTRUCTIVE_VALIDATION: '1' } as NodeJS.ProcessEnv;
+
+      const result = await runBootstrapEmailScripts({
+        label: PHYSICAL_ADDRESS_BOOTSTRAP_CAPTURE_COMMAND,
+        scripts: PHYSICAL_ADDRESS_BOOTSTRAP_CAPTURE_CHILD_SCRIPTS,
+        dependencies: {
+          loadBeadConfig: () => ({
+            baseUrl: 'https://api.example.test',
+            resendMethod: 'POST',
+            resendPath: '/applications/{applicationId}/resend',
+            authHeaderName: 'Authorization',
+            authHeaderValue: 'Bearer secret',
+            applicationId: 'app-123',
+          }),
+          loadGmailConfig: () => ({
+            address: 'merchant@example.test',
+            credentialsPath: 'credentials.json',
+            tokenPath: 'token.json',
+            queryFrom: 'dse@docusign.net',
+            querySubjectContains: 'Please DocuSign',
+            pollTimeoutMs: 1000,
+            pollIntervalMs: 100,
+          }),
+          triggerResend: async () => ({
+            triggeredAt: new Date('2026-05-13T21:30:00.000Z'),
+            triggeredAtEpochSec: 1_778_707_800,
+            method: 'POST',
+            status: 202,
+            url: 'https://api.example.test/applications/app-123/resend',
+          }),
+          pollForSigningEmail: async () => ({
+            id: 'message-123',
+            internalDateMs: Date.parse('2026-05-13T21:30:05.000Z'),
+            body: 'email body',
+          }),
+          extractSigningUrl: async () => ({
+            url: 'https://na4.docusign.net/Signing/EmailStart.aspx?t=SECRET',
+            via: 'direct',
+            sanitized: 'https://na4.docusign.net/[redacted-path]?[redacted]',
+          }),
+          runNpmScript: async (_script, env) => {
+            childEnv = env;
+            return 0;
+          },
+          log: () => undefined,
+          env: parentEnv,
+        },
+      });
+
+      expect(result.code).toBe(0);
+      expect(fs.readFileSync(envPath, 'utf8')).toBe(originalEnvFile);
+      expect(childEnv?.DESTRUCTIVE_VALIDATION).toBe('');
+      expect(parentEnv.DESTRUCTIVE_VALIDATION).toBe('1');
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('physical address email-bootstrap capture sanitizes URL-bearing errors', async () => {
+    const rawUrl = 'https://demo.docusign.net/Signing/EmailStart.aspx?t=SECRET';
+    const result = await runBootstrapEmailScripts({
+      label: PHYSICAL_ADDRESS_BOOTSTRAP_CAPTURE_COMMAND,
+      scripts: PHYSICAL_ADDRESS_BOOTSTRAP_CAPTURE_CHILD_SCRIPTS,
+      dependencies: {
+        loadBeadConfig: () => ({
+          baseUrl: 'https://api.example.test',
+          resendMethod: 'POST',
+          resendPath: '/applications/{applicationId}/resend',
+          authHeaderName: 'Authorization',
+          authHeaderValue: 'Bearer secret',
+          applicationId: 'app-123',
+        }),
+        loadGmailConfig: () => ({
+          address: 'merchant@example.test',
+          credentialsPath: 'credentials.json',
+          tokenPath: 'token.json',
+          queryFrom: 'dse@docusign.net',
+          querySubjectContains: 'Please DocuSign',
+          pollTimeoutMs: 1000,
+          pollIntervalMs: 100,
+        }),
+        triggerResend: async () => ({
+          triggeredAt: new Date('2026-05-13T21:30:00.000Z'),
+          triggeredAtEpochSec: 1_778_707_800,
+          method: 'POST',
+          status: 202,
+          url: 'https://api.example.test/applications/app-123/resend',
+        }),
+        pollForSigningEmail: async () => {
+          throw new Error(`timed out near ${rawUrl}`);
+        },
+        log: () => undefined,
+      },
+    });
+
+    expect(result.code).toBe(2);
+    expect(result.reason).not.toContain(rawUrl);
+    expect(result.reason).not.toContain('SECRET');
+    expect(result.reason).toContain('https://demo.docusign.net/[redacted-path]?[redacted]');
+    expect(formatSafeError(new Error(`failed at ${rawUrl}`))).not.toContain('SECRET');
+  });
+
+  test('physical address email-bootstrap capture source avoids broader live validation paths', () => {
+    const source = fs.readFileSync(
+      path.resolve(__dirname, '..', PHYSICAL_ADDRESS_BOOTSTRAP_CAPTURE_SCRIPT_PATH),
+      'utf8',
+    );
+
+    expect(source).toContain('runBootstrapEmailScripts');
+    expect(source).toContain('PHYSICAL_ADDRESS_CAPTURE_ONLY_COMMAND');
+    expect(source).not.toContain('test:smoke');
+    expect(source).not.toContain('test:discovery');
+    expect(source).not.toContain('test:interactive');
+    expect(source).not.toContain('interactive:watchdog');
+    expect(source).not.toContain('bootstrap:interactive');
+    expect(source).not.toContain('signer-discovery.spec.ts');
+    expect(source).not.toContain('Finish');
+    expect(source).not.toContain('Complete');
+    expect(source).not.toContain('Submit');
+    expect(source).not.toContain('Adopt');
+  });
+
+  test('shared signer child env copy keeps signer URL child-only', () => {
+    const parentEnv = { DESTRUCTIVE_VALIDATION: '1' } as NodeJS.ProcessEnv;
+    const childEnv = buildSignerChildEnv('https://example.test/signing?t=SECRET', parentEnv);
+
+    expect(childEnv.DOCUSIGN_SIGNING_URL).toBe('https://example.test/signing?t=SECRET');
+    expect(childEnv.DESTRUCTIVE_VALIDATION).toBe('');
+    expect(parentEnv.DOCUSIGN_SIGNING_URL).toBeUndefined();
+    expect(parentEnv.DESTRUCTIVE_VALIDATION).toBe('1');
   });
 
   test('physical address post-toggle capture redacts raw values but preserves field-local labels', () => {

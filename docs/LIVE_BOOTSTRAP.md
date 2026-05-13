@@ -153,6 +153,26 @@ npm run reports:open
 These files under `artifacts/` are generated outputs and should not be
 committed.
 
+## Run the Physical Operating Address capture-only flow
+
+```powershell
+npm run bootstrap:capture:physical-address
+```
+
+What it does:
+
+1. POSTs the configured resend endpoint.
+2. Polls Gmail for the fresh DocuSign invite.
+3. Extracts the signing URL with the same redacted logging as `bootstrap:live`.
+4. Spawns only `npm run capture:physical-address`, passing `DOCUSIGN_SIGNING_URL` through the child env.
+
+What it does not do:
+
+- It does not write `DOCUSIGN_SIGNING_URL` to `.env`.
+- It does not run smoke, discovery, interactive validation, watchdog, or full validation.
+- It does not enable `DESTRUCTIVE_VALIDATION`.
+- It does not submit, sign, adopt, finish, complete, or upload anything.
+
 ## Safety guarantees
 
 - `DESTRUCTIVE_VALIDATION` is cleared in the spawned env.

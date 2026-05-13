@@ -1,60 +1,70 @@
 {
-  "status": "blocked",
-  "run_id": "PHYSICALADDRESSCAPTUREVERIFY-20260513-URLRUN01",
-  "model_used": "GitHub Copilot (GPT-5.4 xhigh requested)",
+  "status": "implemented",
+  "run_id": "PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN01",
+  "model_used": "GitHub Copilot (GPT-5.5 Thinking Heavy requested)",
   "branch": "main",
   "commit": null,
-  "commit_message": "AI-HANDOFF: PHYSICALADDRESSCAPTUREVERIFY-20260513-URLRUN01 ready for ChatGPT review",
+  "commit_message": "AI-HANDOFF: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN01 ready for ChatGPT review",
   "push_status": "pending_at_write_time",
   "started_at": null,
-  "completed_at": "2026-05-13T21:28:06Z",
-  "git_commit_before": "15e3080a3f020f0ca98c73286834c889501cc765",
+  "completed_at": "2026-05-13T21:49:07Z",
+  "git_commit_before": "b349a46af447834d236825ba26adaa0e514d3007",
   "git_commit_after": null,
   "summary_file": "artifacts/ai-handoff/latest-copilot-result.md",
   "needs_chatgpt_review": true,
+  "command_added": "npm run bootstrap:capture:physical-address",
+  "live_email_capture_run": false,
   "files_changed": [
+    "lib/bootstrap-email-runner.ts",
+    "scripts/bootstrap-live-run.ts",
+    "scripts/bootstrap-capture-physical-operating-address.ts",
+    "package.json",
+    "docs/LIVE_BOOTSTRAP.md",
+    "tests/bootstrap-units.spec.ts",
     "artifacts/ai-handoff/status.json",
     "artifacts/ai-handoff/latest-copilot-result.md"
   ],
   "commands_run": [
     "Read .github/copilot-instructions.md and .github/prompts/ai-handoff-run.prompt.md",
-    "DOCUSIGN_SIGNING_URL availability check -> session=False; .env key present; .env value empty",
-    "Read artifacts/ai-handoff/latest-copilot-result.md and artifacts/ai-handoff/status.json for carry-forward context",
-    "Get-Date -AsUTC -Format yyyy-MM-ddTHH:mm:ssZ; git branch --show-current; git rev-parse HEAD; git status --short",
-    "Stopped before npm run capture:physical-address because the prompt required an immediate block when the fresh signer URL was still missing"
+    "git status --short",
+    "Repo-owned process scan -> no matching output",
+    "Environment residue check -> DOCUSIGN_SIGNING_URL, DESTRUCTIVE_VALIDATION, SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS, SAFE_DISCOVERY_CAPTURE_PHYSICAL_ADDRESS, SAFE_DISCOVERY_PROBE_PHYSICAL_ADDRESS all absent from active shell",
+    "Inspected docs/LIVE_BOOTSTRAP.md, package.json, scripts/bootstrap-live-run.ts, lib/gmail-client.ts, lib/link-extractor.ts, fixtures/signer-helpers.ts, scripts/capture-physical-operating-address.ts, tests/bootstrap-units.spec.ts",
+    "npm run test:units",
+    "npm run reports:refresh",
+    "npm run findings:open",
+    "Get-Date -AsUTC -Format yyyy-MM-ddTHH:mm:ssZ; git branch --show-current; git rev-parse HEAD; git status --short"
   ],
   "tests_run": [
-    "Signer URL availability check -> failed: DOCUSIGN_SIGNING_URL still missing/non-empty value unavailable"
+    "npm run test:units -> passed, 255 tests",
+    "npm run reports:refresh -> passed",
+    "npm run findings:open -> passed"
   ],
   "validation_summary": {
-    "dirty_tree_clean_before_edit": true,
-    "signer_url": {
-      "session_present": false,
-      "dot_env_key_present": true,
-      "dot_env_value_present": false
-    },
-    "capture_command_run": false,
-    "fresh_capture_completed": false,
-    "capture_blocked_reason": "DOCUSIGN_SIGNING_URL is still missing as a usable non-empty value in the active shell environment and repo .env.",
-    "field_local_labels_evaluated": false,
-    "business_mailing": {
-      "business_mailing_address_line_1": "still capture-blocked",
-      "business_mailing_city": "still capture-blocked",
-      "business_mailing_state": "still capture-blocked",
-      "business_mailing_postal_code": "still capture-blocked"
-    },
-    "reports_refresh_run": false,
-    "findings_open_run": false,
-    "coverage_moved_forward": false
+    "preflight_clean": true,
+    "source_diagnostics_clean": true,
+    "new_command": "bootstrap:capture:physical-address",
+    "reuses_email_monitoring": true,
+    "manual_signer_url_required": false,
+    "passes_signer_url_child_env_only": true,
+    "mutates_dot_env": false,
+    "redacts_raw_urls": true,
+    "clears_destructive_validation_for_child": true,
+    "runs_capture_only_child": true,
+    "runs_smoke_discovery_interactive_watchdog_or_full_validation": false,
+    "live_capture_run": false,
+    "reports_refresh_run": true,
+    "findings_open_run": true,
+    "findings_summary": {
+      "likely_product_findings": 0,
+      "ambiguous_observations": 4,
+      "coverage": "0/277 (0%)"
+    }
   },
-  "key_outcome": "This URLRUN01 pass blocked before the capture command because DOCUSIGN_SIGNING_URL is still unavailable as a usable non-empty value, so no fresh Physical Operating Address artifacts were produced and coverage did not move forward.",
-  "blockers": [
-    "DOCUSIGN_SIGNING_URL is still missing as a usable non-empty value in the active shell environment and repo .env.",
-    "No fresh capture artifacts were produced, so field-local Physical Operating Address evidence could not be re-evaluated."
-  ],
+  "key_outcome": "Added a non-manual, email-bootstraped Physical Operating Address capture command that reuses the existing resend/Gmail/link extraction flow and launches only capture:physical-address with the signer URL in child env.",
+  "blockers": [],
   "uncertainty": [
-    "Because the run stopped before capture, it cannot determine whether the current signer DOM now exposes Address Line 1, City, State, ZIP, or Postal Code labels.",
-    "The existing business_mailing classifications remain blocked only because this run produced no new capture proof."
+    "The live email capture command was not executed in this implementation prompt, so current Bead/Gmail/DocuSign live availability is unverified."
   ],
-  "next_recommendation": "Populate a fresh non-empty DOCUSIGN_SIGNING_URL in the repo environment or .env, then rerun PHYSICALADDRESSCAPTUREVERIFY-20260513-URLRUN01 and execute npm run capture:physical-address exactly once."
+  "next_recommendation": "Run PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN02 to execute npm run bootstrap:capture:physical-address exactly once, then inspect the refreshed Physical Operating Address artifacts if capture succeeds."
 }
