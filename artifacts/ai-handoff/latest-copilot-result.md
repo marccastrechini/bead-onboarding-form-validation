@@ -70,7 +70,7 @@ Why this is next:
 
 ## Branch And Commit Status
 - Branch at handoff write time: `main`.
-- Pre-commit HEAD at handoff write time: `dac81e09121b4ace1e51e7be93fd27cf1527b4d6`.
+- Pre-commit HEAD at handoff write time: `a5f69bc85432a069bb13b40fcb63e7296f7f7905`.
 - Commit and push were pending at handoff write time; this run should commit the two handoff files with a message starting `AI-HANDOFF: BANKNAMELEDGER ready for ChatGPT review` and should not stage refreshed generated artifacts.
 
 ## Recommended Next Copilot Prompt
