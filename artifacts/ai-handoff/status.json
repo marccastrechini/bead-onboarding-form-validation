@@ -1,14 +1,14 @@
 {
-  "status": "completed",
-  "run_id": "PHYSICALADDRESSCAPTUREONLYRUNNER",
-  "model_used": "GitHub Copilot (GPT-5.4; GPT-5.5 Thinking Heavy requested)",
+  "status": "blocked",
+  "run_id": "PHYSICALADDRESSCAPTUREVERIFY",
+  "model_used": "GitHub Copilot (GPT-5.4 xhigh requested)",
   "branch": "main",
   "commit": null,
-  "commit_message": "AI-HANDOFF: PHYSICALADDRESSCAPTUREONLYRUNNER ready for ChatGPT review",
+  "commit_message": "AI-HANDOFF: PHYSICALADDRESSCAPTUREVERIFY ready for ChatGPT review",
   "push_status": "pending_at_write_time",
   "started_at": null,
-  "completed_at": "2026-05-13T17:10:31Z",
-  "git_commit_before": "04da3fee0258ff5bb1c68bcef9dedf9116ce8c62",
+  "completed_at": "2026-05-13T18:41:18Z",
+  "git_commit_before": "ba50b901ddbe63833df308e1461b6df550050462",
   "git_commit_after": null,
   "summary_file": "artifacts/ai-handoff/latest-copilot-result.md",
   "needs_chatgpt_review": true,
@@ -18,55 +18,62 @@
   ],
   "commands_run": [
     "Read .github/copilot-instructions.md and .github/prompts/ai-handoff-run.prompt.md",
-    "Read /memories/repo/physical-address-capture-only-runner.md",
     "git status --short",
     "Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'node|chrome|msedge|powershell|pwsh' -and $_.CommandLine -match 'bead-onboarding-form-validation|playwright|bootstrap|interactive|npm|tsx|run-interactive-watchdog' } | Select-Object ProcessId, Name, CreationDate, CommandLine | Format-Table -Wrap",
-    "Get-ChildItem Env:INTERACTIVE_VALIDATION,Env:DISPOSABLE_ENVELOPE,Env:BEAD_SAMPLE_ENRICHMENT,Env:BEAD_SAMPLE_ENRICHMENT_PATH,Env:INTERACTIVE_CONCEPTS,Env:DESTRUCTIVE_VALIDATION,Env:INTERACTIVE_RUN_TIMEOUT_MS -ErrorAction SilentlyContinue",
-    "Explicit zero-exit env residue check -> No live/discovery environment residue found.",
-    "Inspected package.json, scripts/capture-physical-operating-address.ts, fixtures/conditional-discovery.ts, tests/signer-discovery.spec.ts, fixtures/physical-address-post-toggle-capture.ts, fixtures/signer-helpers.ts, tests/bootstrap-units.spec.ts, and scripts/bootstrap-live-run.ts",
-    "npm run test:units",
-    "npm run reports:refresh",
-    "npm run findings:open",
-    "Get-Date -AsUTC -Format yyyy-MM-ddTHH:mm:ssZ; git branch --show-current; git rev-parse HEAD"
+    "Get-ChildItem Env:DESTRUCTIVE_VALIDATION,Env:INTERACTIVE_VALIDATION,Env:SAFE_DISCOVERY_CAPTURE_PHYSICAL_ADDRESS -ErrorAction SilentlyContinue",
+    "Explicit zero-exit env residue check -> No destructive or capture env residue found.",
+    "Baseline artifact summary parse -> generatedAt 2026-05-01T16:41:27.153Z; bounds 876.71x457.68; spillover observations unchanged",
+    "npm run capture:physical-address -> blocked: DOCUSIGN_SIGNING_URL is not set",
+    "Saved artifact label-string check after blocked run -> Address Line 1=False, City=False, State=False, ZIP=False, Postal Code=False",
+    "Get-Date -AsUTC -Format yyyy-MM-ddTHH:mm:ssZ; git branch --show-current; git rev-parse HEAD; git status --short"
   ],
   "tests_run": [
-    "npm run test:units -> passed (249 passed)",
-    "npm run reports:refresh -> passed",
-    "npm run findings:open -> passed"
+    "npm run capture:physical-address -> blocked before capture because DOCUSIGN_SIGNING_URL is not set"
   ],
   "validation_summary": {
     "preflight": {
       "dirty_tree_clean": true,
       "live_related_processes_found": 0,
-      "interactive_or_destructive_env_residue": false
+      "destructive_or_capture_env_residue": false
     },
-    "implementation": {
-      "already_present_at_start_of_run": true,
-      "implementation_commit": "04da3fee0258ff5bb1c68bcef9dedf9116ce8c62",
-      "command": "npm run capture:physical-address",
-      "script": "scripts/capture-physical-operating-address.ts",
-      "guarded_runner_present": true,
-      "reuses_open_signer": true,
-      "reuses_initial_discover_fields": true,
-      "reuses_guarded_expand_capture_path": true,
-      "stop_after_capture_attempt": true,
-      "writes_existing_sanitized_capture_bundle": true,
-      "distinct_from_full_discovery_sweep": true,
-      "disables_probe_path": true,
-      "refuses_destructive_validation": true
+    "capture_command": "npm run capture:physical-address",
+    "fresh_capture_completed": false,
+    "capture_blocked_reason": "DOCUSIGN_SIGNING_URL is not set in the repo environment or .env, so the capture-only runner exited before opening the signer.",
+    "saved_artifact_unchanged": true,
+    "saved_artifact_generated_at": "2026-05-01T16:41:27.153Z",
+    "saved_capture_bounds": {
+      "width": 876.71,
+      "height": 457.68,
+      "left": 208.72,
+      "top": 587.91
     },
-    "live_capture_run": false,
-    "live_validation_run": false,
-    "unit_tests_passed": true,
-    "reports_refresh_passed": true,
-    "findings_open_passed": true,
+    "field_local_labels_found": false,
+    "field_local_labels_found_source": "unchanged saved sanitized artifact only; no fresh capture executed",
+    "saved_capture_label_string_check": {
+      "Address Line 1": false,
+      "City": false,
+      "State": false,
+      "ZIP": false,
+      "Postal Code": false
+    },
+    "business_mailing": {
+      "business_mailing_address_line_1": "still capture-blocked",
+      "business_mailing_city": "still capture-blocked",
+      "business_mailing_state": "still capture-blocked",
+      "business_mailing_postal_code": "still capture-blocked"
+    },
+    "reports_refresh_run": false,
+    "findings_open_run": false,
     "coverage_moved_forward": false
   },
-  "key_outcome": "Verified that the dedicated non-finalizing Physical Operating Address capture-only runner is present and validated; this repeat pass refreshed only the AI handoff files and did not run a live capture or live validation.",
-  "blockers": [],
-  "uncertainty": [
-    "The capture-only runner still has not been executed against a live signer in this prompt, so live runtime behavior and field-local label recovery remain to be verified next.",
-    "Field-local Address Line 1 / City / State / ZIP / Postal Code label recovery remains unknown until npm run capture:physical-address refreshes the sanitized capture artifacts."
+  "key_outcome": "The existing capture-only runner was executed once as requested, but the run blocked immediately because DOCUSIGN_SIGNING_URL was not set, so no fresh Physical Operating Address capture artifacts were produced and coverage did not move forward.",
+  "blockers": [
+    "DOCUSIGN_SIGNING_URL is not set in the repo environment or .env for the sanctioned capture-only run.",
+    "No fresh Physical Operating Address capture artifacts were produced, so field-local label verification could not advance."
   ],
-  "next_recommendation": "Run npm run capture:physical-address with a fresh DOCUSIGN_SIGNING_URL, inspect the regenerated sanitized post-toggle structure and DOM artifacts for Address Line 1, City, State, ZIP, and Postal Code labels, and do not stage generated capture artifacts."
+  "uncertainty": [
+    "Because the runner exited before opening the signer, this run cannot determine whether the tightened refinement now isolates field-local Address Line 1, City, State, ZIP, or Postal Code labels.",
+    "The saved artifact remains the old spillover capture from 2026-05-01, so its missing-label state may not reflect current live signer DOM behavior."
+  ],
+  "next_recommendation": "Populate a fresh DOCUSIGN_SIGNING_URL in the repo environment or .env, rerun npm run capture:physical-address once, inspect the regenerated sanitized Physical Operating Address artifacts for field-local labels, and only then refresh the reports."
 }
