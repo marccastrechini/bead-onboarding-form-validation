@@ -1,113 +1,138 @@
 ## ChatGPT Review Summary
-- What changed: RUN11 broadened the DocuSign external-site warning inventory inside `waitForSafeRedirectTransition()` in `fixtures/signer-helpers.ts` so the handler now inventories visible anchors, buttons, role=button elements, and safely inspectable navigation attributes with bounded redacted details. The guarded click path now allows exactly one uniquely host-matching outbound candidate even when it does not have a proceed-style label. `tests/signer-readiness.spec.ts` now covers the broadened unique-candidate click path plus zero-candidate, multiple-candidate, wrong-host, and onclick inventory fail-closed cases. No live bootstrap/capture command was run in RUN11.
-- Whether sanitized warning-page control inventory was added: yes.
-- Whether the guarded handler was broadened: yes, but only to click a single uniquely host-matching outbound warning-page candidate whose target resolves safely to `api.test.devs.beadpay.io`.
-- What guardrails were implemented: the page must still be the DocuSign `/safe-redirect` warning; the warning title and body copy must match; the visible destination host must be `api.test.devs.beadpay.io`; each visible navigation candidate is inventoried with sanitized label, redacted navigation target, derived host, and expected-host match flag; zero or multiple host-matching candidates fail closed; candidates without a safely inspectable navigation target fail closed; diagnostics remain redacted.
-- Whether the result moved us forward: yes. RUN10's live fail-closed case now has the missing control inventory, and the guarded handler can safely advance through a broader real-world warning-page candidate shape under focused coverage.
-- Tests/commands run and pass/fail: `npx playwright test tests/signer-readiness.spec.ts --project=chromium` passed (12/12); `npm run test:units` passed (255/255).
-- Remaining blocker / uncertainty: the broadened handler is still unit-validated only. The real live warning page may expose multiple candidate elements or a target that still cannot be safely linked to `api.test.devs.beadpay.io`, in which case the handler should continue failing closed.
-- Continue / stop / redirect: continue.
-- Another live capture recommended next: yes, but only if explicitly authorized. Exact next run ID: `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN12`.
+- What changed: RUN12 executed exactly one authorized `npm run bootstrap:capture:physical-address`, exercised the broadened DocuSign warning-page candidate inventory against a fresh live landing, inspected the Physical Operating Address artifacts for freshness and field-local labels, and updated the handoff files. No source/test/doc/package files changed in RUN12.
+- Whether the broadened warning-page handler was exercised live: yes.
+- Whether the handler clicked through or failed closed: it found and clicked exactly one safe host-matching outbound candidate, but the click-through did not complete cleanly because Playwright timed out waiting for the scheduled navigation after the click.
+- Whether the signer surface was reached: no. The click action fired on the live warning-page anchor, but `openSigner()` did not reach a post-click URL transition, signing iframe, or main-page shell signal before the runner failed.
+- Whether coverage moved forward: no for Physical Operating Address field-local proof, but yes for live blocker characterization. RUN12 proves the broadened candidate inventory found the real host-matching outbound control; the remaining blocker is the click/navigation wait behavior after that click.
+- Whether fresh artifacts were produced: no. Both post-toggle artifacts remain the stale May 1 files.
+- Tests/commands run and pass/fail: `npm run bootstrap:capture:physical-address` ran exactly once and failed with exit 1; `npm run reports:refresh` and `npm run findings:open` were not run because capture did not succeed and no fresh artifacts were produced.
+- Classification: `business_mailing_address_line_1`, `business_mailing_city`, `business_mailing_state`, and `business_mailing_postal_code` all remain `still capture-blocked`.
+- Remaining blocker / uncertainty: the live warning-page anchor is now identified and clicked, but the click path currently waits for the resulting navigation inside the click itself and times out before the existing safe-redirect transition polling can observe the post-click state. The next smallest move is a source/test-only change to separate the click from navigation waiting, for example by issuing the click without waiting for navigation and letting the existing transition loop observe URL/iframe/shell after the click.
+- Continue / stop / redirect: redirect.
+- Another live capture recommended next: no.
+- Next best Copilot prompt: inspect the RUN12 live click-timeout result, adjust the broadened warning-page click path so it does not block on the click’s navigation wait before `waitForSafeRedirectTransition()` can observe the post-click state, cover that behavior with focused tests, and do not run another live capture until that source/test pass is complete.
 
 # Copilot Handoff Result
 
-CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN11
+CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN12
 
 ## Status
-Ready for ChatGPT review
+Blocked
 
 ## Objective
-Do not run another live capture. Add sanitized warning-page control inventory and, only if safe and uniquely target-host-matching, broaden the guarded external-site handler to the real proceed control shape under focused tests.
+Execute exactly one authorized live capture-only run to validate whether the broadened warning-page candidate inventory now finds and clicks exactly one safe host-matching outbound control to `api.test.devs.beadpay.io`, or still fails closed with a richer redacted inventory.
 
 ## What Changed
-- Broadened the external-site warning candidate inventory in `fixtures/signer-helpers.ts`.
-- The warning-page inventory now inspects visible:
-  - anchors with `href`
-  - buttons
-  - elements with `role="button"`
-  - elements with `onclick`
-  - elements with safe navigation-like attributes such as `data-href`, `data-url`, `data-target-url`, and `data-navigation-url`
-- Each candidate now records bounded redacted details:
-  - kind
-  - tag name
-  - role
-  - sanitized visible label/text
-  - redacted navigation target
-  - derived target host when parseable
-  - whether the target host matches `api.test.devs.beadpay.io`
-  - whether the label looks proceed-style
-- The guarded click path now allows one broadened success case:
-  - exactly one visible outbound candidate resolves safely to `api.test.devs.beadpay.io`
-  - even if that candidate does not use a continue/proceed/open/visit label
-- Zero host-matching candidates, multiple host-matching candidates, and candidates without a safely inspectable target still fail closed with redacted diagnostics.
+- Ran `npm run bootstrap:capture:physical-address` exactly once.
+- Inspected only:
+  - `artifacts/latest-physical-operating-address-post-toggle-structure.json`
+  - `artifacts/latest-physical-operating-address-post-toggle-dom.html`
+- Updated only the RUN12 AI handoff files.
 
-## Guardrails Implemented
-- Current page must still be a DocuSign `/safe-redirect` landing.
-- Page title must match the external-site warning.
-- Warning text must match the DocuSign external-site copy.
-- Visible destination host must be exactly `api.test.devs.beadpay.io`.
-- Any broadened click target must be uniquely identifiable as the only host-matching outbound warning-page candidate.
-- The candidate navigation target must be safely inspectable and resolve to `api.test.devs.beadpay.io`.
-- Zero candidates, multiple candidates, wrong-host candidates, or missing/unparseable targets all fail closed with redacted inventory.
-- No finalization controls, uploads, broader discovery, or destructive validation paths were added.
+## One-Shot Command Result
+- Command: `npm run bootstrap:capture:physical-address`
+- Run count: exactly once
+- Retry count: zero
+- Resend succeeded.
+- Gmail polling found a fresh invite.
+- Signing URL extraction succeeded with redacted logging.
+- The child runner launched only `npm run capture:physical-address`.
+- The child runner failed with exit code 1.
 
-## Files Changed
-- `fixtures/signer-helpers.ts`
-- `tests/signer-readiness.spec.ts`
-- `artifacts/ai-handoff/status.json`
-- `artifacts/ai-handoff/latest-copilot-result.md`
+## Live Warning-Page Handler Outcome
+- DocuSign external-site warning appeared: yes
+- Guarded handler recognized the warning page: yes
+- Visible destination host equaled `api.test.devs.beadpay.io`: yes
+- Broadened inventory found visible candidates: yes
+- Host-matching outbound candidates found: exactly one
+- Clicked exactly one safe host-matching outbound candidate: yes
+- Clicked candidate shape: visible anchor with id `redirect-link`
+- Click-through completed cleanly: no
+- Fail-closed path taken: no
+- Blocked reason: the click action fired, but Playwright timed out waiting for the scheduled navigation to finish after the click
 
-## Validation
-- `npx playwright test tests/signer-readiness.spec.ts --project=chromium` -> passed (12 passed)
-- `npm run test:units` -> passed (255 passed)
-- `npm run bootstrap:capture:physical-address` was not run in RUN11 by design
-- `bootstrap:interactive`, `interactive:watchdog`, full signer discovery, destructive validation, and uploads were not run
+## Live Click Diagnostic
+- Current warning-page candidate target host: `api.test.devs.beadpay.io`
+- Click target was resolved from the warning-page candidate inventory and reached the click action.
+- Playwright click log showed:
+  - locator resolved to a visible anchor candidate
+  - click action completed
+  - the runner then blocked while waiting for scheduled navigations to finish
+- No post-click URL transition, signing iframe, or signer-shell signal was observed before the runner exited.
 
-## Focused Test Coverage Added
-- Live-like external-site warning where the only safe candidate is a host-matching anchor without a proceed-style label
-- External-site warning with zero safe outbound candidates, including sanitized inventory output
-- External-site warning with multiple host-matching outbound candidates, including safe ambiguity reporting
-- External-site warning with wrong-host outbound candidates
-- External-site warning with onclick-based navigation inventory and redacted wrong-host reporting
-- Redaction of query strings, tokens, and email-like text inside the broadened inventory diagnostics
+## Safe-Redirect Wait Outcome
+- URL transition away from the warning page observed: no
+- Signing iframe observed: no
+- Main-page shell signal observed: no
+- `openSigner()` reached the signer surface: no
+- `capture:physical-address` produced fresh artifacts: no
 
-## Result
-- Forward progress: yes.
-- RUN11 turns RUN10's missing warning-page control detail into actionable sanitized inventory and broadens the guarded handler only for a uniquely host-matching outbound candidate.
-- No live signer URL was consumed in RUN11.
+## Artifact Freshness Check
+- `artifacts/latest-physical-operating-address-post-toggle-structure.json`
+  - exists: yes
+  - last write UTC: `2026-05-01T16:41:44.7937531Z`
+  - `generatedAt`: `2026-05-01T16:41:27.153Z`
+- `artifacts/latest-physical-operating-address-post-toggle-dom.html`
+  - exists: yes
+  - last write UTC: `2026-05-01T16:41:44.7947542Z`
+- Result: both files are stale May 1 artifacts, not fresh RUN12 output.
 
-## Remaining Blocker / Uncertainty
-- The broadened candidate inventory and click path have not yet been exercised against a fresh live DocuSign landing.
-- The live warning page may still expose multiple candidates or no safely target-linked candidate, in which case the handler should continue to fail closed and may need one more narrow test-first refinement.
-- Physical Operating Address field-local proof is still not advanced until another explicitly authorized live capture validates this path.
+## Field-Local Label Proof Check
+- `Address Line 1`: absent in structure artifact and DOM artifact
+- `City`: absent in structure artifact and DOM artifact
+- `State`: absent in structure artifact and DOM artifact
+- `ZIP`: absent in structure artifact and DOM artifact
+- `Postal Code`: absent in structure artifact and DOM artifact
 
-## Recommendation
-Continue.
+## `business_mailing_*` Classification
+- `business_mailing_address_line_1`: `still capture-blocked`
+- `business_mailing_city`: `still capture-blocked`
+- `business_mailing_state`: `still capture-blocked`
+- `business_mailing_postal_code`: `still capture-blocked`
 
-Another live capture is recommended next only if explicitly authorized, using:
-`PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN12`
+## Coverage Movement
+- Physical Operating Address field-local proof did not move forward in RUN12.
+- No fresh artifacts were produced.
+- `npm run reports:refresh` was not run.
+- `npm run findings:open` was not run.
+- Live warning-page navigation diagnosis moved forward: the broadened candidate inventory successfully identified and clicked the real host-matching outbound anchor.
 
-## Recommended Next Copilot Prompt
-Run `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN12`: execute exactly one authorized `npm run bootstrap:capture:physical-address`, keep the current safety constraints, verify whether the broadened warning-page candidate inventory now finds and clicks exactly one safe host-matching outbound control to `api.test.devs.beadpay.io` or still fails closed with a richer redacted inventory, and do not commit generated artifacts.
+## Smallest Next Source/Test Move
+- Adjust the broadened warning-page click path so it does not block on Playwright's scheduled-navigation wait inside the click itself.
+- Keep the existing `waitForSafeRedirectTransition()` polling responsible for observing the post-click URL transition, signing iframe, or signer-shell signals.
+- Add focused tests for a slow post-click navigation where the click action succeeds immediately and the transition becomes observable shortly afterward.
+- Do not spend another live signer URL until that source/test pass is complete.
 
 ## Safety Confirmation
+- `bootstrap:interactive` was not run.
+- `interactive:watchdog` was not run.
+- Full signer discovery was not run.
 - `DESTRUCTIVE_VALIDATION` was not enabled.
-- `.env` was not mutated.
-- No raw signer URL was printed or committed.
 - No uploads were performed.
 - No Finish, Complete, Submit, Sign, Adopt, or finalization controls were clicked.
-- No live bootstrap/capture command was run in RUN11.
-- Generated artifacts were not staged or committed.
+- No raw signer URL was printed or committed.
+- `.env` was not mutated.
+- Generated capture artifacts were not staged or committed.
 
 ## Branch / Commit Status
 - Branch: `main`
-- Pre-RUN11 commit: `c6dfb9cc5ed04a0199107e4c84b3267f3821b6f0`
-- RUN11 handoff commit: pending at write time
+- Pre-RUN12 commit: `9cf1b42882226c30c7d0ba16fb14f916257dfb74`
+- RUN12 handoff commit: pending at write time
+
+## Files Changed
+- `artifacts/ai-handoff/status.json`
+- `artifacts/ai-handoff/latest-copilot-result.md`
+
+## Recommendation
+Redirect.
+
+Do not run another live capture next.
+
+## Recommended Next Copilot Prompt
+Run `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN13`: inspect the RUN12 live click-timeout result, adjust the broadened warning-page click path so it does not block on the click's navigation wait before `waitForSafeRedirectTransition()` can observe the post-click state, cover that behavior with focused tests, and do not run `npm run bootstrap:capture:physical-address` unless explicitly authorized again after that source/test pass.
 
 ## Commit Scope
 - Stage and commit:
-  - `fixtures/signer-helpers.ts`
-  - `tests/signer-readiness.spec.ts`
   - `artifacts/ai-handoff/status.json`
   - `artifacts/ai-handoff/latest-copilot-result.md`
 - Do not commit:
@@ -117,4 +142,4 @@ Run `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN12`: execute exactly one auth
   - `.env`
   - `samples/private/**`
 
-CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN11
+CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN12
