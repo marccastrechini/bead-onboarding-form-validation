@@ -38,9 +38,26 @@ const LEGAL_ADDRESS_RE = /\bislegaladdress\b|\blegal\s+address\b/i;
 const VIRTUAL_ADDRESS_RE = /\bisvirtualaddress\b|\bvirtual\s+address\b/i;
 const MAILING_ADDRESS_RE = /\bismailingaddress\b|\bbusiness\s+mailing\s+address\b|\bmailing\s+address\b/i;
 const PHYSICAL_ADDRESS_RE = /\bphysical\s+operating\s+address\b/i;
+const SAME_TOGGLE_RE = /\bsame\b/i;
+const DIFFERENT_TOGGLE_RE = /\bdifferent\b/i;
+const YES_TOGGLE_RE = /\byes\b/i;
+const NO_TOGGLE_RE = /\bno\b/i;
 const TOGGLE_INVENTORY_CANDIDATE_LIMIT = 6;
 const TOGGLE_INVENTORY_FRAGMENT_LIMIT = 4;
 const TOGGLE_FALLBACK_CUE_LIMIT = 4;
+const ANCESTOR_TOGGLE_LABEL_SOURCES = new Set([
+  'aria-labelledby',
+  'wrapping-label',
+  'described-by',
+  'helper-text',
+  'section+row',
+]);
+const SIBLING_TOGGLE_LABEL_SOURCES = new Set([
+  'label-for',
+  'row-header',
+  'positional-prompt',
+  'preceding-text',
+]);
 
 const SAFE_TOGGLE_FRAGMENT_PATTERNS = [
   { label: 'Physical Operating Address', pattern: /\bphysical\s+operating\s+address\b/i },
@@ -59,6 +76,8 @@ const SAFE_TOGGLE_FRAGMENT_PATTERNS = [
   { label: 'Optional', pattern: /\boptional\b/i },
   { label: 'Same', pattern: /\bsame\b/i },
   { label: 'Different', pattern: /\bdifferent\b/i },
+  { label: 'Yes', pattern: /\byes\b/i },
+  { label: 'No', pattern: /\bno\b/i },
 ] as const;
 
 type ToggleCueFragment = {
@@ -84,6 +103,10 @@ type PhysicalOperatingAddressCuePatternMatches = {
   mailingAddress: boolean;
   legalAddress: boolean;
   virtualAddress: boolean;
+  same: boolean;
+  different: boolean;
+  yes: boolean;
+  no: boolean;
 };
 
 type PhysicalOperatingAddressToggleFallbackAnalysis = {
@@ -139,9 +162,22 @@ type PhysicalOperatingAddressToggleFallbackInventoryEntry = {
   editable: boolean;
   inferredType: string;
   resolvedLabelFragments: string[];
+  resolvedLabelTruncated: boolean;
+  resolvedLabelCueMatches: PhysicalOperatingAddressCuePatternMatches;
   groupLabelFragments: string[];
+  groupLabelTruncated: boolean;
+  groupCueMatches: PhysicalOperatingAddressCuePatternMatches;
+  ancestorTextFragments: Array<{ source: string; text: string }>;
+  ancestorTextTruncated: boolean;
+  ancestorCueMatches: PhysicalOperatingAddressCuePatternMatches;
+  siblingTextFragments: Array<{ source: string; text: string }>;
+  siblingTextTruncated: boolean;
+  siblingCueMatches: PhysicalOperatingAddressCuePatternMatches;
   nearbyLabelFragments: Array<{ source: string; text: string }>;
+  nearbyTextFragments: Array<{ source: string; text: string }>;
+  nearbyTextTruncated: boolean;
   nearbyCueMatches: PhysicalOperatingAddressCuePatternMatches;
+  cueMatches: PhysicalOperatingAddressCuePatternMatches;
   selectedByFallback: boolean;
   excludedReasons: string[];
 };
@@ -178,6 +214,25 @@ type PhysicalOperatingAddressToggleSelection<T extends GuardedToggleField> = {
   fallbackInventory: PhysicalOperatingAddressToggleFallbackInventory | null;
 };
 
+type ToggleCueContext = {
+  currentLabelEntries: ToggleCueFragment[];
+  groupEntries: ToggleCueFragment[];
+  ancestorEntries: ToggleCueFragment[];
+  siblingEntries: ToggleCueFragment[];
+  nearbyEntries: ToggleCueFragment[];
+  allEntries: ToggleCueFragment[];
+};
+
+type BoundedSanitizedToggleFragments = {
+  fragments: string[];
+  truncated: boolean;
+};
+
+type BoundedSanitizedToggleNearbyFragments = {
+  fragments: Array<{ source: string; text: string }>;
+  truncated: boolean;
+};
+
 function normalizeText(value: string | null | undefined): string | null {
   const normalized = (value ?? '').replace(/\s+/g, ' ').trim();
   return normalized ? normalized : null;
@@ -210,15 +265,55 @@ function uniqueToggleCueFragments(entries: ToggleCueFragment[]): ToggleCueFragme
   return unique;
 }
 
-function collectToggleCueFragments(field: GuardedToggleField): ToggleCueFragment[] {
-  return uniqueToggleCueFragments([
-    { source: 'section', value: field.sectionName ?? '' },
+function isToggleAncestorLabelSource(source: string): boolean {
+  return ANCESTOR_TOGGLE_LABEL_SOURCES.has(source);
+}
+
+function isToggleSiblingLabelSource(source: string): boolean {
+  return SIBLING_TOGGLE_LABEL_SOURCES.has(source);
+}
+
+function buildToggleCueContext(field: GuardedToggleField): ToggleCueContext {
+  const currentLabelEntries = uniqueToggleCueFragments([
     { source: 'label', value: field.label ?? '' },
     { source: 'resolved-label', value: field.resolvedLabel ?? '' },
-    { source: 'field-key', value: field.idOrNameKey ?? '' },
+  ]);
+  const groupEntries = uniqueToggleCueFragments([
     { source: 'group', value: field.groupName ?? '' },
+  ]);
+  const ancestorEntries = uniqueToggleCueFragments([
+    { source: 'section', value: field.sectionName ?? '' },
+    ...field.rawCandidateLabels
+      .filter((candidate) => isToggleAncestorLabelSource(candidate.source))
+      .map((candidate) => ({ source: candidate.source, value: candidate.value })),
+  ]);
+  const siblingEntries = uniqueToggleCueFragments(
+    field.rawCandidateLabels
+      .filter((candidate) => isToggleSiblingLabelSource(candidate.source))
+      .map((candidate) => ({ source: candidate.source, value: candidate.value })),
+  );
+  const nearbyEntries = uniqueToggleCueFragments([
+    { source: 'section', value: field.sectionName ?? '' },
     ...field.rawCandidateLabels.map((candidate) => ({ source: candidate.source, value: candidate.value })),
   ]);
+
+  return {
+    currentLabelEntries,
+    groupEntries,
+    ancestorEntries,
+    siblingEntries,
+    nearbyEntries,
+    allEntries: uniqueToggleCueFragments([
+      ...currentLabelEntries,
+      { source: 'field-key', value: field.idOrNameKey ?? '' },
+      ...groupEntries,
+      ...nearbyEntries,
+    ]),
+  };
+}
+
+function collectToggleCueFragments(field: GuardedToggleField): ToggleCueFragment[] {
+  return buildToggleCueContext(field).allEntries;
 }
 
 function cueFragmentsMention(entries: ToggleCueFragment[], pattern: RegExp): boolean {
@@ -235,6 +330,10 @@ function buildPhysicalOperatingAddressCuePatternMatches(
     mailingAddress: cueFragmentsMention(cueFragments, MAILING_ADDRESS_RE),
     legalAddress: cueFragmentsMention(cueFragments, LEGAL_ADDRESS_RE),
     virtualAddress: cueFragmentsMention(cueFragments, VIRTUAL_ADDRESS_RE),
+    same: cueFragmentsMention(cueFragments, SAME_TOGGLE_RE),
+    different: cueFragmentsMention(cueFragments, DIFFERENT_TOGGLE_RE),
+    yes: cueFragmentsMention(cueFragments, YES_TOGGLE_RE),
+    no: cueFragmentsMention(cueFragments, NO_TOGGLE_RE),
   };
 }
 
@@ -264,27 +363,46 @@ function sanitizeToggleDiagnosticFragment(value: string | null | undefined): str
 }
 
 function collectSanitizedToggleFragments(entries: ToggleCueFragment[], limit = TOGGLE_INVENTORY_FRAGMENT_LIMIT): string[] {
+  return collectBoundedSanitizedToggleFragments(entries, limit).fragments;
+}
+
+function collectBoundedSanitizedToggleFragments(
+  entries: ToggleCueFragment[],
+  limit = TOGGLE_INVENTORY_FRAGMENT_LIMIT,
+): BoundedSanitizedToggleFragments {
   const fragments: string[] = [];
   const seen = new Set<string>();
+  let uniqueCount = 0;
 
   for (const entry of entries) {
     const sanitized = sanitizeToggleDiagnosticFragment(entry.value);
     if (!sanitized || seen.has(sanitized)) continue;
 
     seen.add(sanitized);
-    fragments.push(sanitized);
-    if (fragments.length >= limit) break;
+    uniqueCount += 1;
+    if (fragments.length < limit) fragments.push(sanitized);
   }
 
-  return fragments;
+  return {
+    fragments,
+    truncated: uniqueCount > fragments.length,
+  };
 }
 
 function collectSanitizedToggleNearbyFragments(
   entries: ToggleCueFragment[],
   limit = TOGGLE_INVENTORY_FRAGMENT_LIMIT,
 ): Array<{ source: string; text: string }> {
+  return collectBoundedSanitizedToggleNearbyFragments(entries, limit).fragments;
+}
+
+function collectBoundedSanitizedToggleNearbyFragments(
+  entries: ToggleCueFragment[],
+  limit = TOGGLE_INVENTORY_FRAGMENT_LIMIT,
+): BoundedSanitizedToggleNearbyFragments {
   const fragments: Array<{ source: string; text: string }> = [];
   const seen = new Set<string>();
+  let uniqueCount = 0;
 
   for (const entry of entries) {
     const sanitized = sanitizeToggleDiagnosticFragment(entry.value);
@@ -294,11 +412,14 @@ function collectSanitizedToggleNearbyFragments(
     if (seen.has(key)) continue;
 
     seen.add(key);
-    fragments.push({ source: entry.source, text: sanitized });
-    if (fragments.length >= limit) break;
+    uniqueCount += 1;
+    if (fragments.length < limit) fragments.push({ source: entry.source, text: sanitized });
   }
 
-  return fragments;
+  return {
+    fragments,
+    truncated: uniqueCount > fragments.length,
+  };
 }
 
 function fieldTextFragments(field: GuardedToggleField): string[] {
@@ -487,32 +608,46 @@ function buildPhysicalOperatingAddressToggleFallbackInventory(
 
   const entries = radioCandidates
     .slice(0, TOGGLE_INVENTORY_CANDIDATE_LIMIT)
-    .map(({ field, analysis }, index): PhysicalOperatingAddressToggleFallbackInventoryEntry => ({
-      slot: index + 1,
-      fieldIndex: typeof field.index === 'number' ? field.index : null,
-      fieldKey: sanitizeToggleDiagnosticFragment(field.idOrNameKey),
-      inputKind: field.kind,
-      role: field.kind === 'radio' ? 'radio' : null,
-      inputType: normalizeText(field.type),
-      controlCategory: field.controlCategory,
-      visible: field.visible,
-      editable: field.editable,
-      inferredType: field.inferredType.type,
-      resolvedLabelFragments: collectSanitizedToggleFragments(uniqueToggleCueFragments([
-        { source: 'label', value: field.label ?? '' },
-        { source: 'resolved-label', value: field.resolvedLabel ?? '' },
-      ]), 2),
-      groupLabelFragments: collectSanitizedToggleFragments(uniqueToggleCueFragments([
-        { source: 'group', value: field.groupName ?? '' },
-      ]), 2),
-      nearbyLabelFragments: collectSanitizedToggleNearbyFragments(uniqueToggleCueFragments([
-        { source: 'section', value: field.sectionName ?? '' },
-        ...field.rawCandidateLabels.map((candidate) => ({ source: candidate.source, value: candidate.value })),
-      ])),
-      nearbyCueMatches: analysis.cueMatches,
-      selectedByFallback: analysis.selectedByFallback,
-      excludedReasons: analysis.selectedByFallback ? [] : analysis.excludedReasons,
-    }));
+    .map(({ field, analysis }, index): PhysicalOperatingAddressToggleFallbackInventoryEntry => {
+      const cueContext = buildToggleCueContext(field);
+      const resolvedLabelFragments = collectBoundedSanitizedToggleFragments(cueContext.currentLabelEntries, 2);
+      const groupLabelFragments = collectBoundedSanitizedToggleFragments(cueContext.groupEntries, 2);
+      const ancestorTextFragments = collectBoundedSanitizedToggleNearbyFragments(cueContext.ancestorEntries);
+      const siblingTextFragments = collectBoundedSanitizedToggleNearbyFragments(cueContext.siblingEntries);
+      const nearbyTextFragments = collectBoundedSanitizedToggleNearbyFragments(cueContext.nearbyEntries);
+
+      return {
+        slot: index + 1,
+        fieldIndex: typeof field.index === 'number' ? field.index : null,
+        fieldKey: sanitizeToggleDiagnosticFragment(field.idOrNameKey),
+        inputKind: field.kind,
+        role: field.kind === 'radio' ? 'radio' : null,
+        inputType: normalizeText(field.type),
+        controlCategory: field.controlCategory,
+        visible: field.visible,
+        editable: field.editable,
+        inferredType: field.inferredType.type,
+        resolvedLabelFragments: resolvedLabelFragments.fragments,
+        resolvedLabelTruncated: resolvedLabelFragments.truncated,
+        resolvedLabelCueMatches: buildPhysicalOperatingAddressCuePatternMatches(cueContext.currentLabelEntries),
+        groupLabelFragments: groupLabelFragments.fragments,
+        groupLabelTruncated: groupLabelFragments.truncated,
+        groupCueMatches: buildPhysicalOperatingAddressCuePatternMatches(cueContext.groupEntries),
+        ancestorTextFragments: ancestorTextFragments.fragments,
+        ancestorTextTruncated: ancestorTextFragments.truncated,
+        ancestorCueMatches: buildPhysicalOperatingAddressCuePatternMatches(cueContext.ancestorEntries),
+        siblingTextFragments: siblingTextFragments.fragments,
+        siblingTextTruncated: siblingTextFragments.truncated,
+        siblingCueMatches: buildPhysicalOperatingAddressCuePatternMatches(cueContext.siblingEntries),
+        nearbyLabelFragments: nearbyTextFragments.fragments,
+        nearbyTextFragments: nearbyTextFragments.fragments,
+        nearbyTextTruncated: nearbyTextFragments.truncated,
+        nearbyCueMatches: buildPhysicalOperatingAddressCuePatternMatches(cueContext.nearbyEntries),
+        cueMatches: analysis.cueMatches,
+        selectedByFallback: analysis.selectedByFallback,
+        excludedReasons: analysis.selectedByFallback ? [] : analysis.excludedReasons,
+      };
+    });
   const cueEntries = cueObservations
     .slice(0, TOGGLE_FALLBACK_CUE_LIMIT)
     .map(({ field, cueMatches }, index): PhysicalOperatingAddressToggleFallbackCueEntry => ({
