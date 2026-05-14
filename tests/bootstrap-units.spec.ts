@@ -14,6 +14,7 @@ import { buildResendUrl, normalizeResendMethod } from '../lib/bead-client';
 import {
   findPhysicalOperatingAddressToggle,
   guardedPhysicalOperatingAddressDiscoveryEnabled,
+  maybeExpandPhysicalOperatingAddressSection,
   shouldStopAfterPhysicalAddressCaptureAttempt,
 } from '../fixtures/conditional-discovery';
 import { discoverFields, type DiscoveredField } from '../fixtures/field-discovery';
@@ -5139,56 +5140,91 @@ test.describe('interactive validation safety', () => {
   });
 
   test('guarded physical address discovery selects the unique isOperatingAddress radio', () => {
+    const toggleField = (overrides: Record<string, unknown> = {}) => ({
+      index: 0,
+      kind: 'radio',
+      controlCategory: 'merchant_input',
+      visible: true,
+      editable: true,
+      sectionName: 'addressOptions',
+      label: 'addressOptions',
+      resolvedLabel: 'addressOptions',
+      rawCandidateLabels: [
+        { source: 'preceding-text', value: 'addressOptions' },
+      ],
+      groupName: 'addressOptions_group',
+      idOrNameKey: null,
+      inferredType: { type: 'address_option' },
+      ...overrides,
+    });
+
     const candidate = findPhysicalOperatingAddressToggle([
-      {
-        kind: 'radio',
-        controlCategory: 'merchant_input',
-        visible: true,
-        editable: true,
-        sectionName: 'addressOptions',
-        label: 'addressOptions',
-        resolvedLabel: 'addressOptions',
-        rawCandidateLabels: [
-          { source: 'preceding-text', value: 'addressOptions' },
-        ],
-        groupName: 'addressOptions_group',
-        inferredType: { type: 'address_option' },
-      },
-      {
-        kind: 'radio',
-        controlCategory: 'merchant_input',
-        visible: true,
-        editable: true,
-        sectionName: 'addressOptions',
+      toggleField({
+        index: 1,
+      }),
+      toggleField({
+        index: 2,
         label: 'addressOptions › Required - addressOptions - isLegalAddress',
         resolvedLabel: 'addressOptions › Required - addressOptions - isLegalAddress',
+        idOrNameKey: 'isLegalAddress',
         rawCandidateLabels: [
           { source: 'section+row', value: 'addressOptions › Required - addressOptions - isLegalAddress' },
         ],
-        groupName: 'addressOptions_group',
-        inferredType: { type: 'address_option' },
-      },
-      {
-        kind: 'radio',
-        controlCategory: 'merchant_input',
-        visible: true,
-        editable: true,
-        sectionName: 'addressOptions',
-        label: 'addressOptions › Required - addressOptions - isOperatingAddress',
-        resolvedLabel: 'addressOptions › Required - addressOptions - isOperatingAddress',
+      }),
+      toggleField({
+        index: 3,
+        label: 'Physical Operating Address',
+        resolvedLabel: 'Physical Operating Address',
+        idOrNameKey: 'isOperatingAddress',
         rawCandidateLabels: [
-          { source: 'label-for', value: 'Required - addressOptions - isVirtualAddress' },
-          { source: 'section+row', value: 'addressOptions › Required - addressOptions - isOperatingAddress' },
+          { source: 'section+row', value: 'Physical Operating Address' },
         ],
-        groupName: 'addressOptions_group',
-        inferredType: { type: 'address_option' },
-      },
+      }),
     ] as any);
 
-    expect(candidate?.resolvedLabel).toContain('isOperatingAddress');
+    expect(candidate?.idOrNameKey).toBe('isOperatingAddress');
   });
 
-  test('guarded physical address discovery stays opt-in and refuses unsafe candidates', () => {
+  test('guarded physical address discovery selects the unique isOperatingAddress radio when nearby group text carries the operating cue', () => {
+    const toggleField = (overrides: Record<string, unknown> = {}) => ({
+      index: 0,
+      kind: 'radio',
+      controlCategory: 'merchant_input',
+      visible: true,
+      editable: true,
+      sectionName: 'Business Physical Address',
+      label: 'Required',
+      resolvedLabel: 'Required',
+      rawCandidateLabels: [
+        { source: 'preceding-text', value: 'Business Physical Address' },
+        { source: 'section+row', value: 'Required option' },
+      ],
+      groupName: 'businessPhysicalAddress_group',
+      idOrNameKey: null,
+      inferredType: { type: 'address_option' },
+      ...overrides,
+    });
+
+    const candidate = findPhysicalOperatingAddressToggle([
+      toggleField({
+        index: 1,
+        idOrNameKey: 'isMailingAddress',
+        sectionName: 'Business Mailing Address',
+        groupName: 'businessMailingAddress_group',
+        rawCandidateLabels: [
+          { source: 'preceding-text', value: 'Business Mailing Address' },
+        ],
+      }),
+      toggleField({
+        index: 2,
+        idOrNameKey: 'isOperatingAddress',
+      }),
+    ] as any);
+
+    expect(candidate?.idOrNameKey).toBe('isOperatingAddress');
+  });
+
+  test('guarded physical address discovery stays opt-in and refuses mailing or unsafe candidates', () => {
     expect(guardedPhysicalOperatingAddressDiscoveryEnabled({
       SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS: '1',
     } as NodeJS.ProcessEnv)).toBe(true);
@@ -5198,6 +5234,7 @@ test.describe('interactive validation safety', () => {
 
     const candidate = findPhysicalOperatingAddressToggle([
       {
+        index: 1,
         kind: 'radio',
         controlCategory: 'merchant_input',
         visible: true,
@@ -5209,25 +5246,134 @@ test.describe('interactive validation safety', () => {
           { source: 'section+row', value: 'addressOptions › Required - addressOptions - isOperatingAddress' },
         ],
         groupName: 'addressOptions_group',
+        idOrNameKey: 'isOperatingAddress',
         inferredType: { type: 'address_option' },
       },
       {
+        index: 2,
         kind: 'radio',
         controlCategory: 'merchant_input',
         visible: true,
         editable: true,
-        sectionName: 'addressOptions',
-        label: 'addressOptions › Required - addressOptions - isLegalAddress',
-        resolvedLabel: 'addressOptions › Required - addressOptions - isLegalAddress',
+        sectionName: 'Business Mailing Address',
+        label: 'Business Mailing Address',
+        resolvedLabel: 'Business Mailing Address',
         rawCandidateLabels: [
-          { source: 'section+row', value: 'addressOptions › Required - addressOptions - isLegalAddress' },
+          { source: 'section+row', value: 'Business Mailing Address' },
         ],
-        groupName: 'addressOptions_group',
+        groupName: 'businessMailingAddress_group',
+        idOrNameKey: 'isMailingAddress',
         inferredType: { type: 'address_option' },
       },
     ] as any);
 
     expect(candidate).toBeNull();
+  });
+
+  test('guarded physical address discovery fails closed when multiple operating candidates remain', async () => {
+    const fields = [
+      {
+        index: 1,
+        kind: 'radio',
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+        sectionName: 'Business Physical Address',
+        label: 'Physical Operating Address',
+        resolvedLabel: 'Physical Operating Address',
+        rawCandidateLabels: [
+          { source: 'section+row', value: 'Physical Operating Address' },
+        ],
+        groupName: 'businessPhysicalAddress_group',
+        idOrNameKey: 'isOperatingAddress',
+        inferredType: { type: 'address_option' },
+      },
+      {
+        index: 2,
+        kind: 'radio',
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+        sectionName: 'Business Physical Address',
+        label: 'Business Physical Address',
+        resolvedLabel: 'Business Physical Address',
+        rawCandidateLabels: [
+          { source: 'preceding-text', value: 'Business Physical Address' },
+        ],
+        groupName: 'businessPhysicalAddress_group',
+        idOrNameKey: 'isOperatingAddressAlternate',
+        inferredType: { type: 'address_option' },
+      },
+    ] as any;
+
+    expect(findPhysicalOperatingAddressToggle(fields)).toBeNull();
+
+    const expansion = await maybeExpandPhysicalOperatingAddressSection(
+      null as any,
+      fields,
+      { SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS: '1' } as NodeJS.ProcessEnv,
+    );
+
+    const inventoryPrefix = 'physical-operating-address discovery toggle inventory: ';
+    const inventory = JSON.parse(
+      expansion.diagnostics.find((entry) => entry.startsWith(inventoryPrefix))!.slice(inventoryPrefix.length),
+    );
+
+    expect(inventory.matchingCandidateCount).toBe(2);
+    expect(inventory.entries).toHaveLength(2);
+    expect(inventory.entries.every((entry: any) => entry.selectedByMatcher === true)).toBe(true);
+  });
+
+  test('guarded physical address discovery fails closed with sanitized inventory when no operating candidate matches', async () => {
+    const expansion = await maybeExpandPhysicalOperatingAddressSection(
+      null as any,
+      [
+        {
+          index: 11,
+          kind: 'radio',
+          controlCategory: 'merchant_input',
+          visible: true,
+          editable: true,
+          sectionName: 'Business Mailing Address',
+          label: '123 Hidden Value Road Suite 500',
+          resolvedLabel: '123 Hidden Value Road Suite 500',
+          rawCandidateLabels: [
+            { source: 'preceding-text', value: 'Business Mailing Address' },
+            { source: 'section+row', value: 'hidden.person@example.test' },
+            { source: 'label-for', value: 'https://demo.docusign.net/start?token=secret-token-value' },
+            { source: 'preceding-text', value: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9' },
+            { source: 'preceding-text', value: 'x '.repeat(200) },
+          ],
+          groupName: 'businessMailingAddress_group',
+          idOrNameKey: 'isMailingAddress',
+          inferredType: { type: 'address_option' },
+        },
+      ] as any,
+      { SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS: '1' } as NodeJS.ProcessEnv,
+    );
+
+    expect(expansion.expanded).toBe(false);
+    expect(expansion.diagnostics[0]).toBe('physical-operating-address discovery toggle: no unique visible isOperatingAddress radio candidate found');
+
+    const inventoryPrefix = 'physical-operating-address discovery toggle inventory: ';
+    const inventory = JSON.parse(
+      expansion.diagnostics.find((entry) => entry.startsWith(inventoryPrefix))!.slice(inventoryPrefix.length),
+    );
+    const serializedInventory = JSON.stringify(inventory);
+
+    expect(inventory.candidateCount).toBe(1);
+    expect(inventory.matchingCandidateCount).toBe(0);
+    expect(inventory.entries[0].matches.mailingAddressPattern).toBe(true);
+    expect(inventory.entries[0].excludedReasons).toContain('matched-mailing-address');
+    expect(inventory.entries[0].resolvedLabelFragments).toEqual(['[redacted:text]']);
+    expect(inventory.entries[0].nearbyLabelFragments.length).toBeLessThanOrEqual(4);
+    expect(serializedInventory).not.toContain('123 Hidden Value Road');
+    expect(serializedInventory).not.toContain('hidden.person@example.test');
+    expect(serializedInventory).not.toContain('https://demo.docusign.net/start');
+    expect(serializedInventory).not.toContain('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9');
+    expect(serializedInventory).toContain('[redacted:email]');
+    expect(serializedInventory).toContain('[redacted:url]');
+    expect(serializedInventory).toContain('[redacted:token]');
   });
 
   test('physical address DOM probe stays opt-in and does not enable guarded discovery by itself', () => {

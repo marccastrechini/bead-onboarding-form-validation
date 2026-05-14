@@ -16,7 +16,7 @@ export const SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS_ENV = 'SAFE_DISCOVERY_EXPAND
 
 type GuardedToggleField = Pick<
   DiscoveredField,
-  'kind' | 'controlCategory' | 'visible' | 'editable' | 'resolvedLabel' | 'label' | 'sectionName' | 'rawCandidateLabels' | 'groupName' | 'inferredType'
+  'index' | 'kind' | 'controlCategory' | 'visible' | 'editable' | 'resolvedLabel' | 'label' | 'sectionName' | 'rawCandidateLabels' | 'groupName' | 'idOrNameKey' | 'inferredType'
 >;
 
 export interface GuardedPhysicalOperatingAddressDiscoveryResult {
@@ -33,13 +33,180 @@ export interface GuardedPhysicalOperatingAddressDiscoveryOptions {
 
 const ADDRESS_OPTIONS_RE = /\baddressoptions\b/i;
 const OPERATING_ADDRESS_RE = /\bisoperatingaddress\b|\boperating\s+address\b/i;
+const BUSINESS_PHYSICAL_ADDRESS_RE = /\bbusiness\s+physical\s+address\b/i;
 const LEGAL_ADDRESS_RE = /\bislegaladdress\b|\blegal\s+address\b/i;
 const VIRTUAL_ADDRESS_RE = /\bisvirtualaddress\b|\bvirtual\s+address\b/i;
+const MAILING_ADDRESS_RE = /\bismailingaddress\b|\bbusiness\s+mailing\s+address\b|\bmailing\s+address\b/i;
 const PHYSICAL_ADDRESS_RE = /\bphysical\s+operating\s+address\b/i;
+const TOGGLE_INVENTORY_CANDIDATE_LIMIT = 6;
+const TOGGLE_INVENTORY_FRAGMENT_LIMIT = 4;
+
+const SAFE_TOGGLE_FRAGMENT_PATTERNS = [
+  { label: 'Physical Operating Address', pattern: /\bphysical\s+operating\s+address\b/i },
+  { label: 'Business Physical Address', pattern: /\bbusiness\s+physical\s+address\b/i },
+  { label: 'Operating Address', pattern: /\boperating\s+address\b/i },
+  { label: 'Business Mailing Address', pattern: /\bbusiness\s+mailing\s+address\b/i },
+  { label: 'Mailing Address', pattern: /\bmailing\s+address\b/i },
+  { label: 'Legal Address', pattern: /\blegal\s+address\b/i },
+  { label: 'Virtual Address', pattern: /\bvirtual\s+address\b/i },
+  { label: 'addressOptions', pattern: /\baddressoptions\b/i },
+  { label: 'isOperatingAddress', pattern: /\bisoperatingaddress\b/i },
+  { label: 'isMailingAddress', pattern: /\bismailingaddress\b/i },
+  { label: 'isLegalAddress', pattern: /\bislegaladdress\b/i },
+  { label: 'isVirtualAddress', pattern: /\bisvirtualaddress\b/i },
+  { label: 'Required', pattern: /\brequired\b/i },
+  { label: 'Optional', pattern: /\boptional\b/i },
+  { label: 'Same', pattern: /\bsame\b/i },
+  { label: 'Different', pattern: /\bdifferent\b/i },
+] as const;
+
+type ToggleCueFragment = {
+  source: string;
+  value: string;
+};
+
+type PhysicalOperatingAddressToggleMatchAnalysis = {
+  eligibleRadio: boolean;
+  addressOptionPattern: boolean;
+  operatingAddressPattern: boolean;
+  mailingAddressPattern: boolean;
+  legalAddressPattern: boolean;
+  virtualAddressPattern: boolean;
+  selectedByMatcher: boolean;
+  excludedReasons: string[];
+};
+
+type PhysicalOperatingAddressToggleInventoryEntry = {
+  slot: number;
+  fieldIndex: number | null;
+  fieldKey: string | null;
+  inputKind: string;
+  controlCategory: string;
+  visible: boolean;
+  editable: boolean;
+  inferredType: string;
+  resolvedLabelFragments: string[];
+  groupLabelFragments: string[];
+  nearbyLabelFragments: Array<{ source: string; text: string }>;
+  matches: {
+    addressOptionPattern: boolean;
+    operatingAddressPattern: boolean;
+    mailingAddressPattern: boolean;
+    legalAddressPattern: boolean;
+    virtualAddressPattern: boolean;
+  };
+  selectedByMatcher: boolean;
+  excludedReasons: string[];
+};
+
+type PhysicalOperatingAddressToggleInventory = {
+  candidateCount: number;
+  eligibleCandidateCount: number;
+  matchingCandidateCount: number;
+  displayedCandidateCount: number;
+  truncatedCandidateCount: number;
+  entries: PhysicalOperatingAddressToggleInventoryEntry[];
+};
 
 function normalizeText(value: string | null | undefined): string | null {
   const normalized = (value ?? '').replace(/\s+/g, ' ').trim();
   return normalized ? normalized : null;
+}
+
+function toMatchableText(value: string): string {
+  return value
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/[_>]+/g, ' ')
+    .replace(/[^A-Za-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function uniqueToggleCueFragments(entries: ToggleCueFragment[]): ToggleCueFragment[] {
+  const unique: ToggleCueFragment[] = [];
+  const seen = new Set<string>();
+
+  for (const entry of entries) {
+    const normalized = normalizeText(entry.value);
+    if (!normalized) continue;
+
+    const key = `${entry.source}:${normalized}`;
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+    unique.push({ source: entry.source, value: normalized });
+  }
+
+  return unique;
+}
+
+function collectToggleCueFragments(field: GuardedToggleField): ToggleCueFragment[] {
+  return uniqueToggleCueFragments([
+    { source: 'section', value: field.sectionName ?? '' },
+    { source: 'label', value: field.label ?? '' },
+    { source: 'resolved-label', value: field.resolvedLabel ?? '' },
+    { source: 'field-key', value: field.idOrNameKey ?? '' },
+    { source: 'group', value: field.groupName ?? '' },
+    ...field.rawCandidateLabels.map((candidate) => ({ source: candidate.source, value: candidate.value })),
+  ]);
+}
+
+function cueFragmentsMention(entries: ToggleCueFragment[], pattern: RegExp): boolean {
+  return entries.some((entry) => pattern.test(toMatchableText(entry.value)));
+}
+
+function sanitizeToggleDiagnosticFragment(value: string | null | undefined): string | null {
+  const normalized = normalizeText(value);
+  if (!normalized) return null;
+
+  if (/https?:\/\/\S+/i.test(normalized)) return '[redacted:url]';
+  if (/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(normalized)) return '[redacted:email]';
+  if (/\b(?:[A-F0-9]{16,}|[A-Z0-9_-]{24,})\b/i.test(normalized)) return '[redacted:token]';
+
+  const safeLabels = SAFE_TOGGLE_FRAGMENT_PATTERNS
+    .filter((entry) => entry.pattern.test(toMatchableText(normalized)))
+    .map((entry) => entry.label);
+
+  if (safeLabels.length === 0) return '[redacted:text]';
+  return Array.from(new Set(safeLabels)).join(' | ');
+}
+
+function collectSanitizedToggleFragments(entries: ToggleCueFragment[], limit = TOGGLE_INVENTORY_FRAGMENT_LIMIT): string[] {
+  const fragments: string[] = [];
+  const seen = new Set<string>();
+
+  for (const entry of entries) {
+    const sanitized = sanitizeToggleDiagnosticFragment(entry.value);
+    if (!sanitized || seen.has(sanitized)) continue;
+
+    seen.add(sanitized);
+    fragments.push(sanitized);
+    if (fragments.length >= limit) break;
+  }
+
+  return fragments;
+}
+
+function collectSanitizedToggleNearbyFragments(
+  entries: ToggleCueFragment[],
+  limit = TOGGLE_INVENTORY_FRAGMENT_LIMIT,
+): Array<{ source: string; text: string }> {
+  const fragments: Array<{ source: string; text: string }> = [];
+  const seen = new Set<string>();
+
+  for (const entry of entries) {
+    const sanitized = sanitizeToggleDiagnosticFragment(entry.value);
+    if (!sanitized) continue;
+
+    const key = `${entry.source}:${sanitized}`;
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+    fragments.push({ source: entry.source, text: sanitized });
+    if (fragments.length >= limit) break;
+  }
+
+  return fragments;
 }
 
 function fieldTextFragments(field: GuardedToggleField): string[] {
@@ -70,6 +237,112 @@ function fieldResolvedFragments(field: GuardedToggleField): string[] {
   return Array.from(new Set(fragments));
 }
 
+function buildPhysicalOperatingAddressToggleMatchAnalysis(
+  field: GuardedToggleField,
+): PhysicalOperatingAddressToggleMatchAnalysis {
+  const cueFragments = collectToggleCueFragments(field);
+  const eligibleRadio = isEligibleAddressOptionRadio(field);
+  const addressOptionPattern = cueFragmentsMention(cueFragments, ADDRESS_OPTIONS_RE);
+  const operatingAddressPattern = cueFragmentsMention(cueFragments, OPERATING_ADDRESS_RE)
+    || cueFragmentsMention(cueFragments, PHYSICAL_ADDRESS_RE)
+    || cueFragmentsMention(cueFragments, BUSINESS_PHYSICAL_ADDRESS_RE);
+  const mailingAddressPattern = cueFragmentsMention(cueFragments, MAILING_ADDRESS_RE);
+  const legalAddressPattern = cueFragmentsMention(cueFragments, LEGAL_ADDRESS_RE);
+  const virtualAddressPattern = cueFragmentsMention(cueFragments, VIRTUAL_ADDRESS_RE);
+  const selectedByMatcher = eligibleRadio
+    && operatingAddressPattern
+    && !mailingAddressPattern
+    && !legalAddressPattern
+    && !virtualAddressPattern;
+
+  const excludedReasons: string[] = [];
+  if (field.kind !== 'radio') excludedReasons.push('not-radio');
+  if (field.controlCategory !== 'merchant_input') excludedReasons.push('not-merchant-input');
+  if (!field.visible) excludedReasons.push('not-visible');
+  if (!field.editable) excludedReasons.push('not-editable');
+  if (field.inferredType.type !== 'address_option') excludedReasons.push(`inferred-type:${field.inferredType.type}`);
+  if (!operatingAddressPattern) excludedReasons.push('operating-address-cue-missing');
+  if (mailingAddressPattern) excludedReasons.push('matched-mailing-address');
+  if (legalAddressPattern) excludedReasons.push('matched-legal-address');
+  if (virtualAddressPattern) excludedReasons.push('matched-virtual-address');
+
+  return {
+    eligibleRadio,
+    addressOptionPattern,
+    operatingAddressPattern,
+    mailingAddressPattern,
+    legalAddressPattern,
+    virtualAddressPattern,
+    selectedByMatcher,
+    excludedReasons,
+  };
+}
+
+function isRelevantPhysicalOperatingAddressToggleCandidate(
+  field: GuardedToggleField,
+  analysis: PhysicalOperatingAddressToggleMatchAnalysis,
+): boolean {
+  return field.kind === 'radio'
+    && (
+      field.inferredType.type === 'address_option'
+      || analysis.addressOptionPattern
+      || analysis.operatingAddressPattern
+      || analysis.mailingAddressPattern
+      || analysis.legalAddressPattern
+      || analysis.virtualAddressPattern
+    );
+}
+
+function buildPhysicalOperatingAddressToggleInventory(
+  fields: GuardedToggleField[],
+): PhysicalOperatingAddressToggleInventory {
+  const candidates = fields
+    .map((field) => ({ field, analysis: buildPhysicalOperatingAddressToggleMatchAnalysis(field) }))
+    .filter(({ field, analysis }) => isRelevantPhysicalOperatingAddressToggleCandidate(field, analysis));
+
+  const entries = candidates
+    .slice(0, TOGGLE_INVENTORY_CANDIDATE_LIMIT)
+    .map(({ field, analysis }, index): PhysicalOperatingAddressToggleInventoryEntry => ({
+      slot: index + 1,
+      fieldIndex: typeof field.index === 'number' ? field.index : null,
+      fieldKey: sanitizeToggleDiagnosticFragment(field.idOrNameKey),
+      inputKind: field.kind,
+      controlCategory: field.controlCategory,
+      visible: field.visible,
+      editable: field.editable,
+      inferredType: field.inferredType.type,
+      resolvedLabelFragments: collectSanitizedToggleFragments(uniqueToggleCueFragments([
+        { source: 'label', value: field.label ?? '' },
+        { source: 'resolved-label', value: field.resolvedLabel ?? '' },
+      ]), 2),
+      groupLabelFragments: collectSanitizedToggleFragments(uniqueToggleCueFragments([
+        { source: 'group', value: field.groupName ?? '' },
+      ]), 2),
+      nearbyLabelFragments: collectSanitizedToggleNearbyFragments(uniqueToggleCueFragments([
+        { source: 'section', value: field.sectionName ?? '' },
+        ...field.rawCandidateLabels.map((candidate) => ({ source: candidate.source, value: candidate.value })),
+      ])),
+      matches: {
+        addressOptionPattern: analysis.addressOptionPattern,
+        operatingAddressPattern: analysis.operatingAddressPattern,
+        mailingAddressPattern: analysis.mailingAddressPattern,
+        legalAddressPattern: analysis.legalAddressPattern,
+        virtualAddressPattern: analysis.virtualAddressPattern,
+      },
+      selectedByMatcher: analysis.selectedByMatcher,
+      excludedReasons: analysis.selectedByMatcher ? [] : analysis.excludedReasons,
+    }));
+
+  return {
+    candidateCount: candidates.length,
+    eligibleCandidateCount: candidates.filter(({ analysis }) => analysis.eligibleRadio).length,
+    matchingCandidateCount: candidates.filter(({ analysis }) => analysis.selectedByMatcher).length,
+    displayedCandidateCount: entries.length,
+    truncatedCandidateCount: Math.max(0, candidates.length - entries.length),
+    entries,
+  };
+}
+
 function fieldMentions(field: GuardedToggleField, pattern: RegExp): boolean {
   return fieldTextFragments(field).some((value) => pattern.test(value));
 }
@@ -95,13 +368,7 @@ export function guardedPhysicalOperatingAddressDiscoveryEnabled(env: NodeJS.Proc
 }
 
 export function findPhysicalOperatingAddressToggle<T extends GuardedToggleField>(fields: T[]): T | null {
-  const matches = fields.filter((field) =>
-    isEligibleAddressOptionRadio(field)
-    && fieldResolvedMentions(field, ADDRESS_OPTIONS_RE)
-    && fieldResolvedMentions(field, OPERATING_ADDRESS_RE)
-    && !fieldResolvedMentions(field, LEGAL_ADDRESS_RE)
-    && !fieldResolvedMentions(field, VIRTUAL_ADDRESS_RE),
-  );
+  const matches = fields.filter((field) => buildPhysicalOperatingAddressToggleMatchAnalysis(field).selectedByMatcher);
 
   return matches.length === 1 ? matches[0] : null;
 }
@@ -152,6 +419,9 @@ export async function maybeExpandPhysicalOperatingAddressSection(
   const toggleField = findPhysicalOperatingAddressToggle(initialFields);
   if (!toggleField) {
     diagnostics.push('physical-operating-address discovery toggle: no unique visible isOperatingAddress radio candidate found');
+    diagnostics.push(
+      `physical-operating-address discovery toggle inventory: ${JSON.stringify(buildPhysicalOperatingAddressToggleInventory(initialFields))}`,
+    );
     return { fields: initialFields, diagnostics, expanded: false, probeReport: null, captureReport: null };
   }
 
