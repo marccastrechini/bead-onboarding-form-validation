@@ -158,6 +158,46 @@ test.describe('signer readiness', () => {
     expect(result.diagnostics).toContain('safe-redirect transition observed: signing iframe appeared on https://demo.docusign.test/safe-redirect?[redacted]');
   });
 
+  test('waitForSafeRedirectTransition timeout includes sanitized title, text fragments, and iframe inventory', async ({ page }) => {
+    await page.route('**/safe-redirect**', async (route) => {
+      await route.fulfill({
+        contentType: 'text/html',
+        body: `
+          <!doctype html>
+          <html>
+            <head>
+              <title>DocuSign Redirect Waiting Room</title>
+            </head>
+            <body>
+              <div>Preparing your document for secure review.</div>
+              <div>Please wait while we redirect you to the signing ceremony.</div>
+              <div>Tracking link https://demo.docusign.test/path?token=SECRET</div>
+              <iframe id="marketing-shell" name="marketing" title="Marketing Shell" src="https://safe-shell.example.test/frame-one?token=SECRET#frag"></iframe>
+              <iframe title="Secondary Helper" src="/frame-two?code=SECRET"></iframe>
+            </body>
+          </html>
+        `,
+      });
+    });
+
+    await page.goto('https://demo.docusign.test/safe-redirect?t=redacted');
+
+    const error = await waitForSafeRedirectTransition(page, 500).then(
+      () => null,
+      (failure) => failure as Error,
+    );
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error?.message).toContain('DocuSign safe-redirect did not transition to a signer surface before frame resolution.');
+    expect(error?.message).toContain('Page title: "DocuSign Redirect Waiting Room".');
+    expect(error?.message).toContain('Visible text fragments: ["Preparing your document for secure review.","Please wait while we redirect you to the signing ceremony.","Tracking link https://demo.docusign.test/path?[redacted]"]');
+    expect(error?.message).toContain('Iframe inventory: [{"id":"marketing-shell","name":"marketing","title":"Marketing Shell","url":"https://safe-shell.example.test/frame-one?[redacted]#[redacted]"},{"id":"","name":"","title":"Secondary Helper","url":"https://demo.docusign.test/frame-two?[redacted]"}]');
+    expect(error?.message).toContain('Observed signals: {"url-transition":false,"signing-iframe":false,"screen-reader-shell":false,"business-details-shell":false}.');
+    expect(error?.message).not.toContain('token=SECRET');
+    expect(error?.message).not.toContain('code=SECRET');
+    expect(error?.message).not.toContain('t=redacted');
+  });
+
   test('openSigner reports a clear redacted safe-redirect timeout instead of a fragile iframe fallback failure', async ({ page }) => {
     await page.route('**/safe-redirect**', async (route) => {
       await route.fulfill({
@@ -180,7 +220,8 @@ test.describe('signer readiness', () => {
 
     expect(error).toBeInstanceOf(Error);
     expect(error?.message).toContain('DocuSign safe-redirect did not transition to a signer surface before frame resolution.');
-    expect(error?.message).toContain('Current page: https://demo.docusign.test/safe-redirect?[redacted]');
+    expect(error?.message).toContain('Current page: https://demo.docusign.test/safe-redirect?[redacted].');
+    expect(error?.message).toContain('Observed signals: {"url-transition":false,"signing-iframe":false,"screen-reader-shell":false,"business-details-shell":false}.');
     expect(error?.message).not.toContain('FRAGILE fallback');
     expect(error?.message).not.toContain('SECRET');
   });

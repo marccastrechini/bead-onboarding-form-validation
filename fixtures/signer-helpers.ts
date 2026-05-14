@@ -41,6 +41,14 @@ type SafeRedirectTransitionSignal =
   | 'signing-iframe'
   | 'screen-reader-shell'
   | 'business-details-shell';
+type SafeRedirectSignalState = Record<Exclude<SafeRedirectTransitionSignal, 'not-on-safe-redirect'>, boolean>;
+
+type SafeRedirectIframeInventoryEntry = {
+  id: string;
+  name: string;
+  title: string;
+  url: string;
+};
 
 type ExpiredSignerLinkEvidence = {
   stage: SignerGuardStage;
@@ -60,6 +68,32 @@ function redactUrl(rawUrl: string): string {
   } catch {
     return rawUrl;
   }
+}
+
+function redactPossibleUrl(rawUrl: string, baseUrl?: string): string {
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return '';
+
+  try {
+    return redactUrl(baseUrl ? new URL(trimmed, baseUrl).toString() : trimmed);
+  } catch {
+    return trimmed
+      .replace(/\?.*$/, '?[redacted]')
+      .replace(/#.*$/, '#[redacted]');
+  }
+}
+
+function sanitizeDiagnosticText(rawText: string, maxLength = 120): string {
+  const sanitized = rawText
+    .replace(/https?:\/\/\S+/gi, (url) => redactUrl(url))
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
+    .replace(/\b\d{5,}\b/g, '[redacted-number]')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!sanitized) return '';
+  if (sanitized.length <= maxLength) return sanitized;
+  return `${sanitized.slice(0, maxLength - 3)}...`;
 }
 
 async function isQuicklyVisible(locator: Locator, timeout = 500): Promise<boolean> {
@@ -203,6 +237,79 @@ async function detectMainPageShellSignal(page: Page): Promise<Exclude<SafeRedire
   return null;
 }
 
+async function collectSafeRedirectVisibleTextFragments(
+  page: Page,
+  limit = 4,
+): Promise<string[]> {
+  const rawLines = await page.locator('body').evaluate((body, maxLines) => {
+    if (!(body instanceof HTMLElement)) return [] as string[];
+    return body.innerText
+      .split(/\n+/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .slice(0, maxLines);
+  }, limit * 3).catch(() => [] as string[]);
+
+  const fragments: string[] = [];
+  for (const rawLine of rawLines) {
+    const sanitized = sanitizeDiagnosticText(rawLine);
+    if (!sanitized || fragments.includes(sanitized)) continue;
+    fragments.push(sanitized);
+    if (fragments.length >= limit) break;
+  }
+
+  return fragments;
+}
+
+async function collectSafeRedirectIframeInventory(
+  page: Page,
+  limit = 4,
+): Promise<SafeRedirectIframeInventoryEntry[]> {
+  const rawEntries = await page.locator('iframe').evaluateAll((iframes, maxIframes) => {
+    return iframes.slice(0, maxIframes).map((iframe) => ({
+      id: iframe.getAttribute('id') ?? '',
+      name: iframe.getAttribute('name') ?? '',
+      title: iframe.getAttribute('title') ?? '',
+      src: iframe.getAttribute('src') ?? '',
+    }));
+  }, limit).catch(() => [] as Array<{ id: string; name: string; title: string; src: string }>);
+
+  return rawEntries.map((entry) => ({
+    id: sanitizeDiagnosticText(entry.id, 80),
+    name: sanitizeDiagnosticText(entry.name, 80),
+    title: sanitizeDiagnosticText(entry.title, 80),
+    url: redactPossibleUrl(entry.src, page.url()),
+  }));
+}
+
+async function buildSafeRedirectTimeoutDiagnostic(
+  page: Page,
+  observedSignals: SafeRedirectSignalState,
+): Promise<string> {
+  const [pageTitle, visibleTextFragments, iframeInventory] = await Promise.all([
+    page.title().then((title) => sanitizeDiagnosticText(title, 120)).catch(() => ''),
+    collectSafeRedirectVisibleTextFragments(page),
+    collectSafeRedirectIframeInventory(page),
+  ]);
+
+  const titleSummary = pageTitle ? `"${pageTitle}"` : 'none';
+  const textSummary = visibleTextFragments.length > 0
+    ? JSON.stringify(visibleTextFragments)
+    : 'none';
+  const iframeSummary = iframeInventory.length > 0
+    ? JSON.stringify(iframeInventory)
+    : 'none';
+
+  return [
+    'DocuSign safe-redirect did not transition to a signer surface before frame resolution.',
+    `Current page: ${redactUrl(page.url())}.`,
+    `Observed signals: ${JSON.stringify(observedSignals)}.`,
+    `Page title: ${titleSummary}.`,
+    `Visible text fragments: ${textSummary}.`,
+    `Iframe inventory: ${iframeSummary}.`,
+  ].join(' ');
+}
+
 export async function waitForSafeRedirectTransition(
   page: Page,
   timeout = 8_000,
@@ -214,28 +321,38 @@ export async function waitForSafeRedirectTransition(
 
   const diagnostics = [`safe-redirect landing observed: ${redactUrl(startingUrl)}`];
   const deadline = Date.now() + timeout;
+  const observedSignals: SafeRedirectSignalState = {
+    'url-transition': false,
+    'signing-iframe': false,
+    'screen-reader-shell': false,
+    'business-details-shell': false,
+  };
 
   while (Date.now() < deadline) {
     const currentUrl = page.url();
 
     if (!SAFE_REDIRECT_RE.test(currentUrl)) {
+      observedSignals['url-transition'] = true;
       diagnostics.push(`safe-redirect transition observed: url changed to ${redactUrl(currentUrl)}`);
       return { signal: 'url-transition', diagnostics };
     }
 
     const iframeCount = await page.locator(SIGNING_IFRAME_SELECTOR).count().catch(() => 0);
     if (iframeCount > 0) {
+      observedSignals['signing-iframe'] = true;
       diagnostics.push(`safe-redirect transition observed: signing iframe appeared on ${redactUrl(currentUrl)}`);
       return { signal: 'signing-iframe', diagnostics };
     }
 
     const shellSignal = await detectMainPageShellSignal(page);
     if (shellSignal === 'screen-reader-shell') {
+      observedSignals['screen-reader-shell'] = true;
       diagnostics.push(`safe-redirect transition observed: screen-reader shell appeared on ${redactUrl(currentUrl)}`);
       return { signal: shellSignal, diagnostics };
     }
 
     if (shellSignal === 'business-details-shell') {
+      observedSignals['business-details-shell'] = true;
       diagnostics.push(`safe-redirect transition observed: Business Details heading appeared on ${redactUrl(currentUrl)}`);
       return { signal: shellSignal, diagnostics };
     }
@@ -243,11 +360,7 @@ export async function waitForSafeRedirectTransition(
     await page.waitForTimeout(250);
   }
 
-  throw new Error(
-    'DocuSign safe-redirect did not transition to a signer surface before frame resolution. ' +
-    `Current page: ${redactUrl(page.url())}. ` +
-    'Observed signals: no URL transition, no signing iframe, no screen-reader shell, no 1. Business Details heading.',
-  );
+  throw new Error(await buildSafeRedirectTimeoutDiagnostic(page, observedSignals));
 }
 
 /**
