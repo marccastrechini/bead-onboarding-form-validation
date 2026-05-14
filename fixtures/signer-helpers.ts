@@ -37,6 +37,16 @@ const DOCUSIGN_EXTERNAL_SITE_WARNING_TITLE_RE = /you(?:['’]|â€™)re being 
 const DOCUSIGN_EXTERNAL_SITE_WARNING_TEXT_RE = /the external website you(?:['’]|â€™)re being directed to is not part of the docusign platform/i;
 const DOCUSIGN_EXTERNAL_SITE_EXPECTED_HOST = 'api.test.devs.beadpay.io';
 const DOCUSIGN_EXTERNAL_SITE_CONTROL_RE = /\b(continue|proceed|open|visit)\b/i;
+const SAFE_REDIRECT_EXTERNAL_SITE_CANDIDATE_SELECTOR = [
+  'a[href]',
+  'button',
+  '[role="button"]',
+  '[onclick]',
+  '[data-href]',
+  '[data-url]',
+  '[data-target-url]',
+  '[data-navigation-url]',
+].join(', ');
 
 type SignerGuardStage = 'after-goto' | 'after-start-click' | 'before-frame-resolution';
 type SafeRedirectTransitionSignal =
@@ -55,9 +65,14 @@ type SafeRedirectIframeInventoryEntry = {
 };
 
 type SafeRedirectExternalSiteControl = {
-  role: 'button' | 'link';
+  kind: 'link' | 'button' | 'role-button' | 'onclick' | 'data-url';
+  tagName: string;
+  role: string;
   label: string;
-  href: string;
+  navigationTarget: string;
+  targetHost: string | null;
+  matchesExpectedHost: boolean;
+  proceedStyle: boolean;
   locator: Locator;
 };
 
@@ -128,6 +143,31 @@ function extractVisibleDestinationHost(rawVisibleText: string): string | null {
 
   const bareHostMatch = rawVisibleText.match(/\b(?:[a-z0-9-]+\.)+[a-z]{2,}\b/i);
   return bareHostMatch?.[0]?.toLowerCase() ?? null;
+}
+
+function extractNavigationTarget(rawText: string, baseUrl?: string): string {
+  const trimmed = rawText.trim();
+  if (!trimmed) return '';
+
+  const urlMatch = trimmed.match(/https?:\/\/[^\s"')]+/i)?.[0] ?? '';
+  if (urlMatch) return urlMatch;
+
+  try {
+    return baseUrl ? new URL(trimmed, baseUrl).toString() : trimmed;
+  } catch {
+    return trimmed;
+  }
+}
+
+function extractTargetHost(rawText: string, baseUrl?: string): string | null {
+  const navigationTarget = extractNavigationTarget(rawText, baseUrl);
+  if (!navigationTarget) return null;
+
+  try {
+    return new URL(navigationTarget, baseUrl).host;
+  } catch {
+    return null;
+  }
 }
 
 async function isQuicklyVisible(locator: Locator, timeout = 500): Promise<boolean> {
@@ -357,31 +397,99 @@ async function collectVisibleExternalSiteControls(
   const controls: SafeRedirectExternalSiteControl[] = [];
   const seen = new Set<string>();
 
-  for (const role of ['button', 'link'] as const) {
-    const locator = page.getByRole(role, { name: DOCUSIGN_EXTERNAL_SITE_CONTROL_RE });
-    const count = await locator.count().catch(() => 0);
+  const locator = page.locator(SAFE_REDIRECT_EXTERNAL_SITE_CANDIDATE_SELECTOR);
+  const count = await locator.count().catch(() => 0);
 
-    for (let index = 0; index < count; index += 1) {
-      const candidate = locator.nth(index);
-      if (!(await candidate.isVisible({ timeout: 200 }).catch(() => false))) {
-        continue;
-      }
-
-      const label = sanitizeDiagnosticText(
-        (await candidate.innerText().catch(() => '')) ||
-        (await candidate.getAttribute('aria-label').catch(() => '')) ||
-        (await candidate.textContent().catch(() => '')),
-        80,
-      );
-      const href = await candidate.getAttribute('href').catch(() => null) ?? '';
-      const key = `${role}:${label}:${href}`;
-      if (seen.has(key)) {
-        continue;
-      }
-
-      seen.add(key);
-      controls.push({ role, label, href, locator: candidate });
+  for (let index = 0; index < count; index += 1) {
+    const candidate = locator.nth(index);
+    if (!(await candidate.isVisible({ timeout: 200 }).catch(() => false))) {
+      continue;
     }
+
+    const candidateInfo = await candidate.evaluate((element) => {
+      if (!(element instanceof HTMLElement)) {
+        return null;
+      }
+
+      const href = element.getAttribute('href') ?? '';
+      const dataHref = element.getAttribute('data-href') ?? '';
+      const dataUrl =
+        element.getAttribute('data-url') ??
+        element.getAttribute('data-target-url') ??
+        element.getAttribute('data-navigation-url') ?? '';
+      const onclick = element.getAttribute('onclick') ?? '';
+      const role = element.getAttribute('role') ?? '';
+      const tagName = element.tagName.toLowerCase();
+      const label =
+        element.innerText ||
+        element.getAttribute('aria-label') ||
+        element.textContent ||
+        element.getAttribute('title') ||
+        '';
+
+      return {
+        tagName,
+        role,
+        label,
+        href,
+        dataHref,
+        dataUrl,
+        onclick,
+      };
+    }).catch(() => null as null | {
+      tagName: string;
+      role: string;
+      label: string;
+      href: string;
+      dataHref: string;
+      dataUrl: string;
+      onclick: string;
+    });
+
+    if (!candidateInfo) {
+      continue;
+    }
+
+    const rawNavigationTarget =
+      candidateInfo.href ||
+      candidateInfo.dataHref ||
+      candidateInfo.dataUrl ||
+      candidateInfo.onclick;
+    const navigationTarget = extractNavigationTarget(rawNavigationTarget, page.url());
+    const targetHost = extractTargetHost(rawNavigationTarget, page.url());
+    const label = sanitizeDiagnosticText(candidateInfo.label, 80);
+    const kind: SafeRedirectExternalSiteControl['kind'] = candidateInfo.href
+      ? 'link'
+      : candidateInfo.dataHref || candidateInfo.dataUrl
+        ? 'data-url'
+        : candidateInfo.onclick
+          ? 'onclick'
+          : candidateInfo.role.toLowerCase() === 'button'
+            ? 'role-button'
+            : 'button';
+    const key = [
+      kind,
+      candidateInfo.tagName,
+      candidateInfo.role,
+      label,
+      redactPossibleUrl(rawNavigationTarget, page.url()),
+    ].join(':');
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    controls.push({
+      kind,
+      tagName: candidateInfo.tagName,
+      role: sanitizeDiagnosticText(candidateInfo.role, 40),
+      label,
+      navigationTarget,
+      targetHost,
+      matchesExpectedHost: targetHost === DOCUSIGN_EXTERNAL_SITE_EXPECTED_HOST,
+      proceedStyle: DOCUSIGN_EXTERNAL_SITE_CONTROL_RE.test(label),
+      locator: candidate,
+    });
   }
 
   return controls;
@@ -419,9 +527,14 @@ async function buildSafeRedirectExternalSiteBlockedDiagnostic(
 ): Promise<string> {
   const controlSummary = controls.length > 0
     ? JSON.stringify(controls.map((control) => ({
+      kind: control.kind,
+      tagName: control.tagName,
       role: control.role,
       label: control.label,
-      href: control.href ? redactPossibleUrl(control.href, page.url()) : '',
+      navigationTarget: control.navigationTarget ? redactPossibleUrl(control.navigationTarget, page.url()) : '',
+      targetHost: control.targetHost ?? '',
+      matchesExpectedHost: control.matchesExpectedHost,
+      proceedStyle: control.proceedStyle,
     })))
     : 'none';
   const titleSummary = interstitial.pageTitle ? `"${interstitial.pageTitle}"` : 'none';
@@ -437,7 +550,7 @@ async function buildSafeRedirectExternalSiteBlockedDiagnostic(
     `Observed destination host: ${interstitial.destinationHost ?? 'none'}.`,
     `Expected destination host: ${DOCUSIGN_EXTERNAL_SITE_EXPECTED_HOST}.`,
     `Visible text fragments: ${visibleTextSummary}.`,
-    `Proceed controls: ${controlSummary}.`,
+    `Warning-page control inventory: ${controlSummary}.`,
   ].join(' ');
 }
 
@@ -455,6 +568,19 @@ async function maybeHandleSafeRedirectExternalSiteInterstitial(
   );
 
   const controls = await collectVisibleExternalSiteControls(page);
+  diagnostics.push(
+    `safe-redirect external-site control inventory: ${controls.length > 0
+      ? JSON.stringify(controls.map((control) => ({
+        kind: control.kind,
+        label: control.label,
+        navigationTarget: control.navigationTarget ? redactPossibleUrl(control.navigationTarget, page.url()) : '',
+        targetHost: control.targetHost ?? '',
+        matchesExpectedHost: control.matchesExpectedHost,
+        proceedStyle: control.proceedStyle,
+      })))
+      : 'none'}`,
+  );
+
   if (interstitial.destinationHost !== DOCUSIGN_EXTERNAL_SITE_EXPECTED_HOST) {
     throw new Error(
       await buildSafeRedirectExternalSiteBlockedDiagnostic(
@@ -466,32 +592,45 @@ async function maybeHandleSafeRedirectExternalSiteInterstitial(
     );
   }
 
-  if (controls.length === 0) {
+  const safeOutboundCandidates = controls.filter((control) => control.matchesExpectedHost);
+
+  if (safeOutboundCandidates.length === 0) {
     throw new Error(
       await buildSafeRedirectExternalSiteBlockedDiagnostic(
         page,
         interstitial,
-        'No clear continue/proceed/open/visit control was found',
+        'No uniquely target-host-matching outbound warning-page candidate was found',
         controls,
       ),
     );
   }
 
-  if (controls.length > 1) {
+  if (safeOutboundCandidates.length > 1) {
     throw new Error(
       await buildSafeRedirectExternalSiteBlockedDiagnostic(
         page,
         interstitial,
-        'Multiple continue/proceed/open/visit controls were found, so the interstitial was treated as ambiguous',
+        'Multiple target-host-matching outbound warning-page candidates were found, so the interstitial was treated as ambiguous',
         controls,
       ),
     );
   }
 
-  const control = controls[0];
-  if (control.href) {
+  const control = safeOutboundCandidates[0];
+  if (!control.navigationTarget) {
+    throw new Error(
+      await buildSafeRedirectExternalSiteBlockedDiagnostic(
+        page,
+        interstitial,
+        'The only target-host-matching warning-page candidate had no safely inspectable navigation target',
+        controls,
+      ),
+    );
+  }
+
+  if (control.navigationTarget) {
     try {
-      const targetHost = new URL(control.href, page.url()).host;
+      const targetHost = new URL(control.navigationTarget, page.url()).host;
       if (targetHost !== DOCUSIGN_EXTERNAL_SITE_EXPECTED_HOST) {
         throw new Error(
           await buildSafeRedirectExternalSiteBlockedDiagnostic(
@@ -518,7 +657,7 @@ async function maybeHandleSafeRedirectExternalSiteInterstitial(
   }
 
   diagnostics.push(
-    `safe-redirect external-site warning clicked: ${control.role} "${control.label}"${control.href ? ` -> ${redactPossibleUrl(control.href, page.url())}` : ''}`,
+    `safe-redirect external-site warning clicked: ${control.kind} "${control.label}"${control.navigationTarget ? ` -> ${redactPossibleUrl(control.navigationTarget, page.url())}` : ''}`,
   );
   await control.locator.click({ timeout: 2_000 });
   await page.waitForTimeout(250);
