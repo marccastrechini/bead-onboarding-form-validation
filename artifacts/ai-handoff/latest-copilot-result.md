@@ -1,36 +1,63 @@
 ## ChatGPT Review Summary
-- What changed: RUN29 stayed source/test-only. It added a bounded `proxyReferenceSignature` seam in `fixtures/field-discovery.ts`, threaded those safe cue buckets into the guarded fallback diagnostics in `fixtures/conditional-discovery.ts`, and extended `tests/bootstrap-units.spec.ts` with hidden-input proxy/reference discovery, redaction, and fail-closed matcher coverage.
-- Whether bounded visible-proxy wrapper or association-reference inventory was added: yes. The new seam captures bounded proxy tag buckets, role buckets, depth buckets, safe presence booleans, label/reference relationships, target-exists/visible flags, and safe token-hint buckets.
-- Whether matcher behavior changed: yes, narrowly. The fallback path now reuses the existing explicit physical/business cue matcher on `proxyReferenceSignature.valueHintBuckets`, while still failing closed for mailing/legal/virtual, same/different/yes/no-only, generated/generic-only, and multiple-match cases.
-- Whether coverage moved forward: yes. RUN29 also removed the visible-input gate from radio signature harvesting, so zero-size hidden radio inputs can now emit bounded input/proxy signatures in local tests instead of bottoming out at `null`.
-- Whether fresh live artifacts were produced: no. RUN29 intentionally did not run live, did not refresh artifacts, and did not run `reports:refresh` or `findings:open`.
-- Tests/commands run and pass/fail: `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "guarded physical address discovery"` passed with 50 tests. `npm run test:units` passed with 303 tests.
+- What changed: RUN30 executed exactly one authorized live `npm run bootstrap:capture:physical-address` run and updated only the AI handoff files with the live outcome. No source, test, docs, or package files changed in RUN30.
+- Whether `proxyReferenceSignature` was exercised live: yes, but all three visible editable radio candidates returned `proxyReferenceSignature: null`, so no proxy tag buckets, role buckets, depth buckets, safe proxy attribute-presence booleans, label/reference-presence booleans, target-exists/visible flags, or safe proxy value-hint buckets populated.
+- Whether zero-size input visibility or proxy/reference cues surfaced: no. All three live candidates still appeared as visible editable radio inputs, zero-size/hidden input visibility did not surface, and no visible proxy/reference targets were reported.
+- Whether primary or fallback selection found exactly one live toggle candidate: no. Primary selection found zero `isOperatingAddress` candidates; fallback inventory again found the same three eligible visible radio-like candidates but zero safe matches.
+- Whether the toggle was expanded: no.
+- Whether coverage moved forward: yes. RUN30 falsified the new live proxy/reference seam and narrowed the remaining blocker to surfaces beyond the current text, structure, input-attribute, and proxy/reference inventories.
+- Whether fresh artifacts were produced: no. `artifacts/latest-physical-operating-address-post-toggle-structure.json` and `artifacts/latest-physical-operating-address-post-toggle-dom.html` remained at 2026-05-01T16:41:44Z and were not refreshed by RUN30.
+- Tests/commands run and pass/fail: `npm run bootstrap:capture:physical-address` ran exactly once and blocked; `capture:physical-address` exited with code 3 and the bootstrap wrapper exited with code 1. `npm run reports:refresh` and `npm run findings:open` were intentionally not run because no fresh sanitized post-toggle artifacts were produced.
 - Classification for each `business_mailing_*` concept: `business_mailing_address_line_1` = `still capture-blocked`; `business_mailing_city` = `still capture-blocked`; `business_mailing_state` = `still capture-blocked`; `business_mailing_postal_code` = `still capture-blocked`.
-- Remaining blocker / uncertainty: RUN29 proved the new bounded proxy/reference seam locally, but it did not spend another signer URL, so the live three-radio cluster still needs one authorized capture-only rerun to confirm whether the new seam exposes a unique safe physical/business cue on the signer surface.
-- Whether a screenshot is still needed, and if so, what exact area to capture: optional only. If a future live rerun still yields empty or ambiguous proxy signatures, capture only the physical-address toggle block before any clicks, including the visible proxy controls and their immediate wrappers.
-- Whether to continue, stop, or redirect: continue only if the user explicitly authorizes one more live capture-only rerun.
-- The next best Copilot prompt: authorize exactly one RUN30 live `npm run bootstrap:capture:physical-address` rerun to inspect `proxyReferenceSignature`, zero-size input visibility, and any newly surfaced explicit physical/business cue on the same three radio candidates.
+- Remaining blocker / uncertainty: the live DocuSign radio cluster still exposes no safe resolved-label, group, ancestor, sibling, nearby, container, layout-proximity, non-text layout-signature, DOM wrapper/input-attribute, or proxy/reference evidence for the same three radios. The next smallest move is now a source/test-only containing-wrapper and direct sibling graphic inventory rather than another immediate live rerun.
+- Whether a screenshot is still needed, and if so, what exact area to capture: optional only. Capture only the physical-address toggle block after the signer surface loads and before any clicks, including the three radios and any immediate visible wrapper, ring, or decorative sibling nodes in that block.
+- Whether to continue, stop, or redirect: redirect.
+- The next best Copilot prompt: add a source/test-only bounded containing-wrapper and direct sibling graphic inventory around the three visible radio-like candidates so guarded diagnostics can determine whether the useful differentiator lives on same-wrapper child or decorative nodes beyond the current all-null seams.
 
 # Copilot Handoff Result
 
-CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN29
+CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN30
 
 ## Status
 Ready for ChatGPT review
 
 ## Objective
-Do not run another live capture. Add a source/test-only bounded visible-proxy wrapper and association-reference inventory around the three visible radio-like candidates so guarded diagnostics can determine whether any useful differentiator lives on proxy elements or reference relationships beyond the current empty input-level seams.
+Execute exactly one authorized live capture-only run to inspect whether `proxyReferenceSignature`, zero-size input visibility, or proxy/reference cues now surface a unique safe physical/business operating-address radio candidate.
 
 ## What Changed
-- Added `proxyReferenceSignature` in `fixtures/field-discovery.ts` for radio-like controls.
-- The new signature captures bounded proxy tag/role/depth buckets, safe proxy attribute-presence booleans, label-for and aria/data/DocuSign-like reference-presence booleans, reference target exists/visible booleans, and safe token/value-hint buckets.
-- Removed the visible-input gate that previously prevented zero-size hidden radio inputs from emitting bounded radio signatures at all.
-- Threaded proxy/reference cue buckets into the guarded fallback cue context and fallback inventory in `fixtures/conditional-discovery.ts`.
-- Narrowly broadened fallback selection so explicit safe physical/business proxy/reference cue buckets can select exactly one candidate, while mailing/legal/virtual, same/different/yes/no-only, generated/generic-only, and multiple-match cases still fail closed.
-- Added focused tests in `tests/bootstrap-units.spec.ts` for hidden-input proxy discovery, raw-value omission, unique physical/business proxy selection, and fail-closed ambiguity cases.
+- Executed exactly one authorized `npm run bootstrap:capture:physical-address` live capture.
+- Updated only the AI handoff files with the RUN30 live outcome.
+- Did not modify source, test, docs, or package files in RUN30.
+
+## Live Outcome
+- Bead resend succeeded.
+- Gmail polling found a fresh invite.
+- DocuSign signing URL extraction succeeded with redacted logging.
+- The child runner launched only `npm run capture:physical-address`.
+- No external-site warning clickthrough was logged in RUN30; the run proceeded through authenticate and still reached the signer surface, so the warning path was not the blocking point.
+- `openSigner()` reached the signer surface.
+- Signing frame resolved to the main page.
+- Signer-form readiness succeeded.
+- Initial discovered field count was 125.
+- Primary operating-address selection found zero candidates.
+- Fallback radio-like inventory found the same three visible editable radio inputs.
+- Visible radio input count: 3.
+- Visible `role=radio` count: 0.
+- Visible radio-like candidate count: 3.
+- Eligible fallback candidate count: 3.
+- Matching fallback candidate count: 0.
+- The new bounded proxy/reference seam was exercised live, but every candidate returned `proxyReferenceSignature: null`.
+- Zero-size or hidden input visibility did not surface for any candidate.
+- No visible proxy/reference target was reported for any candidate.
+- Slot 1 summary: proxy tag/role/depth buckets none; safe proxy attribute-presence booleans unavailable; label-for and aria/data/DocuSign-like reference presence unavailable; reference target exists/visible unavailable; safe value-hint buckets none; physical/business/operating proxy cue none; mailing/legal/virtual proxy cue none; same/different/yes/no-only proxy cue none; generated/generic-only proxy signature not observed; excluded for `explicit-physical-cue-missing`.
+- Slot 2 summary: proxy tag/role/depth buckets none; safe proxy attribute-presence booleans unavailable; label-for and aria/data/DocuSign-like reference presence unavailable; reference target exists/visible unavailable; safe value-hint buckets none; physical/business/operating proxy cue none; mailing/legal/virtual proxy cue none; same/different/yes/no-only proxy cue none; generated/generic-only proxy signature not observed; excluded for `explicit-physical-cue-missing`.
+- Slot 3 summary: proxy tag/role/depth buckets none; safe proxy attribute-presence booleans unavailable; label-for and aria/data/DocuSign-like reference presence unavailable; reference target exists/visible unavailable; safe value-hint buckets none; physical/business/operating proxy cue none; mailing/legal/virtual proxy cue none; same/different/yes/no-only proxy cue none; generated/generic-only proxy signature not observed; excluded for `explicit-physical-cue-missing`.
+- The three radios remained indistinguishable under the current safe proxy/reference seam.
+- `maybeExpandPhysicalOperatingAddressSection()` did not expand the toggle.
+- Guarded post-toggle capture did not produce a sanitized capture report.
+- `capture:physical-address` exited with code 3.
+- The bootstrap wrapper exited with code 1.
 
 ## Guardrails Preserved
-- No live signer capture was run in RUN29.
 - `bootstrap:interactive` was not run.
 - `interactive:watchdog` was not run.
 - Full signer discovery was not run.
@@ -42,19 +69,20 @@ Do not run another live capture. Add a source/test-only bounded visible-proxy wr
 - Generated artifacts were not staged or committed.
 
 ## Files Changed
-- `fixtures/field-discovery.ts`
-- `fixtures/conditional-discovery.ts`
-- `tests/bootstrap-units.spec.ts`
 - `artifacts/ai-handoff/status.json`
 - `artifacts/ai-handoff/latest-copilot-result.md`
 
 ## Validation
-- `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "guarded physical address discovery"` -> passed (50 tests)
-- `npm run test:units` -> passed (303 tests)
+- `npm run bootstrap:capture:physical-address` -> blocked after `capture:physical-address` exited with code 3
+- `artifacts/latest-physical-operating-address-post-toggle-structure.json` last write time remained `2026-05-01T16:41:44Z`
+- `artifacts/latest-physical-operating-address-post-toggle-dom.html` last write time remained `2026-05-01T16:41:44Z`
+- `npm run reports:refresh` -> not run
+- `npm run findings:open` -> not run
 
 ## Artifact Freshness
-- RUN29 was source/test-only and intentionally did not produce fresh live artifacts.
-- `artifacts/latest-*`, `artifacts/latest-physical-operating-address-*`, and `artifacts/playwright*` remain out of commit scope.
+- No fresh Physical Operating Address artifacts were produced in RUN30.
+- The existing post-toggle structure and DOM files remain the stale May 1 artifacts and should not be treated as RUN30 evidence.
+- Because no fresh post-toggle artifacts were produced, field-local proof for Address Line 1, City, State, ZIP, and Postal Code remains unavailable in RUN30.
 
 ## Classification
 - `business_mailing_address_line_1`: `still capture-blocked`
@@ -64,36 +92,35 @@ Do not run another live capture. Add a source/test-only bounded visible-proxy wr
 
 ## Result
 - Forward progress: yes.
-- RUN29 proves locally that the next safe observable seam is now in place for zero-size hidden inputs and their visible proxy/reference layers.
-- The guarded matcher can now recognize exactly one explicit physical/business proxy cue without relying on raw IDs, raw references, screenshots, coordinates, or unbounded DOM dumps.
-- The guarded path remains fail-closed for the same ambiguity classes that blocked earlier seams.
+- RUN30 answered the live proxy/reference question directly: the broader bounded proxy/reference inventory also stayed empty for all three visible radios.
+- This means the remaining blocker is no longer just the original DOM-connected label, neighbor, container, layout, non-text layout-signature, input-attribute, or proxy/reference surfaces; the live page still does not expose any safe differentiating signal through the new proxy/reference seam either.
+- The guarded matcher remained fail-closed and did not auto-select a live toggle without a uniquely safe explicit physical/business physical cue.
 
 ## Remaining Blocker / Uncertainty
-- RUN29 did not rerun live, so there is still no live evidence for whether the three radio candidates will populate `proxyReferenceSignature` or now-populated input-level signatures on the signer surface.
-- The live controls may still hide the useful differentiator on proxy/reference surfaces outside the current allowed selector and reference set.
-- Another source/test pass is no longer the smallest next move unless RUN30 still returns empty or ambiguous proxy signatures.
+- The live DocuSign radio cluster still exposes no safe text in resolved-label, group, ancestor, sibling, nearby, container, layout-proximity, non-text layout-signature, bounded DOM wrapper/input-attribute, or bounded proxy/reference buckets.
+- The remaining gap likely sits on containing wrappers or direct sibling graphic/decorative nodes that are outside the current harvested text, structure, input-attribute, and proxy/reference surfaces.
+- Another immediate live rerun is not the smallest next move because RUN30 already exercised the current observable proxy/reference seam and returned an all-empty result again.
 
 ## Screenshot Helpfulness
-- Screenshot still optional.
-- Exact area to capture if needed: only the physical-address toggle block before any clicks, including the visible proxy controls, rings/buttons, and their immediate wrappers.
+- A screenshot would help: optional only.
+- Exact area to capture: only the physical-address toggle block after the signer surface loads and before any interaction, including the three radios and any immediate visible wrapper, ring, or decorative sibling node directly around that block.
 - A full-page screenshot is not necessary.
 
 ## Recommendation
-Continue only with explicit authorization for one more live capture-only rerun.
+Redirect.
+
+Do not run another live capture next.
 
 ## Recommended Next Copilot Prompt
-Execute exactly one authorized live `npm run bootstrap:capture:physical-address` rerun as PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN30 to inspect whether the three live radio candidates now expose `proxyReferenceSignature`, zero-size input visibility, or any unique explicit physical/business cue through the new bounded proxy/reference seam.
+Add a source/test-only bounded containing-wrapper and direct sibling graphic inventory around the three visible radio-like candidates so the guarded fallback diagnostics can report whether any useful signature lives on same-wrapper child or decorative nodes beyond the current all-null input, layout, attribute, and proxy/reference seams.
 
 ## Branch / Commit Status
 - Branch: `main`
-- Pre-RUN29 commit: `958b590c20704c8ce8b53d64cca622d2e4a081ce`
-- RUN29 handoff commit: pending at write time
+- Pre-RUN30 commit: `4304cdf73cf0179590ef58f95611871ccc2b5eae`
+- RUN30 handoff commit: pending at write time
 
 ## Commit Scope
 - Stage and commit:
-  - `fixtures/field-discovery.ts`
-  - `fixtures/conditional-discovery.ts`
-  - `tests/bootstrap-units.spec.ts`
   - `artifacts/ai-handoff/status.json`
   - `artifacts/ai-handoff/latest-copilot-result.md`
 - Do not commit:
@@ -103,4 +130,4 @@ Execute exactly one authorized live `npm run bootstrap:capture:physical-address`
   - `.env`
   - `samples/private/**`
 
-CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN29
+CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN30
