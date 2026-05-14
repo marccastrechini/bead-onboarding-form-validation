@@ -29,6 +29,11 @@ export type LabelSource =
   | 'preceding-text'
   | 'helper-text'
   | 'section+row'
+  | 'container-parent'
+  | 'container-grandparent'
+  | 'container-section'
+  | 'container-preceding'
+  | 'container-following'
   | 'docusign-tab-type'
   | 'enrichment-guid'
   | 'enrichment-position'
@@ -104,6 +109,8 @@ export interface DiscoveredField {
   /** True when the chosen candidate looked like a field value (we still used it, but flagged). */
   labelLooksLikeValue: boolean;
   rawCandidateLabels: LabelCandidate[];
+  /** Bounded safe container-context text for radios when local label buckets are empty. */
+  containerContextLabels?: LabelCandidate[];
   rejectedLabelCandidates: RejectedLabelCandidate[];
   /** Text near the control that clearly reads as a field value, not a prompt. */
   observedValueLikeTextNearControl: string | null;
@@ -265,6 +272,11 @@ async function extractDomContext(loc: Locator): Promise<{
   valueLikeNearText: string | null;
   anchorText: string | null;
   currentValue: string | null;
+  parentContainerTexts: string[];
+  grandparentContainerTexts: string[];
+  sectionContainerTexts: string[];
+  containerPrecedingTexts: string[];
+  containerFollowingTexts: string[];
   pageIndex: number | null;
   ordinalOnPage: number | null;
   tabLeft: number | null;
@@ -291,6 +303,11 @@ async function extractDomContext(loc: Locator): Promise<{
     valueLikeNearText: null,
     anchorText: null,
     currentValue: null,
+    parentContainerTexts: [],
+    grandparentContainerTexts: [],
+    sectionContainerTexts: [],
+    containerPrecedingTexts: [],
+    containerFollowingTexts: [],
     pageIndex: null,
     ordinalOnPage: null,
     tabLeft: null,
@@ -361,6 +378,92 @@ async function extractDomContext(loc: Locator): Promise<{
         /signer\s*attachment|attachment\s*(required|optional)|(required|optional)\s*[-–]\s*(attachment|signhere|signature|datesigned|[a-z][a-zA-Z0-9]{2,}$)|^-{1,3}\s*select\s*-{1,3}/i;
       const looksValueOrChrome = (t: string | null): boolean =>
         !!t && (VALUE_RE.test(t) || CHROME_RE.test(t) || STUB_RE.test(t));
+      const URL_RE = /(?:https?:\/\/|www\.)\S+/i;
+      const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
+      const TOKEN_RE = /\b(?:[A-F0-9]{16,}|[A-Z0-9_-]{24,})\b/i;
+      const STATIC_CONTAINER_TAG_RE = /^(span|div|label|p|strong|b|em|legend|header|h1|h2|h3|h4|h5|h6|th|td|li)$/i;
+
+      const safeStaticText = (value: string | null | undefined): string | null => {
+        const text = clean(value);
+        if (!text) return null;
+        if (text.length < 2 || text.length > 120) return null;
+        if (looksValueOrChrome(text)) return null;
+        if (URL_RE.test(text) || EMAIL_RE.test(text) || TOKEN_RE.test(text)) return null;
+        if (/^[^A-Za-z0-9]+$/.test(text) || /^\d+$/.test(text)) return null;
+        return text;
+      };
+
+      const collectStaticContextTexts = (root: Element | null, limit: number): string[] => {
+        if (!root || limit <= 0) return [];
+
+        const texts: string[] = [];
+        const seen = new Set<string>();
+        const consider = (node: Element) => {
+          if (node.contains(el)) return;
+          if (isInteractive(node)) return;
+          if (!STATIC_CONTAINER_TAG_RE.test(node.tagName)) return;
+          if (node.children.length > 8) return;
+          const rect = (node as HTMLElement).getBoundingClientRect();
+          if (rect.width === 0 || rect.height === 0) return;
+          const text = safeStaticText(node.textContent);
+          if (!text || seen.has(text)) return;
+          seen.add(text);
+          texts.push(text);
+        };
+
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+        let node: Node | null = walker.currentNode;
+        let steps = 0;
+        while (texts.length < limit && steps < 200) {
+          if (node instanceof Element) consider(node);
+          node = walker.nextNode();
+          steps += 1;
+          if (!node) break;
+        }
+
+        return texts;
+      };
+
+      const branchChildWithin = (container: Element, target: Element): Element | null => {
+        let node: Element | null = target;
+        while (node && node.parentElement !== container) node = node.parentElement;
+        return node;
+      };
+
+      const collectContainerSiblingTexts = (
+        container: Element | null,
+        target: Element,
+        direction: 'all' | 'before' | 'after',
+        limit: number,
+      ): string[] => {
+        if (!container || limit <= 0) return [];
+
+        const branch = branchChildWithin(container, target);
+        if (!branch) return [];
+
+        const texts: string[] = [];
+        const seen = new Set<string>();
+        const children = Array.from(container.children);
+        const branchIndex = children.indexOf(branch);
+        if (branchIndex < 0) return texts;
+
+        for (const [index, child] of children.entries()) {
+          if (index === branchIndex) continue;
+          if (direction === 'before' && index > branchIndex) continue;
+          if (direction === 'after' && index < branchIndex) continue;
+
+          for (const text of collectStaticContextTexts(child, limit - texts.length)) {
+            if (seen.has(text)) continue;
+            seen.add(text);
+            texts.push(text);
+            if (texts.length >= limit) break;
+          }
+
+          if (texts.length >= limit) break;
+        }
+
+        return texts;
+      };
 
       let precedingText: string | null = null;
       let valueLikeNearText: string | null = null;
@@ -583,6 +686,22 @@ async function extractDomContext(loc: Locator): Promise<{
         /* ignore */
       }
 
+      const parentContainer = el.parentElement;
+      const grandparentContainer = parentContainer?.parentElement ?? null;
+      const sectionContainer = el.closest(
+        '[role="radiogroup"], [role="group"], fieldset, tr, [role="row"], section, article, .card, .doc-tab',
+      );
+      const distinctSectionContainer = sectionContainer && sectionContainer !== parentContainer && sectionContainer !== grandparentContainer
+        ? sectionContainer
+        : null;
+      const contextContainer = distinctSectionContainer ?? grandparentContainer ?? parentContainer;
+
+      const parentContainerTexts = collectContainerSiblingTexts(parentContainer, el, 'all', 4);
+      const grandparentContainerTexts = collectContainerSiblingTexts(grandparentContainer, el, 'all', 4);
+      const sectionContainerTexts = collectContainerSiblingTexts(distinctSectionContainer, el, 'all', 4);
+      const containerPrecedingTexts = collectContainerSiblingTexts(contextContainer, el, 'before', 4);
+      const containerFollowingTexts = collectContainerSiblingTexts(contextContainer, el, 'after', 4);
+
       // --- Page index + ordinal-on-page -----------------------------------
       // Used by the optional enrichment seam to match tabs to the offline
       // sample-field-enrichment bundle by positional fingerprint.
@@ -664,6 +783,11 @@ async function extractDomContext(loc: Locator): Promise<{
         valueLikeNearText,
         anchorText,
         currentValue,
+        parentContainerTexts,
+        grandparentContainerTexts,
+        sectionContainerTexts,
+        containerPrecedingTexts,
+        containerFollowingTexts,
         pageIndex,
         ordinalOnPage,
         tabLeft,
@@ -1109,8 +1233,15 @@ async function describe(
   const idOrNameKey = deriveIdOrNameKey(domCtx.elementId, domCtx.elementName, domCtx.dataQa);
 
   const rawCandidateLabels: LabelCandidate[] = [];
+  const containerContextLabels: LabelCandidate[] = [];
   const push = (source: LabelSource, value: string | null | undefined) => {
     if (value && value.trim()) rawCandidateLabels.push({ source, value: value.trim() });
+  };
+  const pushContainer = (source: LabelSource, values: string[] | null | undefined) => {
+    if (!values?.length) return;
+    for (const value of values) {
+      if (value && value.trim()) containerContextLabels.push({ source, value: value.trim() });
+    }
   };
   push('aria-label', ariaLabel);
   push('aria-labelledby', domCtx.labelledByText);
@@ -1141,6 +1272,11 @@ async function describe(
     push('section+row', `${effectiveSection} › ${domCtx.precedingText}`);
   }
   if (domCtx.dataTabType) push('docusign-tab-type', domCtx.dataTabType);
+  pushContainer('container-parent', domCtx.parentContainerTexts);
+  pushContainer('container-grandparent', domCtx.grandparentContainerTexts);
+  pushContainer('container-section', domCtx.sectionContainerTexts);
+  pushContainer('container-preceding', domCtx.containerPrecedingTexts);
+  pushContainer('container-following', domCtx.containerFollowingTexts);
 
   const labelResult = pickLabel(rawCandidateLabels, {
     fieldValue: domCtx.currentValue,
@@ -1222,6 +1358,7 @@ async function describe(
     labelConfidence,
     labelLooksLikeValue: labelResult.labelLooksLikeValue,
     rawCandidateLabels,
+    containerContextLabels,
     rejectedLabelCandidates: labelResult.rejected,
     observedValueLikeTextNearControl: domCtx.valueLikeNearText,
     idOrNameKey,

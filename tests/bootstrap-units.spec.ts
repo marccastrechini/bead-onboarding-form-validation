@@ -5271,6 +5271,27 @@ test.describe('interactive validation safety', () => {
     expect(candidate).toBeNull();
   });
 
+  test('guarded physical address discovery field discovery collects bounded radio container context from wrapper layout', async ({ page }) => {
+    await page.setContent(`
+      <article class="card">
+        <div class="card-title">Physical Operating Address</div>
+        <div class="card-body">
+          <div class="choice-shell"><input id="radio-a" type="radio" name="physicalAddress" /></div>
+          <div class="choice-shell"><input id="radio-b" type="radio" name="physicalAddress" /></div>
+          <div class="choice-shell"><input id="radio-c" type="radio" name="physicalAddress" /></div>
+        </div>
+      </article>
+    `);
+
+    const fields = await discoverFields(page);
+    const radios = fields.filter((field) => field.kind === 'radio');
+
+    expect(radios).toHaveLength(3);
+    expect(radios[0].containerContextLabels).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source: 'container-section', value: 'Physical Operating Address' }),
+    ]));
+  });
+
   const fallbackRadioField = (overrides: Record<string, unknown> = {}) => ({
     index: 1,
     kind: 'radio',
@@ -5282,6 +5303,7 @@ test.describe('interactive validation safety', () => {
     label: 'Required',
     resolvedLabel: 'Required',
     rawCandidateLabels: [],
+    containerContextLabels: [],
     groupName: 'location_group',
     idOrNameKey: null,
     inferredType: { type: 'unknown' },
@@ -5654,6 +5676,185 @@ test.describe('interactive validation safety', () => {
     expect(selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 36)?.resolvedLabelCueMatches.no).toBe(true);
   });
 
+  test('guarded physical address discovery fallback inventories container section Physical Operating Address text across three radio-like controls', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      fallbackRadioField({
+        index: 37,
+        idOrNameKey: 'toggleSame',
+        label: 'Same',
+        resolvedLabel: 'Same',
+        containerContextLabels: [
+          { source: 'container-parent', value: 'Same' },
+        ],
+      }),
+      fallbackRadioField({
+        index: 38,
+        idOrNameKey: 'physicalContainerToggle',
+        containerContextLabels: [
+          { source: 'container-section', value: 'Physical Operating Address' },
+        ],
+      }),
+      fallbackRadioField({
+        index: 39,
+        idOrNameKey: 'toggleNo',
+        label: 'No',
+        resolvedLabel: 'No',
+        containerContextLabels: [
+          { source: 'container-following', value: 'No' },
+        ],
+      }),
+    ] as any);
+
+    const targetEntry = selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 38);
+
+    expect(selection.selectionMode).toBe('fallback');
+    expect(selection.selectedField?.idOrNameKey).toBe('physicalContainerToggle');
+    expect(selection.fallbackInventory?.matchingFallbackCandidateCount).toBe(1);
+    expect(targetEntry?.containerSectionCueMatches.physicalOperatingAddress).toBe(true);
+    expect(targetEntry?.containerSectionTextFragments).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source: 'container-section' }),
+    ]));
+    expect(targetEntry?.containerSectionTextFragments.some((entry) => entry.text.includes('Physical Operating Address'))).toBe(true);
+  });
+
+  test('guarded physical address discovery fallback inventories container grandparent Business Physical Address text across three radio-like controls', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      fallbackRadioField({
+        index: 40,
+        idOrNameKey: 'toggleYes',
+        label: 'Yes',
+        resolvedLabel: 'Yes',
+      }),
+      fallbackRadioField({
+        index: 41,
+        idOrNameKey: 'businessPhysicalContainerToggle',
+        containerContextLabels: [
+          { source: 'container-grandparent', value: 'Business Physical Address' },
+        ],
+      }),
+      fallbackRadioField({
+        index: 42,
+        idOrNameKey: 'toggleDifferent',
+        label: 'Different',
+        resolvedLabel: 'Different',
+      }),
+    ] as any);
+
+    const targetEntry = selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 41);
+
+    expect(selection.selectionMode).toBe('fallback');
+    expect(selection.selectedField?.idOrNameKey).toBe('businessPhysicalContainerToggle');
+    expect(selection.fallbackInventory?.matchingFallbackCandidateCount).toBe(1);
+    expect(targetEntry?.containerGrandparentCueMatches.businessPhysicalAddress).toBe(true);
+    expect(targetEntry?.containerGrandparentTextFragments).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source: 'container-grandparent', text: 'Business Physical Address' }),
+    ]));
+  });
+
+  test('guarded physical address discovery fallback refuses mailing or legal container cues', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      fallbackRadioField({
+        index: 43,
+        idOrNameKey: 'mailingContainerToggle',
+        containerContextLabels: [
+          { source: 'container-section', value: 'Mailing Address' },
+        ],
+      }),
+      fallbackRadioField({
+        index: 44,
+        idOrNameKey: 'legalContainerToggle',
+        containerContextLabels: [
+          { source: 'container-grandparent', value: 'Legal Address' },
+        ],
+      }),
+      fallbackRadioField({
+        index: 45,
+        idOrNameKey: 'toggleNo',
+        label: 'No',
+        resolvedLabel: 'No',
+      }),
+    ] as any);
+
+    const mailingEntry = selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 43);
+    const legalEntry = selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 44);
+
+    expect(selection.selectedField).toBeNull();
+    expect(selection.fallbackInventory?.matchingFallbackCandidateCount).toBe(0);
+    expect(mailingEntry?.containerSectionCueMatches.mailingAddress).toBe(true);
+    expect(mailingEntry?.excludedReasons).toContain('matched-mailing-address');
+    expect(legalEntry?.containerGrandparentCueMatches.legalAddress).toBe(true);
+    expect(legalEntry?.excludedReasons).toContain('matched-legal-address');
+  });
+
+  test('guarded physical address discovery fallback fails closed when multiple radio-like controls carry container physical cues', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      fallbackRadioField({
+        index: 46,
+        idOrNameKey: 'physicalContainerToggleA',
+        containerContextLabels: [
+          { source: 'container-section', value: 'Physical Operating Address' },
+        ],
+      }),
+      fallbackRadioField({
+        index: 47,
+        idOrNameKey: 'physicalContainerToggleB',
+        containerContextLabels: [
+          { source: 'container-grandparent', value: 'Business Physical Address' },
+        ],
+      }),
+      fallbackRadioField({
+        index: 48,
+        idOrNameKey: 'toggleSame',
+        label: 'Same',
+        resolvedLabel: 'Same',
+      }),
+    ] as any);
+
+    expect(selection.selectedField).toBeNull();
+    expect(selection.fallbackInventory?.matchingFallbackCandidateCount).toBe(2);
+    expect(selection.fallbackInventory?.entries.filter((entry) => entry.selectedByFallback)).toHaveLength(2);
+  });
+
+  test('guarded physical address discovery fallback reports Same Different Yes and No container cues but fails closed without physical cues', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      fallbackRadioField({
+        index: 49,
+        idOrNameKey: 'toggleSame',
+        containerContextLabels: [
+          { source: 'container-preceding', value: 'Same' },
+        ],
+      }),
+      fallbackRadioField({
+        index: 50,
+        idOrNameKey: 'toggleDifferent',
+        containerContextLabels: [
+          { source: 'container-preceding', value: 'Different' },
+        ],
+      }),
+      fallbackRadioField({
+        index: 51,
+        idOrNameKey: 'toggleYes',
+        containerContextLabels: [
+          { source: 'container-following', value: 'Yes' },
+        ],
+      }),
+      fallbackRadioField({
+        index: 52,
+        idOrNameKey: 'toggleNo',
+        containerContextLabels: [
+          { source: 'container-following', value: 'No' },
+        ],
+      }),
+    ] as any);
+
+    expect(selection.selectedField).toBeNull();
+    expect(selection.fallbackInventory?.matchingFallbackCandidateCount).toBe(0);
+    expect(selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 49)?.containerPrecedingCueMatches.same).toBe(true);
+    expect(selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 50)?.containerPrecedingCueMatches.different).toBe(true);
+    expect(selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 51)?.containerFollowingCueMatches.yes).toBe(true);
+    expect(selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 52)?.containerFollowingCueMatches.no).toBe(true);
+  });
+
   test('guarded physical address discovery fails closed when multiple operating candidates remain', async () => {
     const fields = [
       {
@@ -5729,6 +5930,13 @@ test.describe('interactive validation safety', () => {
             { source: 'preceding-text', value: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9' },
             { source: 'preceding-text', value: 'x '.repeat(200) },
           ],
+          containerContextLabels: [
+            { source: 'container-parent', value: 'hidden.person@example.test' },
+            { source: 'container-grandparent', value: 'https://demo.docusign.net/start?token=secret-token-value' },
+            { source: 'container-section', value: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9' },
+            { source: 'container-preceding', value: 'Business Mailing Address' },
+            { source: 'container-following', value: 'x '.repeat(200) },
+          ],
           groupName: 'businessMailingAddress_group',
           idOrNameKey: 'isMailingAddress',
           inferredType: { type: 'unknown' },
@@ -5768,10 +5976,23 @@ test.describe('interactive validation safety', () => {
     expect(fallbackInventory.entries[0].ancestorTextFragments).toEqual(expect.arrayContaining([
       expect.objectContaining({ text: '[redacted:email]' }),
     ]));
+    expect(fallbackInventory.entries[0].containerParentTextFragments).toEqual(expect.arrayContaining([
+      expect.objectContaining({ text: '[redacted:email]' }),
+    ]));
+    expect(fallbackInventory.entries[0].containerGrandparentTextFragments).toEqual(expect.arrayContaining([
+      expect.objectContaining({ text: '[redacted:url]' }),
+    ]));
+    expect(fallbackInventory.entries[0].containerSectionTextFragments).toEqual(expect.arrayContaining([
+      expect.objectContaining({ text: '[redacted:token]' }),
+    ]));
     expect(fallbackInventory.entries[0].siblingTextFragments.some((entry: any) => entry.text.includes('Business Mailing Address'))).toBe(true);
     expect(fallbackInventory.entries[0].siblingTextFragments).toEqual(expect.arrayContaining([
       expect.objectContaining({ text: '[redacted:url]' }),
       expect.objectContaining({ text: '[redacted:token]' }),
+    ]));
+    expect(fallbackInventory.entries[0].containerPrecedingTextFragments.some((entry: any) => entry.text.includes('Business Mailing Address'))).toBe(true);
+    expect(fallbackInventory.entries[0].containerFollowingTextFragments).toEqual(expect.arrayContaining([
+      expect.objectContaining({ text: '[redacted:text]' }),
     ]));
     expect(fallbackInventory.entries[0].nearbyTextTruncated).toBe(true);
     expect(serializedInventory).not.toContain('123 Hidden Value Road');
