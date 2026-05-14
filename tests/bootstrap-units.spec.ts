@@ -5399,6 +5399,78 @@ test.describe('interactive validation safety', () => {
     expect(radios.every((field) => (field.nonTextLayoutSignature?.metadataSignals ?? []).includes('page-index'))).toBe(true);
   });
 
+  test('guarded physical address discovery field discovery collects bounded DOM wrapper and safe attribute signatures', async ({ page }) => {
+    await page.setContent(`
+      <div class="toggle-card address-choice-group" data-group-kind="address-options">
+        <div class="radio-row address-choice" data-choice-kind="physical-operating-address">
+          <input id="tab-form-element-a1b2c3d4e5f60718293a4b5c" type="radio" name="addressOptions" aria-describedby="" />
+        </div>
+        <div class="radio-row address-choice" data-choice-kind="same-choice">
+          <input id=":r42:" type="radio" name="addressOptions" />
+        </div>
+        <div class="radio-row address-choice" data-choice-kind="business-physical-address">
+          <input id="tab-form-element-b1c2d3e4f5061728394a5b6c" type="radio" name="addressOptions" data-tabtype="radio" />
+        </div>
+      </div>
+    `);
+
+    const fields = await discoverFields(page);
+    const radios = fields.filter((field) => field.kind === 'radio');
+    const physical = radios.find((field) => field.elementId === 'tab-form-element-a1b2c3d4e5f60718293a4b5c');
+    const businessPhysical = radios.find((field) => field.elementId === 'tab-form-element-b1c2d3e4f5061728394a5b6c');
+
+    expect(radios).toHaveLength(3);
+    expect(physical?.domAttributeSignature).toEqual(expect.objectContaining({
+      radioAttributeNames: expect.arrayContaining(['aria-describedby', 'id', 'name', 'type']),
+      hasAriaDescribedBy: true,
+      valueHintBuckets: expect.arrayContaining(['address-like-token', 'generated-token-pattern', 'physical-operating-address-token', 'empty-value']),
+      wrapperPatternBucket: 'same-wrapper-pattern',
+      attributePatternBucket: 'distinct-attribute-pattern',
+    }));
+    expect(physical?.domAttributeSignature?.wrapperSurfaces).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        depthBucket: 'parent',
+        tagName: 'div',
+        attributeNames: expect.arrayContaining(['class', 'data-choice-kind']),
+      }),
+      expect.objectContaining({
+        depthBucket: 'grandparent',
+        tagName: 'div',
+        attributeNames: expect.arrayContaining(['class', 'data-group-kind']),
+      }),
+    ]));
+    expect(businessPhysical?.domAttributeSignature).toEqual(expect.objectContaining({
+      hasDocuSignMetadataAttributes: true,
+      valueHintBuckets: expect.arrayContaining(['address-like-token', 'business-physical-address-token', 'generated-token-pattern']),
+    }));
+  });
+
+  test('guarded physical address discovery field discovery omits raw attribute values and keeps only safe buckets', async ({ page }) => {
+    await page.setContent(`
+      <div class="radio-row address-choice" data-choice-kind="physical-operating-address">
+        <input
+          id="tab-form-element-c1d2e3f40516273849a5b6c7"
+          type="radio"
+          name="https://demo.docusign.net/start?token=secret-token-value"
+          data-qa="hidden.person@example.test"
+          aria-describedby=""
+        />
+      </div>
+    `);
+
+    const fields = await discoverFields(page);
+    const signature = fields.find((field) => field.kind === 'radio')?.domAttributeSignature;
+    const serializedSignature = JSON.stringify(signature);
+
+    expect(signature).toEqual(expect.objectContaining({
+      radioAttributeNames: expect.arrayContaining(['aria-describedby', 'data-qa', 'id', 'name', 'type']),
+      valueHintBuckets: expect.arrayContaining(['address-like-token', 'generated-token-pattern', 'empty-value']),
+    }));
+    expect(serializedSignature).not.toContain('https://demo.docusign.net/start');
+    expect(serializedSignature).not.toContain('hidden.person@example.test');
+    expect(serializedSignature).not.toContain('secret-token-value');
+  });
+
   const fallbackRadioField = (overrides: Record<string, unknown> = {}) => ({
     index: 1,
     kind: 'radio',
@@ -5413,6 +5485,7 @@ test.describe('interactive validation safety', () => {
     containerContextLabels: [],
     layoutProximityLabels: [],
     nonTextLayoutSignature: null,
+    domAttributeSignature: null,
     groupName: 'location_group',
     idOrNameKey: null,
     inferredType: { type: 'unknown' },
@@ -5435,6 +5508,44 @@ test.describe('interactive validation safety', () => {
     metadataSignals: ['role', 'name'],
     metadataSignalCount: 2,
     metadataSignalsTruncated: false,
+    ...overrides,
+  });
+
+  const attributeSignature = (
+    overrides: Record<string, unknown> = {},
+  ) => ({
+    radioAttributeNames: ['id', 'name', 'type', 'aria-describedby'],
+    radioAttributeNameCount: 4,
+    radioAttributeNamesTruncated: false,
+    wrapperSurfaces: [
+      {
+        depthBucket: 'parent',
+        tagName: 'div',
+        role: null,
+        attributeNames: ['class', 'data-choice-kind'],
+        attributeNameCount: 2,
+        attributeNamesTruncated: false,
+        tokenShapeBuckets: ['address-like-token', 'radio-like-token'],
+        tokenShapeCount: 2,
+        tokenShapesTruncated: false,
+      },
+    ],
+    wrapperSurfacesTruncated: false,
+    hasIdAttribute: true,
+    hasNameAttribute: true,
+    hasAriaLabel: false,
+    hasAriaLabelledBy: false,
+    hasAriaDescribedBy: true,
+    hasDataAttributes: true,
+    hasDocuSignMetadataAttributes: false,
+    tokenShapeBuckets: ['address-like-token', 'radio-like-token'],
+    tokenShapeCount: 2,
+    tokenShapesTruncated: false,
+    valueHintBuckets: ['address-like-token'],
+    valueHintCount: 1,
+    valueHintsTruncated: false,
+    wrapperPatternBucket: 'same-wrapper-pattern',
+    attributePatternBucket: 'mixed-attribute-pattern',
     ...overrides,
   });
 
@@ -6244,6 +6355,316 @@ test.describe('interactive validation safety', () => {
     expect(selection.fallbackInventory?.entries.every((entry) => entry.nonTextLayoutSignature?.groupPatternBucket === 'mixed-group')).toBe(true);
   });
 
+  test('guarded physical address discovery fallback selects one radio-like control with a unique Physical Operating Address attribute signature', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      fallbackRadioField({
+        index: 84,
+        idOrNameKey: 'toggleSame',
+        label: 'Same',
+        resolvedLabel: 'Same',
+        domAttributeSignature: attributeSignature({
+          valueHintBuckets: ['same-token'],
+          valueHintCount: 1,
+          tokenShapeBuckets: ['radio-like-token'],
+          tokenShapeCount: 1,
+          attributePatternBucket: 'distinct-attribute-pattern',
+        }),
+      }),
+      fallbackRadioField({
+        index: 85,
+        idOrNameKey: 'attributePhysicalToggle',
+        domAttributeSignature: attributeSignature({
+          valueHintBuckets: ['address-like-token', 'physical-operating-address-token'],
+          valueHintCount: 2,
+          attributePatternBucket: 'distinct-attribute-pattern',
+        }),
+      }),
+      fallbackRadioField({
+        index: 86,
+        idOrNameKey: 'toggleDifferent',
+        label: 'Different',
+        resolvedLabel: 'Different',
+        domAttributeSignature: attributeSignature({
+          valueHintBuckets: ['different-token'],
+          valueHintCount: 1,
+          tokenShapeBuckets: ['radio-like-token'],
+          tokenShapeCount: 1,
+          attributePatternBucket: 'distinct-attribute-pattern',
+        }),
+      }),
+    ] as any);
+
+    const targetEntry = selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 85);
+
+    expect(selection.selectionMode).toBe('fallback');
+    expect(selection.selectedField?.idOrNameKey).toBe('attributePhysicalToggle');
+    expect(selection.fallbackInventory?.matchingFallbackCandidateCount).toBe(1);
+    expect(targetEntry?.attributeCueMatches.physicalOperatingAddress).toBe(true);
+    expect(targetEntry?.domAttributeSignature?.valueHintBuckets).toEqual(expect.arrayContaining([
+      'physical-operating-address-token',
+    ]));
+  });
+
+  test('guarded physical address discovery fallback selects one radio-like control with a unique Business Physical Address attribute signature', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      fallbackRadioField({
+        index: 87,
+        idOrNameKey: 'toggleYes',
+        label: 'Yes',
+        resolvedLabel: 'Yes',
+        domAttributeSignature: attributeSignature({
+          valueHintBuckets: ['yes-token'],
+          valueHintCount: 1,
+          tokenShapeBuckets: ['radio-like-token'],
+          tokenShapeCount: 1,
+          attributePatternBucket: 'distinct-attribute-pattern',
+        }),
+      }),
+      fallbackRadioField({
+        index: 88,
+        idOrNameKey: 'attributeBusinessPhysicalToggle',
+        domAttributeSignature: attributeSignature({
+          valueHintBuckets: ['address-like-token', 'business-physical-address-token'],
+          valueHintCount: 2,
+          hasDocuSignMetadataAttributes: true,
+          attributePatternBucket: 'distinct-attribute-pattern',
+        }),
+      }),
+      fallbackRadioField({
+        index: 89,
+        idOrNameKey: 'toggleNo',
+        label: 'No',
+        resolvedLabel: 'No',
+        domAttributeSignature: attributeSignature({
+          valueHintBuckets: ['no-token'],
+          valueHintCount: 1,
+          tokenShapeBuckets: ['radio-like-token'],
+          tokenShapeCount: 1,
+          attributePatternBucket: 'distinct-attribute-pattern',
+        }),
+      }),
+    ] as any);
+
+    const targetEntry = selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 88);
+
+    expect(selection.selectionMode).toBe('fallback');
+    expect(selection.selectedField?.idOrNameKey).toBe('attributeBusinessPhysicalToggle');
+    expect(selection.fallbackInventory?.matchingFallbackCandidateCount).toBe(1);
+    expect(targetEntry?.attributeCueMatches.businessPhysicalAddress).toBe(true);
+    expect(targetEntry?.domAttributeSignature?.hasDocuSignMetadataAttributes).toBe(true);
+  });
+
+  test('guarded physical address discovery fallback refuses mailing legal or virtual attribute-token signatures', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      fallbackRadioField({
+        index: 90,
+        idOrNameKey: 'mailingAttributeToggle',
+        domAttributeSignature: attributeSignature({
+          valueHintBuckets: ['address-like-token', 'mailing-address-token'],
+          valueHintCount: 2,
+          attributePatternBucket: 'distinct-attribute-pattern',
+        }),
+      }),
+      fallbackRadioField({
+        index: 91,
+        idOrNameKey: 'legalAttributeToggle',
+        domAttributeSignature: attributeSignature({
+          valueHintBuckets: ['address-like-token', 'legal-address-token'],
+          valueHintCount: 2,
+          attributePatternBucket: 'distinct-attribute-pattern',
+        }),
+      }),
+      fallbackRadioField({
+        index: 92,
+        idOrNameKey: 'virtualAttributeToggle',
+        domAttributeSignature: attributeSignature({
+          valueHintBuckets: ['address-like-token', 'virtual-address-token'],
+          valueHintCount: 2,
+          attributePatternBucket: 'distinct-attribute-pattern',
+        }),
+      }),
+    ] as any);
+
+    expect(selection.selectedField).toBeNull();
+    expect(selection.fallbackInventory?.matchingFallbackCandidateCount).toBe(0);
+    expect(selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 90)?.attributeCueMatches.mailingAddress).toBe(true);
+    expect(selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 91)?.attributeCueMatches.legalAddress).toBe(true);
+    expect(selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 92)?.attributeCueMatches.virtualAddress).toBe(true);
+  });
+
+  test('guarded physical address discovery fallback inventories same different yes and no attribute tokens but stays fail-closed', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      fallbackRadioField({
+        index: 93,
+        idOrNameKey: 'sameAttributeToggle',
+        domAttributeSignature: attributeSignature({
+          valueHintBuckets: ['same-token'],
+          valueHintCount: 1,
+          attributePatternBucket: 'distinct-attribute-pattern',
+        }),
+      }),
+      fallbackRadioField({
+        index: 94,
+        idOrNameKey: 'differentAttributeToggle',
+        domAttributeSignature: attributeSignature({
+          valueHintBuckets: ['different-token'],
+          valueHintCount: 1,
+          attributePatternBucket: 'distinct-attribute-pattern',
+        }),
+      }),
+      fallbackRadioField({
+        index: 95,
+        idOrNameKey: 'yesAttributeToggle',
+        domAttributeSignature: attributeSignature({
+          valueHintBuckets: ['yes-token'],
+          valueHintCount: 1,
+          attributePatternBucket: 'distinct-attribute-pattern',
+        }),
+      }),
+      fallbackRadioField({
+        index: 96,
+        idOrNameKey: 'noAttributeToggle',
+        domAttributeSignature: attributeSignature({
+          valueHintBuckets: ['no-token'],
+          valueHintCount: 1,
+          attributePatternBucket: 'distinct-attribute-pattern',
+        }),
+      }),
+    ] as any);
+
+    expect(selection.selectedField).toBeNull();
+    expect(selection.fallbackInventory?.matchingFallbackCandidateCount).toBe(0);
+    expect(selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 93)?.attributeCueMatches.same).toBe(true);
+    expect(selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 94)?.attributeCueMatches.different).toBe(true);
+    expect(selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 95)?.attributeCueMatches.yes).toBe(true);
+    expect(selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 96)?.attributeCueMatches.no).toBe(true);
+  });
+
+  test('guarded physical address discovery fallback fails closed when multiple radio-like controls carry attribute-based physical cues', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      fallbackRadioField({
+        index: 97,
+        idOrNameKey: 'attributePhysicalToggleA',
+        domAttributeSignature: attributeSignature({
+          valueHintBuckets: ['address-like-token', 'physical-operating-address-token'],
+          valueHintCount: 2,
+          attributePatternBucket: 'distinct-attribute-pattern',
+        }),
+      }),
+      fallbackRadioField({
+        index: 98,
+        idOrNameKey: 'attributePhysicalToggleB',
+        domAttributeSignature: attributeSignature({
+          valueHintBuckets: ['address-like-token', 'business-physical-address-token'],
+          valueHintCount: 2,
+          attributePatternBucket: 'distinct-attribute-pattern',
+        }),
+      }),
+      fallbackRadioField({
+        index: 99,
+        idOrNameKey: 'attributeNeutralToggle',
+        domAttributeSignature: attributeSignature({
+          valueHintBuckets: ['address-like-token'],
+          valueHintCount: 1,
+          attributePatternBucket: 'distinct-attribute-pattern',
+        }),
+      }),
+    ] as any);
+
+    expect(selection.selectedField).toBeNull();
+    expect(selection.fallbackInventory?.matchingFallbackCandidateCount).toBe(2);
+    expect(selection.fallbackInventory?.entries.filter((entry) => entry.selectedByFallback)).toHaveLength(2);
+  });
+
+  test('guarded physical address discovery fallback keeps generated and generic attribute signatures bounded and fail-closed', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      fallbackRadioField({
+        index: 100,
+        idOrNameKey: 'genericAttributeToggleA',
+        domAttributeSignature: attributeSignature({
+          radioAttributeNames: ['id', 'name', 'type'],
+          radioAttributeNameCount: 3,
+          wrapperSurfaces: [
+            {
+              depthBucket: 'parent',
+              tagName: 'div',
+              role: null,
+              attributeNames: ['class'],
+              attributeNameCount: 1,
+              attributeNamesTruncated: false,
+              tokenShapeBuckets: ['radio-like-token', 'generated-token-pattern'],
+              tokenShapeCount: 2,
+              tokenShapesTruncated: false,
+            },
+          ],
+          valueHintBuckets: ['generated-token-pattern', 'empty-value'],
+          valueHintCount: 2,
+          tokenShapeBuckets: ['generated-token-pattern', 'radio-like-token'],
+          tokenShapeCount: 2,
+          attributePatternBucket: 'same-attribute-pattern',
+        }),
+      }),
+      fallbackRadioField({
+        index: 101,
+        idOrNameKey: 'genericAttributeToggleB',
+        domAttributeSignature: attributeSignature({
+          radioAttributeNames: ['id', 'name', 'type'],
+          radioAttributeNameCount: 3,
+          wrapperSurfaces: [
+            {
+              depthBucket: 'parent',
+              tagName: 'div',
+              role: null,
+              attributeNames: ['class'],
+              attributeNameCount: 1,
+              attributeNamesTruncated: false,
+              tokenShapeBuckets: ['radio-like-token', 'generated-token-pattern'],
+              tokenShapeCount: 2,
+              tokenShapesTruncated: false,
+            },
+          ],
+          valueHintBuckets: ['generated-token-pattern', 'empty-value'],
+          valueHintCount: 2,
+          tokenShapeBuckets: ['generated-token-pattern', 'radio-like-token'],
+          tokenShapeCount: 2,
+          attributePatternBucket: 'same-attribute-pattern',
+        }),
+      }),
+      fallbackRadioField({
+        index: 102,
+        idOrNameKey: 'genericAttributeToggleC',
+        domAttributeSignature: attributeSignature({
+          radioAttributeNames: ['id', 'name', 'type'],
+          radioAttributeNameCount: 3,
+          wrapperSurfaces: [
+            {
+              depthBucket: 'parent',
+              tagName: 'div',
+              role: null,
+              attributeNames: ['class'],
+              attributeNameCount: 1,
+              attributeNamesTruncated: false,
+              tokenShapeBuckets: ['radio-like-token', 'generated-token-pattern'],
+              tokenShapeCount: 2,
+              tokenShapesTruncated: false,
+            },
+          ],
+          valueHintBuckets: ['generated-token-pattern', 'empty-value'],
+          valueHintCount: 2,
+          tokenShapeBuckets: ['generated-token-pattern', 'radio-like-token'],
+          tokenShapeCount: 2,
+          attributePatternBucket: 'same-attribute-pattern',
+        }),
+      }),
+    ] as any);
+
+    expect(selection.selectedField).toBeNull();
+    expect(selection.fallbackInventory?.matchingFallbackCandidateCount).toBe(0);
+    expect(selection.fallbackInventory?.entries.every((entry) => entry.domAttributeSignature?.valueHintBuckets.includes('generated-token-pattern'))).toBe(true);
+    expect(selection.fallbackInventory?.entries.every((entry) => entry.domAttributeSignature?.wrapperSurfaces.length === 1)).toBe(true);
+    expect(selection.fallbackInventory?.entries.every((entry) => entry.attributeCueMatches.physicalOperatingAddress === false)).toBe(true);
+  });
+
   test('guarded physical address discovery fallback refuses mailing or legal container cues', () => {
     const selection = explainPhysicalOperatingAddressToggleSelection([
       fallbackRadioField({
@@ -6452,6 +6873,40 @@ test.describe('interactive validation safety', () => {
             metadataSignalCount: 5,
             metadataSignalsTruncated: false,
           },
+          domAttributeSignature: {
+            radioAttributeNames: ['id', 'name', 'type', 'aria-describedby', 'data-qa'],
+            radioAttributeNameCount: 5,
+            radioAttributeNamesTruncated: false,
+            wrapperSurfaces: [
+              {
+                depthBucket: 'parent',
+                tagName: 'div',
+                role: null,
+                attributeNames: ['class', 'data-choice-kind'],
+                attributeNameCount: 2,
+                attributeNamesTruncated: false,
+                tokenShapeBuckets: ['address-like-token', 'radio-like-token'],
+                tokenShapeCount: 2,
+                tokenShapesTruncated: false,
+              },
+            ],
+            wrapperSurfacesTruncated: false,
+            hasIdAttribute: true,
+            hasNameAttribute: true,
+            hasAriaLabel: false,
+            hasAriaLabelledBy: false,
+            hasAriaDescribedBy: true,
+            hasDataAttributes: true,
+            hasDocuSignMetadataAttributes: true,
+            tokenShapeBuckets: ['address-like-token', 'generated-token-pattern'],
+            tokenShapeCount: 2,
+            tokenShapesTruncated: false,
+            valueHintBuckets: ['mailing-address-token', 'generated-token-pattern', 'empty-value'],
+            valueHintCount: 3,
+            valueHintsTruncated: false,
+            wrapperPatternBucket: 'same-wrapper-pattern',
+            attributePatternBucket: 'distinct-attribute-pattern',
+          },
           groupName: 'businessMailingAddress_group',
           idOrNameKey: 'isMailingAddress',
           inferredType: { type: 'unknown' },
@@ -6518,6 +6973,11 @@ test.describe('interactive validation safety', () => {
       layerBucket: 'document-layer',
       metadataSignals: expect.arrayContaining(['data-tab-type', 'tab-guid', 'page-index']),
     }));
+    expect(fallbackInventory.entries[0].domAttributeSignature).toEqual(expect.objectContaining({
+      valueHintBuckets: expect.arrayContaining(['mailing-address-token', 'generated-token-pattern', 'empty-value']),
+      hasDocuSignMetadataAttributes: true,
+    }));
+    expect(fallbackInventory.entries[0].attributeCueMatches.mailingAddress).toBe(true);
     expect(fallbackInventory.entries[0].layoutProximityTextFragments.some((entry: any) => entry.text.includes('Business Mailing Address'))).toBe(true);
     expect(fallbackInventory.entries[0].layoutProximityTextTruncated).toBe(true);
     expect(fallbackInventory.entries[0].nearbyTextTruncated).toBe(true);
@@ -6529,6 +6989,7 @@ test.describe('interactive validation safety', () => {
     expect(serializedFallbackInventory).not.toContain('https://demo.docusign.net/start');
     expect(serializedInventory).not.toContain('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9');
     expect(serializedFallbackInventory).not.toContain('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9');
+    expect(serializedFallbackInventory).not.toContain('tab-form-element-c1d2e3');
     expect(serializedFallbackInventory).not.toContain('x x x x x');
     expect(serializedInventory).toContain('[redacted:email]');
     expect(serializedFallbackInventory).toContain('[redacted:email]');
@@ -6536,6 +6997,7 @@ test.describe('interactive validation safety', () => {
     expect(serializedFallbackInventory).toContain('[redacted:url]');
     expect(serializedInventory).toContain('[redacted:token]');
     expect(serializedFallbackInventory).toContain('[redacted:token]');
+    expect(serializedFallbackInventory).toContain('generated-token-pattern');
   });
 
   test('physical address DOM probe stays opt-in and does not enable guarded discovery by itself', () => {

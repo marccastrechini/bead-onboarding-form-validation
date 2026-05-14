@@ -124,6 +124,68 @@ export type RadioSharedContainerBucket = 'same-parent' | 'same-grandparent' | 's
 
 export type RadioLayerBucket = 'document-layer' | 'html-form-layout' | 'mixed';
 
+export type RadioAttributeValueHintBucket =
+  | 'address-like-token'
+  | 'physical-operating-address-token'
+  | 'business-physical-address-token'
+  | 'operating-address-token'
+  | 'mailing-address-token'
+  | 'legal-address-token'
+  | 'virtual-address-token'
+  | 'same-token'
+  | 'different-token'
+  | 'yes-token'
+  | 'no-token'
+  | 'generated-token-pattern'
+  | 'empty-value';
+
+export type RadioTokenShapeBucket =
+  | 'address-like-token'
+  | 'radio-like-token'
+  | 'generated-token-pattern'
+  | 'docusign-token';
+
+export type RadioWrapperDepthBucket = 'parent' | 'grandparent' | 'form-row';
+
+export type RadioWrapperPatternBucket = 'same-wrapper-pattern' | 'distinct-wrapper-pattern' | 'mixed-wrapper-pattern';
+
+export type RadioAttributePatternBucket = 'same-attribute-pattern' | 'distinct-attribute-pattern' | 'mixed-attribute-pattern';
+
+export interface RadioWrapperAttributeSurface {
+  depthBucket: RadioWrapperDepthBucket;
+  tagName: string;
+  role: string | null;
+  attributeNames: string[];
+  attributeNameCount: number;
+  attributeNamesTruncated: boolean;
+  tokenShapeBuckets: RadioTokenShapeBucket[];
+  tokenShapeCount: number;
+  tokenShapesTruncated: boolean;
+}
+
+export interface RadioDomAttributeSignature {
+  radioAttributeNames: string[];
+  radioAttributeNameCount: number;
+  radioAttributeNamesTruncated: boolean;
+  wrapperSurfaces: RadioWrapperAttributeSurface[];
+  wrapperSurfacesTruncated: boolean;
+  hasIdAttribute: boolean;
+  hasNameAttribute: boolean;
+  hasAriaLabel: boolean;
+  hasAriaLabelledBy: boolean;
+  hasAriaDescribedBy: boolean;
+  hasDataAttributes: boolean;
+  hasDocuSignMetadataAttributes: boolean;
+  tokenShapeBuckets: RadioTokenShapeBucket[];
+  tokenShapeCount: number;
+  tokenShapesTruncated: boolean;
+  valueHintBuckets: RadioAttributeValueHintBucket[];
+  valueHintCount: number;
+  valueHintsTruncated: boolean;
+  wrapperPatternBucket: RadioWrapperPatternBucket;
+  attributePatternBucket: RadioAttributePatternBucket;
+}
+
 export interface RadioNonTextLayoutSignature {
   groupMemberCount: number;
   repeatedGroupPattern: boolean;
@@ -165,6 +227,8 @@ export interface DiscoveredField {
   layoutProximityLabels?: LayoutProximityLabelCandidate[];
   /** Bounded non-text structural signature for radio-like controls when text surfaces are empty. */
   nonTextLayoutSignature?: RadioNonTextLayoutSignature | null;
+  /** Bounded DOM wrapper and safe attribute-signature inventory for radio-like controls. */
+  domAttributeSignature?: RadioDomAttributeSignature | null;
   rejectedLabelCandidates: RejectedLabelCandidate[];
   /** Text near the control that clearly reads as a field value, not a prompt. */
   observedValueLikeTextNearControl: string | null;
@@ -338,6 +402,7 @@ async function extractDomContext(loc: Locator): Promise<{
     value: string;
   }>;
   nonTextLayoutSignature: RadioNonTextLayoutSignature | null;
+  domAttributeSignature: RadioDomAttributeSignature | null;
   pageIndex: number | null;
   ordinalOnPage: number | null;
   tabLeft: number | null;
@@ -371,6 +436,7 @@ async function extractDomContext(loc: Locator): Promise<{
     containerFollowingTexts: [],
     layoutProximityTexts: [],
     nonTextLayoutSignature: null,
+    domAttributeSignature: null,
     pageIndex: null,
     ordinalOnPage: null,
     tabLeft: null,
@@ -772,6 +838,7 @@ async function extractDomContext(loc: Locator): Promise<{
         value: string;
       }> = [];
       let nonTextLayoutSignature: RadioNonTextLayoutSignature | null = null;
+      let domAttributeSignature: RadioDomAttributeSignature | null = null;
 
       try {
         const inputEl = el as HTMLElement;
@@ -822,9 +889,234 @@ async function extractDomContext(loc: Locator): Promise<{
 
         const asBucket = <T extends string>(value: T): T => value;
 
+        const toMatchableToken = (value: string | null | undefined): string =>
+          (value ?? '')
+            .replace(/([a-z])([A-Z])/g, '$1 $2')
+            .replace(/[_:.>/-]+/g, ' ')
+            .replace(/[^A-Za-z0-9]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+
         const sameNode = (nodes: Array<Element | null | undefined>): boolean => {
           const present = nodes.filter((node): node is Element => node instanceof Element);
           return present.length > 0 && present.length === nodes.length && present.every((node) => node === present[0]);
+        };
+
+        const summarizeItems = <T extends string>(values: T[], limit: number): { items: T[]; count: number; truncated: boolean } => {
+          const unique = Array.from(new Set(values));
+          return {
+            items: unique.slice(0, limit),
+            count: unique.length,
+            truncated: unique.length > limit,
+          };
+        };
+
+        const SAFE_ATTRIBUTE_NAME_RE = /^(id|name|class|type|role|for|aria-[a-z0-9_-]+|data-[a-z0-9_-]+)$/i;
+        const DOCUSIGN_ATTRIBUTE_NAME_RE = /^(data-tabtype|data-tab-type|data-type|data-qa|data-page-number|data-page|data-anchor)$/i;
+        const GENERATED_TOKEN_RE = /^(?:tab[-_\s]*form[-_\s]*element[-_\s]*)?[A-F0-9]{12,}$|^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+        const collectElementAttributeEntries = (node: Element | null): Array<{ name: string; value: string }> => {
+          if (!node) return [];
+          return Array.from(node.attributes)
+            .map((attr) => ({ name: attr.name.toLowerCase(), value: attr.value ?? '' }))
+            .filter((attr) => SAFE_ATTRIBUTE_NAME_RE.test(attr.name));
+        };
+
+        const collectTokenShapeSummary = (
+          values: Array<string | null | undefined>,
+          limit = 4,
+        ): { items: RadioTokenShapeBucket[]; count: number; truncated: boolean } => {
+          const buckets: RadioTokenShapeBucket[] = [];
+          for (const rawValue of values) {
+            const raw = (rawValue ?? '').trim();
+            const matchable = toMatchableToken(raw);
+            if (/\b(address|location|physical|operating|mailing|legal|virtual)\b/i.test(matchable)) {
+              buckets.push('address-like-token');
+            }
+            if (/\b(radio|toggle|choice|option|select)\b/i.test(matchable)) {
+              buckets.push('radio-like-token');
+            }
+            if (/\b(docusign|doc tab|tab form element|signer|page image)\b/i.test(matchable)) {
+              buckets.push('docusign-token');
+            }
+            if (GENERATED_TOKEN_RE.test(raw) || /^tab-form-element[-_:\s]/i.test(raw) || /^:r[0-9a-z]+:$/i.test(raw)) {
+              buckets.push('generated-token-pattern');
+            }
+          }
+          return summarizeItems(buckets, limit);
+        };
+
+        const collectValueHintSummary = (
+          values: Array<string | null | undefined>,
+          limit = 8,
+        ): { items: RadioAttributeValueHintBucket[]; count: number; truncated: boolean } => {
+          const buckets: RadioAttributeValueHintBucket[] = [];
+          for (const rawValue of values) {
+            const raw = (rawValue ?? '').trim();
+            if (!raw) {
+              buckets.push('empty-value');
+              continue;
+            }
+
+            const matchable = toMatchableToken(raw);
+            if (/\bbusiness\s+physical\s+address\b/i.test(matchable)) {
+              buckets.push('business-physical-address-token');
+            }
+            if (/\bphysical\s+operating\s+address\b/i.test(matchable)) {
+              buckets.push('physical-operating-address-token');
+            }
+            if (/\boperating\s+address\b/i.test(matchable) || /\bis\s+operating\s+address\b/i.test(matchable)) {
+              buckets.push('operating-address-token');
+            }
+            if (/\b(mailing\s+address|business\s+mailing\s+address)\b/i.test(matchable) || /\bis\s+mailing\s+address\b/i.test(matchable)) {
+              buckets.push('mailing-address-token');
+            }
+            if (/\blegal\s+address\b/i.test(matchable) || /\bis\s+legal\s+address\b/i.test(matchable)) {
+              buckets.push('legal-address-token');
+            }
+            if (/\bvirtual\s+address\b/i.test(matchable) || /\bis\s+virtual\s+address\b/i.test(matchable)) {
+              buckets.push('virtual-address-token');
+            }
+            if (/\bsame\b/i.test(matchable)) buckets.push('same-token');
+            if (/\bdifferent\b/i.test(matchable)) buckets.push('different-token');
+            if (/\byes\b/i.test(matchable)) buckets.push('yes-token');
+            if (/\bno\b/i.test(matchable)) buckets.push('no-token');
+            if (/\baddress\b/i.test(matchable)) buckets.push('address-like-token');
+            if (GENERATED_TOKEN_RE.test(raw) || /^tab-form-element[-_:\s]/i.test(raw) || /^:r[0-9a-z]+:$/i.test(raw)) {
+              buckets.push('generated-token-pattern');
+            }
+          }
+          return summarizeItems(buckets, limit);
+        };
+
+        type RawWrapperSurface = {
+          surface: RadioWrapperAttributeSurface;
+          rawValues: string[];
+          patternKey: string;
+        };
+
+        const buildRawWrapperSurface = (
+          node: Element | null,
+          depthBucket: RadioWrapperDepthBucket,
+        ): RawWrapperSurface | null => {
+          if (!node) return null;
+
+          const attributeEntries = collectElementAttributeEntries(node);
+          const attributeNames = summarizeItems(
+            attributeEntries.map((entry) => entry.name),
+            8,
+          );
+          const tokenShapes = collectTokenShapeSummary(attributeEntries.map((entry) => entry.value));
+          const tagName = node.tagName.toLowerCase();
+          const role = clean(node.getAttribute('role'))?.toLowerCase() ?? null;
+
+          return {
+            surface: {
+              depthBucket,
+              tagName,
+              role,
+              attributeNames: attributeNames.items,
+              attributeNameCount: attributeNames.count,
+              attributeNamesTruncated: attributeNames.truncated,
+              tokenShapeBuckets: tokenShapes.items,
+              tokenShapeCount: tokenShapes.count,
+              tokenShapesTruncated: tokenShapes.truncated,
+            },
+            rawValues: attributeEntries.map((entry) => entry.value),
+            patternKey: [
+              depthBucket,
+              tagName,
+              role ?? '',
+              attributeNames.items.join(','),
+              tokenShapes.items.join(','),
+            ].join('|'),
+          };
+        };
+
+        type RawRadioAttributeSignature = {
+          signature: Omit<RadioDomAttributeSignature, 'wrapperPatternBucket' | 'attributePatternBucket'>;
+          wrapperPatternKey: string;
+          attributePatternKey: string;
+        };
+
+        const buildRawRadioAttributeSignature = (node: HTMLElement): RawRadioAttributeSignature => {
+          const selfEntries = collectElementAttributeEntries(node);
+          const radioAttributeNames = summarizeItems(
+            selfEntries.map((entry) => entry.name),
+            8,
+          );
+          const nearestFormRow = node.closest(
+            '[role="radiogroup"], [role="group"], fieldset, tr, [role="row"], section, article, .card, .doc-tab',
+          );
+          const rawWrapperSurfaces: RawWrapperSurface[] = [];
+          const seenWrappers = new Set<Element>();
+
+          for (const candidate of [
+            { depthBucket: 'parent' as const, node: node.parentElement },
+            { depthBucket: 'grandparent' as const, node: node.parentElement?.parentElement ?? null },
+            { depthBucket: 'form-row' as const, node: nearestFormRow },
+          ]) {
+            if (!(candidate.node instanceof Element) || seenWrappers.has(candidate.node)) continue;
+            seenWrappers.add(candidate.node);
+            const surface = buildRawWrapperSurface(candidate.node, candidate.depthBucket);
+            if (surface) rawWrapperSurfaces.push(surface);
+          }
+
+          const wrapperValues = rawWrapperSurfaces.flatMap((surface) => surface.rawValues);
+          const combinedValues = [...selfEntries.map((entry) => entry.value), ...wrapperValues];
+          const tokenShapes = collectTokenShapeSummary(combinedValues);
+          const valueHints = collectValueHintSummary(combinedValues);
+          const hasDocuSignMetadataAttributes = selfEntries.some((entry) => DOCUSIGN_ATTRIBUTE_NAME_RE.test(entry.name))
+            || rawWrapperSurfaces.some((surface) => surface.surface.attributeNames.some((name) => DOCUSIGN_ATTRIBUTE_NAME_RE.test(name)))
+            || /^tab-form-element-/i.test(node.getAttribute('id') ?? '');
+
+          return {
+            signature: {
+              radioAttributeNames: radioAttributeNames.items,
+              radioAttributeNameCount: radioAttributeNames.count,
+              radioAttributeNamesTruncated: radioAttributeNames.truncated,
+              wrapperSurfaces: rawWrapperSurfaces.map((surface) => surface.surface),
+              wrapperSurfacesTruncated: false,
+              hasIdAttribute: node.hasAttribute('id'),
+              hasNameAttribute: node.hasAttribute('name'),
+              hasAriaLabel: node.hasAttribute('aria-label'),
+              hasAriaLabelledBy: node.hasAttribute('aria-labelledby'),
+              hasAriaDescribedBy: node.hasAttribute('aria-describedby'),
+              hasDataAttributes: selfEntries.some((entry) => entry.name.startsWith('data-')),
+              hasDocuSignMetadataAttributes,
+              tokenShapeBuckets: tokenShapes.items,
+              tokenShapeCount: tokenShapes.count,
+              tokenShapesTruncated: tokenShapes.truncated,
+              valueHintBuckets: valueHints.items,
+              valueHintCount: valueHints.count,
+              valueHintsTruncated: valueHints.truncated,
+            },
+            wrapperPatternKey: rawWrapperSurfaces.map((surface) => surface.patternKey).join('||') || 'no-wrapper-pattern',
+            attributePatternKey: [
+              radioAttributeNames.items.join(','),
+              node.hasAttribute('id') ? 'id' : '',
+              node.hasAttribute('name') ? 'name' : '',
+              node.hasAttribute('aria-label') ? 'aria-label' : '',
+              node.hasAttribute('aria-labelledby') ? 'aria-labelledby' : '',
+              node.hasAttribute('aria-describedby') ? 'aria-describedby' : '',
+              selfEntries.some((entry) => entry.name.startsWith('data-')) ? 'data' : '',
+              hasDocuSignMetadataAttributes ? 'docusign' : '',
+              valueHints.items.join(','),
+              tokenShapes.items.join(','),
+            ].join('|'),
+          };
+        };
+
+        const bucketPatternCommonality = <T extends string>(
+          keys: string[],
+          sameBucket: T,
+          distinctBucket: T,
+          mixedBucket: T,
+        ): T => {
+          const uniqueCount = new Set(keys).size;
+          if (keys.length <= 1 || uniqueCount <= 1) return sameBucket;
+          if (uniqueCount === keys.length) return distinctBucket;
+          return mixedBucket;
         };
 
         const bucketSpacing = (gap: number): RadioSpacingBucket => {
@@ -889,6 +1181,29 @@ async function extractDomContext(loc: Locator): Promise<{
             }));
             const currentRadio = radioRects.find((entry) => entry.isCurrent) ?? { index: 0, isCurrent: true, rect: inputRect };
             const groupRect = unionRects(radioRects.map((entry) => entry.rect)) ?? inputRect;
+            const rawAttributeSignatures = radioRects.map((entry) => ({
+              isCurrent: entry.isCurrent,
+              ...buildRawRadioAttributeSignature(entry.node),
+            }));
+            const currentAttributeSignature = rawAttributeSignatures.find((entry) => entry.isCurrent) ?? null;
+
+            if (currentAttributeSignature) {
+              domAttributeSignature = {
+                ...currentAttributeSignature.signature,
+                wrapperPatternBucket: bucketPatternCommonality(
+                  rawAttributeSignatures.map((entry) => entry.wrapperPatternKey),
+                  'same-wrapper-pattern',
+                  'distinct-wrapper-pattern',
+                  'mixed-wrapper-pattern',
+                ),
+                attributePatternBucket: bucketPatternCommonality(
+                  rawAttributeSignatures.map((entry) => entry.attributePatternKey),
+                  'same-attribute-pattern',
+                  'distinct-attribute-pattern',
+                  'mixed-attribute-pattern',
+                ),
+              };
+            }
 
             const centers = radioRects.map((entry) => ({
               x: (entry.rect.left + entry.rect.right) / 2,
@@ -1198,6 +1513,7 @@ async function extractDomContext(loc: Locator): Promise<{
         containerFollowingTexts,
         layoutProximityTexts,
         nonTextLayoutSignature,
+        domAttributeSignature,
         pageIndex,
         ordinalOnPage,
         tabLeft,
@@ -1656,6 +1972,19 @@ async function describe(
         metadataSignals: [...domCtx.nonTextLayoutSignature.metadataSignals],
       }
     : null;
+  const domAttributeSignature = domCtx.domAttributeSignature
+    ? {
+        ...domCtx.domAttributeSignature,
+        radioAttributeNames: [...domCtx.domAttributeSignature.radioAttributeNames],
+        wrapperSurfaces: domCtx.domAttributeSignature.wrapperSurfaces.map((surface) => ({
+          ...surface,
+          attributeNames: [...surface.attributeNames],
+          tokenShapeBuckets: [...surface.tokenShapeBuckets],
+        })),
+        tokenShapeBuckets: [...domCtx.domAttributeSignature.tokenShapeBuckets],
+        valueHintBuckets: [...domCtx.domAttributeSignature.valueHintBuckets],
+      }
+    : null;
   const push = (source: LabelSource, value: string | null | undefined) => {
     if (value && value.trim()) rawCandidateLabels.push({ source, value: value.trim() });
   };
@@ -1783,6 +2112,7 @@ async function describe(
     containerContextLabels,
     layoutProximityLabels,
     nonTextLayoutSignature,
+    domAttributeSignature,
     rejectedLabelCandidates: labelResult.rejected,
     observedValueLikeTextNearControl: domCtx.valueLikeNearText,
     idOrNameKey,
