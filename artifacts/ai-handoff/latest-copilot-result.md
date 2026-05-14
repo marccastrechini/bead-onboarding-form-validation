@@ -1,54 +1,61 @@
 ## ChatGPT Review Summary
-- What changed: RUN27 added a bounded DOM wrapper and safe attribute-signature inventory in `fixtures/field-discovery.ts` for radio-like controls, including safe attribute names, presence booleans, token-shape buckets, value-hint buckets, wrapper depth surfaces, and wrapper or attribute commonality buckets. `fixtures/conditional-discovery.ts` now inventories that signature for guarded fallback radio-like candidates and reuses only explicit safe attribute-token hints in the existing fail-closed cue matcher. `tests/bootstrap-units.spec.ts` now covers DOM attribute-signature discovery, safe attribute-based physical and business-physical selection, mailing or legal or virtual and same or different or yes or no fail-closed cases, generated or generic attribute signatures, and attribute inventory redaction.
-- Whether bounded DOM wrapper or safe attribute-signature inventory was added: yes.
-- Whether the matcher was broadened or inventory-only: broadened narrowly. RUN27 allows selection only when exactly one visible editable radio-like control has an explicit safe Physical Operating Address or Business Physical Address attribute token signature; mailing or legal or virtual ambiguity, same or different or yes or no-only signatures, multiple matches, and generated or generic signatures still fail closed.
-- What guardrails were preserved: no live capture, no `bootstrap:interactive`, no `interactive:watchdog`, no full signer discovery, no destructive validation, no uploads, no `.env` mutation, no raw signer URLs, no finalization controls, and no generated artifact commits.
-- Whether the result moved us forward: yes. RUN27 creates the next live seam needed to test whether the three radios expose a differentiating safe attribute or wrapper signature after all current text, layout, and coarse structural inventories stayed empty live.
-- Tests/commands run and pass/fail: `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "guarded physical address discovery"` passed (42/42); `npm run test:units` passed (295/295).
-- Remaining blocker or uncertainty: RUN27 is still local-only. A future authorized live rerun is required to see whether the three live radios actually expose useful safe attribute or wrapper signals, or remain uniform even under this new inventory.
-- Whether a screenshot is still needed, and if so, what exact area to capture: optional but still useful. Capture only the physical-address toggle block after the signer surface loads and before any clicks, including the three radios and their immediate visible row, wrapper, card, or prompt context.
-- Whether to continue, stop, or redirect: continue.
-- Whether another live capture is recommended next, and only if so, the exact next run ID: yes, but only if explicitly authorized. Exact next run ID: `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN28`.
+- What changed: RUN28 executed exactly one authorized `npm run bootstrap:capture:physical-address` live capture and updated only the AI handoff files with the live outcome. No source, test, docs, or package files changed in RUN28.
+- Whether bounded DOM wrapper or safe attribute-signature inventory was exercised live: yes, and all three visible editable radio inputs returned `domAttributeSignature: null`, so no safe radio attribute names, wrapper attribute names, presence booleans, token-shape buckets, value-hint buckets, wrapper-depth surfaces, or wrapper/commonality buckets populated.
+- Whether primary or fallback selection found exactly one live toggle candidate: no. Primary selection found zero `isOperatingAddress` candidates; fallback inventory found the same three eligible visible radio-like candidates but zero safe matches.
+- Whether the toggle was expanded: no.
+- Whether coverage moved forward: yes. RUN28 falsified the current bounded DOM wrapper and safe attribute-signature hypothesis on the live surface and narrowed the remaining gap to signals outside the current harvested text, structure, and input-attribute surfaces.
+- Whether fresh artifacts were produced: no. `artifacts/latest-physical-operating-address-post-toggle-structure.json` and `artifacts/latest-physical-operating-address-post-toggle-dom.html` remained at 2026-05-01T16:41:44Z and were not refreshed by RUN28.
+- Tests/commands run and pass/fail: `npm run bootstrap:capture:physical-address` ran exactly once and blocked; `capture:physical-address` exited with code 3 and the bootstrap wrapper exited with code 1. `npm run reports:refresh` and `npm run findings:open` were intentionally not run because no fresh sanitized post-toggle artifacts were produced.
+- Classification for each `business_mailing_*` concept: `business_mailing_address_line_1` = `still capture-blocked`; `business_mailing_city` = `still capture-blocked`; `business_mailing_state` = `still capture-blocked`; `business_mailing_postal_code` = `still capture-blocked`.
+- Remaining blocker / uncertainty: the live DocuSign radio cluster still exposes no safe resolved-label, group, ancestor, sibling, container, layout-proximity, non-text layout-signature, or DOM wrapper and safe attribute-signature evidence for the same three radios. The remaining gap likely requires a bounded source/test-only visible-proxy wrapper or association-reference inventory rather than another immediate live rerun.
+- Whether a screenshot is still needed, and if so, what exact area to capture: optional but still useful. Capture only the physical-address toggle block after the signer surface loads and before any clicks, including the three radios and any immediately surrounding visible proxy control, row, card, wrapper, or prompt text in that block.
+- Whether to continue, stop, or redirect: redirect.
+- The next best Copilot prompt: add a source/test-only bounded visible-proxy wrapper and association-reference inventory for the three visible radio-like candidates so guarded diagnostics can tell whether the useful signature lives on proxy elements or label/reference relationships beyond the current empty input-level seams.
 
 # Copilot Handoff Result
 
-CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN27
+CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN28
 
 ## Status
 Ready for ChatGPT review
 
 ## Objective
-Do not run another live capture. Add a source/test-only bounded DOM wrapper and safe attribute-signature inventory around the three visible radio-like candidates so guarded diagnostics can determine whether any non-text differentiator exists beyond the current empty text and non-text seams.
+Execute exactly one authorized live `npm run bootstrap:capture:physical-address` run to inspect the new bounded DOM wrapper and safe attribute-signature fallback inventory for the three live radios and determine whether the live controls expose any unique safe attribute or wrapper signature that narrows the blocker.
 
 ## What Changed
-- Added a bounded DOM wrapper and safe attribute-signature seam in `fixtures/field-discovery.ts` for radio-like controls.
-- The new seam reports only safe bounded metadata:
-  - safe attribute names present on the radio itself
-  - safe attribute names present on the nearest bounded wrappers
-  - bounded wrapper depth surfaces (`parent`, `grandparent`, `form-row`)
-  - presence booleans for `id`, `name`, `aria-label`, `aria-labelledby`, `aria-describedby`, `data-*`, and DocuSign-like metadata
-  - safe token-shape buckets only
-  - safe attribute value-hint buckets only
-  - wrapper-pattern and attribute-pattern commonality buckets across the radio group
-- Extended `fixtures/conditional-discovery.ts` to inventory the new `domAttributeSignature` separately for guarded fallback radio-like candidates.
-- Narrowly broadened matcher behavior by reusing only explicit safe attribute-token hints through the existing cue pipeline:
-  - unique `physical-operating-address-token` or `business-physical-address-token` may select
-  - mailing or legal or virtual ambiguity still fails closed
-  - same or different or yes or no-only signatures do not select
-  - multiple possible candidates still fail closed
-  - generated or generic signatures stay inventory-only and fail closed
-- Expanded focused tests in `tests/bootstrap-units.spec.ts` to cover:
-  - bounded DOM attribute-signature discovery from actual radio wrappers
-  - omission of raw attribute values from the new signature
-  - unique safe Physical Operating Address attribute selection
-  - unique safe Business Physical Address attribute selection
-  - mailing or legal or virtual attribute fail-closed behavior
-  - same or different or yes or no-only attribute fail-closed behavior
-  - multiple attribute-based matches failing closed
-  - generated or generic attribute signatures staying bounded and fail-closed
+- Executed exactly one authorized `npm run bootstrap:capture:physical-address` live capture.
+- Updated only the AI handoff files with the RUN28 live outcome.
+- Did not modify source, test, docs, or package files in RUN28.
+
+## Live Outcome
+- Bead resend succeeded.
+- Gmail polling found a fresh invite.
+- DocuSign signing URL extraction succeeded with redacted logging.
+- The child runner launched only `npm run capture:physical-address`.
+- The DocuSign external-site warning path still worked.
+- The live warning inventory again found exactly one host-matching outbound link to `api.test.devs.beadpay.io` and clicked it safely.
+- `openSigner()` reached the signer surface.
+- Signing frame resolved to the main page.
+- Signer-form readiness succeeded.
+- Initial discovered field count was 125.
+- Primary operating-address selection found zero candidates.
+- Fallback radio-like inventory found the same three visible editable radio inputs.
+- Visible radio input count: 3.
+- Visible `role=radio` count: 0.
+- Visible radio-like candidate count: 3.
+- Eligible fallback candidate count: 3.
+- Matching fallback candidate count: 0.
+- The new bounded DOM wrapper and safe attribute-signature seam was exercised live, but every candidate returned `domAttributeSignature: null`.
+- Slot 1 summary: safe attribute names on radio none; safe attribute names on wrappers none; id/name/aria/data/DocuSign-like presence unavailable; token-shape buckets none; attribute value-hint buckets none; wrapper-depth surfaces none; wrapper/commonality buckets unavailable; physical/business/operating token hints none; mailing/legal/virtual token hints none; same/different/yes/no token hints none; generated/generic-only signature not observed; excluded for `explicit-physical-cue-missing`.
+- Slot 2 summary: safe attribute names on radio none; safe attribute names on wrappers none; id/name/aria/data/DocuSign-like presence unavailable; token-shape buckets none; attribute value-hint buckets none; wrapper-depth surfaces none; wrapper/commonality buckets unavailable; physical/business/operating token hints none; mailing/legal/virtual token hints none; same/different/yes/no token hints none; generated/generic-only signature not observed; excluded for `explicit-physical-cue-missing`.
+- Slot 3 summary: safe attribute names on radio none; safe attribute names on wrappers none; id/name/aria/data/DocuSign-like presence unavailable; token-shape buckets none; attribute value-hint buckets none; wrapper-depth surfaces none; wrapper/commonality buckets unavailable; physical/business/operating token hints none; mailing/legal/virtual token hints none; same/different/yes/no token hints none; generated/generic-only signature not observed; excluded for `explicit-physical-cue-missing`.
+- The three radios remained indistinguishable under the current safe attribute seam.
+- `maybeExpandPhysicalOperatingAddressSection()` did not expand the toggle.
+- Guarded post-toggle capture did not produce a sanitized capture report.
+- `capture:physical-address` exited with code 3.
+- The bootstrap wrapper exited with code 1.
 
 ## Guardrails Preserved
-- No live bootstrap or capture command was run.
 - `bootstrap:interactive` was not run.
 - `interactive:watchdog` was not run.
 - Full signer discovery was not run.
@@ -60,52 +67,58 @@ Do not run another live capture. Add a source/test-only bounded DOM wrapper and 
 - Generated artifacts were not staged or committed.
 
 ## Files Changed
-- `fixtures/field-discovery.ts`
-- `fixtures/conditional-discovery.ts`
-- `tests/bootstrap-units.spec.ts`
 - `artifacts/ai-handoff/status.json`
 - `artifacts/ai-handoff/latest-copilot-result.md`
 
 ## Validation
-- `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "guarded physical address discovery"` -> passed (42 passed)
-- `npm run test:units` -> passed (295 passed)
-- `npm run bootstrap:capture:physical-address` was not run in RUN27 by design
+- `npm run bootstrap:capture:physical-address` -> blocked after `capture:physical-address` exited with code 3
+- `artifacts/latest-physical-operating-address-post-toggle-structure.json` last write time remained `2026-05-01T16:41:44Z`
+- `artifacts/latest-physical-operating-address-post-toggle-dom.html` last write time remained `2026-05-01T16:41:44Z`
+- `npm run reports:refresh` -> not run
+- `npm run findings:open` -> not run
+
+## Artifact Freshness
+- No fresh Physical Operating Address artifacts were produced in RUN28.
+- The existing post-toggle structure and DOM files remain the stale May 1 artifacts and should not be treated as RUN28 evidence.
+- Because no fresh post-toggle artifacts were produced, field-local proof for Address Line 1, City, State, ZIP, and Postal Code remains unavailable in RUN28.
+
+## Classification
+- `business_mailing_address_line_1`: `still capture-blocked`
+- `business_mailing_city`: `still capture-blocked`
+- `business_mailing_state`: `still capture-blocked`
+- `business_mailing_postal_code`: `still capture-blocked`
 
 ## Result
 - Forward progress: yes.
-- RUN27 widens the safe observable surface around the fallback radio-like candidates beyond text, container, layout, and coarse non-text structure by adding bounded DOM wrapper and safe attribute signatures.
-- The guarded matcher is no longer inventory-only for this seam, but the broadening is deliberately narrow and validated under fail-closed guardrails.
-- The next authorized live rerun can now answer whether the three radios expose any safe attribute or wrapper differentiator that was previously invisible to all earlier seams.
-- Because RUN27 did not run a live capture, the `business_mailing_*` classifications from RUN26 were not reevaluated and remain unchanged until fresh post-toggle artifacts exist.
+- RUN28 answered the live DOM wrapper and attribute question directly: the broader bounded input-level attribute inventory also stayed empty for all three visible radios.
+- This means the remaining blocker is no longer just the original DOM-connected label, neighbor, container, layout, non-text layout-signature, or bounded input-attribute surfaces; the live page still does not expose any safe differentiating signal through the new DOM attribute seam either.
+- The guarded matcher remained fail-closed and did not auto-select a live toggle without a uniquely safe explicit physical/business physical cue.
 
 ## Remaining Blocker / Uncertainty
-- The new DOM wrapper and attribute-signature seam is locally validated only; a future authorized live rerun is still required to see how the three live radios populate the new buckets.
-- If the next live run still yields no differentiating attribute or wrapper signature, the remaining gap likely lies beyond the current safe text, layout, non-text, and bounded attribute discovery surfaces.
+- The live DocuSign radio cluster still exposes no safe text in resolved-label, group, ancestor, sibling, container, nearby, preceding/following, layout-proximity, non-text layout-signature, or bounded DOM wrapper and attribute-signature buckets.
+- The remaining gap likely sits on visible proxy controls, zero-geometry wrapper layers, or association references that are outside the current harvested input-level text, structure, and attribute surfaces.
+- Another immediate live rerun is not the smallest next move because RUN28 already exercised the current observable seam and returned an all-empty result again.
 
 ## Screenshot Helpfulness
 - A screenshot would help: optional but useful.
-- Exact area to capture: the physical-address toggle block after the signer surface loads and before any interaction, including the three radios and their immediate visible row, card, wrapper, or prompt context.
+- Exact area to capture: only the physical-address toggle block after the signer surface loads and before any interaction, including the three radios and any visible proxy control, row, card, wrapper, or prompt immediately above, below, left, or right within that same block.
 - A full-page screenshot is not necessary.
 
 ## Recommendation
-Continue.
+Redirect.
 
-Another live capture is recommended next only if explicitly authorized, using:
-`PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN28`
+Do not run another live capture next.
 
 ## Recommended Next Copilot Prompt
-Run `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN28`: execute exactly one authorized `npm run bootstrap:capture:physical-address`, keep the current safety constraints, inspect the new bounded DOM wrapper and safe attribute-signature fallback inventory for the three visible radios, and determine whether the live controls expose any unique safe attribute or wrapper signature that narrows the blocker.
+Add a source/test-only bounded visible-proxy wrapper and association-reference inventory around the three visible radio-like candidates so the guarded fallback diagnostics can report proxy tag patterns, reference-presence signals, wrapper tag chains, and label-association evidence without collecting raw text, screenshots, coordinates, URLs, raw IDs, or unbounded DOM dumps.
 
 ## Branch / Commit Status
 - Branch: `main`
-- Pre-RUN27 commit: `4543971439a8df0b1834a0c563efd45577340806`
-- RUN27 handoff commit: pending at write time
+- Pre-RUN28 commit: `5bda78bce1d60fc19dd8b1dc09a5f864d2f86d2a`
+- RUN28 handoff commit: pending at write time
 
 ## Commit Scope
 - Stage and commit:
-  - `fixtures/field-discovery.ts`
-  - `fixtures/conditional-discovery.ts`
-  - `tests/bootstrap-units.spec.ts`
   - `artifacts/ai-handoff/status.json`
   - `artifacts/ai-handoff/latest-copilot-result.md`
 - Do not commit:
@@ -115,4 +128,4 @@ Run `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN28`: execute exactly one auth
   - `.env`
   - `samples/private/**`
 
-CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN27
+CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN28
