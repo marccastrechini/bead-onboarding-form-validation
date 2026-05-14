@@ -1,49 +1,60 @@
 ## ChatGPT Review Summary
-- What changed: RUN21 added bounded container-level radio context extraction in `fixtures/field-discovery.ts`, threading safe parent, grandparent, section/card, and preceding/following container text into a dedicated `containerContextLabels` discovery seam. `fixtures/conditional-discovery.ts` now inventories those new buckets separately and allows fallback selection to use container cues only under the same existing fail-closed rules. Focused guarded-physical-address coverage was expanded in `tests/bootstrap-units.spec.ts`. No live bootstrap/capture command was run in RUN21.
-- Whether container-level radio context inventory was added: yes.
-- Whether the matcher was broadened or inventory-only: broadened, but only through the existing guarded fallback rules once container-level cues are present. The same fail-closed protections remain for mailing/legal/virtual ambiguity and multiple matching candidates.
-- What guardrails were preserved: no live capture, no `bootstrap:interactive`, no `interactive:watchdog`, no full signer discovery, no destructive validation, no uploads, no `.env` mutation, no raw signer URLs, and no generated artifact commits.
-- Whether the result moved us forward: yes. The next live run can now tell whether the visible radio group is labeled in a higher-level wrapper or layout container outside the previous label/neighbor surface, and can safely auto-select only if exactly one candidate gets an explicit physical/business physical container cue with no ambiguity.
-- Tests/commands run and pass/fail: `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "guarded physical address discovery"` passed (21/21); `npm run test:units` passed (274/274).
-- Remaining blocker / uncertainty: RUN21 still cannot prove how the live DocuSign radio cluster will populate the new container-level buckets without another authorized live rerun.
-- Whether a screenshot is still needed, and if so, what exact area to capture: optional but still helpful. Capture only the physical-address toggle block after the signer surface loads and before any clicks, including the three radios and any text immediately above, below, left, and right of that cluster within the same visible wrapper or card.
-- Whether to continue, stop, or redirect: continue.
-- Whether another live capture is recommended next: yes, but only if explicitly authorized. Exact next run ID: `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN22`.
+- What changed: RUN22 executed exactly one authorized `npm run bootstrap:capture:physical-address` live capture and updated only the AI handoff files with the live outcome. No source or test files changed in RUN22.
+- Whether container-level radio context inventory was exercised live: yes, and all new parent, grandparent, section/card, preceding, and following buckets remained empty for all three visible editable radio inputs.
+- Whether primary or fallback selection found exactly one live toggle candidate: no. Primary selection found zero `isOperatingAddress` candidates; fallback inventory found three eligible visible radio-like candidates but zero safe matches.
+- Whether the toggle was expanded: no.
+- Whether coverage moved forward: yes. RUN22 falsified the higher-container text hypothesis on the live surface and narrowed the remaining gap to text detached beyond the current safe DOM/context probes.
+- Whether fresh artifacts were produced: no. `artifacts/latest-physical-operating-address-post-toggle-structure.json` and `artifacts/latest-physical-operating-address-post-toggle-dom.html` remained at 2026-05-01T16:41:44Z and were not refreshed by RUN22.
+- Tests/commands run and pass/fail: `npm run bootstrap:capture:physical-address` ran exactly once and blocked; `capture:physical-address` exited with code 3, and the bootstrap wrapper exited with code 1. `npm run reports:refresh` and `npm run findings:open` were intentionally not run because no fresh sanitized post-toggle artifacts were produced.
+- Classification for each `business_mailing_*` concept: `business_mailing_address_line_1` = `still capture-blocked`; `business_mailing_city` = `still capture-blocked`; `business_mailing_state` = `still capture-blocked`; `business_mailing_postal_code` = `still capture-blocked`.
+- Remaining blocker / uncertainty: the live DocuSign radio cluster still exposes no safe label, neighbor, or container-level text for the same three visible radios. The remaining gap likely requires a narrow source/test-only layout-proximity or detached-visible-text probe rather than another immediate live rerun.
+- Whether a screenshot is still needed, and if so, what exact area to capture: optional but now more targeted. Capture only the physical-address toggle block after the signer surface loads and before any clicks, including the three radios and any visible prompt, header, or static text immediately above, below, left, or right of that cluster within the same visible card, row, or section.
+- Whether to continue, stop, or redirect: redirect.
+- The next best Copilot prompt: add a source/test-only bounded layout-proximity inventory for the three visible radio-like candidates so live-safe diagnostics can see detached visible text that is not part of the current label, neighbor, or container subtrees.
 
 # Copilot Handoff Result
 
-CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN21
+CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN22
 
 ## Status
 Ready for ChatGPT review
 
 ## Objective
-Do not run another live capture. Add source/test-only bounded container-level radio context inventory in `field-discovery.ts` or a narrow safe probe so the next live run can determine whether visible text exists in a wrapper/layout container outside the current safe label and neighbor extraction surface.
+Execute exactly one authorized live `npm run bootstrap:capture:physical-address` run to inspect the new bounded container-level fallback inventory for the three live radios and determine whether a unique explicit physical/business physical container cue appears and safely expands the toggle.
 
 ## What Changed
-- Added bounded container-level radio context extraction in `fixtures/field-discovery.ts` for parent, grandparent, section/card, and preceding/following container text around radio-like controls.
-- Stored that new discovery seam separately as `containerContextLabels` so the normal field label resolution path does not absorb broader container text.
-- Extended `fixtures/conditional-discovery.ts` to inventory the new container buckets separately for fallback radio-like candidates:
-  - parent container text fragments and cue flags
-  - grandparent container text fragments and cue flags
-  - section/card container text fragments and cue flags
-  - preceding container text fragments and cue flags
-  - following container text fragments and cue flags
-- Safely broadened guarded fallback selection so container-level `Physical Operating Address` or `Business Physical Address` cues can select exactly one visible editable radio-like control only when:
-  - zero eligible primary `address_option` candidates exist
-  - exactly one fallback candidate carries the explicit physical/business physical cue
-  - no mailing/legal/virtual ambiguity is present
-  - no other fallback candidate matches the same safe cue family
-- Expanded focused tests in `tests/bootstrap-units.spec.ts` to cover:
-  - wrapper-layout discovery of container context for radios
-  - safe single-match selection from section and grandparent container cues
-  - mailing and legal exclusions from container context
-  - fail-closed behavior for multiple container-level physical cues
-  - `Same`/`Different`/`Yes`/`No` container cue visibility without physical cue selection
-  - redaction of emails, URLs, tokens, and arbitrary text in the new container buckets
+- Executed exactly one authorized `npm run bootstrap:capture:physical-address` live capture.
+- Updated only the AI handoff files with the RUN22 live outcome.
+- Did not modify source, test, package, or docs files in RUN22.
+
+## Live Outcome
+- Bead resend succeeded.
+- Gmail polling found a fresh invite.
+- DocuSign signing URL extraction succeeded with redacted logging.
+- The child runner launched only `npm run capture:physical-address`.
+- The DocuSign external-site warning path still worked.
+- `openSigner()` reached the signer surface.
+- Signing frame resolved to the main page.
+- Signer-form readiness succeeded.
+- Initial discovered field count was 125.
+- Primary operating-address selection found zero candidates.
+- Fallback radio-like inventory found the same three visible editable radio inputs.
+- Visible radio input count: 3.
+- Visible `role=radio` count: 0.
+- Visible radio-like candidate count: 3.
+- Eligible fallback candidate count: 3.
+- Matching fallback candidate count: 0.
+- The new `containerContextLabels` seam was exercised live, but no parent, grandparent, section/card, preceding, or following container buckets populated for any candidate.
+- No container bucket showed `Physical Operating Address`, `Business Physical Address`, or `Operating Address` cue flags.
+- No container bucket showed `Mailing Address`, `Legal Address`, or `Virtual Address` exclusion cues.
+- No container bucket showed `Same`, `Different`, `Yes`, or `No` cue flags.
+- Every fallback candidate was excluded for `explicit-physical-cue-missing`.
+- `maybeExpandPhysicalOperatingAddressSection()` did not expand the toggle.
+- Guarded post-toggle capture did not produce a sanitized capture report.
+- `capture:physical-address` exited with code 3.
+- The bootstrap wrapper exited with code 1.
 
 ## Guardrails Preserved
-- No live bootstrap/capture command was run.
 - `bootstrap:interactive` was not run.
 - `interactive:watchdog` was not run.
 - Full signer discovery was not run.
@@ -55,51 +66,57 @@ Do not run another live capture. Add source/test-only bounded container-level ra
 - Generated artifacts were not staged or committed.
 
 ## Files Changed
-- `fixtures/field-discovery.ts`
-- `fixtures/conditional-discovery.ts`
-- `tests/bootstrap-units.spec.ts`
 - `artifacts/ai-handoff/status.json`
 - `artifacts/ai-handoff/latest-copilot-result.md`
 
 ## Validation
-- `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "guarded physical address discovery"` -> passed (21 passed)
-- `npm run test:units` -> passed (274 passed)
-- `npm run bootstrap:capture:physical-address` was not run in RUN21 by design
+- `npm run bootstrap:capture:physical-address` -> blocked after `capture:physical-address` exited with code 3
+- `artifacts/latest-physical-operating-address-post-toggle-structure.json` last write time remained `2026-05-01T16:41:44Z`
+- `artifacts/latest-physical-operating-address-post-toggle-dom.html` last write time remained `2026-05-01T16:41:44Z`
+- `npm run reports:refresh` -> not run
+- `npm run findings:open` -> not run
+
+## Artifact Freshness
+- No fresh Physical Operating Address artifacts were produced in RUN22.
+- The existing post-toggle structure and DOM files remain the stale May 1 artifacts and should not be treated as RUN22 evidence.
+
+## Classification
+- `business_mailing_address_line_1`: `still capture-blocked`
+- `business_mailing_city`: `still capture-blocked`
+- `business_mailing_state`: `still capture-blocked`
+- `business_mailing_postal_code`: `still capture-blocked`
 
 ## Result
 - Forward progress: yes.
-- RUN21 widens the safe observable surface around fallback radio-like candidates without reopening broad discovery.
-- The next live run can now tell whether the radio group is labeled by a higher-level wrapper or layout container that the previous bucket set could not see.
-- The guarded matcher remains fail-closed when container cues are mailing/legal/virtual, when multiple candidates share physical/business cues, or when only `Same`/`Different`/`Yes`/`No` text is present.
+- RUN22 answered the live container-context question directly: the broader safe wrapper/container inventory also stays empty for all three visible radios.
+- This means the remaining blocker is no longer just the original label and neighbor surfaces; the live page still does not expose any safe text through the broader container seam either.
+- The guarded matcher remained fail-closed and did not auto-select a live toggle without a uniquely safe explicit physical/business physical cue.
 
 ## Remaining Blocker / Uncertainty
-- The new container-level discovery seam is locally validated only; a future authorized live rerun is still required to see how the three live radios populate the new parent, grandparent, section/card, and preceding/following buckets.
-- If the next live run still shows no physical/business cues in any of the new container buckets, the remaining gap likely lies outside even the broader safe container context surface or in non-textual layout semantics.
+- The live DocuSign radio cluster still exposes no safe text in resolved-label, group, ancestor, sibling, nearby, parent, grandparent, section/card, preceding, or following container buckets.
+- The remaining gap likely sits in detached visible text or layout/geometry relationships that are outside the current safe DOM-context inventory surface.
+- Another immediate live rerun is not the smallest next move because RUN22 already exercised the current observable seam and returned an all-empty result again.
 
 ## Screenshot Helpfulness
 - A screenshot would help: optional but useful.
-- Exact area to capture: the physical-address toggle block after the signer surface loads and before any interaction, including the three radios and any text immediately above, below, left, and right of the cluster within the same visible wrapper, row, or card.
+- Exact area to capture: only the physical-address toggle block after the signer surface loads and before any interaction, including the three radios and any visible prompt, heading, row label, or static text immediately above, below, left, and right of that cluster within the same visible card, row, or section.
 - A full-page screenshot is not necessary.
 
 ## Recommendation
-Continue.
+Redirect.
 
-Another live capture is recommended next only if explicitly authorized, using:
-`PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN22`
+Do not run another live capture next.
 
 ## Recommended Next Copilot Prompt
-Run `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN22`: execute exactly one authorized `npm run bootstrap:capture:physical-address`, keep the current safety constraints, inspect the new bounded container-level fallback inventory for the three live radios, and determine whether a unique explicit physical/business physical container cue now appears and safely expands the toggle.
+Add a source/test-only bounded layout-proximity inventory for the three visible radio-like candidates so the guarded fallback diagnostics can capture detached visible text near the radios without collecting raw DOM dumps, URLs, values, or unbounded text. Keep the current fail-closed matcher behavior unless a uniquely safe explicit physical/business physical cue is proven under focused tests.
 
 ## Branch / Commit Status
 - Branch: `main`
-- Pre-RUN21 commit: `20444d243b0a7b1d9ab6cbb869d5bc8165d6024d`
-- RUN21 handoff commit: pending at write time
+- Pre-RUN22 commit: `045779359413bf0530dbeeb32be7ed966cca99ee`
+- RUN22 handoff commit: pending at write time
 
 ## Commit Scope
 - Stage and commit:
-  - `fixtures/field-discovery.ts`
-  - `fixtures/conditional-discovery.ts`
-  - `tests/bootstrap-units.spec.ts`
   - `artifacts/ai-handoff/status.json`
   - `artifacts/ai-handoff/latest-copilot-result.md`
 - Do not commit:
@@ -109,4 +126,4 @@ Run `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN22`: execute exactly one auth
   - `.env`
   - `samples/private/**`
 
-CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN21
+CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN22
