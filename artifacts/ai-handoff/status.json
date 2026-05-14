@@ -1,86 +1,71 @@
 {
-  "status": "blocked",
-  "run_id": "PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN08",
+  "status": "ready_for_review",
+  "run_id": "PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN09",
   "model_used": "GitHub Copilot (GPT-5.4)",
   "branch": "main",
   "commit": null,
-  "commit_message": "AI-HANDOFF: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN08 ready for ChatGPT review",
+  "commit_message": "AI-HANDOFF: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN09 ready for ChatGPT review",
   "push_status": "pending_at_write_time",
   "started_at": null,
-  "completed_at": "2026-05-14T11:33:09Z",
-  "git_commit_before": "a987e6dd01512e5faa9ad2821ffbc44d865f910e",
+  "completed_at": "2026-05-14T12:09:11Z",
+  "git_commit_before": "f30b2c09b1a7aac59b1cc7f0fdc4f3521d30d7c3",
   "git_commit_after": null,
   "summary_file": "artifacts/ai-handoff/latest-copilot-result.md",
   "needs_chatgpt_review": true,
-  "command_run_exactly_once": "npm run bootstrap:capture:physical-address",
+  "command_run_exactly_once": "RUN09 intentionally did not run any live bootstrap/capture command.",
   "files_changed": [
+    "fixtures/signer-helpers.ts",
+    "tests/signer-readiness.spec.ts",
     "artifacts/ai-handoff/status.json",
     "artifacts/ai-handoff/latest-copilot-result.md"
   ],
   "commands_run": [
     "Read .github/copilot-instructions.md, .github/prompts/ai-handoff-run.prompt.md, and artifacts/ai-handoff/README.md",
-    "git status --short and HEAD check before the live run",
-    "npm run bootstrap:capture:physical-address -> ran exactly once and exited 1",
-    "Post-run sanitized artifact freshness and label proof probe",
-    "RUN08 intentionally did not run bootstrap:interactive, interactive:watchdog, full signer discovery, reports:refresh, findings:open, uploads, or destructive validation"
+    "Inspect the safe-redirect timeout path in fixtures/signer-helpers.ts and focused tests in tests/signer-readiness.spec.ts",
+    "Add a guarded DocuSign external-site interstitial click-through path gated by safe-redirect status, warning title/text, expected Bead destination host, and a single proceed control",
+    "npx playwright test tests/signer-readiness.spec.ts --project=chromium -> passed",
+    "npm run test:units -> passed",
+    "RUN09 intentionally skipped bootstrap:capture:physical-address, bootstrap:interactive, interactive:watchdog, full signer discovery, uploads, and destructive validation"
   ],
   "tests_run": [
-    "npm run bootstrap:capture:physical-address -> failed/blocking result, exit code 1"
+    "npx playwright test tests/signer-readiness.spec.ts --project=chromium -> passed (10 passed)",
+    "npm run test:units -> passed (255 passed)"
   ],
   "validation_summary": {
-    "live_capture_rerun_performed": true,
-    "live_capture_run_count": 1,
-    "live_capture_retry_count": 0,
-    "enriched_safe_redirect_diagnostics_appeared": true,
-    "safe_redirect_url_transition_observed": false,
-    "safe_redirect_signing_iframe_observed": false,
-    "safe_redirect_main_page_shell_signal_observed": false,
-    "safe_redirect_timed_out_with_enriched_diagnostic": true,
-    "safe_redirect_page_title": "You’re being redirected to an external site",
-    "safe_redirect_visible_text_fragments": [
-      "You’re being redirected to an external site",
-      "The external website you’re being directed to is not part of the Docusign platform",
-      "https://api.test.devs.beadpay.io/[redacted-path]?[redacted] to the previous page"
-    ],
-    "safe_redirect_iframe_inventory": [],
-    "signer_surface_reached": false,
-    "capture_child_exit_code": 1,
-    "fresh_capture_artifacts_produced": false,
-    "artifacts_stale_from_may_1": true,
-    "structure_last_write_utc": "2026-05-01T16:41:44.7937531Z",
-    "dom_last_write_utc": "2026-05-01T16:41:44.7947542Z",
-    "saved_artifact_generated_at": "2026-05-01T16:41:27.153Z",
-    "field_local_labels_found": false,
-    "saved_capture_label_string_check": {
-      "Address Line 1": false,
-      "City": false,
-      "State": false,
-      "ZIP": false,
-      "Postal Code": false
-    },
-    "business_mailing": {
-      "business_mailing_address_line_1": "still capture-blocked",
-      "business_mailing_city": "still capture-blocked",
-      "business_mailing_state": "still capture-blocked",
-      "business_mailing_postal_code": "still capture-blocked"
-    },
-    "reports_refresh_run": false,
-    "findings_open_run": false,
-    "coverage_moved_forward": false,
+    "live_capture_rerun_performed": false,
+    "external_site_interstitial_handler_added": true,
+    "external_site_handler_scoped_to_safe_redirect": true,
+    "external_site_warning_title_guard": true,
+    "external_site_warning_text_guard": true,
+    "external_site_expected_host_guard": true,
+    "external_site_expected_host": "api.test.devs.beadpay.io",
+    "external_site_single_proceed_control_required": true,
+    "external_site_control_target_validated_when_present": true,
+    "external_site_wrong_host_fails_closed": true,
+    "external_site_missing_control_fails_closed": true,
+    "external_site_ambiguous_controls_fail_closed": true,
+    "external_site_non_interstitial_noop_covered": true,
+    "external_site_diagnostics_redacted": true,
+    "focused_signer_readiness_spec_passed": true,
+    "focused_signer_readiness_test_count": 10,
+    "bootstrap_units_passed": true,
+    "bootstrap_unit_test_count": 255,
+    "readiness_coverage_moved_forward": true,
+    "live_field_local_label_coverage_moved_forward": false,
     "raw_url_exposed": false,
     "env_mutated": false,
     "destructive_validation_enabled": false,
     "uploads_performed": false,
     "finalization_controls_clicked": false
   },
-  "key_outcome": "RUN08 spent the single authorized live capture and proved the enriched safe-redirect diagnostics are active in live mode, revealing a DocuSign external-site warning/interstitial but still no signer surface and no fresh Physical Operating Address artifacts.",
+  "key_outcome": "RUN09 added a guarded DocuSign external-site interstitial handler to the safe-redirect readiness path so the signer flow can click through only when the warning page, expected Bead host, and a single proceed control all match, with focused and broad unit coverage passing.",
   "blockers": [
-    "The live safe-redirect page is an external-site interstitial and still emits none of the currently watched signer-surface transition signals before timeout.",
-    "No fresh Physical Operating Address post-toggle artifacts were produced, so field-local label proof remains blocked."
+    "The new guarded interstitial click-through path has not yet been validated against a fresh live DocuSign landing.",
+    "Physical Operating Address field-local proof remains blocked until another explicitly authorized live capture confirms that the real warning page matches the new guardrails."
   ],
   "uncertainty": [
-    "It is not yet confirmed whether the interstitial exposes a stable non-finalizing continue/back affordance that can be handled safely.",
-    "The next best step is a source/test-only interstitial handler investigation, not another immediate live capture."
+    "The real live interstitial control label or DOM structure may differ from the simulated Continue/Proceed fixtures, in which case the handler should fail closed and may need another narrow adjustment.",
+    "If the live warning page exposes multiple proceed controls or a non-link button with different copy, RUN09's guardrails will intentionally block the click rather than guess."
   ],
-  "next_recommendation": "Run PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN09 to inspect and unit-test a safe non-finalizing handler for the DocuSign external-site interstitial before any further authorized live capture."
+  "next_recommendation": "If explicitly authorized, run PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN10 to validate the guarded external-site interstitial handler with exactly one live capture-only run."
 }

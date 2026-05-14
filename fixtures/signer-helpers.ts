@@ -33,6 +33,10 @@ const SIGNING_IFRAME_SELECTOR =
   'iframe:is([id*="signing"], [id*="tactic"], [title*="DocuSign"], [title*="Signing"], [name*="signing"], [src*="docusign"])';
 const SCREEN_READER_SHELL_TEXT = 'Press enter to use the screen reader';
 const BUSINESS_DETAILS_SHELL_TEXT = '1. Business Details';
+const DOCUSIGN_EXTERNAL_SITE_WARNING_TITLE_RE = /you(?:['’]|â€™)re being redirected to an external site/i;
+const DOCUSIGN_EXTERNAL_SITE_WARNING_TEXT_RE = /the external website you(?:['’]|â€™)re being directed to is not part of the docusign platform/i;
+const DOCUSIGN_EXTERNAL_SITE_EXPECTED_HOST = 'api.test.devs.beadpay.io';
+const DOCUSIGN_EXTERNAL_SITE_CONTROL_RE = /\b(continue|proceed|open|visit)\b/i;
 
 type SignerGuardStage = 'after-goto' | 'after-start-click' | 'before-frame-resolution';
 type SafeRedirectTransitionSignal =
@@ -48,6 +52,20 @@ type SafeRedirectIframeInventoryEntry = {
   name: string;
   title: string;
   url: string;
+};
+
+type SafeRedirectExternalSiteControl = {
+  role: 'button' | 'link';
+  label: string;
+  href: string;
+  locator: Locator;
+};
+
+type SafeRedirectExternalSiteInterstitial = {
+  pageTitle: string;
+  visibleText: string;
+  visibleTextFragments: string[];
+  destinationHost: string | null;
 };
 
 type ExpiredSignerLinkEvidence = {
@@ -85,6 +103,8 @@ function redactPossibleUrl(rawUrl: string, baseUrl?: string): string {
 
 function sanitizeDiagnosticText(rawText: string, maxLength = 120): string {
   const sanitized = rawText
+    .replace(/â€™/g, "'")
+    .replace(/[’‘]/g, "'")
     .replace(/https?:\/\/\S+/gi, (url) => redactUrl(url))
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
     .replace(/\b\d{5,}\b/g, '[redacted-number]')
@@ -94,6 +114,20 @@ function sanitizeDiagnosticText(rawText: string, maxLength = 120): string {
   if (!sanitized) return '';
   if (sanitized.length <= maxLength) return sanitized;
   return `${sanitized.slice(0, maxLength - 3)}...`;
+}
+
+function extractVisibleDestinationHost(rawVisibleText: string): string | null {
+  const urlMatches = rawVisibleText.match(/https?:\/\/[^\s"')]+/gi) ?? [];
+  for (const rawMatch of urlMatches) {
+    try {
+      return new URL(rawMatch).host;
+    } catch {
+      /* keep scanning */
+    }
+  }
+
+  const bareHostMatch = rawVisibleText.match(/\b(?:[a-z0-9-]+\.)+[a-z]{2,}\b/i);
+  return bareHostMatch?.[0]?.toLowerCase() ?? null;
 }
 
 async function isQuicklyVisible(locator: Locator, timeout = 500): Promise<boolean> {
@@ -261,6 +295,13 @@ async function collectSafeRedirectVisibleTextFragments(
   return fragments;
 }
 
+async function collectSafeRedirectVisibleBodyText(page: Page): Promise<string> {
+  return page.locator('body').evaluate((body) => {
+    if (!(body instanceof HTMLElement)) return '';
+    return body.innerText ?? '';
+  }).catch(() => '');
+}
+
 async function collectSafeRedirectIframeInventory(
   page: Page,
   limit = 4,
@@ -310,6 +351,180 @@ async function buildSafeRedirectTimeoutDiagnostic(
   ].join(' ');
 }
 
+async function collectVisibleExternalSiteControls(
+  page: Page,
+): Promise<SafeRedirectExternalSiteControl[]> {
+  const controls: SafeRedirectExternalSiteControl[] = [];
+  const seen = new Set<string>();
+
+  for (const role of ['button', 'link'] as const) {
+    const locator = page.getByRole(role, { name: DOCUSIGN_EXTERNAL_SITE_CONTROL_RE });
+    const count = await locator.count().catch(() => 0);
+
+    for (let index = 0; index < count; index += 1) {
+      const candidate = locator.nth(index);
+      if (!(await candidate.isVisible({ timeout: 200 }).catch(() => false))) {
+        continue;
+      }
+
+      const label = sanitizeDiagnosticText(
+        (await candidate.innerText().catch(() => '')) ||
+        (await candidate.getAttribute('aria-label').catch(() => '')) ||
+        (await candidate.textContent().catch(() => '')),
+        80,
+      );
+      const href = await candidate.getAttribute('href').catch(() => null) ?? '';
+      const key = `${role}:${label}:${href}`;
+      if (seen.has(key)) {
+        continue;
+      }
+
+      seen.add(key);
+      controls.push({ role, label, href, locator: candidate });
+    }
+  }
+
+  return controls;
+}
+
+async function detectSafeRedirectExternalSiteInterstitial(
+  page: Page,
+): Promise<SafeRedirectExternalSiteInterstitial | null> {
+  const [pageTitle, rawVisibleText, visibleTextFragments] = await Promise.all([
+    page.title().catch(() => ''),
+    collectSafeRedirectVisibleBodyText(page),
+    collectSafeRedirectVisibleTextFragments(page),
+  ]);
+
+  if (
+    !DOCUSIGN_EXTERNAL_SITE_WARNING_TITLE_RE.test(pageTitle) ||
+    !DOCUSIGN_EXTERNAL_SITE_WARNING_TEXT_RE.test(rawVisibleText)
+  ) {
+    return null;
+  }
+
+  return {
+    pageTitle: sanitizeDiagnosticText(pageTitle, 120),
+    visibleText: rawVisibleText,
+    visibleTextFragments,
+    destinationHost: extractVisibleDestinationHost(rawVisibleText),
+  };
+}
+
+async function buildSafeRedirectExternalSiteBlockedDiagnostic(
+  page: Page,
+  interstitial: SafeRedirectExternalSiteInterstitial,
+  reason: string,
+  controls: SafeRedirectExternalSiteControl[],
+): Promise<string> {
+  const controlSummary = controls.length > 0
+    ? JSON.stringify(controls.map((control) => ({
+      role: control.role,
+      label: control.label,
+      href: control.href ? redactPossibleUrl(control.href, page.url()) : '',
+    })))
+    : 'none';
+  const titleSummary = interstitial.pageTitle ? `"${interstitial.pageTitle}"` : 'none';
+  const visibleTextSummary = interstitial.visibleTextFragments.length > 0
+    ? JSON.stringify(interstitial.visibleTextFragments)
+    : 'none';
+
+  return [
+    'DocuSign external-site warning did not pass guarded click-through checks.',
+    `${reason}.`,
+    `Current page: ${redactUrl(page.url())}.`,
+    `Page title: ${titleSummary}.`,
+    `Observed destination host: ${interstitial.destinationHost ?? 'none'}.`,
+    `Expected destination host: ${DOCUSIGN_EXTERNAL_SITE_EXPECTED_HOST}.`,
+    `Visible text fragments: ${visibleTextSummary}.`,
+    `Proceed controls: ${controlSummary}.`,
+  ].join(' ');
+}
+
+async function maybeHandleSafeRedirectExternalSiteInterstitial(
+  page: Page,
+  diagnostics: string[],
+): Promise<boolean> {
+  const interstitial = await detectSafeRedirectExternalSiteInterstitial(page);
+  if (!interstitial) {
+    return false;
+  }
+
+  diagnostics.push(
+    `safe-redirect external-site warning detected: title="${interstitial.pageTitle}" destination-host=${interstitial.destinationHost ?? 'none'}`,
+  );
+
+  const controls = await collectVisibleExternalSiteControls(page);
+  if (interstitial.destinationHost !== DOCUSIGN_EXTERNAL_SITE_EXPECTED_HOST) {
+    throw new Error(
+      await buildSafeRedirectExternalSiteBlockedDiagnostic(
+        page,
+        interstitial,
+        'Destination host did not match the expected Bead test host',
+        controls,
+      ),
+    );
+  }
+
+  if (controls.length === 0) {
+    throw new Error(
+      await buildSafeRedirectExternalSiteBlockedDiagnostic(
+        page,
+        interstitial,
+        'No clear continue/proceed/open/visit control was found',
+        controls,
+      ),
+    );
+  }
+
+  if (controls.length > 1) {
+    throw new Error(
+      await buildSafeRedirectExternalSiteBlockedDiagnostic(
+        page,
+        interstitial,
+        'Multiple continue/proceed/open/visit controls were found, so the interstitial was treated as ambiguous',
+        controls,
+      ),
+    );
+  }
+
+  const control = controls[0];
+  if (control.href) {
+    try {
+      const targetHost = new URL(control.href, page.url()).host;
+      if (targetHost !== DOCUSIGN_EXTERNAL_SITE_EXPECTED_HOST) {
+        throw new Error(
+          await buildSafeRedirectExternalSiteBlockedDiagnostic(
+            page,
+            interstitial,
+            'Proceed control target did not match the expected Bead test host',
+            controls,
+          ),
+        );
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error(
+        await buildSafeRedirectExternalSiteBlockedDiagnostic(
+          page,
+          interstitial,
+          'Proceed control target could not be parsed safely',
+          controls,
+        ),
+      );
+    }
+  }
+
+  diagnostics.push(
+    `safe-redirect external-site warning clicked: ${control.role} "${control.label}"${control.href ? ` -> ${redactPossibleUrl(control.href, page.url())}` : ''}`,
+  );
+  await control.locator.click({ timeout: 2_000 });
+  await page.waitForTimeout(250);
+  return true;
+}
+
 export async function waitForSafeRedirectTransition(
   page: Page,
   timeout = 8_000,
@@ -327,6 +542,7 @@ export async function waitForSafeRedirectTransition(
     'screen-reader-shell': false,
     'business-details-shell': false,
   };
+  let externalSiteClickAttempted = false;
 
   while (Date.now() < deadline) {
     const currentUrl = page.url();
@@ -342,6 +558,11 @@ export async function waitForSafeRedirectTransition(
       observedSignals['signing-iframe'] = true;
       diagnostics.push(`safe-redirect transition observed: signing iframe appeared on ${redactUrl(currentUrl)}`);
       return { signal: 'signing-iframe', diagnostics };
+    }
+
+    if (!externalSiteClickAttempted && await maybeHandleSafeRedirectExternalSiteInterstitial(page, diagnostics)) {
+      externalSiteClickAttempted = true;
+      continue;
     }
 
     const shellSignal = await detectMainPageShellSignal(page);
