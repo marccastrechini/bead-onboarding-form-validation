@@ -5330,6 +5330,75 @@ test.describe('interactive validation safety', () => {
     )))).toBe(true);
   });
 
+  test('guarded physical address discovery field discovery collects bounded non-text radio group signatures from repeated layout', async ({ page }) => {
+    await page.setContent(`
+      <style>
+        body { margin: 0; }
+        .radio-row {
+          position: absolute;
+          top: 32px;
+          left: 20px;
+          display: flex;
+          gap: 8px;
+        }
+        .radio-row input {
+          width: 14px;
+          height: 14px;
+        }
+      </style>
+      <div class="radio-row">
+        <input id="radio-g" type="radio" name="physicalAddress" />
+        <input id="radio-h" type="radio" name="physicalAddress" />
+        <input id="radio-i" type="radio" name="physicalAddress" />
+      </div>
+    `);
+
+    const fields = await discoverFields(page);
+    const radios = fields.filter((field) => field.kind === 'radio');
+
+    expect(radios).toHaveLength(3);
+    expect(radios.map((field) => field.nonTextLayoutSignature?.groupPatternBucket)).toEqual([
+      'repeated-row-group',
+      'repeated-row-group',
+      'repeated-row-group',
+    ]);
+    expect(radios.map((field) => field.nonTextLayoutSignature?.relativeOrderBucket)).toEqual([
+      'first',
+      'middle',
+      'last',
+    ]);
+    expect(radios.every((field) => field.nonTextLayoutSignature?.sharedContainerBucket === 'same-parent')).toBe(true);
+    expect(radios.every((field) => field.nonTextLayoutSignature?.spacingBucket === 'tight')).toBe(true);
+    expect(radios.every((field) => field.nonTextLayoutSignature?.shapeBucket === 'compact-group')).toBe(true);
+  });
+
+  test('guarded physical address discovery field discovery collects bounded overlay-layer radio signatures', async ({ page }) => {
+    await page.setContent(`
+      <div class="page-shell">
+        <img class="page-image" src="/fake-page.png?p=1" />
+        <div class="doc-tab" data-type="radio" style="left: 12px; top: 24px; width: 18px; height: 18px; position: absolute;">
+          <input id="tab-form-element-abc123" type="radio" name="physicalAddress" data-tabtype="radio" />
+        </div>
+        <div class="doc-tab" data-type="radio" style="left: 44px; top: 24px; width: 18px; height: 18px; position: absolute;">
+          <input id="tab-form-element-def456" type="radio" name="physicalAddress" data-tabtype="radio" />
+        </div>
+        <div class="doc-tab" data-type="radio" style="left: 76px; top: 24px; width: 18px; height: 18px; position: absolute;">
+          <input id="tab-form-element-ghi789" type="radio" name="physicalAddress" data-tabtype="radio" />
+        </div>
+      </div>
+    `);
+
+    const fields = await discoverFields(page);
+    const radios = fields.filter((field) => field.kind === 'radio');
+
+    expect(radios).toHaveLength(3);
+    expect(radios.every((field) => field.nonTextLayoutSignature?.layerBucket === 'document-layer')).toBe(true);
+    expect(radios.every((field) => field.nonTextLayoutSignature?.sharedDocumentLayer === true)).toBe(true);
+    expect(radios.every((field) => (field.nonTextLayoutSignature?.metadataSignals ?? []).includes('data-tab-type'))).toBe(true);
+    expect(radios.every((field) => (field.nonTextLayoutSignature?.metadataSignals ?? []).includes('tab-guid'))).toBe(true);
+    expect(radios.every((field) => (field.nonTextLayoutSignature?.metadataSignals ?? []).includes('page-index'))).toBe(true);
+  });
+
   const fallbackRadioField = (overrides: Record<string, unknown> = {}) => ({
     index: 1,
     kind: 'radio',
@@ -5343,9 +5412,29 @@ test.describe('interactive validation safety', () => {
     rawCandidateLabels: [],
     containerContextLabels: [],
     layoutProximityLabels: [],
+    nonTextLayoutSignature: null,
     groupName: 'location_group',
     idOrNameKey: null,
     inferredType: { type: 'unknown' },
+    ...overrides,
+  });
+
+  const nonTextSignature = (
+    overrides: Record<string, unknown> = {},
+  ) => ({
+    groupMemberCount: 3,
+    repeatedGroupPattern: true,
+    groupPatternBucket: 'repeated-row-group',
+    sharedContainerBucket: 'same-grandparent',
+    alignmentBucket: 'horizontal',
+    relativeOrderBucket: 'middle',
+    spacingBucket: 'normal',
+    shapeBucket: 'compact-group',
+    layerBucket: 'html-form-layout',
+    sharedDocumentLayer: false,
+    metadataSignals: ['role', 'name'],
+    metadataSignalCount: 2,
+    metadataSignalsTruncated: false,
     ...overrides,
   });
 
@@ -6026,6 +6115,135 @@ test.describe('interactive validation safety', () => {
     expect(selection.fallbackInventory?.entries.every((entry) => entry.layoutProximityTextTruncated === false)).toBe(true);
   });
 
+  test('guarded physical address discovery fallback inventories repeated non-text radio layout signatures without selecting anything', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      fallbackRadioField({
+        index: 72,
+        idOrNameKey: 'toggleFirst',
+        nonTextLayoutSignature: nonTextSignature({ relativeOrderBucket: 'first', spacingBucket: 'tight' }),
+      }),
+      fallbackRadioField({
+        index: 73,
+        idOrNameKey: 'toggleMiddle',
+        nonTextLayoutSignature: nonTextSignature({ relativeOrderBucket: 'middle', spacingBucket: 'tight' }),
+      }),
+      fallbackRadioField({
+        index: 74,
+        idOrNameKey: 'toggleLast',
+        nonTextLayoutSignature: nonTextSignature({ relativeOrderBucket: 'last', spacingBucket: 'tight' }),
+      }),
+    ] as any);
+
+    expect(selection.selectedField).toBeNull();
+    expect(selection.fallbackInventory?.matchingFallbackCandidateCount).toBe(0);
+    expect(selection.fallbackInventory?.entries.map((entry) => entry.nonTextLayoutSignature?.relativeOrderBucket)).toEqual([
+      'first',
+      'middle',
+      'last',
+    ]);
+    expect(selection.fallbackInventory?.entries.every((entry) => entry.nonTextLayoutSignature?.groupPatternBucket === 'repeated-row-group')).toBe(true);
+    expect(selection.fallbackInventory?.entries.every((entry) => entry.nonTextLayoutSignature?.spacingBucket === 'tight')).toBe(true);
+  });
+
+  test('guarded physical address discovery fallback inventories overlay-like non-text layer metadata safely', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      fallbackRadioField({
+        index: 75,
+        idOrNameKey: 'overlayToggleA',
+        nonTextLayoutSignature: nonTextSignature({
+          relativeOrderBucket: 'first',
+          layerBucket: 'document-layer',
+          sharedDocumentLayer: true,
+          metadataSignals: ['role', 'name', 'data-tab-type', 'tab-guid', 'page-index', 'ordinal-on-page'],
+          metadataSignalCount: 6,
+        }),
+      }),
+      fallbackRadioField({
+        index: 76,
+        idOrNameKey: 'overlayToggleB',
+        nonTextLayoutSignature: nonTextSignature({
+          relativeOrderBucket: 'middle',
+          layerBucket: 'document-layer',
+          sharedDocumentLayer: true,
+          metadataSignals: ['role', 'name', 'data-tab-type', 'tab-guid', 'page-index', 'ordinal-on-page'],
+          metadataSignalCount: 6,
+        }),
+      }),
+      fallbackRadioField({
+        index: 77,
+        idOrNameKey: 'overlayToggleC',
+        nonTextLayoutSignature: nonTextSignature({
+          relativeOrderBucket: 'last',
+          layerBucket: 'document-layer',
+          sharedDocumentLayer: true,
+          metadataSignals: ['role', 'name', 'data-tab-type', 'tab-guid', 'page-index', 'ordinal-on-page'],
+          metadataSignalCount: 6,
+        }),
+      }),
+    ] as any);
+
+    expect(selection.selectedField).toBeNull();
+    expect(selection.fallbackInventory?.matchingFallbackCandidateCount).toBe(0);
+    expect(selection.fallbackInventory?.entries.every((entry) => entry.nonTextLayoutSignature?.layerBucket === 'document-layer')).toBe(true);
+    expect(selection.fallbackInventory?.entries.every((entry) => entry.nonTextLayoutSignature?.sharedDocumentLayer === true)).toBe(true);
+    expect(selection.fallbackInventory?.entries.every((entry) => (entry.nonTextLayoutSignature?.metadataSignals ?? []).includes('data-tab-type'))).toBe(true);
+  });
+
+  test('guarded physical address discovery fallback keeps non-text signatures inventory-only even for unique structural outliers', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      fallbackRadioField({
+        index: 78,
+        idOrNameKey: 'htmlToggleA',
+        nonTextLayoutSignature: nonTextSignature({ relativeOrderBucket: 'first' }),
+      }),
+      fallbackRadioField({
+        index: 79,
+        idOrNameKey: 'overlayOutlierToggle',
+        nonTextLayoutSignature: nonTextSignature({
+          relativeOrderBucket: 'middle',
+          layerBucket: 'document-layer',
+          sharedDocumentLayer: true,
+          metadataSignals: ['role', 'name', 'data-tab-type', 'tab-guid', 'page-index'],
+          metadataSignalCount: 5,
+        }),
+      }),
+      fallbackRadioField({
+        index: 80,
+        idOrNameKey: 'htmlToggleB',
+        nonTextLayoutSignature: nonTextSignature({ relativeOrderBucket: 'last' }),
+      }),
+    ] as any);
+
+    expect(selection.selectedField).toBeNull();
+    expect(selection.selectionMode).toBeNull();
+    expect(selection.fallbackInventory?.matchingFallbackCandidateCount).toBe(0);
+    expect(selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 79)?.nonTextLayoutSignature?.layerBucket).toBe('document-layer');
+  });
+
+  test('guarded physical address discovery fallback fails closed for ambiguous non-text radio groups', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      fallbackRadioField({
+        index: 81,
+        idOrNameKey: 'ambiguousToggleA',
+        nonTextLayoutSignature: nonTextSignature({ groupPatternBucket: 'mixed-group', alignmentBucket: 'mixed' }),
+      }),
+      fallbackRadioField({
+        index: 82,
+        idOrNameKey: 'ambiguousToggleB',
+        nonTextLayoutSignature: nonTextSignature({ groupPatternBucket: 'mixed-group', alignmentBucket: 'mixed' }),
+      }),
+      fallbackRadioField({
+        index: 83,
+        idOrNameKey: 'ambiguousToggleC',
+        nonTextLayoutSignature: nonTextSignature({ groupPatternBucket: 'mixed-group', alignmentBucket: 'mixed' }),
+      }),
+    ] as any);
+
+    expect(selection.selectedField).toBeNull();
+    expect(selection.fallbackInventory?.matchingFallbackCandidateCount).toBe(0);
+    expect(selection.fallbackInventory?.entries.every((entry) => entry.nonTextLayoutSignature?.groupPatternBucket === 'mixed-group')).toBe(true);
+  });
+
   test('guarded physical address discovery fallback refuses mailing or legal container cues', () => {
     const selection = explainPhysicalOperatingAddressToggleSelection([
       fallbackRadioField({
@@ -6219,6 +6437,21 @@ test.describe('interactive validation safety', () => {
             { direction: 'same-row', distanceBucket: 'immediate', association: 'closest-radio', value: 'Business Mailing Address' },
             { direction: 'left', distanceBucket: 'farther', association: 'group', value: 'x '.repeat(200) },
           ],
+          nonTextLayoutSignature: {
+            groupMemberCount: 3,
+            repeatedGroupPattern: true,
+            groupPatternBucket: 'repeated-row-group',
+            sharedContainerBucket: 'same-grandparent',
+            alignmentBucket: 'horizontal',
+            relativeOrderBucket: 'middle',
+            spacingBucket: 'normal',
+            shapeBucket: 'compact-group',
+            layerBucket: 'document-layer',
+            sharedDocumentLayer: true,
+            metadataSignals: ['role', 'name', 'data-tab-type', 'tab-guid', 'page-index'],
+            metadataSignalCount: 5,
+            metadataSignalsTruncated: false,
+          },
           groupName: 'businessMailingAddress_group',
           idOrNameKey: 'isMailingAddress',
           inferredType: { type: 'unknown' },
@@ -6281,6 +6514,10 @@ test.describe('interactive validation safety', () => {
       expect.objectContaining({ text: '[redacted:url]' }),
       expect.objectContaining({ text: '[redacted:token]' }),
     ]));
+    expect(fallbackInventory.entries[0].nonTextLayoutSignature).toEqual(expect.objectContaining({
+      layerBucket: 'document-layer',
+      metadataSignals: expect.arrayContaining(['data-tab-type', 'tab-guid', 'page-index']),
+    }));
     expect(fallbackInventory.entries[0].layoutProximityTextFragments.some((entry: any) => entry.text.includes('Business Mailing Address'))).toBe(true);
     expect(fallbackInventory.entries[0].layoutProximityTextTruncated).toBe(true);
     expect(fallbackInventory.entries[0].nearbyTextTruncated).toBe(true);

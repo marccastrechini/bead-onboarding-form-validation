@@ -5,6 +5,7 @@ import {
   type LayoutProximityDirection,
   type LayoutProximityDistanceBucket,
   type LayoutProximityLabelCandidate,
+  type RadioNonTextLayoutSignature,
 } from './field-discovery';
 import {
   buildPhysicalOperatingAddressDomProbeReport,
@@ -23,7 +24,7 @@ export const SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS_ENV = 'SAFE_DISCOVERY_EXPAND
 
 type GuardedToggleField = Pick<
   DiscoveredField,
-  'index' | 'kind' | 'type' | 'controlCategory' | 'visible' | 'editable' | 'resolvedLabel' | 'label' | 'sectionName' | 'rawCandidateLabels' | 'containerContextLabels' | 'layoutProximityLabels' | 'groupName' | 'idOrNameKey' | 'inferredType'
+  'index' | 'kind' | 'type' | 'controlCategory' | 'visible' | 'editable' | 'resolvedLabel' | 'label' | 'sectionName' | 'rawCandidateLabels' | 'containerContextLabels' | 'layoutProximityLabels' | 'nonTextLayoutSignature' | 'groupName' | 'idOrNameKey' | 'inferredType'
 >;
 
 export interface GuardedPhysicalOperatingAddressDiscoveryResult {
@@ -208,6 +209,7 @@ type PhysicalOperatingAddressToggleFallbackInventoryEntry = {
   }>;
   layoutProximityTextTruncated: boolean;
   layoutProximityCueMatches: PhysicalOperatingAddressCuePatternMatches;
+  nonTextLayoutSignature: RadioNonTextLayoutSignature | null;
   nearbyLabelFragments: Array<{ source: string; text: string }>;
   nearbyTextFragments: Array<{ source: string; text: string }>;
   nearbyTextTruncated: boolean;
@@ -829,6 +831,7 @@ function buildPhysicalOperatingAddressToggleFallbackInventory(
         layoutProximityTextFragments: layoutProximityTextFragments.fragments,
         layoutProximityTextTruncated: layoutProximityTextFragments.truncated,
         layoutProximityCueMatches: buildPhysicalOperatingAddressCuePatternMatches(cueContext.layoutProximityEntries),
+        nonTextLayoutSignature: field.nonTextLayoutSignature ?? null,
         nearbyLabelFragments: nearbyTextFragments.fragments,
         nearbyTextFragments: nearbyTextFragments.fragments,
         nearbyTextTruncated: nearbyTextFragments.truncated,

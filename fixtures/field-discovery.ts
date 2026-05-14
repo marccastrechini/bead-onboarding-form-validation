@@ -110,6 +110,36 @@ export interface LayoutProximityLabelCandidate {
   value: string;
 }
 
+export type RadioGroupPatternBucket = 'single' | 'repeated-row-group' | 'repeated-column-group' | 'mixed-group';
+
+export type RadioAlignmentBucket = 'single' | 'horizontal' | 'vertical' | 'mixed';
+
+export type RadioRelativeOrderBucket = 'single' | 'first' | 'middle' | 'last';
+
+export type RadioSpacingBucket = 'tight' | 'normal' | 'far';
+
+export type RadioShapeBucket = 'single-control' | 'compact-group' | 'spread-group';
+
+export type RadioSharedContainerBucket = 'same-parent' | 'same-grandparent' | 'same-section' | 'mixed';
+
+export type RadioLayerBucket = 'document-layer' | 'html-form-layout' | 'mixed';
+
+export interface RadioNonTextLayoutSignature {
+  groupMemberCount: number;
+  repeatedGroupPattern: boolean;
+  groupPatternBucket: RadioGroupPatternBucket;
+  sharedContainerBucket: RadioSharedContainerBucket;
+  alignmentBucket: RadioAlignmentBucket;
+  relativeOrderBucket: RadioRelativeOrderBucket;
+  spacingBucket: RadioSpacingBucket;
+  shapeBucket: RadioShapeBucket;
+  layerBucket: RadioLayerBucket;
+  sharedDocumentLayer: boolean;
+  metadataSignals: string[];
+  metadataSignalCount: number;
+  metadataSignalsTruncated: boolean;
+}
+
 export interface DiscoveredField {
   kind: FieldKind;
   index: number;
@@ -133,6 +163,8 @@ export interface DiscoveredField {
   containerContextLabels?: LabelCandidate[];
   /** Bounded safe detached visible text near radios, tracked separately from DOM-derived labels. */
   layoutProximityLabels?: LayoutProximityLabelCandidate[];
+  /** Bounded non-text structural signature for radio-like controls when text surfaces are empty. */
+  nonTextLayoutSignature?: RadioNonTextLayoutSignature | null;
   rejectedLabelCandidates: RejectedLabelCandidate[];
   /** Text near the control that clearly reads as a field value, not a prompt. */
   observedValueLikeTextNearControl: string | null;
@@ -305,6 +337,7 @@ async function extractDomContext(loc: Locator): Promise<{
     association: LayoutProximityAssociation;
     value: string;
   }>;
+  nonTextLayoutSignature: RadioNonTextLayoutSignature | null;
   pageIndex: number | null;
   ordinalOnPage: number | null;
   tabLeft: number | null;
@@ -337,6 +370,7 @@ async function extractDomContext(loc: Locator): Promise<{
     containerPrecedingTexts: [],
     containerFollowingTexts: [],
     layoutProximityTexts: [],
+    nonTextLayoutSignature: null,
     pageIndex: null,
     ordinalOnPage: null,
     tabLeft: null,
@@ -737,6 +771,7 @@ async function extractDomContext(loc: Locator): Promise<{
         association: LayoutProximityAssociation;
         value: string;
       }> = [];
+      let nonTextLayoutSignature: RadioNonTextLayoutSignature | null = null;
 
       try {
         const inputEl = el as HTMLElement;
@@ -783,6 +818,19 @@ async function extractDomContext(loc: Locator): Promise<{
             width: Math.max(0, right - left),
             height: Math.max(0, bottom - top),
           };
+        };
+
+        const asBucket = <T extends string>(value: T): T => value;
+
+        const sameNode = (nodes: Array<Element | null | undefined>): boolean => {
+          const present = nodes.filter((node): node is Element => node instanceof Element);
+          return present.length > 0 && present.length === nodes.length && present.every((node) => node === present[0]);
+        };
+
+        const bucketSpacing = (gap: number): RadioSpacingBucket => {
+          if (gap <= 16) return asBucket('tight');
+          if (gap <= 56) return asBucket('normal');
+          return asBucket('far');
         };
 
         const directionBucketFor = (target: RectLike, candidate: RectLike): LayoutProximityDirection | null => {
@@ -836,10 +884,150 @@ async function extractDomContext(loc: Locator): Promise<{
             const radioRects = radioElements.map((node, index) => ({
               index,
               isCurrent: node === inputEl,
+              node,
               rect: toRectLike(node.getBoundingClientRect()),
             }));
             const currentRadio = radioRects.find((entry) => entry.isCurrent) ?? { index: 0, isCurrent: true, rect: inputRect };
             const groupRect = unionRects(radioRects.map((entry) => entry.rect)) ?? inputRect;
+
+            const centers = radioRects.map((entry) => ({
+              x: (entry.rect.left + entry.rect.right) / 2,
+              y: (entry.rect.top + entry.rect.bottom) / 2,
+            }));
+            const maxCenterDx = centers.length > 1 ? Math.max(...centers.map((entry) => entry.x)) - Math.min(...centers.map((entry) => entry.x)) : 0;
+            const maxCenterDy = centers.length > 1 ? Math.max(...centers.map((entry) => entry.y)) - Math.min(...centers.map((entry) => entry.y)) : 0;
+            const avgWidth = radioRects.reduce((sum, entry) => sum + entry.rect.width, 0) / radioRects.length;
+            const avgHeight = radioRects.reduce((sum, entry) => sum + entry.rect.height, 0) / radioRects.length;
+            const rowTolerance = Math.max(18, avgHeight * 1.25);
+            const columnTolerance = Math.max(18, avgWidth * 1.25);
+
+            let alignmentBucket: RadioAlignmentBucket = 'single';
+            if (radioRects.length > 1) {
+              const rowAligned = maxCenterDy <= rowTolerance;
+              const columnAligned = maxCenterDx <= columnTolerance;
+              if (rowAligned && !columnAligned) alignmentBucket = 'horizontal';
+              else if (columnAligned && !rowAligned) alignmentBucket = 'vertical';
+              else alignmentBucket = 'mixed';
+            }
+
+            let groupPatternBucket: RadioGroupPatternBucket = 'single';
+            let repeatedGroupPattern = false;
+            if (radioRects.length > 1) {
+              if (alignmentBucket === 'horizontal') {
+                groupPatternBucket = 'repeated-row-group';
+                repeatedGroupPattern = radioRects.length >= 3;
+              } else if (alignmentBucket === 'vertical') {
+                groupPatternBucket = 'repeated-column-group';
+                repeatedGroupPattern = radioRects.length >= 3;
+              } else {
+                groupPatternBucket = 'mixed-group';
+              }
+            }
+
+            const sortRects = (entries: typeof radioRects) => {
+              if (alignmentBucket === 'horizontal') {
+                return [...entries].sort((a, b) => a.rect.left - b.rect.left || a.rect.top - b.rect.top);
+              }
+              if (alignmentBucket === 'vertical') {
+                return [...entries].sort((a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left);
+              }
+              return [...entries].sort((a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left);
+            };
+
+            const sortedRects = sortRects(radioRects);
+            const currentOrderIndex = sortedRects.findIndex((entry) => entry.isCurrent);
+            let relativeOrderBucket: RadioRelativeOrderBucket = 'single';
+            if (sortedRects.length > 1) {
+              if (currentOrderIndex <= 0) relativeOrderBucket = 'first';
+              else if (currentOrderIndex >= sortedRects.length - 1) relativeOrderBucket = 'last';
+              else relativeOrderBucket = 'middle';
+            }
+
+            const axisGaps = sortedRects.slice(1).map((entry, index) => {
+              const prior = sortedRects[index];
+              if (alignmentBucket === 'vertical') return Math.max(0, entry.rect.top - prior.rect.bottom);
+              return Math.max(0, entry.rect.left - prior.rect.right);
+            });
+            const averageGap = axisGaps.length
+              ? axisGaps.reduce((sum, gap) => sum + gap, 0) / axisGaps.length
+              : 0;
+            const spacingBucket = bucketSpacing(averageGap);
+
+            let shapeBucket: RadioShapeBucket = 'single-control';
+            if (radioRects.length > 1) {
+              shapeBucket = (groupRect.width <= 180 && groupRect.height <= 96)
+                ? 'compact-group'
+                : 'spread-group';
+            }
+
+            const parentNodes = radioRects.map((entry) => entry.node.parentElement);
+            const grandparentNodes = parentNodes.map((node) => node?.parentElement ?? null);
+            const sectionNodes = radioRects.map((entry) => entry.node.closest(
+              '[role="radiogroup"], [role="group"], fieldset, tr, [role="row"], section, article, .card, .doc-tab',
+            ));
+            let sharedContainerBucket: RadioSharedContainerBucket = 'mixed';
+            if (sameNode(parentNodes)) sharedContainerBucket = 'same-parent';
+            else if (sameNode(grandparentNodes)) sharedContainerBucket = 'same-grandparent';
+            else if (sameNode(sectionNodes)) sharedContainerBucket = 'same-section';
+
+            const documentLayerFlags = radioRects.map((entry) => {
+              const node = entry.node;
+              return Boolean(
+                node.closest('.doc-tab, [data-tabtype], [data-tab-type], [data-type]')
+                || node.closest('[data-page-number], [data-page], [data-anchor], [aria-label*="page" i]')
+                || /^tab-form-element-/i.test(node.getAttribute('id') ?? ''),
+              );
+            });
+            const layerBucket: RadioLayerBucket = documentLayerFlags.every(Boolean)
+              ? 'document-layer'
+              : documentLayerFlags.some(Boolean)
+                ? 'mixed'
+                : 'html-form-layout';
+
+            const pageLayerNodes = radioRects.map((entry) => {
+              let walker: HTMLElement | null = entry.node;
+              let up = 0;
+              while (walker && up < 12) {
+                if (walker.querySelector(':scope > img.page-image, :scope img.page-image')) return walker;
+                walker = walker.parentElement;
+                up += 1;
+              }
+              return null;
+            });
+
+            const metadataSignals = Array.from(new Set([
+              el.hasAttribute('role') ? 'role' : null,
+              el.hasAttribute('name') ? 'name' : null,
+              el.hasAttribute('aria-label') ? 'aria-label' : null,
+              el.hasAttribute('aria-labelledby') ? 'aria-labelledby' : null,
+              el.hasAttribute('aria-describedby') ? 'aria-describedby' : null,
+              el.hasAttribute('aria-required') ? 'aria-required' : null,
+              el.hasAttribute('data-qa') || el.closest('[data-qa]') ? 'data-qa' : null,
+              el.hasAttribute('data-tabtype') || el.hasAttribute('data-tab-type') || el.hasAttribute('data-type') || el.closest('[data-tabtype], [data-tab-type], [data-type]')
+                ? 'data-tab-type'
+                : null,
+              /^tab-form-element-/i.test(el.getAttribute('id') ?? '') ? 'tab-guid' : null,
+              layerBucket === 'document-layer' ? 'document-layer' : null,
+              pageLayerNodes.some((node) => node) ? 'page-index' : null,
+              pageLayerNodes.some((node) => node) ? 'ordinal-on-page' : null,
+            ].filter((value): value is string => Boolean(value))));
+
+            nonTextLayoutSignature = {
+              groupMemberCount: Math.min(radioRects.length, 6),
+              repeatedGroupPattern,
+              groupPatternBucket,
+              sharedContainerBucket,
+              alignmentBucket,
+              relativeOrderBucket,
+              spacingBucket,
+              shapeBucket,
+              layerBucket,
+              sharedDocumentLayer: layerBucket === 'document-layer' && sameNode(pageLayerNodes),
+              metadataSignals: metadataSignals.slice(0, 8),
+              metadataSignalCount: metadataSignals.length,
+              metadataSignalsTruncated: metadataSignals.length > 8,
+            };
+
             const candidateElements = Array.from(document.querySelectorAll('span, div, label, p, strong, b, em, legend, header, h1, h2, h3, h4, h5, h6, th, td, li'))
               .filter((node): node is Element => node instanceof Element);
             const seen = new Set<string>();
@@ -1009,6 +1197,7 @@ async function extractDomContext(loc: Locator): Promise<{
         containerPrecedingTexts,
         containerFollowingTexts,
         layoutProximityTexts,
+        nonTextLayoutSignature,
         pageIndex,
         ordinalOnPage,
         tabLeft,
@@ -1461,6 +1650,12 @@ async function describe(
     association: entry.association,
     value: entry.value.trim(),
   }));
+  const nonTextLayoutSignature = domCtx.nonTextLayoutSignature
+    ? {
+        ...domCtx.nonTextLayoutSignature,
+        metadataSignals: [...domCtx.nonTextLayoutSignature.metadataSignals],
+      }
+    : null;
   const push = (source: LabelSource, value: string | null | undefined) => {
     if (value && value.trim()) rawCandidateLabels.push({ source, value: value.trim() });
   };
@@ -1587,6 +1782,7 @@ async function describe(
     rawCandidateLabels,
     containerContextLabels,
     layoutProximityLabels,
+    nonTextLayoutSignature,
     rejectedLabelCandidates: labelResult.rejected,
     observedValueLikeTextNearControl: domCtx.valueLikeNearText,
     idOrNameKey,
