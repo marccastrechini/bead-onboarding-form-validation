@@ -1,83 +1,128 @@
 ## ChatGPT Review Summary
-- What changed: RUN05 added a narrow `safe-redirect` transition wait in `openSigner()` and a reusable helper in `fixtures/signer-helpers.ts`, plus focused tests in `tests/signer-readiness.spec.ts` for delayed URL transition, delayed iframe appearance, and the clear timeout error path. No live bootstrap/capture command was run in RUN05.
-- Whether the result moved us forward: yes. The misleading fragile-iframe failure path from RUN04 is now replaced with an explicit redacted safe-redirect timeout, and the helper now waits for safe transition signals before frame fallback.
-- Tests/commands run and pass/fail: `npx playwright test tests/signer-readiness.spec.ts --project=chromium` passed (5/5); `npm run test:units` passed (255/255).
-- Remaining blocker / uncertainty: the new wait is unit-validated but not yet live-validated against the real `apps-d.docusign.com/safe-redirect` behavior from RUN04. The timeout length and cue set may still need tuning if the live redirect uses a different transition signal.
-- Continue / stop / redirect: continue.
-- Another live capture recommended next: yes, but only if explicitly authorized. Exact next run ID: `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN06`.
+- What changed: RUN06 executed exactly one authorized `npm run bootstrap:capture:physical-address`, inspected only the sanitized Physical Operating Address artifacts, and updated the handoff files. No source/test/doc/package files changed in RUN06.
+- Whether the RUN05 safe-redirect wait helped: yes for blocker quality, no for signer-surface reach. The live run now failed with the intended clear redacted safe-redirect timeout instead of the older misleading fragile iframe failure.
+- Whether the signer surface was reached: no. `waitForSafeRedirectTransition()` observed no URL transition away from `/safe-redirect`, no signing iframe, and no known main-page shell signal before timing out.
+- Whether coverage moved forward: no for Physical Operating Address field-local proof. The blocker diagnosis improved, but no signer surface or fresh artifact was reached.
+- Whether fresh artifacts were produced: no. Both requested post-toggle artifacts remained the stale May 1 files.
+- Tests/commands run and pass/fail: `npm run bootstrap:capture:physical-address` ran exactly once and failed with exit 1; `npm run reports:refresh` and `npm run findings:open` were not run because capture did not succeed and no fresh artifacts were produced.
+- Classification: `business_mailing_address_line_1`, `business_mailing_city`, `business_mailing_state`, and `business_mailing_postal_code` all remain `still capture-blocked`.
+- Remaining blocker / uncertainty: the live `apps-d.docusign.com/safe-redirect` page still exposes none of the currently watched transition signals, so the next smallest move is to enrich the timeout diagnostics with sanitized page/iframe inventory rather than spend another live signer URL immediately.
+- Continue / stop / redirect: redirect.
+- Another live capture recommended next: no.
+- Next best Copilot prompt: add sanitized timeout diagnostics for persistent safe-redirect state in `openSigner()` or adjacent helpers, unit-test that inventory output, and do not run another live capture unless explicitly authorized after that diagnostic pass.
 
 # Copilot Handoff Result
 
-CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN05
+CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN06
 
 ## Status
-Ready for ChatGPT review
+Blocked
 
 ## Objective
-Add the smallest safe source/test improvement for the persistent DocuSign safe-redirect state observed in RUN04, without running another live capture.
+Execute exactly one authorized live capture-only run to validate whether the RUN05 safe-redirect transition wait reaches the signer surface or produces the clearer redacted timeout diagnostic.
 
 ## What Changed
-- Added `waitForSafeRedirectTransition()` in `fixtures/signer-helpers.ts`.
-- `openSigner()` now calls that helper after the initial landing/disclosure pass and before frame resolution is allowed to fall through toward the fragile iframe path.
-- The new wait watches for these non-finalizing readiness signals:
-  - URL transition away from `/safe-redirect`
-  - appearance of a signing iframe
-  - appearance of the known main-page shell signals
-- The timeout path now throws a clear redacted safe-redirect error instead of surfacing a misleading fragile iframe readiness failure.
-- Kept logging redacted and did not change any upload/finalization behavior.
+- Ran `npm run bootstrap:capture:physical-address` exactly once.
+- Inspected only:
+  - `artifacts/latest-physical-operating-address-post-toggle-structure.json`
+  - `artifacts/latest-physical-operating-address-post-toggle-dom.html`
+- Updated only the RUN06 AI handoff files.
 
-## Files Changed
-- `fixtures/signer-helpers.ts`
-- `tests/signer-readiness.spec.ts`
-- `artifacts/ai-handoff/status.json`
-- `artifacts/ai-handoff/latest-copilot-result.md`
+## One-Shot Command Result
+- Command: `npm run bootstrap:capture:physical-address`
+- Run count: exactly once
+- Retry count: zero
+- Resend succeeded.
+- Gmail polling found a fresh invite.
+- Signing URL extraction succeeded with redacted logging.
+- The child runner launched only `npm run capture:physical-address`.
+- The child runner failed with exit code 1.
 
-## Validation
-- `npx playwright test tests/signer-readiness.spec.ts --project=chromium` -> passed (5 passed)
-- `npm run test:units` -> passed (255 passed)
-- `npm run bootstrap:capture:physical-address` was not run in RUN05 by design
-- `bootstrap:interactive`, `interactive:watchdog`, full signer discovery, destructive validation, and uploads were not run
+## Safe-Redirect Wait Outcome
+- URL transition away from `/safe-redirect`: no
+- Signing iframe observed: no
+- Main-page shell signal observed: no
+- Timed out with the new clear redacted safe-redirect diagnostic: yes
+- `openSigner()` reached the signer surface: no
+- `capture:physical-address` produced fresh artifacts: no
 
-## Focused Test Coverage Added
-- A safe-redirect page that transitions after a delay to a signer page/shell
-- A safe-redirect page where a signing iframe appears after a delay
-- A timeout case that now reports a clear redacted safe-redirect error instead of a fragile iframe fallback failure
+## Safe Blocked Reason
+- `capture:physical-address` failed with:
+  `DocuSign safe-redirect did not transition to a signer surface before frame resolution. Current page: https://apps-d.docusign.com/[redacted-path]?[redacted] Observed signals: no URL transition, no signing iframe, no screen-reader shell, no 1. Business Details heading.`
+- This confirms the RUN05 wait is active in live mode and that the blocker is now the persistent safe-redirect page itself rather than a misleading fragile iframe fallback.
 
-## Result
-- Forward progress: yes.
-- RUN05 does not prove live success yet, but it directly addresses the precise RUN04 failure mode with a narrow helper change and green coverage.
-- No live signer URL was consumed in RUN05.
+## Artifact Freshness Check
+- `artifacts/latest-physical-operating-address-post-toggle-structure.json`
+  - exists: yes
+  - last write UTC: `2026-05-01T16:41:44.7937531Z`
+  - `generatedAt`: `2026-05-01T16:41:27.153Z`
+- `artifacts/latest-physical-operating-address-post-toggle-dom.html`
+  - exists: yes
+  - last write UTC: `2026-05-01T16:41:44.7947542Z`
+- Result: both files are stale May 1 artifacts, not fresh RUN06 output.
 
-## Remaining Blocker / Uncertainty
-- The new transition wait has only been validated in focused/unit-style tests.
-- The real live DocuSign safe-redirect page may still require a longer wait or an additional readiness cue if it transitions differently than the simulated cases.
+## Field-Local Label Proof Check
+- `Address Line 1`: absent in structure artifact and DOM artifact
+- `City`: absent in structure artifact and DOM artifact
+- `State`: absent in structure artifact and DOM artifact
+- `ZIP`: absent in structure artifact and DOM artifact
+- `Postal Code`: absent in structure artifact and DOM artifact
 
-## Recommendation
-Continue.
+## `business_mailing_*` Classification
+- `business_mailing_address_line_1`: `still capture-blocked`
+- `business_mailing_city`: `still capture-blocked`
+- `business_mailing_state`: `still capture-blocked`
+- `business_mailing_postal_code`: `still capture-blocked`
 
-Another live capture is recommended next only if explicitly authorized, using:
-`PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN06`
+## Whether RUN05 Helped
+- Yes for blocker precision.
+- No for signer-surface reach or field-local proof capture.
+- The live failure now reflects the actual absence of any safe-redirect transition signal rather than a later fallback-frame misdiagnosis.
 
-## Recommended Next Copilot Prompt
-Run `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN06`: execute exactly one authorized `npm run bootstrap:capture:physical-address`, keep the existing safety constraints, verify whether the new safe-redirect transition wait reaches the signer surface or yields the clearer timeout diagnostic, inspect fresh Physical Operating Address artifacts only if they are newly written, and do not commit generated artifacts.
+## Coverage Movement
+- Physical Operating Address field-local proof did not move forward in RUN06.
+- No fresh artifacts were produced.
+- `npm run reports:refresh` was not run.
+- `npm run findings:open` was not run.
+
+## Smallest Next Source/Test Move
+- Add sanitized safe-redirect timeout diagnostics in `openSigner()` or an adjacent helper so the blocked error reports:
+  - current page title
+  - visible high-signal text fragments
+  - sanitized iframe inventory on the safe-redirect page
+- Cover that diagnostic output with a focused unit test in `tests/signer-readiness.spec.ts`.
+- Do not spend another live signer URL until that diagnostic pass is in place.
 
 ## Safety Confirmation
+- `bootstrap:interactive` was not run.
+- `interactive:watchdog` was not run.
+- Full signer discovery was not run.
 - `DESTRUCTIVE_VALIDATION` was not enabled.
-- `.env` was not mutated.
-- No raw signer URL was printed or committed.
 - No uploads were performed.
 - No Finish, Complete, Submit, Sign, Adopt, or finalization controls were clicked.
-- Generated artifacts were not staged or committed.
+- No raw signer URL was printed or committed.
+- `.env` was not mutated.
+- Generated capture artifacts were not staged or committed.
 
 ## Branch / Commit Status
 - Branch: `main`
-- Pre-RUN05 commit: `32fd7f36feeea1fc77df86e166a363a16ccdf5fc`
-- RUN05 handoff commit: pending at write time
+- Pre-RUN06 commit: `30e7dc66d0352b56e9b70213ea72504247bd4001`
+- RUN06 handoff commit: pending at write time
+
+## Files Changed
+- `artifacts/ai-handoff/status.json`
+- `artifacts/ai-handoff/latest-copilot-result.md`
+
+## Recommendation
+Redirect.
+
+Do not run another live capture next.
+
+## Recommended Next Copilot Prompt
+Run `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN07`: inspect the persistent live safe-redirect blocker in `openSigner()` and adjacent helpers, add sanitized timeout diagnostics for page title / visible text fragments / iframe inventory, cover them with a focused unit test in `tests/signer-readiness.spec.ts`, and do not run `npm run bootstrap:capture:physical-address` unless explicitly authorized again.
 
 ## Commit Scope
 - Stage and commit:
-  - `fixtures/signer-helpers.ts`
-  - `tests/signer-readiness.spec.ts`
   - `artifacts/ai-handoff/status.json`
   - `artifacts/ai-handoff/latest-copilot-result.md`
 - Do not commit:
@@ -87,4 +132,4 @@ Run `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN06`: execute exactly one auth
   - `.env`
   - `samples/private/**`
 
-CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN05
+CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN06
