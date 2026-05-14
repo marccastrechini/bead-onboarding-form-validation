@@ -151,6 +151,16 @@ export type RadioWrapperPatternBucket = 'same-wrapper-pattern' | 'distinct-wrapp
 
 export type RadioAttributePatternBucket = 'same-attribute-pattern' | 'distinct-attribute-pattern' | 'mixed-attribute-pattern';
 
+export type RadioProxyTagBucket = 'label' | 'span' | 'div' | 'svg' | 'canvas' | 'button' | 'role-radio' | 'unknown';
+
+export type RadioProxyRoleBucket = 'radio' | 'button' | 'presentation' | 'none' | 'other';
+
+export type RadioProxyDepthBucket = 'wrapping-label' | 'for-label' | 'parent' | 'grandparent' | 'form-row' | 'association-target';
+
+export type RadioProxyPatternBucket = 'same-proxy-pattern' | 'distinct-proxy-pattern' | 'mixed-proxy-pattern';
+
+export type RadioReferencePatternBucket = 'same-reference-pattern' | 'distinct-reference-pattern' | 'mixed-reference-pattern';
+
 export interface RadioWrapperAttributeSurface {
   depthBucket: RadioWrapperDepthBucket;
   tagName: string;
@@ -184,6 +194,58 @@ export interface RadioDomAttributeSignature {
   valueHintsTruncated: boolean;
   wrapperPatternBucket: RadioWrapperPatternBucket;
   attributePatternBucket: RadioAttributePatternBucket;
+}
+
+export interface RadioProxyReferenceSignature {
+  candidateSlot: number;
+  inputVisibilityBucket: 'visible-input' | 'zero-size-or-hidden-input';
+  visibleProxyCount: number;
+  visibleProxyCountTruncated: boolean;
+  proxyDepthBuckets: RadioProxyDepthBucket[];
+  proxyDepthCount: number;
+  proxyDepthsTruncated: boolean;
+  proxyTagBuckets: RadioProxyTagBucket[];
+  proxyTagCount: number;
+  proxyTagsTruncated: boolean;
+  proxyRoleBuckets: RadioProxyRoleBucket[];
+  proxyRoleCount: number;
+  proxyRolesTruncated: boolean;
+  hasProxyClassAttribute: boolean;
+  hasProxyRoleAttribute: boolean;
+  hasProxyAriaLabel: boolean;
+  hasProxyAriaLabelledBy: boolean;
+  hasProxyAriaDescribedBy: boolean;
+  hasProxyAriaControls: boolean;
+  hasProxyForAttribute: boolean;
+  hasProxyDataAttributes: boolean;
+  hasProxyDocuSignMetadataAttributes: boolean;
+  hasProxyTabIndex: boolean;
+  hasForIdReference: boolean;
+  forReferenceTargetExists: boolean;
+  forReferenceTargetVisible: boolean;
+  hasAriaLabelledByReference: boolean;
+  ariaLabelledByTargetExists: boolean;
+  ariaLabelledByTargetVisible: boolean;
+  hasAriaDescribedByReference: boolean;
+  ariaDescribedByTargetExists: boolean;
+  ariaDescribedByTargetVisible: boolean;
+  hasAriaControlsReference: boolean;
+  ariaControlsTargetExists: boolean;
+  ariaControlsTargetVisible: boolean;
+  hasDataReference: boolean;
+  dataReferenceTargetExists: boolean;
+  dataReferenceTargetVisible: boolean;
+  hasDocuSignReference: boolean;
+  docuSignReferenceTargetExists: boolean;
+  docuSignReferenceTargetVisible: boolean;
+  tokenShapeBuckets: RadioTokenShapeBucket[];
+  tokenShapeCount: number;
+  tokenShapesTruncated: boolean;
+  valueHintBuckets: RadioAttributeValueHintBucket[];
+  valueHintCount: number;
+  valueHintsTruncated: boolean;
+  proxyPatternBucket: RadioProxyPatternBucket;
+  referencePatternBucket: RadioReferencePatternBucket;
 }
 
 export interface RadioNonTextLayoutSignature {
@@ -229,6 +291,8 @@ export interface DiscoveredField {
   nonTextLayoutSignature?: RadioNonTextLayoutSignature | null;
   /** Bounded DOM wrapper and safe attribute-signature inventory for radio-like controls. */
   domAttributeSignature?: RadioDomAttributeSignature | null;
+  /** Bounded visible-proxy wrapper and association-reference inventory for radio-like controls. */
+  proxyReferenceSignature?: RadioProxyReferenceSignature | null;
   rejectedLabelCandidates: RejectedLabelCandidate[];
   /** Text near the control that clearly reads as a field value, not a prompt. */
   observedValueLikeTextNearControl: string | null;
@@ -403,6 +467,7 @@ async function extractDomContext(loc: Locator): Promise<{
   }>;
   nonTextLayoutSignature: RadioNonTextLayoutSignature | null;
   domAttributeSignature: RadioDomAttributeSignature | null;
+  proxyReferenceSignature: RadioProxyReferenceSignature | null;
   pageIndex: number | null;
   ordinalOnPage: number | null;
   tabLeft: number | null;
@@ -437,6 +502,7 @@ async function extractDomContext(loc: Locator): Promise<{
     layoutProximityTexts: [],
     nonTextLayoutSignature: null,
     domAttributeSignature: null,
+    proxyReferenceSignature: null,
     pageIndex: null,
     ordinalOnPage: null,
     tabLeft: null,
@@ -839,6 +905,7 @@ async function extractDomContext(loc: Locator): Promise<{
       }> = [];
       let nonTextLayoutSignature: RadioNonTextLayoutSignature | null = null;
       let domAttributeSignature: RadioDomAttributeSignature | null = null;
+      let proxyReferenceSignature: RadioProxyReferenceSignature | null = null;
 
       try {
         const inputEl = el as HTMLElement;
@@ -913,6 +980,8 @@ async function extractDomContext(loc: Locator): Promise<{
 
         const SAFE_ATTRIBUTE_NAME_RE = /^(id|name|class|type|role|for|aria-[a-z0-9_-]+|data-[a-z0-9_-]+)$/i;
         const DOCUSIGN_ATTRIBUTE_NAME_RE = /^(data-tabtype|data-tab-type|data-type|data-qa|data-page-number|data-page|data-anchor)$/i;
+        const DATA_REFERENCE_ATTRIBUTE_NAME_RE = /^data-(?:tab|field|recipient|target|for)(?:[-_][a-z0-9]+)*$/i;
+        const DOCUSIGN_REFERENCE_VALUE_RE = /^tab-form-element-[a-z0-9:_-]+$/i;
         const GENERATED_TOKEN_RE = /^(?:tab[-_\s]*form[-_\s]*element[-_\s]*)?[A-F0-9]{12,}$|^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
         const collectElementAttributeEntries = (node: Element | null): Array<{ name: string; value: string }> => {
@@ -920,6 +989,88 @@ async function extractDomContext(loc: Locator): Promise<{
           return Array.from(node.attributes)
             .map((attr) => ({ name: attr.name.toLowerCase(), value: attr.value ?? '' }))
             .filter((attr) => SAFE_ATTRIBUTE_NAME_RE.test(attr.name));
+        };
+
+        const isRenderedElement = (node: Element | null): node is HTMLElement => {
+          if (!(node instanceof HTMLElement)) return false;
+          const rect = node.getBoundingClientRect();
+          if (rect.width === 0 || rect.height === 0) return false;
+          const style = window.getComputedStyle(node);
+          return style.display !== 'none' && style.visibility !== 'hidden';
+        };
+
+        const escapeAttributeValue = (value: string): string =>
+          value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+
+        const toProxyTagBucket = (node: Element): RadioProxyTagBucket => {
+          const role = clean(node.getAttribute('role'))?.toLowerCase() ?? null;
+          if (role === 'radio') return 'role-radio';
+          switch (node.tagName.toLowerCase()) {
+            case 'label':
+              return 'label';
+            case 'span':
+              return 'span';
+            case 'div':
+              return 'div';
+            case 'svg':
+              return 'svg';
+            case 'canvas':
+              return 'canvas';
+            case 'button':
+              return 'button';
+            default:
+              return 'unknown';
+          }
+        };
+
+        const toProxyRoleBucket = (node: Element): RadioProxyRoleBucket => {
+          const role = clean(node.getAttribute('role'))?.toLowerCase() ?? null;
+          if (!role) return 'none';
+          if (role === 'radio') return 'radio';
+          if (role === 'button') return 'button';
+          if (role === 'presentation' || role === 'none') return 'presentation';
+          return 'other';
+        };
+
+        const collectReferenceTokens = (values: Array<string | null | undefined>, limit = 8): string[] => {
+          const tokens: string[] = [];
+          const seenTokens = new Set<string>();
+
+          for (const value of values) {
+            const parts = (value ?? '')
+              .split(/[\s,;]+/)
+              .map((part) => part.trim())
+              .filter(Boolean);
+            for (const part of parts) {
+              if (part.length > 160 || seenTokens.has(part)) continue;
+              seenTokens.add(part);
+              tokens.push(part);
+              if (tokens.length >= limit) return tokens;
+            }
+          }
+
+          return tokens;
+        };
+
+        const resolveReferenceTargets = (values: Array<string | null | undefined>) => {
+          const tokens = collectReferenceTokens(values);
+          const nodes: Element[] = [];
+          const seenNodes = new Set<Element>();
+
+          for (const token of tokens) {
+            const target = document.getElementById(token);
+            if (target && !seenNodes.has(target)) {
+              seenNodes.add(target);
+              nodes.push(target);
+            }
+          }
+
+          return {
+            hasReference: tokens.length > 0,
+            targetExists: nodes.length > 0,
+            targetVisible: nodes.some((target) => isRenderedElement(target)),
+            nodes,
+          };
         };
 
         const collectTokenShapeSummary = (
@@ -1039,6 +1190,12 @@ async function extractDomContext(loc: Locator): Promise<{
           attributePatternKey: string;
         };
 
+        type RawRadioProxyReferenceSignature = {
+          signature: Omit<RadioProxyReferenceSignature, 'proxyPatternBucket' | 'referencePatternBucket'>;
+          proxyPatternKey: string;
+          referencePatternKey: string;
+        };
+
         const buildRawRadioAttributeSignature = (node: HTMLElement): RawRadioAttributeSignature => {
           const selfEntries = collectElementAttributeEntries(node);
           const radioAttributeNames = summarizeItems(
@@ -1107,6 +1264,225 @@ async function extractDomContext(loc: Locator): Promise<{
           };
         };
 
+        const buildRawRadioProxyReferenceSignature = (
+          node: HTMLElement,
+          candidateSlot: number,
+        ): RawRadioProxyReferenceSignature => {
+          const inputRect = toRectLike(node.getBoundingClientRect());
+          const anchorRect = inputRect.width > 0 && inputRect.height > 0
+            ? inputRect
+            : toRectLike((node.parentElement ?? node).getBoundingClientRect());
+          const nearestFormRow = node.closest(
+            '[role="radiogroup"], [role="group"], fieldset, tr, [role="row"], section, article, .card, .doc-tab',
+          );
+
+          const proxyCandidates: Array<{
+            node: HTMLElement;
+            depthBucket: RadioProxyDepthBucket;
+          }> = [];
+          const seenProxyNodes = new Set<HTMLElement>();
+
+          const addProxyCandidate = (candidate: Element | null, depthBucket: RadioProxyDepthBucket) => {
+            if (!(candidate instanceof HTMLElement) || candidate === node || seenProxyNodes.has(candidate)) return;
+            if (/^(input|textarea|select|option)$/i.test(candidate.tagName)) return;
+            if (!isRenderedElement(candidate)) return;
+
+            const rect = toRectLike(candidate.getBoundingClientRect());
+            if (rect.width > 520 || rect.height > 180) return;
+            if (
+              candidate.tagName.toLowerCase() === 'div'
+              && !candidate.hasAttribute('role')
+              && !candidate.hasAttribute('class')
+              && !candidate.hasAttribute('for')
+              && !Array.from(candidate.attributes).some((attr) => attr.name.startsWith('data-'))
+              && candidate.children.length > 6
+            ) {
+              return;
+            }
+
+            seenProxyNodes.add(candidate);
+            proxyCandidates.push({ node: candidate, depthBucket });
+          };
+
+          const addScopedProxyCandidates = (scope: Element | null, depthBucket: RadioProxyDepthBucket) => {
+            if (!(scope instanceof Element)) return;
+
+            const candidates = Array.from(scope.querySelectorAll('label, span, div, svg, canvas, button, [role="radio"]'))
+              .filter((candidate): candidate is HTMLElement => candidate instanceof HTMLElement)
+              .filter((candidate) => candidate !== node && !candidate.contains(node))
+              .map((candidate) => ({
+                candidate,
+                rect: toRectLike(candidate.getBoundingClientRect()),
+              }))
+              .filter(({ candidate, rect }) => {
+                if (!isRenderedElement(candidate)) return false;
+                const gap = rectGap(anchorRect, rect);
+                const distance = centerDistance(anchorRect, rect);
+                if (gap > 96 && distance > 140) return false;
+                if (candidate.children.length > 8 && candidate.tagName.toLowerCase() === 'div' && !candidate.hasAttribute('role')) {
+                  return false;
+                }
+                return true;
+              })
+              .sort((a, b) => {
+                const gapDelta = rectGap(anchorRect, a.rect) - rectGap(anchorRect, b.rect);
+                if (gapDelta !== 0) return gapDelta;
+                return centerDistance(anchorRect, a.rect) - centerDistance(anchorRect, b.rect);
+              })
+              .slice(0, 8);
+
+            for (const { candidate } of candidates) {
+              addProxyCandidate(candidate, depthBucket);
+            }
+          };
+
+          const wrappingLabel = node.closest('label');
+          if (wrappingLabel) {
+            addProxyCandidate(wrappingLabel, 'wrapping-label');
+            addScopedProxyCandidates(wrappingLabel, 'wrapping-label');
+          }
+
+          const forLabels = node.id
+            ? Array.from(document.querySelectorAll(`label[for="${escapeAttributeValue(node.id)}"]`))
+              .filter((candidate): candidate is HTMLElement => candidate instanceof HTMLElement)
+            : [];
+          for (const label of forLabels.slice(0, 4)) {
+            addProxyCandidate(label, 'for-label');
+            addScopedProxyCandidates(label, 'for-label');
+          }
+
+          addScopedProxyCandidates(node.parentElement, 'parent');
+          addScopedProxyCandidates(node.parentElement?.parentElement ?? null, 'grandparent');
+          addScopedProxyCandidates(nearestFormRow, 'form-row');
+
+          const referenceSourceNodes = [node, ...proxyCandidates.map((entry) => entry.node)];
+          const ariaLabelledByState = resolveReferenceTargets(referenceSourceNodes.map((entry) => entry.getAttribute('aria-labelledby')));
+          const ariaDescribedByState = resolveReferenceTargets(referenceSourceNodes.map((entry) => entry.getAttribute('aria-describedby')));
+          const ariaControlsState = resolveReferenceTargets(referenceSourceNodes.map((entry) => entry.getAttribute('aria-controls')));
+          const dataReferenceEntries = referenceSourceNodes.flatMap((entry) =>
+            collectElementAttributeEntries(entry).filter((attribute) => DATA_REFERENCE_ATTRIBUTE_NAME_RE.test(attribute.name)),
+          );
+          const dataReferenceState = resolveReferenceTargets(dataReferenceEntries.map((entry) => entry.value));
+          const docuSignReferenceState = resolveReferenceTargets(referenceSourceNodes.flatMap((entry) =>
+            collectElementAttributeEntries(entry)
+              .filter((attribute) => attribute.name !== 'id' && DOCUSIGN_REFERENCE_VALUE_RE.test((attribute.value ?? '').trim()))
+              .map((attribute) => attribute.value),
+          ));
+
+          for (const target of [
+            ...ariaLabelledByState.nodes,
+            ...ariaDescribedByState.nodes,
+            ...ariaControlsState.nodes,
+            ...dataReferenceState.nodes,
+            ...docuSignReferenceState.nodes,
+          ]) {
+            addProxyCandidate(target, 'association-target');
+          }
+
+          const rawProxyEntries = proxyCandidates.map(({ node: proxyNode, depthBucket }) => {
+            const attributeEntries = collectElementAttributeEntries(proxyNode);
+            const tokenShapes = collectTokenShapeSummary(attributeEntries.map((attribute) => attribute.value));
+            const valueHints = collectValueHintSummary(attributeEntries.map((attribute) => attribute.value));
+            const tagBucket = toProxyTagBucket(proxyNode);
+            const roleBucket = toProxyRoleBucket(proxyNode);
+
+            return {
+              node: proxyNode,
+              depthBucket,
+              tagBucket,
+              roleBucket,
+              attributeEntries,
+              patternKey: [
+                depthBucket,
+                tagBucket,
+                roleBucket,
+                proxyNode.hasAttribute('class') ? 'class' : '',
+                proxyNode.hasAttribute('role') ? 'role' : '',
+                proxyNode.hasAttribute('for') ? 'for' : '',
+                proxyNode.hasAttribute('aria-label') ? 'aria-label' : '',
+                proxyNode.hasAttribute('aria-labelledby') ? 'aria-labelledby' : '',
+                proxyNode.hasAttribute('aria-describedby') ? 'aria-describedby' : '',
+                proxyNode.hasAttribute('aria-controls') ? 'aria-controls' : '',
+                proxyNode.hasAttribute('tabindex') ? 'tabindex' : '',
+                attributeEntries.some((attribute) => attribute.name.startsWith('data-')) ? 'data' : '',
+                attributeEntries.some((attribute) => DOCUSIGN_ATTRIBUTE_NAME_RE.test(attribute.name)) ? 'docusign' : '',
+                tokenShapes.items.join(','),
+                valueHints.items.join(','),
+              ].join('|'),
+            };
+          });
+
+          const proxyDepthBuckets = summarizeItems(rawProxyEntries.map((entry) => entry.depthBucket), 6);
+          const proxyTagBuckets = summarizeItems(rawProxyEntries.map((entry) => entry.tagBucket), 8);
+          const proxyRoleBuckets = summarizeItems(rawProxyEntries.map((entry) => entry.roleBucket), 5);
+          const proxyValues = rawProxyEntries.flatMap((entry) => entry.attributeEntries.map((attribute) => attribute.value));
+          const tokenShapes = collectTokenShapeSummary(proxyValues);
+          const valueHints = collectValueHintSummary(proxyValues);
+
+          return {
+            signature: {
+              candidateSlot,
+              inputVisibilityBucket: isRenderedElement(node) ? 'visible-input' : 'zero-size-or-hidden-input',
+              visibleProxyCount: Math.min(rawProxyEntries.length, 6),
+              visibleProxyCountTruncated: rawProxyEntries.length > 6,
+              proxyDepthBuckets: proxyDepthBuckets.items,
+              proxyDepthCount: proxyDepthBuckets.count,
+              proxyDepthsTruncated: proxyDepthBuckets.truncated,
+              proxyTagBuckets: proxyTagBuckets.items,
+              proxyTagCount: proxyTagBuckets.count,
+              proxyTagsTruncated: proxyTagBuckets.truncated,
+              proxyRoleBuckets: proxyRoleBuckets.items,
+              proxyRoleCount: proxyRoleBuckets.count,
+              proxyRolesTruncated: proxyRoleBuckets.truncated,
+              hasProxyClassAttribute: rawProxyEntries.some((entry) => entry.node.hasAttribute('class')),
+              hasProxyRoleAttribute: rawProxyEntries.some((entry) => entry.node.hasAttribute('role')),
+              hasProxyAriaLabel: rawProxyEntries.some((entry) => entry.node.hasAttribute('aria-label')),
+              hasProxyAriaLabelledBy: rawProxyEntries.some((entry) => entry.node.hasAttribute('aria-labelledby')),
+              hasProxyAriaDescribedBy: rawProxyEntries.some((entry) => entry.node.hasAttribute('aria-describedby')),
+              hasProxyAriaControls: rawProxyEntries.some((entry) => entry.node.hasAttribute('aria-controls')),
+              hasProxyForAttribute: rawProxyEntries.some((entry) => entry.node.hasAttribute('for')),
+              hasProxyDataAttributes: rawProxyEntries.some((entry) => entry.attributeEntries.some((attribute) => attribute.name.startsWith('data-'))),
+              hasProxyDocuSignMetadataAttributes: rawProxyEntries.some((entry) => entry.attributeEntries.some((attribute) => DOCUSIGN_ATTRIBUTE_NAME_RE.test(attribute.name))),
+              hasProxyTabIndex: rawProxyEntries.some((entry) => entry.node.hasAttribute('tabindex')),
+              hasForIdReference: forLabels.length > 0,
+              forReferenceTargetExists: forLabels.length > 0,
+              forReferenceTargetVisible: forLabels.some((label) => isRenderedElement(label)),
+              hasAriaLabelledByReference: ariaLabelledByState.hasReference,
+              ariaLabelledByTargetExists: ariaLabelledByState.targetExists,
+              ariaLabelledByTargetVisible: ariaLabelledByState.targetVisible,
+              hasAriaDescribedByReference: ariaDescribedByState.hasReference,
+              ariaDescribedByTargetExists: ariaDescribedByState.targetExists,
+              ariaDescribedByTargetVisible: ariaDescribedByState.targetVisible,
+              hasAriaControlsReference: ariaControlsState.hasReference,
+              ariaControlsTargetExists: ariaControlsState.targetExists,
+              ariaControlsTargetVisible: ariaControlsState.targetVisible,
+              hasDataReference: dataReferenceState.hasReference,
+              dataReferenceTargetExists: dataReferenceState.targetExists,
+              dataReferenceTargetVisible: dataReferenceState.targetVisible,
+              hasDocuSignReference: docuSignReferenceState.hasReference,
+              docuSignReferenceTargetExists: docuSignReferenceState.targetExists,
+              docuSignReferenceTargetVisible: docuSignReferenceState.targetVisible,
+              tokenShapeBuckets: tokenShapes.items,
+              tokenShapeCount: tokenShapes.count,
+              tokenShapesTruncated: tokenShapes.truncated,
+              valueHintBuckets: valueHints.items,
+              valueHintCount: valueHints.count,
+              valueHintsTruncated: valueHints.truncated,
+            },
+            proxyPatternKey: rawProxyEntries.map((entry) => entry.patternKey).join('||') || 'no-proxy-pattern',
+            referencePatternKey: [
+              forLabels.length > 0 ? 'for' : '',
+              ariaLabelledByState.hasReference ? 'aria-labelledby' : '',
+              ariaDescribedByState.hasReference ? 'aria-describedby' : '',
+              ariaControlsState.hasReference ? 'aria-controls' : '',
+              dataReferenceState.hasReference ? 'data-reference' : '',
+              docuSignReferenceState.hasReference ? 'docusign-reference' : '',
+              valueHints.items.join(','),
+              tokenShapes.items.join(','),
+            ].join('|'),
+          };
+        };
+
         const bucketPatternCommonality = <T extends string>(
           keys: string[],
           sameBucket: T,
@@ -1154,70 +1530,103 @@ async function extractDomContext(loc: Locator): Promise<{
 
         if (isRadioLike) {
           const inputRect = toRectLike(inputEl.getBoundingClientRect());
+          const radioElements = Array.from(document.querySelectorAll('input[type="radio"], [role="radio"]'))
+            .filter((node): node is HTMLElement => node instanceof HTMLElement)
+            .filter((node) => {
+              if (node === inputEl) return true;
+
+              const rect = node.getBoundingClientRect();
+              if (rect.width === 0 || rect.height === 0) return false;
+
+              const sameNamedInput = ownType === 'radio'
+                && node.tagName.toLowerCase() === 'input'
+                && node.getAttribute('type')?.toLowerCase() === 'radio'
+                && node.getAttribute('name')
+                && node.getAttribute('name') === elementName;
+              if (sameNamedInput) return true;
+
+              const currentGroup = el.closest('[role="radiogroup"], [role="group"], fieldset');
+              return Boolean(currentGroup && currentGroup.contains(node));
+            });
+
+          const radioRects = radioElements.map((node, index) => ({
+            index,
+            isCurrent: node === inputEl,
+            node,
+            rect: toRectLike(node.getBoundingClientRect()),
+          }));
+          const currentRadio = radioRects.find((entry) => entry.isCurrent) ?? {
+            index: 0,
+            isCurrent: true,
+            node: inputEl,
+            rect: inputRect,
+          };
+          const rawAttributeSignatures = radioRects.map((entry) => ({
+            isCurrent: entry.isCurrent,
+            ...buildRawRadioAttributeSignature(entry.node),
+          }));
+          const currentAttributeSignature = rawAttributeSignatures.find((entry) => entry.isCurrent) ?? null;
+
+          if (currentAttributeSignature) {
+            domAttributeSignature = {
+              ...currentAttributeSignature.signature,
+              wrapperPatternBucket: bucketPatternCommonality(
+                rawAttributeSignatures.map((entry) => entry.wrapperPatternKey),
+                'same-wrapper-pattern',
+                'distinct-wrapper-pattern',
+                'mixed-wrapper-pattern',
+              ),
+              attributePatternBucket: bucketPatternCommonality(
+                rawAttributeSignatures.map((entry) => entry.attributePatternKey),
+                'same-attribute-pattern',
+                'distinct-attribute-pattern',
+                'mixed-attribute-pattern',
+              ),
+            };
+          }
+
+          const rawProxySignatures = radioRects.map((entry) => ({
+            isCurrent: entry.isCurrent,
+            ...buildRawRadioProxyReferenceSignature(entry.node, entry.index + 1),
+          }));
+          const currentProxySignature = rawProxySignatures.find((entry) => entry.isCurrent) ?? null;
+
+          if (currentProxySignature) {
+            proxyReferenceSignature = {
+              ...currentProxySignature.signature,
+              proxyPatternBucket: bucketPatternCommonality(
+                rawProxySignatures.map((entry) => entry.proxyPatternKey),
+                'same-proxy-pattern',
+                'distinct-proxy-pattern',
+                'mixed-proxy-pattern',
+              ),
+              referencePatternBucket: bucketPatternCommonality(
+                rawProxySignatures.map((entry) => entry.referencePatternKey),
+                'same-reference-pattern',
+                'distinct-reference-pattern',
+                'mixed-reference-pattern',
+              ),
+            };
+          }
+
           if (inputRect.width > 0 && inputRect.height > 0) {
-            const radioElements = Array.from(document.querySelectorAll('input[type="radio"], [role="radio"]'))
-              .filter((node): node is HTMLElement => node instanceof HTMLElement)
-              .filter((node) => {
-                const rect = node.getBoundingClientRect();
-                if (rect.width === 0 || rect.height === 0) return false;
-                if (node === inputEl) return true;
+            const visibleRadioRects = radioRects.filter((entry) => entry.rect.width > 0 && entry.rect.height > 0);
+            const currentVisibleRadio = visibleRadioRects.find((entry) => entry.isCurrent) ?? currentRadio;
+            const groupRect = unionRects(visibleRadioRects.map((entry) => entry.rect)) ?? inputRect;
 
-                const sameNamedInput = ownType === 'radio'
-                  && node.tagName.toLowerCase() === 'input'
-                  && node.getAttribute('type')?.toLowerCase() === 'radio'
-                  && node.getAttribute('name')
-                  && node.getAttribute('name') === elementName;
-                if (sameNamedInput) return true;
-
-                const currentGroup = el.closest('[role="radiogroup"], [role="group"], fieldset');
-                return Boolean(currentGroup && currentGroup.contains(node));
-              });
-
-            const radioRects = radioElements.map((node, index) => ({
-              index,
-              isCurrent: node === inputEl,
-              node,
-              rect: toRectLike(node.getBoundingClientRect()),
-            }));
-            const currentRadio = radioRects.find((entry) => entry.isCurrent) ?? { index: 0, isCurrent: true, rect: inputRect };
-            const groupRect = unionRects(radioRects.map((entry) => entry.rect)) ?? inputRect;
-            const rawAttributeSignatures = radioRects.map((entry) => ({
-              isCurrent: entry.isCurrent,
-              ...buildRawRadioAttributeSignature(entry.node),
-            }));
-            const currentAttributeSignature = rawAttributeSignatures.find((entry) => entry.isCurrent) ?? null;
-
-            if (currentAttributeSignature) {
-              domAttributeSignature = {
-                ...currentAttributeSignature.signature,
-                wrapperPatternBucket: bucketPatternCommonality(
-                  rawAttributeSignatures.map((entry) => entry.wrapperPatternKey),
-                  'same-wrapper-pattern',
-                  'distinct-wrapper-pattern',
-                  'mixed-wrapper-pattern',
-                ),
-                attributePatternBucket: bucketPatternCommonality(
-                  rawAttributeSignatures.map((entry) => entry.attributePatternKey),
-                  'same-attribute-pattern',
-                  'distinct-attribute-pattern',
-                  'mixed-attribute-pattern',
-                ),
-              };
-            }
-
-            const centers = radioRects.map((entry) => ({
+            const centers = visibleRadioRects.map((entry) => ({
               x: (entry.rect.left + entry.rect.right) / 2,
               y: (entry.rect.top + entry.rect.bottom) / 2,
             }));
             const maxCenterDx = centers.length > 1 ? Math.max(...centers.map((entry) => entry.x)) - Math.min(...centers.map((entry) => entry.x)) : 0;
             const maxCenterDy = centers.length > 1 ? Math.max(...centers.map((entry) => entry.y)) - Math.min(...centers.map((entry) => entry.y)) : 0;
-            const avgWidth = radioRects.reduce((sum, entry) => sum + entry.rect.width, 0) / radioRects.length;
-            const avgHeight = radioRects.reduce((sum, entry) => sum + entry.rect.height, 0) / radioRects.length;
+            const avgWidth = visibleRadioRects.reduce((sum, entry) => sum + entry.rect.width, 0) / visibleRadioRects.length;
+            const avgHeight = visibleRadioRects.reduce((sum, entry) => sum + entry.rect.height, 0) / visibleRadioRects.length;
             const rowTolerance = Math.max(18, avgHeight * 1.25);
             const columnTolerance = Math.max(18, avgWidth * 1.25);
 
             let alignmentBucket: RadioAlignmentBucket = 'single';
-            if (radioRects.length > 1) {
+            if (visibleRadioRects.length > 1) {
               const rowAligned = maxCenterDy <= rowTolerance;
               const columnAligned = maxCenterDx <= columnTolerance;
               if (rowAligned && !columnAligned) alignmentBucket = 'horizontal';
@@ -1227,19 +1636,19 @@ async function extractDomContext(loc: Locator): Promise<{
 
             let groupPatternBucket: RadioGroupPatternBucket = 'single';
             let repeatedGroupPattern = false;
-            if (radioRects.length > 1) {
+            if (visibleRadioRects.length > 1) {
               if (alignmentBucket === 'horizontal') {
                 groupPatternBucket = 'repeated-row-group';
-                repeatedGroupPattern = radioRects.length >= 3;
+                repeatedGroupPattern = visibleRadioRects.length >= 3;
               } else if (alignmentBucket === 'vertical') {
                 groupPatternBucket = 'repeated-column-group';
-                repeatedGroupPattern = radioRects.length >= 3;
+                repeatedGroupPattern = visibleRadioRects.length >= 3;
               } else {
                 groupPatternBucket = 'mixed-group';
               }
             }
 
-            const sortRects = (entries: typeof radioRects) => {
+            const sortRects = (entries: typeof visibleRadioRects) => {
               if (alignmentBucket === 'horizontal') {
                 return [...entries].sort((a, b) => a.rect.left - b.rect.left || a.rect.top - b.rect.top);
               }
@@ -1249,7 +1658,7 @@ async function extractDomContext(loc: Locator): Promise<{
               return [...entries].sort((a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left);
             };
 
-            const sortedRects = sortRects(radioRects);
+            const sortedRects = sortRects(visibleRadioRects);
             const currentOrderIndex = sortedRects.findIndex((entry) => entry.isCurrent);
             let relativeOrderBucket: RadioRelativeOrderBucket = 'single';
             if (sortedRects.length > 1) {
@@ -1269,15 +1678,15 @@ async function extractDomContext(loc: Locator): Promise<{
             const spacingBucket = bucketSpacing(averageGap);
 
             let shapeBucket: RadioShapeBucket = 'single-control';
-            if (radioRects.length > 1) {
+            if (visibleRadioRects.length > 1) {
               shapeBucket = (groupRect.width <= 180 && groupRect.height <= 96)
                 ? 'compact-group'
                 : 'spread-group';
             }
 
-            const parentNodes = radioRects.map((entry) => entry.node.parentElement);
+            const parentNodes = visibleRadioRects.map((entry) => entry.node.parentElement);
             const grandparentNodes = parentNodes.map((node) => node?.parentElement ?? null);
-            const sectionNodes = radioRects.map((entry) => entry.node.closest(
+            const sectionNodes = visibleRadioRects.map((entry) => entry.node.closest(
               '[role="radiogroup"], [role="group"], fieldset, tr, [role="row"], section, article, .card, .doc-tab',
             ));
             let sharedContainerBucket: RadioSharedContainerBucket = 'mixed';
@@ -1285,7 +1694,7 @@ async function extractDomContext(loc: Locator): Promise<{
             else if (sameNode(grandparentNodes)) sharedContainerBucket = 'same-grandparent';
             else if (sameNode(sectionNodes)) sharedContainerBucket = 'same-section';
 
-            const documentLayerFlags = radioRects.map((entry) => {
+            const documentLayerFlags = visibleRadioRects.map((entry) => {
               const node = entry.node;
               return Boolean(
                 node.closest('.doc-tab, [data-tabtype], [data-tab-type], [data-type]')
@@ -1299,7 +1708,7 @@ async function extractDomContext(loc: Locator): Promise<{
                 ? 'mixed'
                 : 'html-form-layout';
 
-            const pageLayerNodes = radioRects.map((entry) => {
+            const pageLayerNodes = visibleRadioRects.map((entry) => {
               let walker: HTMLElement | null = entry.node;
               let up = 0;
               while (walker && up < 12) {
@@ -1328,7 +1737,7 @@ async function extractDomContext(loc: Locator): Promise<{
             ].filter((value): value is string => Boolean(value))));
 
             nonTextLayoutSignature = {
-              groupMemberCount: Math.min(radioRects.length, 6),
+              groupMemberCount: Math.min(visibleRadioRects.length, 6),
               repeatedGroupPattern,
               groupPatternBucket,
               sharedContainerBucket,
@@ -1371,7 +1780,7 @@ async function extractDomContext(loc: Locator): Promise<{
               const groupGap = rectGap(groupRect, rect);
               if (Math.min(currentGap, groupGap) > 160) continue;
 
-              const radioDistances = radioRects
+              const radioDistances = visibleRadioRects
                 .map((entry) => ({ index: entry.index, isCurrent: entry.isCurrent, gap: rectGap(entry.rect, rect), center: centerDistance(entry.rect, rect) }))
                 .sort((a, b) => a.gap - b.gap || a.center - b.center);
 
@@ -1395,7 +1804,7 @@ async function extractDomContext(loc: Locator): Promise<{
               if (!association) continue;
               if (association === 'closest-radio' && !closest.isCurrent) continue;
 
-              const direction = association === 'group' ? 'near-group' : directionBucketFor(currentRadio.rect, rect);
+              const direction = association === 'group' ? 'near-group' : directionBucketFor(currentVisibleRadio.rect, rect);
               if (!direction) continue;
 
               const gap = association === 'group' ? groupGap : currentGap;
@@ -1514,6 +1923,7 @@ async function extractDomContext(loc: Locator): Promise<{
         layoutProximityTexts,
         nonTextLayoutSignature,
         domAttributeSignature,
+        proxyReferenceSignature,
         pageIndex,
         ordinalOnPage,
         tabLeft,
@@ -1985,6 +2395,16 @@ async function describe(
         valueHintBuckets: [...domCtx.domAttributeSignature.valueHintBuckets],
       }
     : null;
+  const proxyReferenceSignature = domCtx.proxyReferenceSignature
+    ? {
+        ...domCtx.proxyReferenceSignature,
+        proxyDepthBuckets: [...domCtx.proxyReferenceSignature.proxyDepthBuckets],
+        proxyTagBuckets: [...domCtx.proxyReferenceSignature.proxyTagBuckets],
+        proxyRoleBuckets: [...domCtx.proxyReferenceSignature.proxyRoleBuckets],
+        tokenShapeBuckets: [...domCtx.proxyReferenceSignature.tokenShapeBuckets],
+        valueHintBuckets: [...domCtx.proxyReferenceSignature.valueHintBuckets],
+      }
+    : null;
   const push = (source: LabelSource, value: string | null | undefined) => {
     if (value && value.trim()) rawCandidateLabels.push({ source, value: value.trim() });
   };
@@ -2113,6 +2533,7 @@ async function describe(
     layoutProximityLabels,
     nonTextLayoutSignature,
     domAttributeSignature,
+    proxyReferenceSignature,
     rejectedLabelCandidates: labelResult.rejected,
     observedValueLikeTextNearControl: domCtx.valueLikeNearText,
     idOrNameKey,

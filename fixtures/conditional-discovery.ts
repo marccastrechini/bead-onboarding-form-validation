@@ -7,6 +7,7 @@ import {
   type LayoutProximityLabelCandidate,
   type RadioDomAttributeSignature,
   type RadioNonTextLayoutSignature,
+  type RadioProxyReferenceSignature,
 } from './field-discovery';
 import {
   buildPhysicalOperatingAddressDomProbeReport,
@@ -25,7 +26,7 @@ export const SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS_ENV = 'SAFE_DISCOVERY_EXPAND
 
 type GuardedToggleField = Pick<
   DiscoveredField,
-  'index' | 'kind' | 'type' | 'controlCategory' | 'visible' | 'editable' | 'resolvedLabel' | 'label' | 'sectionName' | 'rawCandidateLabels' | 'containerContextLabels' | 'layoutProximityLabels' | 'nonTextLayoutSignature' | 'domAttributeSignature' | 'groupName' | 'idOrNameKey' | 'inferredType'
+  'index' | 'kind' | 'type' | 'controlCategory' | 'visible' | 'editable' | 'resolvedLabel' | 'label' | 'sectionName' | 'rawCandidateLabels' | 'containerContextLabels' | 'layoutProximityLabels' | 'nonTextLayoutSignature' | 'domAttributeSignature' | 'proxyReferenceSignature' | 'groupName' | 'idOrNameKey' | 'inferredType'
 >;
 
 export interface GuardedPhysicalOperatingAddressDiscoveryResult {
@@ -213,6 +214,8 @@ type PhysicalOperatingAddressToggleFallbackInventoryEntry = {
   nonTextLayoutSignature: RadioNonTextLayoutSignature | null;
   domAttributeSignature: RadioDomAttributeSignature | null;
   attributeCueMatches: PhysicalOperatingAddressCuePatternMatches;
+  proxyReferenceSignature: RadioProxyReferenceSignature | null;
+  proxyCueMatches: PhysicalOperatingAddressCuePatternMatches;
   nearbyLabelFragments: Array<{ source: string; text: string }>;
   nearbyTextFragments: Array<{ source: string; text: string }>;
   nearbyTextTruncated: boolean;
@@ -267,6 +270,7 @@ type ToggleCueContext = {
   containerEntries: ToggleCueFragment[];
   layoutProximityEntries: ToggleCueFragment[];
   attributeSignatureEntries: ToggleCueFragment[];
+  proxyReferenceSignatureEntries: ToggleCueFragment[];
   nearbyEntries: ToggleCueFragment[];
   allEntries: ToggleCueFragment[];
 };
@@ -423,6 +427,12 @@ function buildToggleCueContext(
       value,
     })),
   );
+  const proxyReferenceSignatureEntries = uniqueToggleCueFragments(
+    (field.proxyReferenceSignature?.valueHintBuckets ?? []).map((value) => ({
+      source: 'proxy-reference-signature',
+      value,
+    })),
+  );
   const nearbyEntries = uniqueToggleCueFragments([
     { source: 'section', value: field.sectionName ?? '' },
     ...field.rawCandidateLabels.map((candidate) => ({ source: candidate.source, value: candidate.value })),
@@ -441,6 +451,7 @@ function buildToggleCueContext(
     containerEntries,
     layoutProximityEntries,
     attributeSignatureEntries,
+    proxyReferenceSignatureEntries,
     nearbyEntries,
     allEntries: uniqueToggleCueFragments([
       ...currentLabelEntries,
@@ -450,6 +461,7 @@ function buildToggleCueContext(
       ...containerEntries,
       ...layoutProximityEntries,
       ...attributeSignatureEntries,
+      ...proxyReferenceSignatureEntries,
     ]),
   };
 }
@@ -802,6 +814,7 @@ function buildPhysicalOperatingAddressToggleFallbackInventory(
       const layoutProximityTextFragments = collectBoundedSanitizedToggleLayoutFragments(field.layoutProximityLabels);
       const nearbyTextFragments = collectBoundedSanitizedToggleNearbyFragments(cueContext.nearbyEntries);
       const attributeCueMatches = buildPhysicalOperatingAddressCuePatternMatches(cueContext.attributeSignatureEntries);
+      const proxyCueMatches = buildPhysicalOperatingAddressCuePatternMatches(cueContext.proxyReferenceSignatureEntries);
 
       return {
         slot: index + 1,
@@ -847,6 +860,8 @@ function buildPhysicalOperatingAddressToggleFallbackInventory(
         nonTextLayoutSignature: field.nonTextLayoutSignature ?? null,
         domAttributeSignature: field.domAttributeSignature ?? null,
         attributeCueMatches,
+        proxyReferenceSignature: field.proxyReferenceSignature ?? null,
+        proxyCueMatches,
         nearbyLabelFragments: nearbyTextFragments.fragments,
         nearbyTextFragments: nearbyTextFragments.fragments,
         nearbyTextTruncated: nearbyTextFragments.truncated,

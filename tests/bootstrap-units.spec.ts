@@ -5471,6 +5471,163 @@ test.describe('interactive validation safety', () => {
     expect(serializedSignature).not.toContain('secret-token-value');
   });
 
+  test('guarded physical address discovery field discovery collects bounded visible proxy wrapper and association-reference signatures', async ({ page }) => {
+    await page.setContent(`
+      <style>
+        .proxy-choice {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin: 8px 0;
+        }
+        .proxy-choice input {
+          position: absolute;
+          width: 0;
+          height: 0;
+          opacity: 0;
+        }
+        .proxy-ring {
+          display: inline-flex;
+          gap: 6px;
+          width: 42px;
+          height: 18px;
+        }
+        .proxy-role-radio,
+        .proxy-button,
+        .proxy-target {
+          display: inline-flex;
+          width: 18px;
+          height: 18px;
+        }
+      </style>
+      <div class="toggle-card" data-group-kind="address-options">
+        <div class="proxy-choice" data-choice-kind="physical-operating-address">
+          <input id="proxy-radio-a" type="radio" name="addressOptions" aria-labelledby="proxy-label-a" aria-controls="proxy-panel-a" />
+          <label for="proxy-radio-a" class="proxy-ring" data-choice-kind="physical-operating-address">
+            <div role="radio" class="proxy-role-radio" data-field-ref="proxy-panel-a"></div>
+            <button type="button" class="proxy-button" data-tab-target="tab-form-element-proxy-panel-a"></button>
+          </label>
+          <div id="proxy-label-a" class="proxy-target" data-recipient-target="proxy-panel-a"></div>
+          <div id="proxy-panel-a" class="proxy-target"></div>
+          <div id="tab-form-element-proxy-panel-a" class="proxy-target"></div>
+        </div>
+        <div class="proxy-choice" data-choice-kind="same-choice">
+          <input id="proxy-radio-b" type="radio" name="addressOptions" aria-labelledby="proxy-label-b" aria-controls="proxy-panel-b" />
+          <label for="proxy-radio-b" class="proxy-ring" data-choice-kind="same-choice">
+            <div role="radio" class="proxy-role-radio" data-field-ref="proxy-panel-b"></div>
+            <button type="button" class="proxy-button" data-tab-target="tab-form-element-proxy-panel-b"></button>
+          </label>
+          <div id="proxy-label-b" class="proxy-target" data-recipient-target="proxy-panel-b"></div>
+          <div id="proxy-panel-b" class="proxy-target"></div>
+          <div id="tab-form-element-proxy-panel-b" class="proxy-target"></div>
+        </div>
+        <div class="proxy-choice" data-choice-kind="business-physical-address">
+          <input id="proxy-radio-c" type="radio" name="addressOptions" aria-labelledby="proxy-label-c" aria-controls="proxy-panel-c" />
+          <label for="proxy-radio-c" class="proxy-ring" data-choice-kind="business-physical-address">
+            <div role="radio" class="proxy-role-radio" data-field-ref="proxy-panel-c"></div>
+            <button type="button" class="proxy-button" data-tab-target="tab-form-element-proxy-panel-c"></button>
+          </label>
+          <div id="proxy-label-c" class="proxy-target" data-recipient-target="proxy-panel-c"></div>
+          <div id="proxy-panel-c" class="proxy-target"></div>
+          <div id="tab-form-element-proxy-panel-c" class="proxy-target"></div>
+        </div>
+      </div>
+    `);
+
+    const fields = await discoverFields(page);
+    const radioInputs = fields.filter((field) => field.kind === 'radio' && field.type === 'radio');
+    const physical = radioInputs.find((field) => field.elementId === 'proxy-radio-a');
+    const businessPhysical = radioInputs.find((field) => field.elementId === 'proxy-radio-c');
+
+    expect(radioInputs).toHaveLength(3);
+    expect(physical?.domAttributeSignature).not.toBeNull();
+    expect(physical?.proxyReferenceSignature).toEqual(expect.objectContaining({
+      inputVisibilityBucket: 'zero-size-or-hidden-input',
+      candidateSlot: 1,
+      hasForIdReference: true,
+      forReferenceTargetExists: true,
+      forReferenceTargetVisible: true,
+      hasAriaLabelledByReference: true,
+      ariaLabelledByTargetExists: true,
+      ariaLabelledByTargetVisible: true,
+      hasAriaControlsReference: true,
+      ariaControlsTargetExists: true,
+      ariaControlsTargetVisible: true,
+      hasDataReference: true,
+      dataReferenceTargetExists: true,
+      dataReferenceTargetVisible: true,
+      hasDocuSignReference: true,
+      docuSignReferenceTargetExists: true,
+      docuSignReferenceTargetVisible: true,
+      proxyPatternBucket: 'same-proxy-pattern',
+    }));
+    expect(physical?.proxyReferenceSignature?.proxyTagBuckets).toEqual(expect.arrayContaining([
+      'label',
+      'role-radio',
+      'button',
+      'div',
+    ]));
+    expect(physical?.proxyReferenceSignature?.proxyRoleBuckets).toEqual(expect.arrayContaining([
+      'radio',
+      'none',
+    ]));
+    expect(physical?.proxyReferenceSignature?.valueHintBuckets).toEqual(expect.arrayContaining([
+      'address-like-token',
+      'physical-operating-address-token',
+    ]));
+    expect(businessPhysical?.proxyReferenceSignature?.valueHintBuckets).toEqual(expect.arrayContaining([
+      'address-like-token',
+      'business-physical-address-token',
+    ]));
+  });
+
+  test('guarded physical address discovery field discovery omits raw proxy/reference values and keeps only safe buckets', async ({ page }) => {
+    await page.setContent(`
+      <style>
+        .proxy-choice input {
+          position: absolute;
+          width: 0;
+          height: 0;
+          opacity: 0;
+        }
+        .proxy-choice label,
+        .proxy-choice button,
+        .proxy-choice div {
+          display: inline-flex;
+          width: 16px;
+          height: 16px;
+        }
+      </style>
+      <div class="proxy-choice" data-choice-kind="physical-operating-address">
+        <input
+          id="proxy-radio-raw"
+          type="radio"
+          name="addressOptions"
+          aria-controls="https://demo.docusign.net/start?token=secret-token-value"
+        />
+        <label for="proxy-radio-raw" data-field-ref="hidden.person@example.test">
+          <button type="button" data-tab-target="tab-form-element-secret-proxy" aria-describedby="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"></button>
+        </label>
+        <div id="tab-form-element-secret-proxy"></div>
+      </div>
+    `);
+
+    const fields = await discoverFields(page);
+    const signature = fields.find((field) => field.kind === 'radio')?.proxyReferenceSignature;
+    const serializedSignature = JSON.stringify(signature);
+
+    expect(signature).toEqual(expect.objectContaining({
+      hasForIdReference: true,
+      hasDataReference: true,
+      hasDocuSignReference: true,
+      valueHintBuckets: expect.arrayContaining(['generated-token-pattern']),
+    }));
+    expect(serializedSignature).not.toContain('https://demo.docusign.net/start');
+    expect(serializedSignature).not.toContain('hidden.person@example.test');
+    expect(serializedSignature).not.toContain('secret-token-value');
+    expect(serializedSignature).not.toContain('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9');
+  });
+
   const fallbackRadioField = (overrides: Record<string, unknown> = {}) => ({
     index: 1,
     kind: 'radio',
@@ -5486,6 +5643,7 @@ test.describe('interactive validation safety', () => {
     layoutProximityLabels: [],
     nonTextLayoutSignature: null,
     domAttributeSignature: null,
+    proxyReferenceSignature: null,
     groupName: 'location_group',
     idOrNameKey: null,
     inferredType: { type: 'unknown' },
@@ -5546,6 +5704,61 @@ test.describe('interactive validation safety', () => {
     valueHintsTruncated: false,
     wrapperPatternBucket: 'same-wrapper-pattern',
     attributePatternBucket: 'mixed-attribute-pattern',
+    ...overrides,
+  });
+
+  const proxyReferenceSignature = (
+    overrides: Record<string, unknown> = {},
+  ) => ({
+    candidateSlot: 1,
+    inputVisibilityBucket: 'visible-input',
+    visibleProxyCount: 2,
+    visibleProxyCountTruncated: false,
+    proxyDepthBuckets: ['for-label'],
+    proxyDepthCount: 1,
+    proxyDepthsTruncated: false,
+    proxyTagBuckets: ['label', 'button'],
+    proxyTagCount: 2,
+    proxyTagsTruncated: false,
+    proxyRoleBuckets: ['none'],
+    proxyRoleCount: 1,
+    proxyRolesTruncated: false,
+    hasProxyClassAttribute: true,
+    hasProxyRoleAttribute: false,
+    hasProxyAriaLabel: false,
+    hasProxyAriaLabelledBy: false,
+    hasProxyAriaDescribedBy: true,
+    hasProxyAriaControls: false,
+    hasProxyForAttribute: true,
+    hasProxyDataAttributes: true,
+    hasProxyDocuSignMetadataAttributes: false,
+    hasProxyTabIndex: false,
+    hasForIdReference: true,
+    forReferenceTargetExists: true,
+    forReferenceTargetVisible: true,
+    hasAriaLabelledByReference: false,
+    ariaLabelledByTargetExists: false,
+    ariaLabelledByTargetVisible: false,
+    hasAriaDescribedByReference: true,
+    ariaDescribedByTargetExists: true,
+    ariaDescribedByTargetVisible: true,
+    hasAriaControlsReference: false,
+    ariaControlsTargetExists: false,
+    ariaControlsTargetVisible: false,
+    hasDataReference: true,
+    dataReferenceTargetExists: true,
+    dataReferenceTargetVisible: true,
+    hasDocuSignReference: false,
+    docuSignReferenceTargetExists: false,
+    docuSignReferenceTargetVisible: false,
+    tokenShapeBuckets: ['address-like-token', 'radio-like-token'],
+    tokenShapeCount: 2,
+    tokenShapesTruncated: false,
+    valueHintBuckets: ['address-like-token'],
+    valueHintCount: 1,
+    valueHintsTruncated: false,
+    proxyPatternBucket: 'same-proxy-pattern',
+    referencePatternBucket: 'mixed-reference-pattern',
     ...overrides,
   });
 
@@ -6663,6 +6876,278 @@ test.describe('interactive validation safety', () => {
     expect(selection.fallbackInventory?.entries.every((entry) => entry.domAttributeSignature?.valueHintBuckets.includes('generated-token-pattern'))).toBe(true);
     expect(selection.fallbackInventory?.entries.every((entry) => entry.domAttributeSignature?.wrapperSurfaces.length === 1)).toBe(true);
     expect(selection.fallbackInventory?.entries.every((entry) => entry.attributeCueMatches.physicalOperatingAddress === false)).toBe(true);
+  });
+
+  test('guarded physical address discovery fallback selects one radio-like control with a unique Physical Operating Address proxy/reference signature', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      fallbackRadioField({
+        index: 103,
+        idOrNameKey: 'proxyYesToggle',
+        label: 'Yes',
+        resolvedLabel: 'Yes',
+        proxyReferenceSignature: proxyReferenceSignature({
+          valueHintBuckets: ['yes-token'],
+          valueHintCount: 1,
+          proxyPatternBucket: 'distinct-proxy-pattern',
+        }),
+      }),
+      fallbackRadioField({
+        index: 104,
+        idOrNameKey: 'proxyPhysicalToggle',
+        proxyReferenceSignature: proxyReferenceSignature({
+          valueHintBuckets: ['address-like-token', 'physical-operating-address-token'],
+          valueHintCount: 2,
+          hasDocuSignReference: true,
+          docuSignReferenceTargetExists: true,
+          docuSignReferenceTargetVisible: true,
+          proxyPatternBucket: 'distinct-proxy-pattern',
+          referencePatternBucket: 'distinct-reference-pattern',
+        }),
+      }),
+      fallbackRadioField({
+        index: 105,
+        idOrNameKey: 'proxyNoToggle',
+        label: 'No',
+        resolvedLabel: 'No',
+        proxyReferenceSignature: proxyReferenceSignature({
+          valueHintBuckets: ['no-token'],
+          valueHintCount: 1,
+          proxyPatternBucket: 'distinct-proxy-pattern',
+        }),
+      }),
+    ] as any);
+
+    const targetEntry = selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 104);
+
+    expect(selection.selectionMode).toBe('fallback');
+    expect(selection.selectedField?.idOrNameKey).toBe('proxyPhysicalToggle');
+    expect(selection.fallbackInventory?.matchingFallbackCandidateCount).toBe(1);
+    expect(targetEntry?.proxyCueMatches.physicalOperatingAddress).toBe(true);
+    expect(targetEntry?.proxyReferenceSignature?.hasDocuSignReference).toBe(true);
+  });
+
+  test('guarded physical address discovery fallback selects one radio-like control with a unique Business Physical Address proxy/reference signature', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      fallbackRadioField({
+        index: 106,
+        idOrNameKey: 'proxyNeutralToggle',
+        proxyReferenceSignature: proxyReferenceSignature({
+          valueHintBuckets: ['same-token'],
+          valueHintCount: 1,
+          proxyPatternBucket: 'distinct-proxy-pattern',
+        }),
+      }),
+      fallbackRadioField({
+        index: 107,
+        idOrNameKey: 'proxyBusinessPhysicalToggle',
+        proxyReferenceSignature: proxyReferenceSignature({
+          valueHintBuckets: ['address-like-token', 'business-physical-address-token'],
+          valueHintCount: 2,
+          hasProxyDocuSignMetadataAttributes: true,
+          proxyPatternBucket: 'distinct-proxy-pattern',
+        }),
+      }),
+      fallbackRadioField({
+        index: 108,
+        idOrNameKey: 'proxyNoToggle',
+        label: 'No',
+        resolvedLabel: 'No',
+        proxyReferenceSignature: proxyReferenceSignature({
+          valueHintBuckets: ['no-token'],
+          valueHintCount: 1,
+          proxyPatternBucket: 'distinct-proxy-pattern',
+        }),
+      }),
+    ] as any);
+
+    const targetEntry = selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 107);
+
+    expect(selection.selectionMode).toBe('fallback');
+    expect(selection.selectedField?.idOrNameKey).toBe('proxyBusinessPhysicalToggle');
+    expect(selection.fallbackInventory?.matchingFallbackCandidateCount).toBe(1);
+    expect(targetEntry?.proxyCueMatches.businessPhysicalAddress).toBe(true);
+    expect(targetEntry?.proxyReferenceSignature?.hasProxyDocuSignMetadataAttributes).toBe(true);
+  });
+
+  test('guarded physical address discovery fallback refuses mailing legal or virtual proxy/reference signatures', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      fallbackRadioField({
+        index: 109,
+        idOrNameKey: 'mailingProxyToggle',
+        proxyReferenceSignature: proxyReferenceSignature({
+          valueHintBuckets: ['address-like-token', 'mailing-address-token'],
+          valueHintCount: 2,
+          proxyPatternBucket: 'distinct-proxy-pattern',
+        }),
+      }),
+      fallbackRadioField({
+        index: 110,
+        idOrNameKey: 'legalProxyToggle',
+        proxyReferenceSignature: proxyReferenceSignature({
+          valueHintBuckets: ['address-like-token', 'legal-address-token'],
+          valueHintCount: 2,
+          proxyPatternBucket: 'distinct-proxy-pattern',
+        }),
+      }),
+      fallbackRadioField({
+        index: 111,
+        idOrNameKey: 'virtualProxyToggle',
+        proxyReferenceSignature: proxyReferenceSignature({
+          valueHintBuckets: ['address-like-token', 'virtual-address-token'],
+          valueHintCount: 2,
+          proxyPatternBucket: 'distinct-proxy-pattern',
+        }),
+      }),
+    ] as any);
+
+    expect(selection.selectedField).toBeNull();
+    expect(selection.fallbackInventory?.matchingFallbackCandidateCount).toBe(0);
+    expect(selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 109)?.proxyCueMatches.mailingAddress).toBe(true);
+    expect(selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 110)?.proxyCueMatches.legalAddress).toBe(true);
+    expect(selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 111)?.proxyCueMatches.virtualAddress).toBe(true);
+  });
+
+  test('guarded physical address discovery fallback inventories same different yes and no proxy/reference tokens but stays fail-closed', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      fallbackRadioField({
+        index: 112,
+        idOrNameKey: 'sameProxyToggle',
+        proxyReferenceSignature: proxyReferenceSignature({
+          valueHintBuckets: ['same-token'],
+          valueHintCount: 1,
+          proxyPatternBucket: 'distinct-proxy-pattern',
+        }),
+      }),
+      fallbackRadioField({
+        index: 113,
+        idOrNameKey: 'differentProxyToggle',
+        proxyReferenceSignature: proxyReferenceSignature({
+          valueHintBuckets: ['different-token'],
+          valueHintCount: 1,
+          proxyPatternBucket: 'distinct-proxy-pattern',
+        }),
+      }),
+      fallbackRadioField({
+        index: 114,
+        idOrNameKey: 'yesProxyToggle',
+        proxyReferenceSignature: proxyReferenceSignature({
+          valueHintBuckets: ['yes-token'],
+          valueHintCount: 1,
+          proxyPatternBucket: 'distinct-proxy-pattern',
+        }),
+      }),
+      fallbackRadioField({
+        index: 115,
+        idOrNameKey: 'noProxyToggle',
+        proxyReferenceSignature: proxyReferenceSignature({
+          valueHintBuckets: ['no-token'],
+          valueHintCount: 1,
+          proxyPatternBucket: 'distinct-proxy-pattern',
+        }),
+      }),
+    ] as any);
+
+    expect(selection.selectedField).toBeNull();
+    expect(selection.fallbackInventory?.matchingFallbackCandidateCount).toBe(0);
+    expect(selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 112)?.proxyCueMatches.same).toBe(true);
+    expect(selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 113)?.proxyCueMatches.different).toBe(true);
+    expect(selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 114)?.proxyCueMatches.yes).toBe(true);
+    expect(selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 115)?.proxyCueMatches.no).toBe(true);
+  });
+
+  test('guarded physical address discovery fallback fails closed when multiple radio-like controls carry proxy/reference physical cues', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      fallbackRadioField({
+        index: 116,
+        idOrNameKey: 'proxyPhysicalToggleA',
+        proxyReferenceSignature: proxyReferenceSignature({
+          valueHintBuckets: ['address-like-token', 'physical-operating-address-token'],
+          valueHintCount: 2,
+          proxyPatternBucket: 'distinct-proxy-pattern',
+        }),
+      }),
+      fallbackRadioField({
+        index: 117,
+        idOrNameKey: 'proxyPhysicalToggleB',
+        proxyReferenceSignature: proxyReferenceSignature({
+          valueHintBuckets: ['address-like-token', 'business-physical-address-token'],
+          valueHintCount: 2,
+          proxyPatternBucket: 'distinct-proxy-pattern',
+        }),
+      }),
+      fallbackRadioField({
+        index: 118,
+        idOrNameKey: 'proxyNeutralToggle',
+        proxyReferenceSignature: proxyReferenceSignature({
+          valueHintBuckets: ['address-like-token'],
+          valueHintCount: 1,
+          proxyPatternBucket: 'distinct-proxy-pattern',
+        }),
+      }),
+    ] as any);
+
+    expect(selection.selectedField).toBeNull();
+    expect(selection.fallbackInventory?.matchingFallbackCandidateCount).toBe(2);
+    expect(selection.fallbackInventory?.entries.filter((entry) => entry.selectedByFallback)).toHaveLength(2);
+  });
+
+  test('guarded physical address discovery fallback keeps generated and generic proxy/reference signatures bounded and fail-closed', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      fallbackRadioField({
+        index: 119,
+        idOrNameKey: 'genericProxyToggleA',
+        proxyReferenceSignature: proxyReferenceSignature({
+          proxyTagBuckets: ['label'],
+          proxyTagCount: 1,
+          proxyRoleBuckets: ['none'],
+          proxyRoleCount: 1,
+          valueHintBuckets: ['generated-token-pattern'],
+          valueHintCount: 1,
+          tokenShapeBuckets: ['generated-token-pattern', 'radio-like-token'],
+          tokenShapeCount: 2,
+          proxyPatternBucket: 'same-proxy-pattern',
+          referencePatternBucket: 'same-reference-pattern',
+        }),
+      }),
+      fallbackRadioField({
+        index: 120,
+        idOrNameKey: 'genericProxyToggleB',
+        proxyReferenceSignature: proxyReferenceSignature({
+          proxyTagBuckets: ['label'],
+          proxyTagCount: 1,
+          proxyRoleBuckets: ['none'],
+          proxyRoleCount: 1,
+          valueHintBuckets: ['generated-token-pattern'],
+          valueHintCount: 1,
+          tokenShapeBuckets: ['generated-token-pattern', 'radio-like-token'],
+          tokenShapeCount: 2,
+          proxyPatternBucket: 'same-proxy-pattern',
+          referencePatternBucket: 'same-reference-pattern',
+        }),
+      }),
+      fallbackRadioField({
+        index: 121,
+        idOrNameKey: 'genericProxyToggleC',
+        proxyReferenceSignature: proxyReferenceSignature({
+          proxyTagBuckets: ['label'],
+          proxyTagCount: 1,
+          proxyRoleBuckets: ['none'],
+          proxyRoleCount: 1,
+          valueHintBuckets: ['generated-token-pattern'],
+          valueHintCount: 1,
+          tokenShapeBuckets: ['generated-token-pattern', 'radio-like-token'],
+          tokenShapeCount: 2,
+          proxyPatternBucket: 'same-proxy-pattern',
+          referencePatternBucket: 'same-reference-pattern',
+        }),
+      }),
+    ] as any);
+
+    expect(selection.selectedField).toBeNull();
+    expect(selection.fallbackInventory?.matchingFallbackCandidateCount).toBe(0);
+    expect(selection.fallbackInventory?.entries.every((entry) => entry.proxyReferenceSignature?.valueHintBuckets.includes('generated-token-pattern'))).toBe(true);
+    expect(selection.fallbackInventory?.entries.every((entry) => entry.proxyReferenceSignature?.proxyTagBuckets.length === 1)).toBe(true);
+    expect(selection.fallbackInventory?.entries.every((entry) => entry.proxyCueMatches.physicalOperatingAddress === false)).toBe(true);
   });
 
   test('guarded physical address discovery fallback refuses mailing or legal container cues', () => {
