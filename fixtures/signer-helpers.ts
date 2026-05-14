@@ -659,7 +659,7 @@ async function maybeHandleSafeRedirectExternalSiteInterstitial(
   diagnostics.push(
     `safe-redirect external-site warning clicked: ${control.kind} "${control.label}"${control.navigationTarget ? ` -> ${redactPossibleUrl(control.navigationTarget, page.url())}` : ''}`,
   );
-  await control.locator.click({ timeout: 2_000 });
+  await control.locator.click({ timeout: 2_000, noWaitAfter: true });
   await page.waitForTimeout(250);
   return true;
 }

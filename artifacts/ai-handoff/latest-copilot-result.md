@@ -1,138 +1,101 @@
 ## ChatGPT Review Summary
-- What changed: RUN12 executed exactly one authorized `npm run bootstrap:capture:physical-address`, exercised the broadened DocuSign warning-page candidate inventory against a fresh live landing, inspected the Physical Operating Address artifacts for freshness and field-local labels, and updated the handoff files. No source/test/doc/package files changed in RUN12.
-- Whether the broadened warning-page handler was exercised live: yes.
-- Whether the handler clicked through or failed closed: it found and clicked exactly one safe host-matching outbound candidate, but the click-through did not complete cleanly because Playwright timed out waiting for the scheduled navigation after the click.
-- Whether the signer surface was reached: no. The click action fired on the live warning-page anchor, but `openSigner()` did not reach a post-click URL transition, signing iframe, or main-page shell signal before the runner failed.
-- Whether coverage moved forward: no for Physical Operating Address field-local proof, but yes for live blocker characterization. RUN12 proves the broadened candidate inventory found the real host-matching outbound control; the remaining blocker is the click/navigation wait behavior after that click.
-- Whether fresh artifacts were produced: no. Both post-toggle artifacts remain the stale May 1 files.
-- Tests/commands run and pass/fail: `npm run bootstrap:capture:physical-address` ran exactly once and failed with exit 1; `npm run reports:refresh` and `npm run findings:open` were not run because capture did not succeed and no fresh artifacts were produced.
-- Classification: `business_mailing_address_line_1`, `business_mailing_city`, `business_mailing_state`, and `business_mailing_postal_code` all remain `still capture-blocked`.
-- Remaining blocker / uncertainty: the live warning-page anchor is now identified and clicked, but the click path currently waits for the resulting navigation inside the click itself and times out before the existing safe-redirect transition polling can observe the post-click state. The next smallest move is a source/test-only change to separate the click from navigation waiting, for example by issuing the click without waiting for navigation and letting the existing transition loop observe URL/iframe/shell after the click.
-- Continue / stop / redirect: redirect.
-- Another live capture recommended next: no.
-- Next best Copilot prompt: inspect the RUN12 live click-timeout result, adjust the broadened warning-page click path so it does not block on the click’s navigation wait before `waitForSafeRedirectTransition()` can observe the post-click state, cover that behavior with focused tests, and do not run another live capture until that source/test pass is complete.
+- What changed: RUN13 updated the guarded DocuSign warning-page click path in `fixtures/signer-helpers.ts` so the selected host-matching outbound candidate is clicked with `noWaitAfter`, leaving `waitForSafeRedirectTransition()` responsible for observing the post-click URL/iframe/shell state. `tests/signer-readiness.spec.ts` now covers a slow post-click navigation, a no-transition timeout after a successful click dispatch, and the existing wrong-host, zero-candidate, multiple-candidate, unparseable-target, and non-interstitial fail-closed cases. No live bootstrap/capture command was run in RUN13.
+- Whether the guarded click path was updated to avoid click-time navigation blocking: yes.
+- Whether existing guardrails were preserved: yes. The page must still match the DocuSign `/safe-redirect` warning, the visible destination host must still equal `api.test.devs.beadpay.io`, and exactly one safely target-linked host-matching candidate is still required before any click is attempted.
+- Whether the result moved us forward: yes. RUN12's live blocker is now addressed in the local click/wait path, and focused coverage proves the click can dispatch immediately while the existing transition loop observes a later navigation or times out cleanly.
+- Tests/commands run and pass/fail: `npx playwright test tests/signer-readiness.spec.ts --project=chromium` passed (14/14); `npm run test:units` passed (255/255).
+- Remaining blocker / uncertainty: the click/wait split is still unit-validated only. The next live run still needs to confirm that the real DocuSign warning-page anchor transitions cleanly once the click no longer blocks on navigation waiting.
+- Continue / stop / redirect: continue.
+- Another live capture recommended next: yes, but only if explicitly authorized. Exact next run ID: `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN14`.
 
 # Copilot Handoff Result
 
-CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN12
+CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN13
 
 ## Status
-Blocked
+Ready for ChatGPT review
 
 ## Objective
-Execute exactly one authorized live capture-only run to validate whether the broadened warning-page candidate inventory now finds and clicks exactly one safe host-matching outbound control to `api.test.devs.beadpay.io`, or still fails closed with a richer redacted inventory.
+Do not run another live capture. Adjust the guarded warning-page click path so it does not block on Playwright’s click-time navigation wait before `waitForSafeRedirectTransition()` can observe the post-click state.
 
 ## What Changed
-- Ran `npm run bootstrap:capture:physical-address` exactly once.
-- Inspected only:
-  - `artifacts/latest-physical-operating-address-post-toggle-structure.json`
-  - `artifacts/latest-physical-operating-address-post-toggle-dom.html`
-- Updated only the RUN12 AI handoff files.
+- Updated the guarded external-site warning click path in `fixtures/signer-helpers.ts`.
+- The selected host-matching outbound warning-page candidate is now clicked with `noWaitAfter: true` so the click action does not block on scheduled navigation inside the click call.
+- Kept the existing transition polling unchanged after the click so `waitForSafeRedirectTransition()` still owns observation of:
+  - URL transition away from `/safe-redirect`
+  - signing iframe appearance
+  - known main-page shell signals
+  - or the existing redacted timeout diagnostic
+- Added focused coverage in `tests/signer-readiness.spec.ts` for:
+  - slow post-click navigation after an immediate click dispatch
+  - no post-click transition after a successful click dispatch
+  - wrong-host, zero-candidate, multiple-candidate, unparseable-target, and non-interstitial fail-closed cases still holding
 
-## One-Shot Command Result
-- Command: `npm run bootstrap:capture:physical-address`
-- Run count: exactly once
-- Retry count: zero
-- Resend succeeded.
-- Gmail polling found a fresh invite.
-- Signing URL extraction succeeded with redacted logging.
-- The child runner launched only `npm run capture:physical-address`.
-- The child runner failed with exit code 1.
-
-## Live Warning-Page Handler Outcome
-- DocuSign external-site warning appeared: yes
-- Guarded handler recognized the warning page: yes
-- Visible destination host equaled `api.test.devs.beadpay.io`: yes
-- Broadened inventory found visible candidates: yes
-- Host-matching outbound candidates found: exactly one
-- Clicked exactly one safe host-matching outbound candidate: yes
-- Clicked candidate shape: visible anchor with id `redirect-link`
-- Click-through completed cleanly: no
-- Fail-closed path taken: no
-- Blocked reason: the click action fired, but Playwright timed out waiting for the scheduled navigation to finish after the click
-
-## Live Click Diagnostic
-- Current warning-page candidate target host: `api.test.devs.beadpay.io`
-- Click target was resolved from the warning-page candidate inventory and reached the click action.
-- Playwright click log showed:
-  - locator resolved to a visible anchor candidate
-  - click action completed
-  - the runner then blocked while waiting for scheduled navigations to finish
-- No post-click URL transition, signing iframe, or signer-shell signal was observed before the runner exited.
-
-## Safe-Redirect Wait Outcome
-- URL transition away from the warning page observed: no
-- Signing iframe observed: no
-- Main-page shell signal observed: no
-- `openSigner()` reached the signer surface: no
-- `capture:physical-address` produced fresh artifacts: no
-
-## Artifact Freshness Check
-- `artifacts/latest-physical-operating-address-post-toggle-structure.json`
-  - exists: yes
-  - last write UTC: `2026-05-01T16:41:44.7937531Z`
-  - `generatedAt`: `2026-05-01T16:41:27.153Z`
-- `artifacts/latest-physical-operating-address-post-toggle-dom.html`
-  - exists: yes
-  - last write UTC: `2026-05-01T16:41:44.7947542Z`
-- Result: both files are stale May 1 artifacts, not fresh RUN12 output.
-
-## Field-Local Label Proof Check
-- `Address Line 1`: absent in structure artifact and DOM artifact
-- `City`: absent in structure artifact and DOM artifact
-- `State`: absent in structure artifact and DOM artifact
-- `ZIP`: absent in structure artifact and DOM artifact
-- `Postal Code`: absent in structure artifact and DOM artifact
-
-## `business_mailing_*` Classification
-- `business_mailing_address_line_1`: `still capture-blocked`
-- `business_mailing_city`: `still capture-blocked`
-- `business_mailing_state`: `still capture-blocked`
-- `business_mailing_postal_code`: `still capture-blocked`
-
-## Coverage Movement
-- Physical Operating Address field-local proof did not move forward in RUN12.
-- No fresh artifacts were produced.
-- `npm run reports:refresh` was not run.
-- `npm run findings:open` was not run.
-- Live warning-page navigation diagnosis moved forward: the broadened candidate inventory successfully identified and clicked the real host-matching outbound anchor.
-
-## Smallest Next Source/Test Move
-- Adjust the broadened warning-page click path so it does not block on Playwright's scheduled-navigation wait inside the click itself.
-- Keep the existing `waitForSafeRedirectTransition()` polling responsible for observing the post-click URL transition, signing iframe, or signer-shell signals.
-- Add focused tests for a slow post-click navigation where the click action succeeds immediately and the transition becomes observable shortly afterward.
-- Do not spend another live signer URL until that source/test pass is complete.
-
-## Safety Confirmation
-- `bootstrap:interactive` was not run.
-- `interactive:watchdog` was not run.
-- Full signer discovery was not run.
-- `DESTRUCTIVE_VALIDATION` was not enabled.
-- No uploads were performed.
-- No Finish, Complete, Submit, Sign, Adopt, or finalization controls were clicked.
-- No raw signer URL was printed or committed.
-- `.env` was not mutated.
-- Generated capture artifacts were not staged or committed.
-
-## Branch / Commit Status
-- Branch: `main`
-- Pre-RUN12 commit: `9cf1b42882226c30c7d0ba16fb14f916257dfb74`
-- RUN12 handoff commit: pending at write time
+## Guardrails Preserved
+- Current page must still be a DocuSign `/safe-redirect` landing.
+- Page title must match the external-site warning.
+- Warning text must match the DocuSign external-site copy.
+- Visible destination host must be exactly `api.test.devs.beadpay.io`.
+- Any clicked target must still be uniquely identifiable as the only host-matching outbound warning-page candidate.
+- The candidate navigation target must still be safely inspectable and resolve to `api.test.devs.beadpay.io`.
+- Wrong-host, zero-candidate, multiple-candidate, missing-target, and unparseable-target cases still fail closed.
+- No finalization controls, uploads, broader discovery, or destructive validation paths were added.
 
 ## Files Changed
+- `fixtures/signer-helpers.ts`
+- `tests/signer-readiness.spec.ts`
 - `artifacts/ai-handoff/status.json`
 - `artifacts/ai-handoff/latest-copilot-result.md`
 
-## Recommendation
-Redirect.
+## Validation
+- `npx playwright test tests/signer-readiness.spec.ts --project=chromium` -> passed (14 passed)
+- `npm run test:units` -> passed (255 passed)
+- `npm run bootstrap:capture:physical-address` was not run in RUN13 by design
+- `bootstrap:interactive`, `interactive:watchdog`, full signer discovery, destructive validation, and uploads were not run
 
-Do not run another live capture next.
+## Focused Test Coverage Added
+- Safe host-matching anchor where the click fires immediately and navigation completes later
+- Safe host-matching anchor where the click fires but no post-click transition ever appears, yielding the existing redacted timeout diagnostic
+- Unparseable outbound target remains fail-closed
+- Existing wrong-host, zero-candidate, multiple-candidate, onclick inventory, and non-interstitial behavior remains covered
+
+## Result
+- Forward progress: yes.
+- RUN13 addresses the specific RUN12 live blocker by removing click-time navigation waiting from the guarded outbound warning-page click path.
+- No live signer URL was consumed in RUN13.
+
+## Remaining Blocker / Uncertainty
+- The click/wait split is validated only in focused and unit-style tests.
+- A fresh live DocuSign landing is still needed to confirm that the real warning-page anchor now transitions cleanly once the click no longer blocks on navigation waiting.
+- Physical Operating Address field-local proof is still not advanced until another explicitly authorized live capture validates this path.
+
+## Recommendation
+Continue.
+
+Another live capture is recommended next only if explicitly authorized, using:
+`PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN14`
 
 ## Recommended Next Copilot Prompt
-Run `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN13`: inspect the RUN12 live click-timeout result, adjust the broadened warning-page click path so it does not block on the click's navigation wait before `waitForSafeRedirectTransition()` can observe the post-click state, cover that behavior with focused tests, and do not run `npm run bootstrap:capture:physical-address` unless explicitly authorized again after that source/test pass.
+Run `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN14`: execute exactly one authorized `npm run bootstrap:capture:physical-address`, keep the current safety constraints, verify whether the no-wait warning-page click now lets `waitForSafeRedirectTransition()` observe the live post-click transition to the signer surface or still produces a richer redacted blocker, and do not commit generated artifacts.
+
+## Safety Confirmation
+- `DESTRUCTIVE_VALIDATION` was not enabled.
+- `.env` was not mutated.
+- No raw signer URL was printed or committed.
+- No uploads were performed.
+- No Finish, Complete, Submit, Sign, Adopt, or finalization controls were clicked.
+- No live bootstrap/capture command was run in RUN13.
+- Generated artifacts were not staged or committed.
+
+## Branch / Commit Status
+- Branch: `main`
+- Pre-RUN13 commit: `d4212186fed013787569ba988a7b2f2b45f90070`
+- RUN13 handoff commit: pending at write time
 
 ## Commit Scope
 - Stage and commit:
+  - `fixtures/signer-helpers.ts`
+  - `tests/signer-readiness.spec.ts`
   - `artifacts/ai-handoff/status.json`
   - `artifacts/ai-handoff/latest-copilot-result.md`
 - Do not commit:
@@ -142,4 +105,4 @@ Run `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN13`: inspect the RUN12 live c
   - `.env`
   - `samples/private/**`
 
-CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN12
+CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN13

@@ -18,7 +18,7 @@ async function withSignerUrl<T>(url: string, run: () => Promise<T>): Promise<T> 
 }
 
 test.describe('signer readiness', () => {
-  test('waitForSafeRedirectTransition clicks the only host-matching warning-page navigation candidate even without a proceed-style label', async ({ page }) => {
+  test('waitForSafeRedirectTransition clicks a safe host-matching anchor without blocking on click-time navigation when navigation completes slowly', async ({ page }) => {
     await page.route('https://api.test.devs.beadpay.io/**', async (route) => {
       await route.fulfill({
         contentType: 'text/html',
@@ -46,7 +46,7 @@ test.describe('signer readiness', () => {
               <h1>You're being redirected to an external site</h1>
               <p>The external website you're being directed to is not part of the Docusign platform</p>
               <p>https://api.test.devs.beadpay.io/session/start?token=SECRET</p>
-              <a href="https://api.test.devs.beadpay.io/session/start?token=SECRET">Bead test destination</a>
+              <a href="https://api.test.devs.beadpay.io/session/start?token=SECRET" onclick="event.preventDefault(); setTimeout(() => location.assign(this.href), 600);">Bead test destination</a>
             </body>
           </html>
         `,
@@ -64,6 +64,44 @@ test.describe('signer readiness', () => {
     expect(result.diagnostics).toContain('safe-redirect external-site warning clicked: link "Bead test destination" -> https://api.test.devs.beadpay.io/session/start?[redacted]');
     expect(result.diagnostics).toContain('safe-redirect transition observed: url changed to https://api.test.devs.beadpay.io/session/start?[redacted]');
     expect(result.diagnostics.join(' ')).not.toContain('SECRET');
+  });
+
+  test('waitForSafeRedirectTransition times out cleanly after clicking a safe host-matching anchor when no post-click transition appears', async ({ page }) => {
+    await page.route('**/safe-redirect**', async (route) => {
+      await route.fulfill({
+        contentType: 'text/html',
+        body: `
+          <!doctype html>
+          <html>
+            <head>
+              <title>You're being redirected to an external site</title>
+            </head>
+            <body>
+              <h1>You're being redirected to an external site</h1>
+              <p>The external website you're being directed to is not part of the Docusign platform</p>
+              <p>https://api.test.devs.beadpay.io/session/start?token=SECRET</p>
+              <a href="https://api.test.devs.beadpay.io/session/start?token=SECRET" onclick="event.preventDefault(); return false;">Bead test destination</a>
+            </body>
+          </html>
+        `,
+      });
+    });
+
+    await page.goto('https://demo.docusign.test/safe-redirect?t=SECRET');
+
+    const error = await waitForSafeRedirectTransition(page, 700).then(
+      () => null,
+      (failure) => failure as Error,
+    );
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error?.message).toContain('DocuSign safe-redirect did not transition to a signer surface before frame resolution.');
+    expect(error?.message).toContain('Current page: https://demo.docusign.test/safe-redirect?[redacted].');
+    expect(error?.message).toContain('Page title: "You\'re being redirected to an external site".');
+    expect(error?.message).toContain('Visible text fragments: ["You\'re being redirected to an external site","The external website you\'re being directed to is not part of the Docusign platform","https://api.test.devs.beadpay.io/session/start?[redacted]","Bead test destination"]');
+    expect(error?.message).not.toContain('locator.click');
+    expect(error?.message).not.toContain('token=SECRET');
+    expect(error?.message).not.toContain('t=SECRET');
   });
 
   test('waitForSafeRedirectTransition blocks a DocuSign external-site interstitial with a uniquely visible outbound candidate on the wrong host', async ({ page }) => {
@@ -212,6 +250,44 @@ test.describe('signer readiness', () => {
     expect(error).toBeInstanceOf(Error);
     expect(error?.message).toContain('DocuSign external-site warning did not pass guarded click-through checks.');
     expect(error?.message).toContain('Warning-page control inventory: [{"kind":"onclick","tagName":"div","role":"button","label":"Open destination","navigationTarget":"https://unexpected.example.test/session/start?[redacted]","targetHost":"unexpected.example.test","matchesExpectedHost":false,"proceedStyle":true}]');
+    expect(error?.message).not.toContain('token=SECRET');
+    expect(error?.message).not.toContain('t=SECRET');
+  });
+
+  test('waitForSafeRedirectTransition blocks a DocuSign external-site interstitial with an unparseable outbound candidate target', async ({ page }) => {
+    await page.route('**/safe-redirect**', async (route) => {
+      await route.fulfill({
+        contentType: 'text/html',
+        body: `
+          <!doctype html>
+          <html>
+            <head>
+              <title>You're being redirected to an external site</title>
+            </head>
+            <body>
+              <h1>You're being redirected to an external site</h1>
+              <p>The external website you're being directed to is not part of the Docusign platform</p>
+              <p>https://api.test.devs.beadpay.io/session/start?token=SECRET</p>
+              <button data-url="http://[invalid">Broken destination</button>
+            </body>
+          </html>
+        `,
+      });
+    });
+
+    await page.goto('https://demo.docusign.test/safe-redirect?t=SECRET');
+
+    const error = await waitForSafeRedirectTransition(page, 2_500).then(
+      () => null,
+      (failure) => failure as Error,
+    );
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error?.message).toContain('DocuSign external-site warning did not pass guarded click-through checks.');
+    expect(error?.message).toContain('No uniquely target-host-matching outbound warning-page candidate was found.');
+    expect(error?.message).toContain('"label":"Broken destination"');
+    expect(error?.message).toContain('"navigationTarget":"http://[invalid"');
+    expect(error?.message).toContain('"matchesExpectedHost":false');
     expect(error?.message).not.toContain('token=SECRET');
     expect(error?.message).not.toContain('t=SECRET');
   });
