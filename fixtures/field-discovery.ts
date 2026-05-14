@@ -90,6 +90,26 @@ export interface LabelCandidate {
   value: string;
 }
 
+export type LayoutProximityDirection =
+  | 'above'
+  | 'below'
+  | 'left'
+  | 'right'
+  | 'same-row'
+  | 'same-column'
+  | 'near-group';
+
+export type LayoutProximityDistanceBucket = 'immediate' | 'near' | 'farther';
+
+export type LayoutProximityAssociation = 'closest-radio' | 'multiple-radios' | 'group';
+
+export interface LayoutProximityLabelCandidate {
+  direction: LayoutProximityDirection;
+  distanceBucket: LayoutProximityDistanceBucket;
+  association: LayoutProximityAssociation;
+  value: string;
+}
+
 export interface DiscoveredField {
   kind: FieldKind;
   index: number;
@@ -111,6 +131,8 @@ export interface DiscoveredField {
   rawCandidateLabels: LabelCandidate[];
   /** Bounded safe container-context text for radios when local label buckets are empty. */
   containerContextLabels?: LabelCandidate[];
+  /** Bounded safe detached visible text near radios, tracked separately from DOM-derived labels. */
+  layoutProximityLabels?: LayoutProximityLabelCandidate[];
   rejectedLabelCandidates: RejectedLabelCandidate[];
   /** Text near the control that clearly reads as a field value, not a prompt. */
   observedValueLikeTextNearControl: string | null;
@@ -277,6 +299,12 @@ async function extractDomContext(loc: Locator): Promise<{
   sectionContainerTexts: string[];
   containerPrecedingTexts: string[];
   containerFollowingTexts: string[];
+  layoutProximityTexts: Array<{
+    direction: LayoutProximityDirection;
+    distanceBucket: LayoutProximityDistanceBucket;
+    association: LayoutProximityAssociation;
+    value: string;
+  }>;
   pageIndex: number | null;
   ordinalOnPage: number | null;
   tabLeft: number | null;
@@ -308,6 +336,7 @@ async function extractDomContext(loc: Locator): Promise<{
     sectionContainerTexts: [],
     containerPrecedingTexts: [],
     containerFollowingTexts: [],
+    layoutProximityTexts: [],
     pageIndex: null,
     ordinalOnPage: null,
     tabLeft: null,
@@ -702,6 +731,197 @@ async function extractDomContext(loc: Locator): Promise<{
       const containerPrecedingTexts = collectContainerSiblingTexts(contextContainer, el, 'before', 4);
       const containerFollowingTexts = collectContainerSiblingTexts(contextContainer, el, 'after', 4);
 
+      const layoutProximityTexts: Array<{
+        direction: LayoutProximityDirection;
+        distanceBucket: LayoutProximityDistanceBucket;
+        association: LayoutProximityAssociation;
+        value: string;
+      }> = [];
+
+      try {
+        const inputEl = el as HTMLElement;
+        const ownRole = clean(el.getAttribute('role'))?.toLowerCase() ?? null;
+        const ownType = clean(el.getAttribute('type'))?.toLowerCase() ?? null;
+        const isRadioLike = (el.tagName.toLowerCase() === 'input' && ownType === 'radio') || ownRole === 'radio';
+
+        type RectLike = { left: number; top: number; right: number; bottom: number; width: number; height: number };
+
+        const toRectLike = (rect: DOMRect): RectLike => ({
+          left: rect.left,
+          top: rect.top,
+          right: rect.right,
+          bottom: rect.bottom,
+          width: rect.width,
+          height: rect.height,
+        });
+
+        const rectGap = (a: RectLike, b: RectLike): number => {
+          const dx = a.right < b.left ? b.left - a.right : b.right < a.left ? a.left - b.right : 0;
+          const dy = a.bottom < b.top ? b.top - a.bottom : b.bottom < a.top ? a.top - b.bottom : 0;
+          return Math.max(dx, dy);
+        };
+
+        const centerDistance = (a: RectLike, b: RectLike): number => {
+          const ax = (a.left + a.right) / 2;
+          const ay = (a.top + a.bottom) / 2;
+          const bx = (b.left + b.right) / 2;
+          const by = (b.top + b.bottom) / 2;
+          return Math.hypot(ax - bx, ay - by);
+        };
+
+        const unionRects = (rects: RectLike[]): RectLike | null => {
+          if (!rects.length) return null;
+          const left = Math.min(...rects.map((rect) => rect.left));
+          const top = Math.min(...rects.map((rect) => rect.top));
+          const right = Math.max(...rects.map((rect) => rect.right));
+          const bottom = Math.max(...rects.map((rect) => rect.bottom));
+          return {
+            left,
+            top,
+            right,
+            bottom,
+            width: Math.max(0, right - left),
+            height: Math.max(0, bottom - top),
+          };
+        };
+
+        const directionBucketFor = (target: RectLike, candidate: RectLike): LayoutProximityDirection | null => {
+          const horizontalOverlap = candidate.right >= target.left && candidate.left <= target.right;
+          const verticalOverlap = candidate.bottom >= target.top && candidate.top <= target.bottom;
+          const centerDx = ((candidate.left + candidate.right) / 2) - ((target.left + target.right) / 2);
+          const centerDy = ((candidate.top + candidate.bottom) / 2) - ((target.top + target.bottom) / 2);
+          const rowThreshold = Math.max(28, Math.max(target.height, candidate.height));
+          const columnThreshold = Math.max(28, Math.max(target.width, candidate.width));
+
+          if (candidate.bottom <= target.top && horizontalOverlap) return 'above';
+          if (candidate.top >= target.bottom && horizontalOverlap) return 'below';
+          if (candidate.right <= target.left && verticalOverlap) return 'left';
+          if (candidate.left >= target.right && verticalOverlap) return 'right';
+          if (Math.abs(centerDy) <= rowThreshold) return 'same-row';
+          if (Math.abs(centerDx) <= columnThreshold) return 'same-column';
+
+          if (Math.abs(centerDy) >= Math.abs(centerDx)) {
+            return centerDy < 0 ? 'above' : 'below';
+          }
+          return centerDx < 0 ? 'left' : 'right';
+        };
+
+        const distanceBucketFor = (gap: number): LayoutProximityDistanceBucket => {
+          if (gap <= 20) return 'immediate';
+          if (gap <= 72) return 'near';
+          return 'farther';
+        };
+
+        if (isRadioLike) {
+          const inputRect = toRectLike(inputEl.getBoundingClientRect());
+          if (inputRect.width > 0 && inputRect.height > 0) {
+            const radioElements = Array.from(document.querySelectorAll('input[type="radio"], [role="radio"]'))
+              .filter((node): node is HTMLElement => node instanceof HTMLElement)
+              .filter((node) => {
+                const rect = node.getBoundingClientRect();
+                if (rect.width === 0 || rect.height === 0) return false;
+                if (node === inputEl) return true;
+
+                const sameNamedInput = ownType === 'radio'
+                  && node.tagName.toLowerCase() === 'input'
+                  && node.getAttribute('type')?.toLowerCase() === 'radio'
+                  && node.getAttribute('name')
+                  && node.getAttribute('name') === elementName;
+                if (sameNamedInput) return true;
+
+                const currentGroup = el.closest('[role="radiogroup"], [role="group"], fieldset');
+                return Boolean(currentGroup && currentGroup.contains(node));
+              });
+
+            const radioRects = radioElements.map((node, index) => ({
+              index,
+              isCurrent: node === inputEl,
+              rect: toRectLike(node.getBoundingClientRect()),
+            }));
+            const currentRadio = radioRects.find((entry) => entry.isCurrent) ?? { index: 0, isCurrent: true, rect: inputRect };
+            const groupRect = unionRects(radioRects.map((entry) => entry.rect)) ?? inputRect;
+            const candidateElements = Array.from(document.querySelectorAll('span, div, label, p, strong, b, em, legend, header, h1, h2, h3, h4, h5, h6, th, td, li'))
+              .filter((node): node is Element => node instanceof Element);
+            const seen = new Set<string>();
+            const ranked: Array<{
+              direction: LayoutProximityDirection;
+              distanceBucket: LayoutProximityDistanceBucket;
+              association: LayoutProximityAssociation;
+              value: string;
+              score: number;
+            }> = [];
+
+            for (const node of candidateElements) {
+              if (node === el || node === inputEl) continue;
+              if (node.contains(el) || el.contains(node)) continue;
+              if (isInteractive(node)) continue;
+              if (node.children.length > 6) continue;
+
+              const text = safeStaticText(node.textContent);
+              if (!text) continue;
+
+              const rect = toRectLike((node as HTMLElement).getBoundingClientRect());
+              if (rect.width === 0 || rect.height === 0) continue;
+              if (rect.width > 420 || rect.height > 120) continue;
+
+              const currentGap = rectGap(currentRadio.rect, rect);
+              const groupGap = rectGap(groupRect, rect);
+              if (Math.min(currentGap, groupGap) > 160) continue;
+
+              const radioDistances = radioRects
+                .map((entry) => ({ index: entry.index, isCurrent: entry.isCurrent, gap: rectGap(entry.rect, rect), center: centerDistance(entry.rect, rect) }))
+                .sort((a, b) => a.gap - b.gap || a.center - b.center);
+
+              const closest = radioDistances[0];
+              const second = radioDistances[1] ?? null;
+              const closePeerCount = radioDistances.filter((entry) => entry.gap <= closest.gap + 20).length;
+              const spansGroupHorizontally = rect.left <= groupRect.right && rect.right >= groupRect.left;
+              const spansGroupVertically = rect.top <= groupRect.bottom && rect.bottom >= groupRect.top;
+
+              let association: LayoutProximityAssociation | null = null;
+              if (radioDistances.length > 1 && groupGap <= 120 && (spansGroupHorizontally || spansGroupVertically)) {
+                association = 'group';
+              } else if (closest.isCurrent && (!second || second.gap - closest.gap > 20)) {
+                association = 'closest-radio';
+              } else if (closePeerCount >= 2) {
+                association = 'multiple-radios';
+              } else if (closest.isCurrent) {
+                association = 'closest-radio';
+              }
+
+              if (!association) continue;
+              if (association === 'closest-radio' && !closest.isCurrent) continue;
+
+              const direction = association === 'group' ? 'near-group' : directionBucketFor(currentRadio.rect, rect);
+              if (!direction) continue;
+
+              const gap = association === 'group' ? groupGap : currentGap;
+              const distanceBucket = distanceBucketFor(gap);
+              const key = `${direction}|${distanceBucket}|${association}|${text}`;
+              if (seen.has(key)) continue;
+              seen.add(key);
+
+              ranked.push({
+                direction,
+                distanceBucket,
+                association,
+                value: text,
+                score: gap + (association === 'closest-radio' ? 0 : association === 'group' ? 8 : 12),
+              });
+            }
+
+            ranked
+              .sort((a, b) => a.score - b.score || a.value.length - b.value.length)
+              .slice(0, 6)
+              .forEach(({ direction, distanceBucket, association, value }) => {
+                layoutProximityTexts.push({ direction, distanceBucket, association, value });
+              });
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+
       // --- Page index + ordinal-on-page -----------------------------------
       // Used by the optional enrichment seam to match tabs to the offline
       // sample-field-enrichment bundle by positional fingerprint.
@@ -788,6 +1008,7 @@ async function extractDomContext(loc: Locator): Promise<{
         sectionContainerTexts,
         containerPrecedingTexts,
         containerFollowingTexts,
+        layoutProximityTexts,
         pageIndex,
         ordinalOnPage,
         tabLeft,
@@ -1234,6 +1455,12 @@ async function describe(
 
   const rawCandidateLabels: LabelCandidate[] = [];
   const containerContextLabels: LabelCandidate[] = [];
+  const layoutProximityLabels = (domCtx.layoutProximityTexts ?? []).map((entry) => ({
+    direction: entry.direction,
+    distanceBucket: entry.distanceBucket,
+    association: entry.association,
+    value: entry.value.trim(),
+  }));
   const push = (source: LabelSource, value: string | null | undefined) => {
     if (value && value.trim()) rawCandidateLabels.push({ source, value: value.trim() });
   };
@@ -1359,6 +1586,7 @@ async function describe(
     labelLooksLikeValue: labelResult.labelLooksLikeValue,
     rawCandidateLabels,
     containerContextLabels,
+    layoutProximityLabels,
     rejectedLabelCandidates: labelResult.rejected,
     observedValueLikeTextNearControl: domCtx.valueLikeNearText,
     idOrNameKey,

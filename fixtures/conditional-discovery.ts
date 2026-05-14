@@ -1,4 +1,11 @@
-import { discoverFields, type DiscoveredField } from './field-discovery';
+import {
+  discoverFields,
+  type DiscoveredField,
+  type LayoutProximityAssociation,
+  type LayoutProximityDirection,
+  type LayoutProximityDistanceBucket,
+  type LayoutProximityLabelCandidate,
+} from './field-discovery';
 import {
   buildPhysicalOperatingAddressDomProbeReport,
   capturePhysicalOperatingAddressDomProbeSnapshot,
@@ -16,7 +23,7 @@ export const SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS_ENV = 'SAFE_DISCOVERY_EXPAND
 
 type GuardedToggleField = Pick<
   DiscoveredField,
-  'index' | 'kind' | 'type' | 'controlCategory' | 'visible' | 'editable' | 'resolvedLabel' | 'label' | 'sectionName' | 'rawCandidateLabels' | 'containerContextLabels' | 'groupName' | 'idOrNameKey' | 'inferredType'
+  'index' | 'kind' | 'type' | 'controlCategory' | 'visible' | 'editable' | 'resolvedLabel' | 'label' | 'sectionName' | 'rawCandidateLabels' | 'containerContextLabels' | 'layoutProximityLabels' | 'groupName' | 'idOrNameKey' | 'inferredType'
 >;
 
 export interface GuardedPhysicalOperatingAddressDiscoveryResult {
@@ -193,6 +200,14 @@ type PhysicalOperatingAddressToggleFallbackInventoryEntry = {
   containerFollowingTextFragments: Array<{ source: string; text: string }>;
   containerFollowingTextTruncated: boolean;
   containerFollowingCueMatches: PhysicalOperatingAddressCuePatternMatches;
+  layoutProximityTextFragments: Array<{
+    direction: LayoutProximityDirection;
+    distanceBucket: LayoutProximityDistanceBucket;
+    association: LayoutProximityAssociation;
+    text: string;
+  }>;
+  layoutProximityTextTruncated: boolean;
+  layoutProximityCueMatches: PhysicalOperatingAddressCuePatternMatches;
   nearbyLabelFragments: Array<{ source: string; text: string }>;
   nearbyTextFragments: Array<{ source: string; text: string }>;
   nearbyTextTruncated: boolean;
@@ -245,6 +260,7 @@ type ToggleCueContext = {
   containerPrecedingEntries: ToggleCueFragment[];
   containerFollowingEntries: ToggleCueFragment[];
   containerEntries: ToggleCueFragment[];
+  layoutProximityEntries: ToggleCueFragment[];
   nearbyEntries: ToggleCueFragment[];
   allEntries: ToggleCueFragment[];
 };
@@ -257,6 +273,20 @@ type BoundedSanitizedToggleFragments = {
 type BoundedSanitizedToggleNearbyFragments = {
   fragments: Array<{ source: string; text: string }>;
   truncated: boolean;
+};
+
+type BoundedSanitizedToggleLayoutFragments = {
+  fragments: Array<{
+    direction: LayoutProximityDirection;
+    distanceBucket: LayoutProximityDistanceBucket;
+    association: LayoutProximityAssociation;
+    text: string;
+  }>;
+  truncated: boolean;
+};
+
+type ToggleCueContextOptions = {
+  includeLayoutProximity?: boolean;
 };
 
 function normalizeText(value: string | null | undefined): string | null {
@@ -319,8 +349,12 @@ function isToggleContainerFollowingLabelSource(source: string): boolean {
   return CONTAINER_FOLLOWING_TOGGLE_LABEL_SOURCES.has(source);
 }
 
-function buildToggleCueContext(field: GuardedToggleField): ToggleCueContext {
+function buildToggleCueContext(
+  field: GuardedToggleField,
+  options?: ToggleCueContextOptions,
+): ToggleCueContext {
   const containerContextLabels = field.containerContextLabels ?? [];
+  const layoutProximityLabels = options?.includeLayoutProximity ? field.layoutProximityLabels ?? [] : [];
   const currentLabelEntries = uniqueToggleCueFragments([
     { source: 'label', value: field.label ?? '' },
     { source: 'resolved-label', value: field.resolvedLabel ?? '' },
@@ -371,6 +405,12 @@ function buildToggleCueContext(field: GuardedToggleField): ToggleCueContext {
     ...containerPrecedingEntries,
     ...containerFollowingEntries,
   ]);
+  const layoutProximityEntries = uniqueToggleCueFragments(
+    layoutProximityLabels.map((candidate) => ({
+      source: `layout-${candidate.direction}`,
+      value: candidate.value,
+    })),
+  );
   const nearbyEntries = uniqueToggleCueFragments([
     { source: 'section', value: field.sectionName ?? '' },
     ...field.rawCandidateLabels.map((candidate) => ({ source: candidate.source, value: candidate.value })),
@@ -387,6 +427,7 @@ function buildToggleCueContext(field: GuardedToggleField): ToggleCueContext {
     containerPrecedingEntries,
     containerFollowingEntries,
     containerEntries,
+    layoutProximityEntries,
     nearbyEntries,
     allEntries: uniqueToggleCueFragments([
       ...currentLabelEntries,
@@ -394,12 +435,13 @@ function buildToggleCueContext(field: GuardedToggleField): ToggleCueContext {
       ...groupEntries,
       ...nearbyEntries,
       ...containerEntries,
+      ...layoutProximityEntries,
     ]),
   };
 }
 
-function collectToggleCueFragments(field: GuardedToggleField): ToggleCueFragment[] {
-  return buildToggleCueContext(field).allEntries;
+function collectToggleCueFragments(field: GuardedToggleField, options?: ToggleCueContextOptions): ToggleCueFragment[] {
+  return buildToggleCueContext(field, options).allEntries;
 }
 
 function cueFragmentsMention(entries: ToggleCueFragment[], pattern: RegExp): boolean {
@@ -508,6 +550,44 @@ function collectBoundedSanitizedToggleNearbyFragments(
   };
 }
 
+function collectBoundedSanitizedToggleLayoutFragments(
+  entries: LayoutProximityLabelCandidate[] | null | undefined,
+  limit = TOGGLE_INVENTORY_FRAGMENT_LIMIT,
+): BoundedSanitizedToggleLayoutFragments {
+  const fragments: Array<{
+    direction: LayoutProximityDirection;
+    distanceBucket: LayoutProximityDistanceBucket;
+    association: LayoutProximityAssociation;
+    text: string;
+  }> = [];
+  const seen = new Set<string>();
+  let uniqueCount = 0;
+
+  for (const entry of entries ?? []) {
+    const sanitized = sanitizeToggleDiagnosticFragment(entry.value);
+    if (!sanitized) continue;
+
+    const key = `${entry.direction}|${entry.distanceBucket}|${entry.association}|${sanitized}`;
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+    uniqueCount += 1;
+    if (fragments.length < limit) {
+      fragments.push({
+        direction: entry.direction,
+        distanceBucket: entry.distanceBucket,
+        association: entry.association,
+        text: sanitized,
+      });
+    }
+  }
+
+  return {
+    fragments,
+    truncated: uniqueCount > fragments.length,
+  };
+}
+
 function fieldTextFragments(field: GuardedToggleField): string[] {
   const fragments = [
     field.sectionName,
@@ -581,7 +661,7 @@ function buildPhysicalOperatingAddressToggleMatchAnalysis(
 function buildPhysicalOperatingAddressToggleFallbackAnalysis(
   field: GuardedToggleField,
 ): PhysicalOperatingAddressToggleFallbackAnalysis {
-  const cueFragments = collectToggleCueFragments(field);
+  const cueFragments = collectToggleCueFragments(field, { includeLayoutProximity: true });
   const cueMatches = buildPhysicalOperatingAddressCuePatternMatches(cueFragments);
   const visibleRadioLike = field.kind === 'radio' && field.visible;
   const eligibleRadioLike = visibleRadioLike
@@ -695,7 +775,7 @@ function buildPhysicalOperatingAddressToggleFallbackInventory(
   const entries = radioCandidates
     .slice(0, TOGGLE_INVENTORY_CANDIDATE_LIMIT)
     .map(({ field, analysis }, index): PhysicalOperatingAddressToggleFallbackInventoryEntry => {
-      const cueContext = buildToggleCueContext(field);
+      const cueContext = buildToggleCueContext(field, { includeLayoutProximity: true });
       const resolvedLabelFragments = collectBoundedSanitizedToggleFragments(cueContext.currentLabelEntries, 2);
       const groupLabelFragments = collectBoundedSanitizedToggleFragments(cueContext.groupEntries, 2);
       const ancestorTextFragments = collectBoundedSanitizedToggleNearbyFragments(cueContext.ancestorEntries);
@@ -705,6 +785,7 @@ function buildPhysicalOperatingAddressToggleFallbackInventory(
       const containerSectionTextFragments = collectBoundedSanitizedToggleNearbyFragments(cueContext.containerSectionEntries);
       const containerPrecedingTextFragments = collectBoundedSanitizedToggleNearbyFragments(cueContext.containerPrecedingEntries);
       const containerFollowingTextFragments = collectBoundedSanitizedToggleNearbyFragments(cueContext.containerFollowingEntries);
+      const layoutProximityTextFragments = collectBoundedSanitizedToggleLayoutFragments(field.layoutProximityLabels);
       const nearbyTextFragments = collectBoundedSanitizedToggleNearbyFragments(cueContext.nearbyEntries);
 
       return {
@@ -745,6 +826,9 @@ function buildPhysicalOperatingAddressToggleFallbackInventory(
         containerFollowingTextFragments: containerFollowingTextFragments.fragments,
         containerFollowingTextTruncated: containerFollowingTextFragments.truncated,
         containerFollowingCueMatches: buildPhysicalOperatingAddressCuePatternMatches(cueContext.containerFollowingEntries),
+        layoutProximityTextFragments: layoutProximityTextFragments.fragments,
+        layoutProximityTextTruncated: layoutProximityTextFragments.truncated,
+        layoutProximityCueMatches: buildPhysicalOperatingAddressCuePatternMatches(cueContext.layoutProximityEntries),
         nearbyLabelFragments: nearbyTextFragments.fragments,
         nearbyTextFragments: nearbyTextFragments.fragments,
         nearbyTextTruncated: nearbyTextFragments.truncated,
