@@ -12,6 +12,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { buildResendUrl, normalizeResendMethod } from '../lib/bead-client';
 import {
+  explainPhysicalOperatingAddressToggleSelection,
   findPhysicalOperatingAddressToggle,
   guardedPhysicalOperatingAddressDiscoveryEnabled,
   maybeExpandPhysicalOperatingAddressSection,
@@ -5270,6 +5271,159 @@ test.describe('interactive validation safety', () => {
     expect(candidate).toBeNull();
   });
 
+  test('guarded physical address discovery fallback selects one visible radio-like control near explicit Physical Operating Address text', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      {
+        index: 1,
+        kind: 'radio',
+        type: 'radio',
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+        sectionName: 'General',
+        label: 'Required',
+        resolvedLabel: 'Required',
+        rawCandidateLabels: [
+          { source: 'preceding-text', value: 'Physical Operating Address' },
+        ],
+        groupName: 'location_group',
+        idOrNameKey: 'locationToggle',
+        inferredType: { type: 'unknown' },
+      },
+    ] as any);
+
+    expect(selection.selectionMode).toBe('fallback');
+    expect(selection.selectedField?.idOrNameKey).toBe('locationToggle');
+    expect(selection.primaryInventory.eligibleCandidateCount).toBe(0);
+    expect(selection.fallbackInventory?.visibleRadioInputCount).toBe(1);
+    expect(selection.fallbackInventory?.matchingFallbackCandidateCount).toBe(1);
+    expect(selection.fallbackInventory?.entries[0].nearbyCueMatches.physicalOperatingAddress).toBe(true);
+  });
+
+  test('guarded physical address discovery fallback selects one visible role=radio control near Business Physical Address text', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      {
+        index: 2,
+        kind: 'radio',
+        type: null,
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+        sectionName: 'Business Physical Address',
+        label: 'Same as primary location',
+        resolvedLabel: 'Same as primary location',
+        rawCandidateLabels: [
+          { source: 'preceding-text', value: 'Business Physical Address' },
+        ],
+        groupName: 'location_group',
+        idOrNameKey: 'businessPhysicalToggle',
+        inferredType: { type: 'unknown' },
+      },
+    ] as any);
+
+    expect(selection.selectionMode).toBe('fallback');
+    expect(selection.selectedField?.idOrNameKey).toBe('businessPhysicalToggle');
+    expect(selection.fallbackInventory?.visibleRadioInputCount).toBe(0);
+    expect(selection.fallbackInventory?.visibleRoleRadioCount).toBe(1);
+    expect(selection.fallbackInventory?.entries[0].nearbyCueMatches.businessPhysicalAddress).toBe(true);
+  });
+
+  test('guarded physical address discovery fallback does not select radio-like control near Mailing Address text', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      {
+        index: 3,
+        kind: 'radio',
+        type: 'radio',
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+        sectionName: 'Business Mailing Address',
+        label: 'Required',
+        resolvedLabel: 'Required',
+        rawCandidateLabels: [
+          { source: 'preceding-text', value: 'Business Mailing Address' },
+        ],
+        groupName: 'mailing_group',
+        idOrNameKey: 'mailingToggle',
+        inferredType: { type: 'unknown' },
+      },
+    ] as any);
+
+    expect(selection.selectedField).toBeNull();
+    expect(selection.fallbackInventory?.matchingFallbackCandidateCount).toBe(0);
+    expect(selection.fallbackInventory?.entries[0].excludedReasons).toContain('matched-mailing-address');
+  });
+
+  test('guarded physical address discovery fallback fails closed when multiple radio-like controls match explicit physical cues', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      {
+        index: 4,
+        kind: 'radio',
+        type: 'radio',
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+        sectionName: 'Physical Operating Address',
+        label: 'Required',
+        resolvedLabel: 'Required',
+        rawCandidateLabels: [
+          { source: 'preceding-text', value: 'Physical Operating Address' },
+        ],
+        groupName: 'physical_group',
+        idOrNameKey: 'physicalToggleA',
+        inferredType: { type: 'unknown' },
+      },
+      {
+        index: 5,
+        kind: 'radio',
+        type: null,
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+        sectionName: 'Business Physical Address',
+        label: 'Optional',
+        resolvedLabel: 'Optional',
+        rawCandidateLabels: [
+          { source: 'preceding-text', value: 'Business Physical Address' },
+        ],
+        groupName: 'physical_group',
+        idOrNameKey: 'physicalToggleB',
+        inferredType: { type: 'unknown' },
+      },
+    ] as any);
+
+    expect(selection.selectedField).toBeNull();
+    expect(selection.fallbackInventory?.matchingFallbackCandidateCount).toBe(2);
+    expect(selection.fallbackInventory?.entries).toHaveLength(2);
+  });
+
+  test('guarded physical address discovery fallback reports physical-address cue text when no radio-like controls exist', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      {
+        index: 6,
+        kind: 'textbox',
+        type: 'text',
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+        sectionName: 'Physical Operating Address',
+        label: 'Address Line 1',
+        resolvedLabel: 'Address Line 1',
+        rawCandidateLabels: [
+          { source: 'preceding-text', value: 'Physical Operating Address' },
+        ],
+        groupName: 'physical_address_section',
+        idOrNameKey: 'businessMailingAddress.line1',
+        inferredType: { type: 'address_line_1' },
+      },
+    ] as any);
+
+    expect(selection.selectedField).toBeNull();
+    expect(selection.fallbackInventory?.visibleRadioLikeCandidateCount).toBe(0);
+    expect(selection.fallbackInventory?.cueObservationCount).toBe(1);
+    expect(selection.fallbackInventory?.cueObservations[0].cueMatches.physicalOperatingAddress).toBe(true);
+  });
+
   test('guarded physical address discovery fails closed when multiple operating candidates remain', async () => {
     const fields = [
       {
@@ -5331,6 +5485,7 @@ test.describe('interactive validation safety', () => {
         {
           index: 11,
           kind: 'radio',
+          type: 'radio',
           controlCategory: 'merchant_input',
           visible: true,
           editable: true,
@@ -5346,34 +5501,51 @@ test.describe('interactive validation safety', () => {
           ],
           groupName: 'businessMailingAddress_group',
           idOrNameKey: 'isMailingAddress',
-          inferredType: { type: 'address_option' },
+          inferredType: { type: 'unknown' },
         },
       ] as any,
       { SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS: '1' } as NodeJS.ProcessEnv,
     );
 
     expect(expansion.expanded).toBe(false);
-    expect(expansion.diagnostics[0]).toBe('physical-operating-address discovery toggle: no unique visible isOperatingAddress radio candidate found');
+    expect(expansion.diagnostics).toContain(
+      'physical-operating-address discovery toggle: no unique visible isOperatingAddress radio candidate found',
+    );
 
     const inventoryPrefix = 'physical-operating-address discovery toggle inventory: ';
     const inventory = JSON.parse(
       expansion.diagnostics.find((entry) => entry.startsWith(inventoryPrefix))!.slice(inventoryPrefix.length),
     );
+    const fallbackPrefix = 'physical-operating-address discovery toggle fallback inventory: ';
+    const fallbackInventory = JSON.parse(
+      expansion.diagnostics.find((entry) => entry.startsWith(fallbackPrefix))!.slice(fallbackPrefix.length),
+    );
     const serializedInventory = JSON.stringify(inventory);
+    const serializedFallbackInventory = JSON.stringify(fallbackInventory);
 
     expect(inventory.candidateCount).toBe(1);
     expect(inventory.matchingCandidateCount).toBe(0);
     expect(inventory.entries[0].matches.mailingAddressPattern).toBe(true);
     expect(inventory.entries[0].excludedReasons).toContain('matched-mailing-address');
+    expect(fallbackInventory.visibleRadioInputCount).toBe(1);
+    expect(fallbackInventory.matchingFallbackCandidateCount).toBe(0);
+    expect(fallbackInventory.entries[0].excludedReasons).toContain('matched-mailing-address');
     expect(inventory.entries[0].resolvedLabelFragments).toEqual(['[redacted:text]']);
     expect(inventory.entries[0].nearbyLabelFragments.length).toBeLessThanOrEqual(4);
     expect(serializedInventory).not.toContain('123 Hidden Value Road');
+    expect(serializedFallbackInventory).not.toContain('123 Hidden Value Road');
     expect(serializedInventory).not.toContain('hidden.person@example.test');
+    expect(serializedFallbackInventory).not.toContain('hidden.person@example.test');
     expect(serializedInventory).not.toContain('https://demo.docusign.net/start');
+    expect(serializedFallbackInventory).not.toContain('https://demo.docusign.net/start');
     expect(serializedInventory).not.toContain('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9');
+    expect(serializedFallbackInventory).not.toContain('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9');
     expect(serializedInventory).toContain('[redacted:email]');
+    expect(serializedFallbackInventory).toContain('[redacted:email]');
     expect(serializedInventory).toContain('[redacted:url]');
+    expect(serializedFallbackInventory).toContain('[redacted:url]');
     expect(serializedInventory).toContain('[redacted:token]');
+    expect(serializedFallbackInventory).toContain('[redacted:token]');
   });
 
   test('physical address DOM probe stays opt-in and does not enable guarded discovery by itself', () => {

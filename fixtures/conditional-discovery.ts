@@ -16,7 +16,7 @@ export const SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS_ENV = 'SAFE_DISCOVERY_EXPAND
 
 type GuardedToggleField = Pick<
   DiscoveredField,
-  'index' | 'kind' | 'controlCategory' | 'visible' | 'editable' | 'resolvedLabel' | 'label' | 'sectionName' | 'rawCandidateLabels' | 'groupName' | 'idOrNameKey' | 'inferredType'
+  'index' | 'kind' | 'type' | 'controlCategory' | 'visible' | 'editable' | 'resolvedLabel' | 'label' | 'sectionName' | 'rawCandidateLabels' | 'groupName' | 'idOrNameKey' | 'inferredType'
 >;
 
 export interface GuardedPhysicalOperatingAddressDiscoveryResult {
@@ -40,6 +40,7 @@ const MAILING_ADDRESS_RE = /\bismailingaddress\b|\bbusiness\s+mailing\s+address\
 const PHYSICAL_ADDRESS_RE = /\bphysical\s+operating\s+address\b/i;
 const TOGGLE_INVENTORY_CANDIDATE_LIMIT = 6;
 const TOGGLE_INVENTORY_FRAGMENT_LIMIT = 4;
+const TOGGLE_FALLBACK_CUE_LIMIT = 4;
 
 const SAFE_TOGGLE_FRAGMENT_PATTERNS = [
   { label: 'Physical Operating Address', pattern: /\bphysical\s+operating\s+address\b/i },
@@ -76,6 +77,24 @@ type PhysicalOperatingAddressToggleMatchAnalysis = {
   excludedReasons: string[];
 };
 
+type PhysicalOperatingAddressCuePatternMatches = {
+  physicalOperatingAddress: boolean;
+  businessPhysicalAddress: boolean;
+  operatingAddress: boolean;
+  mailingAddress: boolean;
+  legalAddress: boolean;
+  virtualAddress: boolean;
+};
+
+type PhysicalOperatingAddressToggleFallbackAnalysis = {
+  visibleRadioLike: boolean;
+  eligibleRadioLike: boolean;
+  explicitPhysicalCue: boolean;
+  selectedByFallback: boolean;
+  cueMatches: PhysicalOperatingAddressCuePatternMatches;
+  excludedReasons: string[];
+};
+
 type PhysicalOperatingAddressToggleInventoryEntry = {
   slot: number;
   fieldIndex: number | null;
@@ -106,6 +125,57 @@ type PhysicalOperatingAddressToggleInventory = {
   displayedCandidateCount: number;
   truncatedCandidateCount: number;
   entries: PhysicalOperatingAddressToggleInventoryEntry[];
+};
+
+type PhysicalOperatingAddressToggleFallbackInventoryEntry = {
+  slot: number;
+  fieldIndex: number | null;
+  fieldKey: string | null;
+  inputKind: string;
+  role: string | null;
+  inputType: string | null;
+  controlCategory: string;
+  visible: boolean;
+  editable: boolean;
+  inferredType: string;
+  resolvedLabelFragments: string[];
+  groupLabelFragments: string[];
+  nearbyLabelFragments: Array<{ source: string; text: string }>;
+  nearbyCueMatches: PhysicalOperatingAddressCuePatternMatches;
+  selectedByFallback: boolean;
+  excludedReasons: string[];
+};
+
+type PhysicalOperatingAddressToggleFallbackCueEntry = {
+  slot: number;
+  fieldIndex: number | null;
+  inputKind: string;
+  controlCategory: string;
+  labelFragments: string[];
+  nearbyLabelFragments: Array<{ source: string; text: string }>;
+  cueMatches: PhysicalOperatingAddressCuePatternMatches;
+};
+
+type PhysicalOperatingAddressToggleFallbackInventory = {
+  visibleRadioInputCount: number;
+  visibleRoleRadioCount: number;
+  visibleRadioLikeCandidateCount: number;
+  eligibleFallbackCandidateCount: number;
+  matchingFallbackCandidateCount: number;
+  displayedCandidateCount: number;
+  truncatedCandidateCount: number;
+  cueObservationCount: number;
+  displayedCueObservationCount: number;
+  truncatedCueObservationCount: number;
+  entries: PhysicalOperatingAddressToggleFallbackInventoryEntry[];
+  cueObservations: PhysicalOperatingAddressToggleFallbackCueEntry[];
+};
+
+type PhysicalOperatingAddressToggleSelection<T extends GuardedToggleField> = {
+  selectedField: T | null;
+  selectionMode: 'primary' | 'fallback' | null;
+  primaryInventory: PhysicalOperatingAddressToggleInventory;
+  fallbackInventory: PhysicalOperatingAddressToggleFallbackInventory | null;
 };
 
 function normalizeText(value: string | null | undefined): string | null {
@@ -153,6 +223,28 @@ function collectToggleCueFragments(field: GuardedToggleField): ToggleCueFragment
 
 function cueFragmentsMention(entries: ToggleCueFragment[], pattern: RegExp): boolean {
   return entries.some((entry) => pattern.test(toMatchableText(entry.value)));
+}
+
+function buildPhysicalOperatingAddressCuePatternMatches(
+  cueFragments: ToggleCueFragment[],
+): PhysicalOperatingAddressCuePatternMatches {
+  return {
+    physicalOperatingAddress: cueFragmentsMention(cueFragments, PHYSICAL_ADDRESS_RE),
+    businessPhysicalAddress: cueFragmentsMention(cueFragments, BUSINESS_PHYSICAL_ADDRESS_RE),
+    operatingAddress: cueFragmentsMention(cueFragments, OPERATING_ADDRESS_RE),
+    mailingAddress: cueFragmentsMention(cueFragments, MAILING_ADDRESS_RE),
+    legalAddress: cueFragmentsMention(cueFragments, LEGAL_ADDRESS_RE),
+    virtualAddress: cueFragmentsMention(cueFragments, VIRTUAL_ADDRESS_RE),
+  };
+}
+
+function hasAnyPhysicalAddressCueMatch(matches: PhysicalOperatingAddressCuePatternMatches): boolean {
+  return matches.physicalOperatingAddress
+    || matches.businessPhysicalAddress
+    || matches.operatingAddress
+    || matches.mailingAddress
+    || matches.legalAddress
+    || matches.virtualAddress;
 }
 
 function sanitizeToggleDiagnosticFragment(value: string | null | undefined): string | null {
@@ -241,14 +333,15 @@ function buildPhysicalOperatingAddressToggleMatchAnalysis(
   field: GuardedToggleField,
 ): PhysicalOperatingAddressToggleMatchAnalysis {
   const cueFragments = collectToggleCueFragments(field);
+  const cueMatches = buildPhysicalOperatingAddressCuePatternMatches(cueFragments);
   const eligibleRadio = isEligibleAddressOptionRadio(field);
   const addressOptionPattern = cueFragmentsMention(cueFragments, ADDRESS_OPTIONS_RE);
-  const operatingAddressPattern = cueFragmentsMention(cueFragments, OPERATING_ADDRESS_RE)
-    || cueFragmentsMention(cueFragments, PHYSICAL_ADDRESS_RE)
-    || cueFragmentsMention(cueFragments, BUSINESS_PHYSICAL_ADDRESS_RE);
-  const mailingAddressPattern = cueFragmentsMention(cueFragments, MAILING_ADDRESS_RE);
-  const legalAddressPattern = cueFragmentsMention(cueFragments, LEGAL_ADDRESS_RE);
-  const virtualAddressPattern = cueFragmentsMention(cueFragments, VIRTUAL_ADDRESS_RE);
+  const operatingAddressPattern = cueMatches.operatingAddress
+    || cueMatches.physicalOperatingAddress
+    || cueMatches.businessPhysicalAddress;
+  const mailingAddressPattern = cueMatches.mailingAddress;
+  const legalAddressPattern = cueMatches.legalAddress;
+  const virtualAddressPattern = cueMatches.virtualAddress;
   const selectedByMatcher = eligibleRadio
     && operatingAddressPattern
     && !mailingAddressPattern
@@ -274,6 +367,42 @@ function buildPhysicalOperatingAddressToggleMatchAnalysis(
     legalAddressPattern,
     virtualAddressPattern,
     selectedByMatcher,
+    excludedReasons,
+  };
+}
+
+function buildPhysicalOperatingAddressToggleFallbackAnalysis(
+  field: GuardedToggleField,
+): PhysicalOperatingAddressToggleFallbackAnalysis {
+  const cueFragments = collectToggleCueFragments(field);
+  const cueMatches = buildPhysicalOperatingAddressCuePatternMatches(cueFragments);
+  const visibleRadioLike = field.kind === 'radio' && field.visible;
+  const eligibleRadioLike = visibleRadioLike
+    && field.controlCategory === 'merchant_input'
+    && field.editable;
+  const explicitPhysicalCue = cueMatches.physicalOperatingAddress || cueMatches.businessPhysicalAddress;
+  const selectedByFallback = eligibleRadioLike
+    && explicitPhysicalCue
+    && !cueMatches.mailingAddress
+    && !cueMatches.legalAddress
+    && !cueMatches.virtualAddress;
+
+  const excludedReasons: string[] = [];
+  if (field.kind !== 'radio') excludedReasons.push('not-radio-like');
+  if (!field.visible) excludedReasons.push('not-visible');
+  if (field.controlCategory !== 'merchant_input') excludedReasons.push('not-merchant-input');
+  if (!field.editable) excludedReasons.push('not-editable');
+  if (!explicitPhysicalCue) excludedReasons.push('explicit-physical-cue-missing');
+  if (cueMatches.mailingAddress) excludedReasons.push('matched-mailing-address');
+  if (cueMatches.legalAddress) excludedReasons.push('matched-legal-address');
+  if (cueMatches.virtualAddress) excludedReasons.push('matched-virtual-address');
+
+  return {
+    visibleRadioLike,
+    eligibleRadioLike,
+    explicitPhysicalCue,
+    selectedByFallback,
+    cueMatches,
     excludedReasons,
   };
 }
@@ -343,6 +472,82 @@ function buildPhysicalOperatingAddressToggleInventory(
   };
 }
 
+function buildPhysicalOperatingAddressToggleFallbackInventory(
+  fields: GuardedToggleField[],
+): PhysicalOperatingAddressToggleFallbackInventory {
+  const radioCandidates = fields
+    .map((field) => ({ field, analysis: buildPhysicalOperatingAddressToggleFallbackAnalysis(field) }))
+    .filter(({ analysis }) => analysis.visibleRadioLike);
+  const cueObservations = fields
+    .map((field) => ({
+      field,
+      cueMatches: buildPhysicalOperatingAddressCuePatternMatches(collectToggleCueFragments(field)),
+    }))
+    .filter(({ field, cueMatches }) => field.visible && field.kind !== 'radio' && hasAnyPhysicalAddressCueMatch(cueMatches));
+
+  const entries = radioCandidates
+    .slice(0, TOGGLE_INVENTORY_CANDIDATE_LIMIT)
+    .map(({ field, analysis }, index): PhysicalOperatingAddressToggleFallbackInventoryEntry => ({
+      slot: index + 1,
+      fieldIndex: typeof field.index === 'number' ? field.index : null,
+      fieldKey: sanitizeToggleDiagnosticFragment(field.idOrNameKey),
+      inputKind: field.kind,
+      role: field.kind === 'radio' ? 'radio' : null,
+      inputType: normalizeText(field.type),
+      controlCategory: field.controlCategory,
+      visible: field.visible,
+      editable: field.editable,
+      inferredType: field.inferredType.type,
+      resolvedLabelFragments: collectSanitizedToggleFragments(uniqueToggleCueFragments([
+        { source: 'label', value: field.label ?? '' },
+        { source: 'resolved-label', value: field.resolvedLabel ?? '' },
+      ]), 2),
+      groupLabelFragments: collectSanitizedToggleFragments(uniqueToggleCueFragments([
+        { source: 'group', value: field.groupName ?? '' },
+      ]), 2),
+      nearbyLabelFragments: collectSanitizedToggleNearbyFragments(uniqueToggleCueFragments([
+        { source: 'section', value: field.sectionName ?? '' },
+        ...field.rawCandidateLabels.map((candidate) => ({ source: candidate.source, value: candidate.value })),
+      ])),
+      nearbyCueMatches: analysis.cueMatches,
+      selectedByFallback: analysis.selectedByFallback,
+      excludedReasons: analysis.selectedByFallback ? [] : analysis.excludedReasons,
+    }));
+  const cueEntries = cueObservations
+    .slice(0, TOGGLE_FALLBACK_CUE_LIMIT)
+    .map(({ field, cueMatches }, index): PhysicalOperatingAddressToggleFallbackCueEntry => ({
+      slot: index + 1,
+      fieldIndex: typeof field.index === 'number' ? field.index : null,
+      inputKind: field.kind,
+      controlCategory: field.controlCategory,
+      labelFragments: collectSanitizedToggleFragments(uniqueToggleCueFragments([
+        { source: 'label', value: field.label ?? '' },
+        { source: 'resolved-label', value: field.resolvedLabel ?? '' },
+      ]), 2),
+      nearbyLabelFragments: collectSanitizedToggleNearbyFragments(uniqueToggleCueFragments([
+        { source: 'section', value: field.sectionName ?? '' },
+        { source: 'group', value: field.groupName ?? '' },
+        ...field.rawCandidateLabels.map((candidate) => ({ source: candidate.source, value: candidate.value })),
+      ])),
+      cueMatches,
+    }));
+
+  return {
+    visibleRadioInputCount: radioCandidates.filter(({ field }) => normalizeText(field.type)?.toLowerCase() === 'radio').length,
+    visibleRoleRadioCount: radioCandidates.filter(({ field }) => normalizeText(field.type)?.toLowerCase() !== 'radio').length,
+    visibleRadioLikeCandidateCount: radioCandidates.length,
+    eligibleFallbackCandidateCount: radioCandidates.filter(({ analysis }) => analysis.eligibleRadioLike).length,
+    matchingFallbackCandidateCount: radioCandidates.filter(({ analysis }) => analysis.selectedByFallback).length,
+    displayedCandidateCount: entries.length,
+    truncatedCandidateCount: Math.max(0, radioCandidates.length - entries.length),
+    cueObservationCount: cueObservations.length,
+    displayedCueObservationCount: cueEntries.length,
+    truncatedCueObservationCount: Math.max(0, cueObservations.length - cueEntries.length),
+    entries,
+    cueObservations: cueEntries,
+  };
+}
+
 function fieldMentions(field: GuardedToggleField, pattern: RegExp): boolean {
   return fieldTextFragments(field).some((value) => pattern.test(value));
 }
@@ -367,10 +572,50 @@ export function guardedPhysicalOperatingAddressDiscoveryEnabled(env: NodeJS.Proc
   return env[SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS_ENV] === '1';
 }
 
-export function findPhysicalOperatingAddressToggle<T extends GuardedToggleField>(fields: T[]): T | null {
-  const matches = fields.filter((field) => buildPhysicalOperatingAddressToggleMatchAnalysis(field).selectedByMatcher);
+export function explainPhysicalOperatingAddressToggleSelection<T extends GuardedToggleField>(
+  fields: T[],
+): PhysicalOperatingAddressToggleSelection<T> {
+  const primaryInventory = buildPhysicalOperatingAddressToggleInventory(fields);
+  const primaryMatches = fields.filter((field) => buildPhysicalOperatingAddressToggleMatchAnalysis(field).selectedByMatcher);
+  if (primaryMatches.length === 1) {
+    return {
+      selectedField: primaryMatches[0],
+      selectionMode: 'primary',
+      primaryInventory,
+      fallbackInventory: null,
+    };
+  }
 
-  return matches.length === 1 ? matches[0] : null;
+  if (primaryInventory.eligibleCandidateCount === 0) {
+    const fallbackInventory = buildPhysicalOperatingAddressToggleFallbackInventory(fields);
+    const fallbackMatches = fields.filter((field) => buildPhysicalOperatingAddressToggleFallbackAnalysis(field).selectedByFallback);
+    if (fallbackMatches.length === 1) {
+      return {
+        selectedField: fallbackMatches[0],
+        selectionMode: 'fallback',
+        primaryInventory,
+        fallbackInventory,
+      };
+    }
+
+    return {
+      selectedField: null,
+      selectionMode: null,
+      primaryInventory,
+      fallbackInventory,
+    };
+  }
+
+  return {
+    selectedField: null,
+    selectionMode: null,
+    primaryInventory,
+    fallbackInventory: null,
+  };
+}
+
+export function findPhysicalOperatingAddressToggle<T extends GuardedToggleField>(fields: T[]): T | null {
+  return explainPhysicalOperatingAddressToggleSelection(fields).selectedField;
 }
 
 export function shouldStopAfterPhysicalAddressCaptureAttempt(
@@ -416,11 +661,21 @@ export async function maybeExpandPhysicalOperatingAddressSection(
     return { fields: initialFields, diagnostics, expanded: false, probeReport: null, captureReport: null };
   }
 
-  const toggleField = findPhysicalOperatingAddressToggle(initialFields);
+  const toggleSelection = explainPhysicalOperatingAddressToggleSelection(initialFields);
+  if (toggleSelection.fallbackInventory) {
+    diagnostics.push(
+      `physical-operating-address discovery toggle fallback inventory: ${JSON.stringify(toggleSelection.fallbackInventory)}`,
+    );
+    if (toggleSelection.selectionMode === 'fallback') {
+      diagnostics.push('physical-operating-address discovery toggle candidate source: fallback radio-like candidate');
+    }
+  }
+
+  const toggleField = toggleSelection.selectedField;
   if (!toggleField) {
     diagnostics.push('physical-operating-address discovery toggle: no unique visible isOperatingAddress radio candidate found');
     diagnostics.push(
-      `physical-operating-address discovery toggle inventory: ${JSON.stringify(buildPhysicalOperatingAddressToggleInventory(initialFields))}`,
+      `physical-operating-address discovery toggle inventory: ${JSON.stringify(toggleSelection.primaryInventory)}`,
     );
     return { fields: initialFields, diagnostics, expanded: false, probeReport: null, captureReport: null };
   }

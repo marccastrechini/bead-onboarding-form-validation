@@ -1,111 +1,49 @@
 ## ChatGPT Review Summary
-- What changed: RUN16 executed exactly one authorized `npm run bootstrap:capture:physical-address`, exercised the hardened operating-address matcher in live mode, confirmed the safe-redirect warning path and signer-surface readiness still work, but the capture still blocked because `findPhysicalOperatingAddressToggle()` found zero live candidates and emitted the new bounded sanitized inventory with an empty candidate set. No source, test, doc, or package files changed in RUN16.
-- Whether the hardened operating-address matcher was exercised live: yes.
-- Whether exactly one live toggle candidate was found: no. The bounded inventory reported `candidateCount=0`, `eligibleCandidateCount=0`, and `matchingCandidateCount=0`.
-- Whether the toggle was expanded: no. `maybeExpandPhysicalOperatingAddressSection()` did not produce a sanitized post-toggle capture report.
-- Whether coverage moved forward: yes for live blocker characterization; no for Physical Operating Address field-local proof.
-- Whether fresh artifacts were produced: no. Both post-toggle artifacts remain the stale May 1 files.
-- Tests/commands run and pass/fail: `npm run bootstrap:capture:physical-address` ran exactly once and failed with exit 1 after child `capture:physical-address` exited 3; `npm run reports:refresh` and `npm run findings:open` were not run because fresh artifacts were not produced.
-- Classification: `business_mailing_address_line_1`, `business_mailing_city`, `business_mailing_state`, and `business_mailing_postal_code` all remain `still capture-blocked`.
-- Remaining blocker / uncertainty: the live flow still reaches the signer surface, but the hardened inventory saw zero relevant toggle candidates at all. It is still unclear whether the live signer page expresses the operating-address choice as a non-radio control, a differently typed radio-like control, or with labeling that is absent from the current safe candidate inventory.
-- Continue / stop / redirect: redirect.
-- Another live capture recommended next: no.
-- Next best Copilot prompt: add a source/test-only fallback inventory for visible radio-like controls and safe nearby physical-address cues when the bounded candidate set is empty, then validate it locally before another live rerun.
+- What changed: RUN17 added a bounded fallback inventory for visible discovered radio-like controls and cue-only physical-address fragments in `fixtures/conditional-discovery.ts` when no eligible `address_option` toggle candidates exist, and safely broadened selection only for exactly one visible editable radio-like control near explicit `Physical Operating Address` or `Business Physical Address` cues with no mailing/legal/virtual ambiguity. Focused coverage was expanded in `tests/bootstrap-units.spec.ts`. No live bootstrap/capture command was run in RUN17.
+- Whether fallback radio-like inventory was added: yes. The new fallback inventory reports bounded visible-radio counts, role=radio counts, bounded radio-like entries, cue-only observations, truncation counts, redacted label/group/nearby fragments, cue-match flags, and exclusion reasons.
+- Whether the matcher was broadened or inventory-only: broadened, but only for the locally proven safe case where zero eligible `address_option` candidates exist and exactly one visible editable radio-like control sits near explicit `Physical Operating Address` or `Business Physical Address` cues with no mailing/legal/virtual ambiguity.
+- What guardrails were preserved: no live signer URL was consumed; the capture-only safety model stayed intact; the fallback path still fails closed on mailing, legal, virtual, multiple-match, and no-control cases; diagnostics remain bounded and redacted; no uploads, destructive validation, broader discovery, `.env` changes, or finalization actions were introduced.
+- Whether the result moved us forward: yes. RUN16's empty bounded inventory is now locally characterized with a second-tier radio-like view, and the matcher can safely recover a uniquely identifiable explicit physical-address radio-like control if discovery misses `address_option` typing.
+- Tests/commands run and pass/fail: `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "guarded physical address discovery"` passed (10/10); `npm run test:units` passed (263/263).
+- Remaining blocker / uncertainty: the fallback inventory and safe fallback selection are still locally validated only. A future authorized live rerun is still needed to determine whether the signer page exposes a discoverable radio-like control, or whether a deeper control-type/DOM association gap remains.
+- Continue / stop / redirect: continue.
+- Another live capture recommended next: yes, but only if explicitly authorized. Exact next run ID: `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN18`.
 
 # Copilot Handoff Result
 
-CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN16
+CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN17
 
 ## Status
-Blocked
+Ready for ChatGPT review
 
 ## Objective
-Execute exactly one authorized live capture-only run to validate whether the hardened operating-address matcher now finds exactly one live toggle candidate and produces fresh Physical Operating Address post-toggle artifacts.
+Do not run another live capture. Add a source/test-only fallback inventory for visible radio-like controls and safe nearby physical-address cues when the operating-address candidate set is empty, then validate it locally.
 
 ## What Changed
-- Ran `npm run bootstrap:capture:physical-address` exactly once.
-- Confirmed the live DocuSign external-site warning path still worked.
-- Confirmed `openSigner()` still reached the signer surface.
-- Exercised the hardened operating-address matcher and the new bounded toggle inventory in live mode.
-- Inspected the Physical Operating Address post-toggle artifact timestamps.
-- Updated only the RUN16 AI handoff files.
+- Added a bounded fallback inventory in `fixtures/conditional-discovery.ts` when no eligible `address_option` toggle candidates exist.
+- The fallback inventory now reports:
+  - visible radio input count
+  - visible role=radio count
+  - visible radio-like candidate count
+  - eligible and matching fallback-candidate counts
+  - bounded radio-like entries with safe field key, kind, role, input type, control category, visibility/editability, inferred type, redacted label/group/nearby fragments, cue-match flags, and exclusion reasons
+  - bounded cue-only observations for non-radio discovered controls that still carry physical-address cue fragments
+  - truncation counts for both radio-like entries and cue-only observations
+- Safely broadened selection so the guarded matcher can pick exactly one visible editable radio-like control when:
+  - no eligible `address_option` candidates exist
+  - the control is a merchant-input radio-like field
+  - nearby/group cues explicitly indicate `Physical Operating Address` or `Business Physical Address`
+  - no mailing, legal, or virtual cue ambiguity is present
+- Expanded focused unit-style coverage in `tests/bootstrap-units.spec.ts` for:
+  - explicit `Physical Operating Address` fallback selection
+  - `Business Physical Address` role=radio fallback selection
+  - mailing exclusion under fallback
+  - multiple radio-like physical-cue candidates failing closed
+  - cue-only observations when no radio-like controls exist
+  - fallback-inventory redaction of URLs, emails, tokens, and arbitrary text values
 
-## One-Shot Command Result
-- Command: `npm run bootstrap:capture:physical-address`
-- Run count: exactly one
-- Retry count: zero
-- Resend succeeded.
-- Gmail polling found a fresh invite.
-- Signing URL extraction succeeded with redacted logging.
-- The child runner launched only `npm run capture:physical-address`.
-- The child runner failed with exit code 3.
-- The bootstrap command failed with exit code 1.
-
-## Live Flow Outcome
-- DocuSign external-site warning path still worked: yes
-- Guarded warning-page handler recognized the page: yes
-- Host-matching outbound anchor clicked: yes, exactly one
-- `waitForSafeRedirectTransition()` observed a post-click URL transition: yes
-- `openSigner()` reached the signer surface: yes
-- Signing frame resolution: main page
-- Signer-form readiness: first enabled input/select/textarea became visible
-- Initial discovered field count: 125
-
-## Operating-Address Toggle Outcome
-- Exactly one live toggle candidate found: no
-- Toggle expanded: no
-- Sanitized post-toggle capture report produced: no
-- Blocked reason: `physical-operating-address discovery toggle: no unique visible isOperatingAddress radio candidate found`
-- Bounded sanitized toggle inventory appeared: yes
-- Safe inventory summary:
-  - candidate count: 0
-  - eligible candidate count: 0
-  - matching candidate count: 0
-  - key exclusion reasons: none at entry level because no candidate entries were emitted
-  - safe label/group cue patterns observed: none in the bounded candidate set
-
-## Artifact Freshness Check
-- `artifacts/latest-physical-operating-address-post-toggle-structure.json`
-  - exists: yes
-  - last write UTC: `2026-05-01T16:41:44.7937531Z`
-- `artifacts/latest-physical-operating-address-post-toggle-dom.html`
-  - exists: yes
-  - last write UTC: `2026-05-01T16:41:44.7947542Z`
-- Result: both files are stale May 1 artifacts, not fresh RUN16 output.
-
-## Field-Local Label Proof Check
-- Fresh RUN16 post-toggle artifacts were not produced.
-- `Address Line 1`: not reassessed because the latest artifacts are stale
-- `City`: not reassessed because the latest artifacts are stale
-- `State`: not reassessed because the latest artifacts are stale
-- `ZIP`: not reassessed because the latest artifacts are stale
-- `Postal Code`: not reassessed because the latest artifacts are stale
-
-## `business_mailing_*` Classification
-- `business_mailing_address_line_1`: `still capture-blocked`
-- `business_mailing_city`: `still capture-blocked`
-- `business_mailing_state`: `still capture-blocked`
-- `business_mailing_postal_code`: `still capture-blocked`
-
-## Coverage Movement
-- Live warning-page and signer-surface validation remained good.
-- Live toggle-matcher characterization moved forward: RUN16 proves the hardened bounded inventory can be exercised live and currently returns an empty candidate set.
-- Physical Operating Address field-local proof did not move forward.
-- `npm run reports:refresh` was not run.
-- `npm run findings:open` was not run.
-
-## Remaining Blocker / Uncertainty
-- The blocker is now more specific than RUN14: the live page produced zero relevant toggle candidates under the current bounded inventory, not just zero unique matches.
-- It remains unclear whether the operating-address choice is exposed as a non-radio control, a radio-like control outside the current inventory, or a control with no safe address cues in the current candidate collection path.
-- No fresh post-toggle artifacts were produced, so field-local label proof remains unavailable.
-
-## Smallest Next Source/Test Move
-- Add a source/test-only fallback inventory for visible radio-like controls when the bounded operating-address candidate set is empty.
-- Include safe metadata for visible radio or role=radio controls near physical-address cues even when `inferredType.type !== address_option`.
-- Add focused tests for the zero-candidate live shape so the fallback inventory remains bounded and redacted.
-- Do not spend another live signer URL until that source/test pass is complete.
-
-## Safety Confirmation
+## Guardrails Preserved
+- No live bootstrap/capture command was run.
 - `bootstrap:interactive` was not run.
 - `interactive:watchdog` was not run.
 - Full signer discovery was not run.
@@ -114,29 +52,49 @@ Execute exactly one authorized live capture-only run to validate whether the har
 - No Finish, Complete, Submit, Sign, Adopt, or finalization controls were clicked.
 - No raw signer URL was printed or committed.
 - `.env` was not mutated.
-- The signer URL was passed only through child env as designed by the bootstrap capture runner.
-- `npm run bootstrap:capture:physical-address` was not retried.
-- Generated capture artifacts were not staged or committed.
-
-## Branch / Commit Status
-- Branch: `main`
-- Pre-RUN16 commit: `812eea71f79671f21087426da3eacdf76cef7029`
-- RUN16 handoff commit: pending at write time
+- Generated artifacts were not staged or committed.
+- Mailing, legal, virtual, ambiguous, and no-control fallback cases still fail closed.
 
 ## Files Changed
+- `fixtures/conditional-discovery.ts`
+- `tests/bootstrap-units.spec.ts`
 - `artifacts/ai-handoff/status.json`
 - `artifacts/ai-handoff/latest-copilot-result.md`
 
-## Recommendation
-Redirect.
+## Validation
+- `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "guarded physical address discovery"` -> passed (10 passed)
+- `npm run test:units` -> passed (263 passed)
+- `npm run bootstrap:capture:physical-address` was not run in RUN17 by design
 
-Do not run another live capture next.
+## Result
+- Forward progress: yes.
+- RUN17 characterizes RUN16's empty candidate set more completely with a fallback radio-like inventory and cue-only observations.
+- The matcher now recovers the smallest safe explicit physical-address radio-like case without broad guessing.
+- Fail-closed behavior remains intact when fallback conditions are not uniquely safe.
+
+## Remaining Blocker / Uncertainty
+- The fallback inventory and safe fallback selection are still validated only through focused and unit-style tests.
+- A fresh live signer landing is still needed to confirm whether the page exposes a discoverable radio-like control that the fallback path can recover.
+- If the next live run still fails, the new fallback inventory should clarify whether the remaining gap is missing controls, missing cue association, or a non-radio control type.
+
+## Recommendation
+Continue.
+
+Another live capture is recommended next only if explicitly authorized, using:
+`PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN18`
 
 ## Recommended Next Copilot Prompt
-Run `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN17`: do not run another live capture, add a bounded redacted fallback inventory for visible radio-like controls and safe nearby physical-address cues when the operating-address candidate set is empty, cover that behavior with focused tests, and keep generated artifacts out of git.
+Run `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN18`: execute exactly one authorized `npm run bootstrap:capture:physical-address`, keep the current safety constraints, verify whether the fallback radio-like inventory or safe fallback selection now surfaces exactly one live operating-address control and fresh post-toggle artifacts, and if it still fails, capture the bounded fallback inventory outcome without committing generated artifacts.
+
+## Branch / Commit Status
+- Branch: `main`
+- Pre-RUN17 commit: `6de3e0c9edb9c3f37f01b9309006da3e3875e7a1`
+- RUN17 handoff commit: pending at write time
 
 ## Commit Scope
 - Stage and commit:
+  - `fixtures/conditional-discovery.ts`
+  - `tests/bootstrap-units.spec.ts`
   - `artifacts/ai-handoff/status.json`
   - `artifacts/ai-handoff/latest-copilot-result.md`
 - Do not commit:
@@ -146,4 +104,4 @@ Run `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN17`: do not run another live 
   - `.env`
   - `samples/private/**`
 
-CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN16
+CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN17
