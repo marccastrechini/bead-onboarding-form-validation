@@ -10,6 +10,7 @@ import { EventEmitter } from 'node:events';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { PassThrough } from 'node:stream';
 import { buildResendUrl, normalizeResendMethod } from '../lib/bead-client';
 import {
   explainPhysicalOperatingAddressToggleSelection,
@@ -36,15 +37,22 @@ import {
 import {
   assertPhysicalOperatingAddressCaptureOnlyGuards,
   buildPhysicalOperatingAddressCaptureOnlyArtifactFreshnessDiagnostics,
+  buildPhysicalOperatingAddressCaptureOnlyReceipt,
+  buildPhysicalOperatingAddressCaptureOnlyReceiptPath,
   buildPhysicalOperatingAddressCaptureOnlyEnv,
   comparePhysicalOperatingAddressCaptureOnlyArtifactFreshness,
+  formatPhysicalOperatingAddressCaptureOnlyReceiptSentinel,
   PHYSICAL_ADDRESS_CAPTURE_ONLY_ARTIFACT_FILENAMES,
   PHYSICAL_ADDRESS_CAPTURE_ONLY_COMMAND,
   PHYSICAL_ADDRESS_CAPTURE_ONLY_DISCOVERY_OPTIONS,
   PHYSICAL_ADDRESS_CAPTURE_ONLY_FRESHNESS_FILENAMES,
+  PHYSICAL_ADDRESS_CAPTURE_ONLY_RECEIPT_FILE_NAME,
+  PHYSICAL_ADDRESS_CAPTURE_ONLY_RUN_KIND,
   PHYSICAL_ADDRESS_CAPTURE_ONLY_SCRIPT_PATH,
+  readPhysicalOperatingAddressCaptureOnlyReceipt,
   readPhysicalOperatingAddressCaptureOnlyArtifactFreshnessSnapshot,
   runPhysicalOperatingAddressCaptureOnly,
+  type PhysicalOperatingAddressCaptureOnlyReceipt,
 } from '../scripts/capture-physical-operating-address';
 import {
   buildSignerChildEnv,
@@ -52,9 +60,11 @@ import {
   runBootstrapEmailScripts,
 } from '../lib/bootstrap-email-runner';
 import {
+  parsePhysicalOperatingAddressBootstrapCaptureReceiptLines,
   PHYSICAL_ADDRESS_BOOTSTRAP_CAPTURE_CHILD_SCRIPTS,
   PHYSICAL_ADDRESS_BOOTSTRAP_CAPTURE_COMMAND,
   PHYSICAL_ADDRESS_BOOTSTRAP_CAPTURE_SCRIPT_PATH,
+  runPhysicalOperatingAddressBootstrapCapture,
 } from '../scripts/bootstrap-capture-physical-operating-address';
 import { ReportBuilder } from '../fixtures/validation-report';
 import type { FieldRecord, ValidationReport } from '../fixtures/validation-report';
@@ -8255,6 +8265,128 @@ test.describe('interactive validation safety', () => {
     ...overrides,
   });
 
+  const createPhysicalAddressBootstrapCaptureReceipt = (
+    overrides: Partial<PhysicalOperatingAddressCaptureOnlyReceipt> = {},
+  ): PhysicalOperatingAddressCaptureOnlyReceipt => ({
+    runKind: PHYSICAL_ADDRESS_CAPTURE_ONLY_RUN_KIND,
+    childCommand: `npm run ${PHYSICAL_ADDRESS_CAPTURE_ONLY_COMMAND}`,
+    childExitCode: 0,
+    bootstrapExitCode: null,
+    signerSurfaceReached: true,
+    initialFieldCount: 14,
+    calibratedFallbackConsidered: true,
+    calibratedFallbackSelectedSlot: 2,
+    selectionMode: 'calibrated-fallback',
+    fallbackReason: 'calibrated-business-primary-location-physical-address-option',
+    expansionReturned: true,
+    expansionExpanded: true,
+    captureReportPresent: true,
+    captureReportWritable: true,
+    writerCalled: true,
+    writerCompleted: true,
+    artifactsFresh: true,
+    artifactsRemainStale: false,
+    staleArtifactsIgnored: false,
+    blockedReasonCategory: null,
+    reportsRefreshSkipped: false,
+    findingsOpenSkipped: false,
+    targetFileFreshnessSummary: [
+      {
+        fileName: PHYSICAL_ADDRESS_CAPTURE_ONLY_FRESHNESS_FILENAMES.structureJson,
+        existsBefore: true,
+        existsAfter: true,
+        mtimeChanged: true,
+        generatedAtChanged: true,
+        fresh: true,
+        stale: false,
+      },
+      {
+        fileName: PHYSICAL_ADDRESS_CAPTURE_ONLY_FRESHNESS_FILENAMES.domHtml,
+        existsBefore: true,
+        existsAfter: true,
+        mtimeChanged: true,
+        generatedAtChanged: null,
+        fresh: true,
+        stale: false,
+      },
+    ],
+    redactionApplied: true,
+    ...overrides,
+  });
+
+  const createPhysicalAddressBootstrapCaptureSpawn = (options: {
+    exitCode: number;
+    stdoutLines?: string[];
+    stderrLines?: string[];
+  }) => () => {
+    const child = new EventEmitter() as EventEmitter & {
+      stdout: PassThrough;
+      stderr: PassThrough;
+    };
+    child.stdout = new PassThrough();
+    child.stderr = new PassThrough();
+
+    process.nextTick(() => {
+      for (const line of options.stdoutLines ?? []) {
+        child.stdout.write(`${line}\n`);
+      }
+      for (const line of options.stderrLines ?? []) {
+        child.stderr.write(`${line}\n`);
+      }
+      child.stdout.end();
+      child.stderr.end();
+      child.emit('exit', options.exitCode);
+    });
+
+    return child as any;
+  };
+
+  const createPhysicalAddressBootstrapCaptureDependencies = (
+    outDir: string,
+    spawnImpl: ReturnType<typeof createPhysicalAddressBootstrapCaptureSpawn>,
+    logs: string[],
+  ) => ({
+    artifactsDir: outDir,
+    spawnImpl,
+    emitChildLine: () => undefined,
+    loadBeadConfig: () => ({
+      baseUrl: 'https://api.example.test',
+      resendMethod: 'POST',
+      resendPath: '/applications/{applicationId}/resend',
+      authHeaderName: 'Authorization',
+      authHeaderValue: 'Bearer secret',
+      applicationId: 'app-123',
+    }),
+    loadGmailConfig: () => ({
+      address: 'merchant@example.test',
+      credentialsPath: 'credentials.json',
+      tokenPath: 'token.json',
+      queryFrom: 'dse@docusign.net',
+      querySubjectContains: 'Please DocuSign',
+      pollTimeoutMs: 1000,
+      pollIntervalMs: 100,
+    }),
+    triggerResend: async () => ({
+      triggeredAt: new Date('2026-05-13T21:30:00.000Z'),
+      triggeredAtEpochSec: 1_778_707_800,
+      method: 'POST',
+      status: 202,
+      url: 'https://api.example.test/applications/app-123/resend',
+    }),
+    pollForSigningEmail: async () => ({
+      id: 'message-123',
+      internalDateMs: Date.parse('2026-05-13T21:30:05.000Z'),
+      body: 'email body',
+    }),
+    extractSigningUrl: async () => ({
+      url: 'https://na4.docusign.net/Signing/EmailStart.aspx?t=SECRET',
+      via: 'direct',
+      sanitized: 'https://na4.docusign.net/[redacted-path]?[redacted]',
+    }),
+    log: (line: string) => logs.push(line),
+    env: { DESTRUCTIVE_VALIDATION: '1' } as NodeJS.ProcessEnv,
+  });
+
   test('physical address capture-only runner reports missing captureReport and does not treat stale artifacts as fresh', async () => {
     const outDir = createPhysicalAddressCaptureOnlyTempDir();
     writePostToggleFreshnessBundle(outDir, {
@@ -8472,6 +8604,143 @@ test.describe('interactive validation safety', () => {
     expect(result.artifactFreshness.findingsOpenSkipped).toBe(false);
   });
 
+  test('physical address capture-only receipt records fresh writer success', async () => {
+    const outDir = createPhysicalAddressCaptureOnlyTempDir();
+    writePostToggleFreshnessBundle(outDir, {
+      generatedAt: '2026-05-01T16:41:27.153Z',
+      mtimeIso: '2026-05-01T16:41:44.000Z',
+    });
+
+    const result = await runPhysicalOperatingAddressCaptureOnly(
+      {} as any,
+      {} as NodeJS.ProcessEnv,
+      outDir,
+      {
+        openSigner: async () => ({ frame: {} as any, diagnostics: [] }),
+        discoverFields: async () => Array.from({ length: 14 }, () => ({} as DiscoveredField)),
+        maybeExpandPhysicalOperatingAddressSection: async () => ({
+          fields: [],
+          diagnostics: [
+            'physical-operating-address discovery toggle fallback inventory: {"calibratedFallback":{"selectedCalibratedSlot":2,"fallbackReason":"calibrated-business-primary-location-physical-address-option"}}',
+            'physical-operating-address discovery toggle candidate source: calibrated business primary location fallback',
+            'physical-operating-address discovery toggle selection reason: calibrated-business-primary-location-physical-address-option',
+            'physical-operating-address discovery toggle candidate: Required - addressOptions - isOperatingAddress',
+          ],
+          expanded: true,
+          probeReport: null,
+          captureReport: mockCaptureReport({ generatedAt: '2026-05-15T08:55:00.000Z' }),
+        }),
+        writePhysicalOperatingAddressPostToggleArtifacts: async (_page, report, targetDir) => {
+          const screenshotPath = path.join(targetDir, 'latest-physical-operating-address-post-toggle-screenshot.png');
+          const htmlPath = path.join(targetDir, PHYSICAL_ADDRESS_CAPTURE_ONLY_FRESHNESS_FILENAMES.domHtml);
+          const jsonPath = path.join(targetDir, PHYSICAL_ADDRESS_CAPTURE_ONLY_FRESHNESS_FILENAMES.structureJson);
+          const mdPath = path.join(targetDir, 'latest-physical-operating-address-post-toggle-structure.md');
+
+          fs.writeFileSync(jsonPath, JSON.stringify(report, null, 2), 'utf8');
+          fs.writeFileSync(htmlPath, '<html><body>safe fresh preview</body></html>', 'utf8');
+          fs.writeFileSync(mdPath, '# safe markdown', 'utf8');
+          fs.writeFileSync(screenshotPath, 'png', 'utf8');
+
+          return { screenshotPath, htmlPath, jsonPath, mdPath };
+        },
+        readArtifactFreshnessSnapshot: readPhysicalOperatingAddressCaptureOnlyArtifactFreshnessSnapshot,
+      },
+    );
+
+    const receipt = buildPhysicalOperatingAddressCaptureOnlyReceipt({
+      result,
+      childExitCode: 0,
+      artifactsDir: outDir,
+    });
+
+    expect(receipt.artifactsFresh).toBe(true);
+    expect(receipt.childExitCode).toBe(0);
+    expect(receipt.selectionMode).toBe('calibrated-fallback');
+    expect(receipt.calibratedFallbackSelectedSlot).toBe(2);
+    expect(receipt.blockedReasonCategory).toBeNull();
+  });
+
+  test('physical address capture-only receipt records stale writer-completed blocked category and skipped downstream reports', async () => {
+    const outDir = createPhysicalAddressCaptureOnlyTempDir();
+    writePostToggleFreshnessBundle(outDir, {
+      generatedAt: '2026-05-01T16:41:27.153Z',
+      mtimeIso: '2026-05-01T16:41:44.000Z',
+    });
+
+    const result = await runPhysicalOperatingAddressCaptureOnly(
+      {} as any,
+      {} as NodeJS.ProcessEnv,
+      outDir,
+      {
+        openSigner: async () => ({ frame: {} as any, diagnostics: [] }),
+        discoverFields: async () => Array.from({ length: 14 }, () => ({} as DiscoveredField)),
+        maybeExpandPhysicalOperatingAddressSection: async () => ({
+          fields: [],
+          diagnostics: [
+            'physical-operating-address discovery toggle fallback inventory: {"calibratedFallback":{"selectedCalibratedSlot":2,"fallbackReason":"calibrated-business-primary-location-physical-address-option"}}',
+            'physical-operating-address discovery toggle candidate source: calibrated business primary location fallback',
+            'physical-operating-address discovery toggle selection reason: calibrated-business-primary-location-physical-address-option',
+          ],
+          expanded: true,
+          probeReport: null,
+          captureReport: mockCaptureReport({ generatedAt: '2026-05-01T16:41:27.153Z' }),
+        }),
+        writePhysicalOperatingAddressPostToggleArtifacts: async (_page, _report, targetDir) => ({
+          screenshotPath: path.join(targetDir, 'latest-physical-operating-address-post-toggle-screenshot.png'),
+          htmlPath: path.join(targetDir, PHYSICAL_ADDRESS_CAPTURE_ONLY_FRESHNESS_FILENAMES.domHtml),
+          jsonPath: path.join(targetDir, PHYSICAL_ADDRESS_CAPTURE_ONLY_FRESHNESS_FILENAMES.structureJson),
+          mdPath: path.join(targetDir, 'latest-physical-operating-address-post-toggle-structure.md'),
+        }),
+        readArtifactFreshnessSnapshot: readPhysicalOperatingAddressCaptureOnlyArtifactFreshnessSnapshot,
+      },
+    );
+
+    const receipt = buildPhysicalOperatingAddressCaptureOnlyReceipt({
+      result,
+      childExitCode: 3,
+      artifactsDir: outDir,
+    });
+
+    expect(receipt.artifactsFresh).toBe(false);
+    expect(receipt.artifactsRemainStale).toBe(true);
+    expect(receipt.blockedReasonCategory).toBe('writer completed but mtime/generatedAt did not change');
+    expect(receipt.reportsRefreshSkipped).toBe(true);
+    expect(receipt.findingsOpenSkipped).toBe(true);
+  });
+
+  test('physical address capture-only receipt stays bounded and redacted', () => {
+    const outDir = createPhysicalAddressCaptureOnlyTempDir();
+    writePostToggleFreshnessBundle(outDir, {
+      generatedAt: '2026-05-01T16:41:27.153Z',
+      jsonExtras: {
+        url: 'https://demo.docusign.net/start?token=secret-token-value',
+        email: 'hidden.person@example.test',
+        fieldValue: '747 Conroy Camp',
+        elementId: 'tab-form-element-secret-proxy',
+        className: 'secret-class-name',
+        dom: '<div>unsafe html</div>',
+      },
+      html: '<html><body>hidden.person@example.test token secret-token-value</body></html>',
+      mtimeIso: '2026-05-01T16:41:44.000Z',
+    });
+
+    const receipt = buildPhysicalOperatingAddressCaptureOnlyReceipt({
+      result: null,
+      childExitCode: 1,
+      artifactsDir: outDir,
+      blockedReasonCategory: 'another bounded reason',
+    });
+    const serialized = JSON.stringify(receipt);
+
+    expect(serialized).not.toContain('https://demo.docusign.net/start');
+    expect(serialized).not.toContain('hidden.person@example.test');
+    expect(serialized).not.toContain('747 Conroy Camp');
+    expect(serialized).not.toContain('tab-form-element-secret-proxy');
+    expect(serialized).not.toContain('secret-class-name');
+    expect(serialized).not.toContain('<html>');
+    expect(serialized).not.toContain('screenshot.png');
+  });
+
   test('physical address capture-only runner source reuses guarded capture path and avoids validation sweep logic', () => {
     const source = fs.readFileSync(
       path.resolve(__dirname, '..', PHYSICAL_ADDRESS_CAPTURE_ONLY_SCRIPT_PATH),
@@ -8524,6 +8793,182 @@ test.describe('interactive validation safety', () => {
     expect(PHYSICAL_ADDRESS_BOOTSTRAP_CAPTURE_CHILD_SCRIPTS).not.toContain('test:discovery');
     expect(PHYSICAL_ADDRESS_BOOTSTRAP_CAPTURE_CHILD_SCRIPTS).not.toContain('test:interactive');
     expect(PHYSICAL_ADDRESS_BOOTSTRAP_CAPTURE_CHILD_SCRIPTS).not.toContain('interactive:watchdog');
+  });
+
+  test('physical address bootstrap capture receipt parses a valid sentinel line', () => {
+    const receipt = createPhysicalAddressBootstrapCaptureReceipt();
+    const parsed = parsePhysicalOperatingAddressBootstrapCaptureReceiptLines([
+      formatPhysicalOperatingAddressCaptureOnlyReceiptSentinel(receipt),
+    ]);
+
+    expect(parsed.failureReason).toBeNull();
+    expect(parsed.receipt).toEqual(receipt);
+  });
+
+  test('physical address bootstrap capture receipt ignores a malformed sentinel line safely', () => {
+    const parsed = parsePhysicalOperatingAddressBootstrapCaptureReceiptLines([
+      'PHYSICAL_ADDRESS_CAPTURE_RECEIPT_JSON: {not-valid-json}',
+    ]);
+
+    expect(parsed.receipt).toBeNull();
+    expect(parsed.failureReason).toBe('malformed-receipt-line');
+  });
+
+  test('physical address bootstrap capture receipt fails closed on multiple sentinel lines', () => {
+    const parsed = parsePhysicalOperatingAddressBootstrapCaptureReceiptLines([
+      formatPhysicalOperatingAddressCaptureOnlyReceiptSentinel(createPhysicalAddressBootstrapCaptureReceipt()),
+      formatPhysicalOperatingAddressCaptureOnlyReceiptSentinel(createPhysicalAddressBootstrapCaptureReceipt({ childExitCode: 3 })),
+    ]);
+
+    expect(parsed.receipt).toBeNull();
+    expect(parsed.failureReason).toBe('multiple-receipt-lines');
+  });
+
+  test('physical address bootstrap capture receipt preserves fresh child success and exit code', async () => {
+    const outDir = createPhysicalAddressCaptureOnlyTempDir();
+    const logs: string[] = [];
+    const childReceipt = createPhysicalAddressBootstrapCaptureReceipt();
+    const result = await runPhysicalOperatingAddressBootstrapCapture(
+      createPhysicalAddressBootstrapCaptureDependencies(
+        outDir,
+        createPhysicalAddressBootstrapCaptureSpawn({
+          exitCode: 0,
+          stdoutLines: [formatPhysicalOperatingAddressCaptureOnlyReceiptSentinel(childReceipt)],
+        }),
+        logs,
+      ),
+    );
+
+    const receiptPath = buildPhysicalOperatingAddressCaptureOnlyReceiptPath(outDir);
+    const receipt = readPhysicalOperatingAddressCaptureOnlyReceipt(receiptPath);
+
+    expect(result).toEqual({ code: 0, reason: 'OK' });
+    expect(receipt?.childExitCode).toBe(0);
+    expect(receipt?.bootstrapExitCode).toBe(0);
+    expect(receipt?.artifactsFresh).toBe(true);
+    expect(receipt?.blockedReasonCategory).toBeNull();
+    expect(logs.join('\n')).not.toContain('SECRET');
+  });
+
+  test('physical address bootstrap capture receipt preserves stale blocked child outcome and nonzero exit', async () => {
+    const outDir = createPhysicalAddressCaptureOnlyTempDir();
+    const logs: string[] = [];
+    const childReceipt = createPhysicalAddressBootstrapCaptureReceipt({
+      childExitCode: 3,
+      artifactsFresh: false,
+      artifactsRemainStale: true,
+      staleArtifactsIgnored: true,
+      blockedReasonCategory: 'writer completed but mtime/generatedAt did not change',
+      reportsRefreshSkipped: true,
+      findingsOpenSkipped: true,
+      targetFileFreshnessSummary: [
+        {
+          fileName: PHYSICAL_ADDRESS_CAPTURE_ONLY_FRESHNESS_FILENAMES.structureJson,
+          existsBefore: true,
+          existsAfter: true,
+          mtimeChanged: false,
+          generatedAtChanged: false,
+          fresh: false,
+          stale: true,
+        },
+        {
+          fileName: PHYSICAL_ADDRESS_CAPTURE_ONLY_FRESHNESS_FILENAMES.domHtml,
+          existsBefore: true,
+          existsAfter: true,
+          mtimeChanged: false,
+          generatedAtChanged: null,
+          fresh: false,
+          stale: true,
+        },
+      ],
+    });
+
+    const result = await runPhysicalOperatingAddressBootstrapCapture(
+      createPhysicalAddressBootstrapCaptureDependencies(
+        outDir,
+        createPhysicalAddressBootstrapCaptureSpawn({
+          exitCode: 3,
+          stdoutLines: [formatPhysicalOperatingAddressCaptureOnlyReceiptSentinel(childReceipt)],
+        }),
+        logs,
+      ),
+    );
+
+    const receipt = readPhysicalOperatingAddressCaptureOnlyReceipt(
+      buildPhysicalOperatingAddressCaptureOnlyReceiptPath(outDir),
+    );
+
+    expect(result.code).toBe(3);
+    expect(result.reason).toContain('writer completed but mtime/generatedAt did not change');
+    expect(receipt?.childExitCode).toBe(3);
+    expect(receipt?.bootstrapExitCode).toBe(3);
+    expect(receipt?.artifactsFresh).toBe(false);
+    expect(receipt?.artifactsRemainStale).toBe(true);
+    expect(receipt?.reportsRefreshSkipped).toBe(true);
+    expect(receipt?.findingsOpenSkipped).toBe(true);
+  });
+
+  test('physical address bootstrap capture receipt writes a bounded fallback receipt when the child exits before receipt', async () => {
+    const outDir = createPhysicalAddressCaptureOnlyTempDir();
+    const logs: string[] = [];
+    const result = await runPhysicalOperatingAddressBootstrapCapture(
+      createPhysicalAddressBootstrapCaptureDependencies(
+        outDir,
+        createPhysicalAddressBootstrapCaptureSpawn({
+          exitCode: 1,
+          stderrLines: ['fatal near https://demo.docusign.net/Signing/EmailStart.aspx?t=SECRET'],
+        }),
+        logs,
+      ),
+    );
+
+    const receiptPath = buildPhysicalOperatingAddressCaptureOnlyReceiptPath(outDir);
+    const receipt = readPhysicalOperatingAddressCaptureOnlyReceipt(receiptPath);
+    const serialized = fs.readFileSync(receiptPath, 'utf8');
+
+    expect(result.code).toBe(1);
+    expect(result.reason).toContain('receipt unavailable');
+    expect(receipt?.bootstrapExitCode).toBe(1);
+    expect(receipt?.artifactsFresh).toBe(false);
+    expect(receipt?.blockedReasonCategory).toBe('another bounded reason');
+    expect(serialized).not.toContain('https://demo.docusign.net/Signing/EmailStart.aspx?t=SECRET');
+    expect(serialized).not.toContain('SECRET');
+    expect(logs.join('\n')).not.toContain('https://demo.docusign.net/Signing/EmailStart.aspx?t=SECRET');
+  });
+
+  test('physical address bootstrap capture receipt blocks inconsistent child success when artifacts remain stale', async () => {
+    const outDir = createPhysicalAddressCaptureOnlyTempDir();
+    const logs: string[] = [];
+    const childReceipt = createPhysicalAddressBootstrapCaptureReceipt({
+      childExitCode: 0,
+      artifactsFresh: false,
+      artifactsRemainStale: true,
+      staleArtifactsIgnored: true,
+      blockedReasonCategory: 'writer completed but mtime/generatedAt did not change',
+      reportsRefreshSkipped: true,
+      findingsOpenSkipped: true,
+    });
+
+    const result = await runPhysicalOperatingAddressBootstrapCapture(
+      createPhysicalAddressBootstrapCaptureDependencies(
+        outDir,
+        createPhysicalAddressBootstrapCaptureSpawn({
+          exitCode: 0,
+          stdoutLines: [formatPhysicalOperatingAddressCaptureOnlyReceiptSentinel(childReceipt)],
+        }),
+        logs,
+      ),
+    );
+
+    const receipt = readPhysicalOperatingAddressCaptureOnlyReceipt(
+      buildPhysicalOperatingAddressCaptureOnlyReceiptPath(outDir),
+    );
+
+    expect(result.code).toBe(3);
+    expect(result.reason).toContain('writer completed but mtime/generatedAt did not change');
+    expect(receipt?.childExitCode).toBe(0);
+    expect(receipt?.bootstrapExitCode).toBe(3);
+    expect(receipt?.artifactsFresh).toBe(false);
   });
 
   test('physical address email-bootstrap capture reuses resend, Gmail polling, and link extraction', async () => {

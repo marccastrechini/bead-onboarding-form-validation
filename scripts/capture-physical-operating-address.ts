@@ -20,6 +20,7 @@ const ARTIFACTS_DIR = path.resolve(__dirname, '..', 'artifacts');
 
 export const PHYSICAL_ADDRESS_CAPTURE_ONLY_COMMAND = 'capture:physical-address';
 export const PHYSICAL_ADDRESS_CAPTURE_ONLY_SCRIPT_PATH = 'scripts/capture-physical-operating-address.ts';
+export const PHYSICAL_ADDRESS_CAPTURE_ONLY_RUN_KIND = 'capture-physical-address';
 export const PHYSICAL_ADDRESS_CAPTURE_ONLY_DISCOVERY_OPTIONS: GuardedPhysicalOperatingAddressDiscoveryOptions = {
   stopAfterCaptureAttempt: true,
 };
@@ -33,6 +34,13 @@ export const PHYSICAL_ADDRESS_CAPTURE_ONLY_FRESHNESS_FILENAMES = {
   structureJson: 'latest-physical-operating-address-post-toggle-structure.json',
   domHtml: 'latest-physical-operating-address-post-toggle-dom.html',
 } as const;
+export const PHYSICAL_ADDRESS_CAPTURE_ONLY_RECEIPT_FILE_NAME = 'latest-physical-operating-address-capture-receipt.json';
+export const PHYSICAL_ADDRESS_CAPTURE_ONLY_RECEIPT_SENTINEL_PREFIX = 'PHYSICAL_ADDRESS_CAPTURE_RECEIPT_JSON:';
+
+const TOGGLE_FALLBACK_INVENTORY_DIAGNOSTIC_PREFIX = 'physical-operating-address discovery toggle fallback inventory: ';
+const TOGGLE_SELECTION_REASON_DIAGNOSTIC_PREFIX = 'physical-operating-address discovery toggle selection reason: ';
+const TOGGLE_CANDIDATE_SOURCE_DIAGNOSTIC_PREFIX = 'physical-operating-address discovery toggle candidate source: ';
+const TOGGLE_CANDIDATE_DIAGNOSTIC_PREFIX = 'physical-operating-address discovery toggle candidate: ';
 
 export interface PhysicalOperatingAddressCaptureOnlyArtifactState {
   fileName: string;
@@ -60,6 +68,56 @@ export interface PhysicalOperatingAddressCaptureOnlyArtifactFreshness {
   staleArtifactsIgnored: boolean;
   reportsRefreshSkipped: boolean;
   findingsOpenSkipped: boolean;
+}
+
+export type PhysicalOperatingAddressCaptureOnlySelectionMode = 'primary' | 'fallback' | 'calibrated-fallback' | null;
+
+export type PhysicalOperatingAddressCaptureOnlyBlockedReasonCategory =
+  | 'expansion missing'
+  | 'expansion not expanded'
+  | 'captureReport missing'
+  | 'captureReport not writable'
+  | 'writer skipped'
+  | 'writer failed'
+  | 'writer completed but mtime/generatedAt did not change'
+  | 'another bounded reason'
+  | null;
+
+export interface PhysicalOperatingAddressCaptureOnlyTargetFileFreshnessSummary {
+  fileName: string;
+  existsBefore: boolean;
+  existsAfter: boolean;
+  mtimeChanged: boolean;
+  generatedAtChanged: boolean | null;
+  fresh: boolean;
+  stale: boolean;
+}
+
+export interface PhysicalOperatingAddressCaptureOnlyReceipt {
+  runKind: typeof PHYSICAL_ADDRESS_CAPTURE_ONLY_RUN_KIND;
+  childCommand: string;
+  childExitCode: number | null;
+  bootstrapExitCode: number | null;
+  signerSurfaceReached: boolean;
+  initialFieldCount: number | null;
+  calibratedFallbackConsidered: boolean;
+  calibratedFallbackSelectedSlot: number | null;
+  selectionMode: PhysicalOperatingAddressCaptureOnlySelectionMode;
+  fallbackReason: string | null;
+  expansionReturned: boolean;
+  expansionExpanded: boolean;
+  captureReportPresent: boolean;
+  captureReportWritable: boolean;
+  writerCalled: boolean;
+  writerCompleted: boolean;
+  artifactsFresh: boolean;
+  artifactsRemainStale: boolean;
+  staleArtifactsIgnored: boolean;
+  blockedReasonCategory: PhysicalOperatingAddressCaptureOnlyBlockedReasonCategory;
+  reportsRefreshSkipped: boolean;
+  findingsOpenSkipped: boolean;
+  targetFileFreshnessSummary: PhysicalOperatingAddressCaptureOnlyTargetFileFreshnessSummary[];
+  redactionApplied: true;
 }
 
 type PhysicalOperatingAddressCaptureOnlyDependencies = {
@@ -99,6 +157,270 @@ const PHYSICAL_ADDRESS_CAPTURE_ONLY_DEPENDENCIES: PhysicalOperatingAddressCaptur
 function normalizeDiagnosticText(value: string | null | undefined): string | null {
   const normalized = (value ?? '').replace(/\s+/g, ' ').trim();
   return normalized ? normalized : null;
+}
+
+function buildPhysicalOperatingAddressCaptureOnlyFallbackFreshness(
+  artifactsDir: string,
+): PhysicalOperatingAddressCaptureOnlyArtifactFreshness {
+  const snapshot = readPhysicalOperatingAddressCaptureOnlyArtifactFreshnessSnapshot(artifactsDir);
+  return comparePhysicalOperatingAddressCaptureOnlyArtifactFreshness(snapshot, snapshot);
+}
+
+function parsePhysicalOperatingAddressCaptureOnlySelectionDiagnostics(diagnostics: string[]): {
+  calibratedFallbackConsidered: boolean;
+  calibratedFallbackSelectedSlot: number | null;
+  selectionMode: PhysicalOperatingAddressCaptureOnlySelectionMode;
+  fallbackReason: string | null;
+} {
+  let calibratedFallbackConsidered = false;
+  let calibratedFallbackSelectedSlot: number | null = null;
+  let selectionMode: PhysicalOperatingAddressCaptureOnlySelectionMode = null;
+  let fallbackReason: string | null = null;
+  let sawCandidate = false;
+
+  for (const diagnostic of diagnostics) {
+    if (diagnostic.startsWith(TOGGLE_FALLBACK_INVENTORY_DIAGNOSTIC_PREFIX)) {
+      const payload = diagnostic.slice(TOGGLE_FALLBACK_INVENTORY_DIAGNOSTIC_PREFIX.length);
+
+      try {
+        const parsed = JSON.parse(payload) as {
+          calibratedFallback?: {
+            selectedCalibratedSlot?: unknown;
+            fallbackReason?: unknown;
+          } | null;
+        };
+
+        if (parsed.calibratedFallback && typeof parsed.calibratedFallback === 'object') {
+          calibratedFallbackConsidered = true;
+          if (typeof parsed.calibratedFallback.selectedCalibratedSlot === 'number') {
+            calibratedFallbackSelectedSlot = parsed.calibratedFallback.selectedCalibratedSlot;
+          }
+          if (typeof parsed.calibratedFallback.fallbackReason === 'string') {
+            fallbackReason = normalizeDiagnosticText(parsed.calibratedFallback.fallbackReason);
+          }
+        }
+      } catch {
+        // Ignore malformed bounded diagnostics and fail closed on receipt enrichment.
+      }
+    }
+
+    if (diagnostic === `${TOGGLE_CANDIDATE_SOURCE_DIAGNOSTIC_PREFIX}fallback radio-like candidate`) {
+      selectionMode = 'fallback';
+    }
+    if (diagnostic === `${TOGGLE_CANDIDATE_SOURCE_DIAGNOSTIC_PREFIX}calibrated business primary location fallback`) {
+      selectionMode = 'calibrated-fallback';
+      calibratedFallbackConsidered = true;
+    }
+    if (diagnostic.startsWith(TOGGLE_SELECTION_REASON_DIAGNOSTIC_PREFIX)) {
+      fallbackReason = normalizeDiagnosticText(diagnostic.slice(TOGGLE_SELECTION_REASON_DIAGNOSTIC_PREFIX.length));
+    }
+    if (diagnostic.startsWith(TOGGLE_CANDIDATE_DIAGNOSTIC_PREFIX)) {
+      sawCandidate = true;
+    }
+  }
+
+  if (selectionMode === null && sawCandidate) {
+    selectionMode = 'primary';
+  }
+
+  return {
+    calibratedFallbackConsidered,
+    calibratedFallbackSelectedSlot,
+    selectionMode,
+    fallbackReason,
+  };
+}
+
+function buildPhysicalOperatingAddressCaptureOnlyTargetFileFreshnessSummary(
+  freshness: PhysicalOperatingAddressCaptureOnlyArtifactFreshness,
+): PhysicalOperatingAddressCaptureOnlyTargetFileFreshnessSummary[] {
+  const structureFresh = freshness.after.structureJson.exists
+    && (freshness.structureJsonExistsChanged || freshness.structureJsonGeneratedAtChanged || freshness.structureJsonMtimeChanged);
+  const domFresh = freshness.after.domHtml.exists
+    && (freshness.domHtmlExistsChanged || freshness.domHtmlMtimeChanged);
+
+  return [
+    {
+      fileName: freshness.after.structureJson.fileName,
+      existsBefore: freshness.before.structureJson.exists,
+      existsAfter: freshness.after.structureJson.exists,
+      mtimeChanged: freshness.structureJsonMtimeChanged,
+      generatedAtChanged: freshness.structureJsonGeneratedAtChanged,
+      fresh: structureFresh,
+      stale: !structureFresh,
+    },
+    {
+      fileName: freshness.after.domHtml.fileName,
+      existsBefore: freshness.before.domHtml.exists,
+      existsAfter: freshness.after.domHtml.exists,
+      mtimeChanged: freshness.domHtmlMtimeChanged,
+      generatedAtChanged: null,
+      fresh: domFresh,
+      stale: !domFresh,
+    },
+  ];
+}
+
+function resolvePhysicalOperatingAddressCaptureOnlyBlockedReasonCategory(
+  result: PhysicalOperatingAddressCaptureOnlyResult | null,
+  childExitCode: number | null,
+): PhysicalOperatingAddressCaptureOnlyBlockedReasonCategory {
+  if (childExitCode === 0 && result?.artifactFreshness.artifactsFresh) return null;
+  if (!result) return 'another bounded reason';
+  if (!result.expansionReturned) return 'expansion missing';
+  if (!result.expansionExpanded) return 'expansion not expanded';
+  if (!result.captureReportPresent) return 'captureReport missing';
+  if (!result.captureReportWritable) return 'captureReport not writable';
+  if (!result.writerCalled) return 'writer skipped';
+  if (!result.writerCompleted) return 'writer failed';
+  if (result.artifactFreshness.artifactsRemainStale) return 'writer completed but mtime/generatedAt did not change';
+  return 'another bounded reason';
+}
+
+function isPhysicalOperatingAddressCaptureOnlySelectionMode(
+  value: unknown,
+): value is PhysicalOperatingAddressCaptureOnlySelectionMode {
+  return value === null || value === 'primary' || value === 'fallback' || value === 'calibrated-fallback';
+}
+
+function isPhysicalOperatingAddressCaptureOnlyBlockedReasonCategory(
+  value: unknown,
+): value is PhysicalOperatingAddressCaptureOnlyBlockedReasonCategory {
+  return value === null
+    || value === 'expansion missing'
+    || value === 'expansion not expanded'
+    || value === 'captureReport missing'
+    || value === 'captureReport not writable'
+    || value === 'writer skipped'
+    || value === 'writer failed'
+    || value === 'writer completed but mtime/generatedAt did not change'
+    || value === 'another bounded reason';
+}
+
+export function buildPhysicalOperatingAddressCaptureOnlyReceiptPath(artifactsDir = ARTIFACTS_DIR): string {
+  return path.join(artifactsDir, PHYSICAL_ADDRESS_CAPTURE_ONLY_RECEIPT_FILE_NAME);
+}
+
+export function buildPhysicalOperatingAddressCaptureOnlyReceipt(input: {
+  result: PhysicalOperatingAddressCaptureOnlyResult | null;
+  childExitCode: number | null;
+  bootstrapExitCode?: number | null;
+  artifactsDir?: string;
+  blockedReasonCategory?: PhysicalOperatingAddressCaptureOnlyBlockedReasonCategory;
+  childCommand?: string;
+}): PhysicalOperatingAddressCaptureOnlyReceipt {
+  const artifactsDir = input.artifactsDir ?? ARTIFACTS_DIR;
+  const artifactFreshness = input.result?.artifactFreshness ?? buildPhysicalOperatingAddressCaptureOnlyFallbackFreshness(artifactsDir);
+  const selection = input.result
+    ? parsePhysicalOperatingAddressCaptureOnlySelectionDiagnostics(input.result.diagnostics)
+    : {
+      calibratedFallbackConsidered: false,
+      calibratedFallbackSelectedSlot: null,
+      selectionMode: null,
+      fallbackReason: null,
+    };
+
+  return {
+    runKind: PHYSICAL_ADDRESS_CAPTURE_ONLY_RUN_KIND,
+    childCommand: input.childCommand ?? `npm run ${PHYSICAL_ADDRESS_CAPTURE_ONLY_COMMAND}`,
+    childExitCode: input.childExitCode ?? null,
+    bootstrapExitCode: input.bootstrapExitCode ?? null,
+    signerSurfaceReached: input.result !== null,
+    initialFieldCount: input.result?.fieldsBefore ?? null,
+    calibratedFallbackConsidered: selection.calibratedFallbackConsidered,
+    calibratedFallbackSelectedSlot: selection.calibratedFallbackSelectedSlot,
+    selectionMode: selection.selectionMode,
+    fallbackReason: selection.fallbackReason,
+    expansionReturned: input.result?.expansionReturned ?? false,
+    expansionExpanded: input.result?.expansionExpanded ?? false,
+    captureReportPresent: input.result?.captureReportPresent ?? false,
+    captureReportWritable: input.result?.captureReportWritable ?? false,
+    writerCalled: input.result?.writerCalled ?? false,
+    writerCompleted: input.result?.writerCompleted ?? false,
+    artifactsFresh: artifactFreshness.artifactsFresh,
+    artifactsRemainStale: artifactFreshness.artifactsRemainStale,
+    staleArtifactsIgnored: artifactFreshness.staleArtifactsIgnored,
+    blockedReasonCategory: input.blockedReasonCategory
+      ?? resolvePhysicalOperatingAddressCaptureOnlyBlockedReasonCategory(input.result, input.childExitCode),
+    reportsRefreshSkipped: artifactFreshness.reportsRefreshSkipped,
+    findingsOpenSkipped: artifactFreshness.findingsOpenSkipped,
+    targetFileFreshnessSummary: buildPhysicalOperatingAddressCaptureOnlyTargetFileFreshnessSummary(artifactFreshness),
+    redactionApplied: true,
+  };
+}
+
+export function writePhysicalOperatingAddressCaptureOnlyReceipt(
+  receipt: PhysicalOperatingAddressCaptureOnlyReceipt,
+  artifactsDir = ARTIFACTS_DIR,
+): string {
+  const receiptPath = buildPhysicalOperatingAddressCaptureOnlyReceiptPath(artifactsDir);
+  fs.mkdirSync(artifactsDir, { recursive: true });
+  fs.writeFileSync(receiptPath, JSON.stringify(receipt, null, 2), 'utf8');
+  return receiptPath;
+}
+
+export function formatPhysicalOperatingAddressCaptureOnlyReceiptSentinel(
+  receipt: PhysicalOperatingAddressCaptureOnlyReceipt,
+): string {
+  return `${PHYSICAL_ADDRESS_CAPTURE_ONLY_RECEIPT_SENTINEL_PREFIX} ${JSON.stringify(receipt)}`;
+}
+
+export function isPhysicalOperatingAddressCaptureOnlyReceipt(
+  value: unknown,
+): value is PhysicalOperatingAddressCaptureOnlyReceipt {
+  if (!value || typeof value !== 'object') return false;
+
+  const candidate = value as Record<string, unknown>;
+  return candidate.runKind === PHYSICAL_ADDRESS_CAPTURE_ONLY_RUN_KIND
+    && typeof candidate.childCommand === 'string'
+    && (typeof candidate.childExitCode === 'number' || candidate.childExitCode === null)
+    && (typeof candidate.bootstrapExitCode === 'number' || candidate.bootstrapExitCode === null)
+    && typeof candidate.signerSurfaceReached === 'boolean'
+    && (typeof candidate.initialFieldCount === 'number' || candidate.initialFieldCount === null)
+    && typeof candidate.calibratedFallbackConsidered === 'boolean'
+    && (typeof candidate.calibratedFallbackSelectedSlot === 'number' || candidate.calibratedFallbackSelectedSlot === null)
+    && isPhysicalOperatingAddressCaptureOnlySelectionMode(candidate.selectionMode)
+    && (typeof candidate.fallbackReason === 'string' || candidate.fallbackReason === null)
+    && typeof candidate.expansionReturned === 'boolean'
+    && typeof candidate.expansionExpanded === 'boolean'
+    && typeof candidate.captureReportPresent === 'boolean'
+    && typeof candidate.captureReportWritable === 'boolean'
+    && typeof candidate.writerCalled === 'boolean'
+    && typeof candidate.writerCompleted === 'boolean'
+    && typeof candidate.artifactsFresh === 'boolean'
+    && typeof candidate.artifactsRemainStale === 'boolean'
+    && typeof candidate.staleArtifactsIgnored === 'boolean'
+    && isPhysicalOperatingAddressCaptureOnlyBlockedReasonCategory(candidate.blockedReasonCategory)
+    && typeof candidate.reportsRefreshSkipped === 'boolean'
+    && typeof candidate.findingsOpenSkipped === 'boolean'
+    && Array.isArray(candidate.targetFileFreshnessSummary)
+    && candidate.redactionApplied === true;
+}
+
+export function parsePhysicalOperatingAddressCaptureOnlyReceiptSentinel(
+  line: string,
+): PhysicalOperatingAddressCaptureOnlyReceipt | null {
+  const normalized = normalizeDiagnosticText(line);
+  if (!normalized || !normalized.startsWith(PHYSICAL_ADDRESS_CAPTURE_ONLY_RECEIPT_SENTINEL_PREFIX)) return null;
+
+  const payload = normalized.slice(PHYSICAL_ADDRESS_CAPTURE_ONLY_RECEIPT_SENTINEL_PREFIX.length).trimStart();
+  try {
+    const parsed = JSON.parse(payload) as unknown;
+    return isPhysicalOperatingAddressCaptureOnlyReceipt(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function readPhysicalOperatingAddressCaptureOnlyReceipt(
+  receiptPath: string,
+): PhysicalOperatingAddressCaptureOnlyReceipt | null {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(receiptPath, 'utf8')) as unknown;
+    return isPhysicalOperatingAddressCaptureOnlyReceipt(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 function safeMtimeIso(filePath: string): string | null {
@@ -223,6 +545,15 @@ export function canWritePhysicalOperatingAddressPostToggleArtifacts(
     && Number.isFinite(report.captureBounds.height)
     && report.captureBounds.height > 0
     && (report.textNodes.length > 0 || report.controls.length > 0 || report.observations.length > 0);
+}
+
+function emitPhysicalOperatingAddressCaptureOnlyReceipt(
+  receipt: PhysicalOperatingAddressCaptureOnlyReceipt,
+  artifactsDir = ARTIFACTS_DIR,
+): void {
+  writePhysicalOperatingAddressCaptureOnlyReceipt(receipt, artifactsDir);
+  // eslint-disable-next-line no-console
+  console.log(formatPhysicalOperatingAddressCaptureOnlyReceiptSentinel(receipt));
 }
 
 export function assertPhysicalOperatingAddressCaptureOnlyGuards(
@@ -388,18 +719,29 @@ export async function runPhysicalOperatingAddressCaptureOnly(
 }
 
 export async function main(): Promise<ExitReason> {
-  loadEnv();
-  assertPhysicalOperatingAddressCaptureOnlyGuards(process.env);
-
-  if (!hasSignerUrl()) {
-    return {
-      code: 2,
-      reason: 'BLOCKED: DOCUSIGN_SIGNING_URL is not set. Provide a fresh signer URL before running capture:physical-address.',
-    };
-  }
-
-  const browser = await chromium.launch({ headless: true });
+  let browser: Awaited<ReturnType<typeof chromium.launch>> | null = null;
   try {
+    loadEnv();
+    assertPhysicalOperatingAddressCaptureOnlyGuards(process.env);
+
+    if (!hasSignerUrl()) {
+      const exitReason = {
+        code: 2,
+        reason: 'BLOCKED: DOCUSIGN_SIGNING_URL is not set. Provide a fresh signer URL before running capture:physical-address.',
+      };
+      emitPhysicalOperatingAddressCaptureOnlyReceipt(
+        buildPhysicalOperatingAddressCaptureOnlyReceipt({
+          result: null,
+          childExitCode: exitReason.code,
+          artifactsDir: ARTIFACTS_DIR,
+          blockedReasonCategory: 'another bounded reason',
+        }),
+        ARTIFACTS_DIR,
+      );
+      return exitReason;
+    }
+
+    browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
     const result = await runPhysicalOperatingAddressCaptureOnly(page, process.env, ARTIFACTS_DIR);
 
@@ -408,19 +750,54 @@ export async function main(): Promise<ExitReason> {
       console.log(`[capture:physical-address] ${diagnostic}`);
     }
 
-    if (!result.captureWritten || !result.artifactPaths) {
-      return {
+    const exitReason = !result.captureWritten || !result.artifactPaths
+      ? {
         code: 3,
         reason: `BLOCKED: ${result.reason}`,
-      };
+      }
+      : { code: 0, reason: 'OK' };
+
+    emitPhysicalOperatingAddressCaptureOnlyReceipt(
+      buildPhysicalOperatingAddressCaptureOnlyReceipt({
+        result,
+        childExitCode: exitReason.code,
+        artifactsDir: ARTIFACTS_DIR,
+      }),
+      ARTIFACTS_DIR,
+    );
+
+    if (exitReason.code !== 0) {
+      return exitReason;
     }
 
     // eslint-disable-next-line no-console
     console.log('[capture:physical-address] wrote sanitized post-toggle artifact bundle');
 
-    return { code: 0, reason: 'OK' };
+    return exitReason;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const safe = message.replace(/https?:\/\/\S+/g, (url) => redactUrl(url));
+    // eslint-disable-next-line no-console
+    console.error(`[capture:physical-address] ERROR: ${safe}`);
+
+    const exitReason = {
+      code: 1,
+      reason: 'BLOCKED: capture:physical-address failed before sanitized freshness receipt could be confirmed.',
+    };
+
+    emitPhysicalOperatingAddressCaptureOnlyReceipt(
+      buildPhysicalOperatingAddressCaptureOnlyReceipt({
+        result: null,
+        childExitCode: exitReason.code,
+        artifactsDir: ARTIFACTS_DIR,
+        blockedReasonCategory: 'another bounded reason',
+      }),
+      ARTIFACTS_DIR,
+    );
+
+    return exitReason;
   } finally {
-    await browser.close();
+    await browser?.close();
   }
 }
 
@@ -430,12 +807,5 @@ if (require.main === module) {
       // eslint-disable-next-line no-console
       console.log(`[capture:physical-address] done: ${result.reason}`);
       process.exit(result.code);
-    })
-    .catch((error) => {
-      const message = error instanceof Error ? error.message : String(error);
-      const safe = message.replace(/https?:\/\/\S+/g, (url) => redactUrl(url));
-      // eslint-disable-next-line no-console
-      console.error(`[capture:physical-address] ERROR: ${safe}`);
-      process.exit(1);
     });
 }

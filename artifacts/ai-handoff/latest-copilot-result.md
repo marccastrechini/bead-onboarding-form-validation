@@ -1,72 +1,63 @@
 ## ChatGPT Review Summary
-- What changed: RUN36 spent exactly one authorized live `npm run bootstrap:capture:physical-address` run and updated only the AI handoff files with the live outcome. No source or test files were intentionally changed in RUN36.
-- Whether exactly one live capture was run: yes.
-- Whether the calibrated fallback was exercised live: yes. The safe live summary indicated that the addressOptions anchor matched, the calibrated fallback ran, and slot 2 was selected under `selectionMode: calibrated-fallback` with reason `calibrated-business-primary-location-physical-address-option`.
-- Whether slot 2 was selected: yes, per the safe live summary.
-- Whether `expansion.captureReport` existed: yes, per the safe live summary.
-- Whether writer execution was observed: yes, per the safe live summary.
-- Whether writer completion was observed: yes, per the safe live summary.
-- Whether before/after `mtime` and `generatedAt` changed: no, based on the on-disk target artifacts. After RUN36, `artifacts/latest-physical-operating-address-post-toggle-structure.json` still reported `generatedAt: 2026-05-01T16:41:27.153Z`, and both target files still showed May 1 UTC last-write times.
-- Whether artifacts were proven fresh or stale: stale. The target structure and dom files were not proven fresh.
-- Whether stale artifacts were ignored: yes. Under the RUN35 freshness contract, unchanged May 1 target files must be treated as stale and ignored.
-- Whether `reports:refresh` and `findings:open` were run or skipped: skipped, because freshness was not proven.
-- Whether fresh artifacts were produced: no trustworthy fresh RUN36 target artifact bundle was produced.
-- Classification for each `business_mailing_*` concept: `business_mailing_address_line_1` = `still capture-blocked`; `business_mailing_city` = `still capture-blocked`; `business_mailing_state` = `still capture-blocked`; `business_mailing_postal_code` = `still capture-blocked`.
-- Tests/commands run and pass/fail: `npm run bootstrap:capture:physical-address` was run exactly once. No unit tests were run in RUN36. `reports:refresh` and `findings:open` were intentionally not run.
-- Remaining blocker / uncertainty: RUN36 leaves a contradiction between the optimistic safe live summary and the unchanged May 1 target artifacts on disk. The smallest next move is source/test-only instrumentation that preserves the child runner exit code and freshness receipt from `capture:physical-address` during bootstrap execution.
-- Whether a screenshot was ignored or used only as visual guidance: no screenshot was needed for RUN36, and any screenshot would be ignored for this artifact-freshness validation task.
-- Whether to continue, stop, or redirect: redirect.
-- The next best Copilot prompt: stay source/test-only and persist a sanitized bootstrap/live receipt for `capture:physical-address` so the next review can prove whether the child runner reported stale-artifact blocking or a real fresh write.
+- What changed: RUN37 stayed source/test-only and added a durable sanitized receipt flow for `capture:physical-address` plus bootstrap-side receipt preservation in `bootstrap:capture:physical-address`. The child runner now writes `artifacts/latest-physical-operating-address-capture-receipt.json`, prints one bounded sentinel receipt line, and records the final freshness/blocked outcome in a machine-readable way. The bootstrap wrapper now captures that receipt, preserves child and bootstrap exit codes, fails closed on malformed or missing receipts, and rewrites the final bounded receipt even when the child exits nonzero.
+- Whether a sanitized capture receipt was added: yes.
+- Whether child exit code preservation was added or verified: yes. The receipt now carries both `childExitCode` and `bootstrapExitCode`, and unit tests verified that blocked stale-artifact outcomes stay nonzero through bootstrap.
+- Whether bootstrap preserves blocked stale-artifact outcomes: yes. The wrapper now keeps stale blocked results non-successful and also blocks inconsistent child `exit 0` plus `artifactsFresh=false` combinations.
+- Whether receipt redaction was verified: yes. Tests covered that the receipt excludes raw signer URLs, raw field values, raw HTML, screenshots, raw IDs, raw class strings, emails, tokens, and unbounded child output.
+- Whether generated receipt files are excluded from commit: yes. The generated receipt file is written only as a runtime artifact and was not staged or committed in RUN37.
+- What guardrails were preserved: RUN37 did not run any live capture command, did not mutate `.env`, did not enable destructive validation, did not upload anything, did not run interactive flows, and did not use screenshots.
+- Whether the result moved us forward: yes. The next review no longer needs to infer stale-versus-fresh behavior from conversational command summaries; the child and bootstrap flows now emit a durable bounded receipt.
+- Tests/commands run and pass/fail: `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "physical address bootstrap capture receipt"` passed 7 tests. `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "physical address capture-only"` passed 13 tests. `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "guarded physical address discovery"` passed 67 tests. `npm run test:units` passed 336 tests.
+- Remaining blocker / uncertainty: the new receipt flow is verified in unit tests only. One future authorized live RUN38 is still needed to confirm that a real `bootstrap:capture:physical-address` run preserves the child receipt exactly as intended.
+- Whether a screenshot was ignored or not needed: no screenshot was needed for RUN37, and any screenshot would be ignored for this receipt/freshness task.
+- Whether another live capture is recommended next, and only if so, the exact next run ID: yes, if authorized. The next live validation should be exactly `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN38`.
+- Whether to continue, stop, or redirect: continue only with that one authorized live validation run; otherwise stop source edits because RUN37 is complete.
+- The next best Copilot prompt: execute exactly one authorized live capture-only RUN38 to verify that `bootstrap:capture:physical-address` preserves the child receipt on a real run and conclusively reports stale-artifact blocking versus fresh post-toggle artifact output.
 
 # Copilot Handoff Result
 
-CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN36
+CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN37
 
 ## Status
 Ready for ChatGPT review
 
 ## Objective
-Execute exactly one authorized live capture-only run to verify whether the calibrated fallback plus the new artifact freshness diagnostics now produces a genuinely fresh post-toggle artifact bundle and safe downstream reporting eligibility.
+Do not run another live capture. Stay source/test-only and persist a sanitized bootstrap/live receipt for `capture:physical-address` so the next review can prove whether the child runner reported stale-artifact blocking or a real fresh write, without relying on conversational command summaries.
 
 ## What Changed
-- Executed exactly one authorized `npm run bootstrap:capture:physical-address` live capture-only run.
-- Updated only the AI handoff files with the RUN36 live outcome.
-- No source or test files were intentionally changed in RUN36.
+- Added a durable sanitized receipt to `scripts/capture-physical-operating-address.ts`.
+- The child runner now:
+	- builds a bounded final receipt object
+	- writes `artifacts/latest-physical-operating-address-capture-receipt.json`
+	- prints one bounded sentinel line: `PHYSICAL_ADDRESS_CAPTURE_RECEIPT_JSON: { ... }`
+	- records child exit code, freshness status, stale-artifact status, and blocked reason category
+- Updated `scripts/bootstrap-capture-physical-operating-address.ts` so the bootstrap wrapper now:
+	- captures the child receipt from the sentinel line
+	- fails closed on malformed or multiple receipt lines
+	- falls back to a bounded receipt when the child exits before a valid receipt is available
+	- preserves child and bootstrap exit codes in the final receipt
+	- rewrites the final receipt even when the child exits nonzero
+	- blocks inconsistent child success if `artifactsFresh=false`
+- Added focused RUN37 receipt tests in `tests/bootstrap-units.spec.ts` for:
+	- fresh child receipt success
+	- stale writer-completed blocked receipt
+	- receipt redaction
+	- valid sentinel parsing
+	- malformed sentinel fail-closed handling
+	- multiple sentinel fail-closed handling
+	- bootstrap preservation of fresh success
+	- bootstrap preservation of stale blocked nonzero exit
+	- bootstrap fallback receipt when the child exits before receipt
+	- bootstrap blocking of inconsistent child success
+- Updated the AI handoff files for RUN37.
 
-## Live Outcome
-- `openSigner()` reached the signer surface.
-- Initial field discovery reported 14 fields before expansion.
-- The safe live summary indicated that the calibrated fallback was considered.
-- The safe live summary indicated that the neutral `addressOptions` anchor matched.
-- The safe live summary indicated that slot 2 was selected.
-- The safe live summary indicated `selectionMode: calibrated-fallback`.
-- The safe live summary indicated fallback reason `calibrated-business-primary-location-physical-address-option`.
-- The safe live summary indicated that `maybeExpandPhysicalOperatingAddressSection()` returned an expansion object and reported `expanded=true`.
-- The safe live summary indicated that `expansion.captureReport` existed and was writable.
-- The safe live summary indicated that `writePhysicalOperatingAddressPostToggleArtifacts(...)` was called and completed.
-
-## Freshness Check
-- Direct inspection of `artifacts/latest-physical-operating-address-post-toggle-structure.json` after RUN36 still showed `generatedAt: 2026-05-01T16:41:27.153Z`.
-- Direct inspection of `artifacts/latest-physical-operating-address-post-toggle-structure.json` and `artifacts/latest-physical-operating-address-post-toggle-dom.html` after RUN36 still showed May 1 UTC last-write times.
-- Therefore `mtime` did not change during RUN36 for the target structure/dom files.
-- Therefore `generatedAt` did not change during RUN36 for the target structure file.
-- Under the RUN35 freshness instrumentation contract, the exact blocked category is: `writer completed but mtime/generatedAt did not change`.
-- The target artifacts remained stale and were intentionally treated as stale.
-- No trustworthy fresh RUN36 target artifact bundle was proven.
-
-## Field-Local Proof And Classification
-- No fresh trustworthy RUN36 structure/dom target bundle exists for field-local proof review.
-- `business_mailing_address_line_1`: `still capture-blocked`
-- `business_mailing_city`: `still capture-blocked`
-- `business_mailing_state`: `still capture-blocked`
-- `business_mailing_postal_code`: `still capture-blocked`
-
-## Downstream Reporting
-- `npm run reports:refresh` -> not run
-- `npm run findings:open` -> not run
-- Reason: freshness was not proven for the target post-toggle structure/dom artifacts.
+## Generated Receipt Handling
+- The generated receipt path is `artifacts/latest-physical-operating-address-capture-receipt.json`.
+- It is a runtime artifact only.
+- It was not staged or committed in RUN37.
 
 ## Guardrails Preserved
+- No live capture command was run.
 - `bootstrap:interactive` was not run.
 - `interactive:watchdog` was not run.
 - Full signer discovery was not run.
@@ -78,34 +69,39 @@ Execute exactly one authorized live capture-only run to verify whether the calib
 - No screenshot was needed or used.
 
 ## Validation
-- `npm run bootstrap:capture:physical-address` -> executed exactly once
-- `Get-Item artifacts/latest-physical-operating-address-post-toggle-structure.json, artifacts/latest-physical-operating-address-post-toggle-dom.html` -> both target files still showed May 1 UTC timestamps
-- `Get-Content artifacts/latest-physical-operating-address-post-toggle-structure.json -TotalCount 20` -> structure `generatedAt` still showed May 1 UTC
+- `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "physical address bootstrap capture receipt"` -> passed (7 tests)
+- `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "physical address capture-only"` -> passed (13 tests)
+- `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "guarded physical address discovery"` -> passed (67 tests)
+- `npm run test:units` -> passed (336 tests)
 
 ## Result
-- Forward progress: mixed.
-- RUN36 indicates that the live fallback and expansion path likely executed again.
-- RUN36 still failed the artifact-freshness goal because the target structure/dom files on disk remained stale May 1 files.
+- Forward progress: yes.
+- RUN37 converts the prior RUN36 ambiguity into a durable artifact.
+- The next live run can now prove, from a committed code path and a generated bounded receipt, whether the child runner reported:
+	- fresh artifact success
+	- stale artifact blocking
+	- missing/malformed receipt failure
+	- inconsistent child success that bootstrap must block
 
 ## Remaining Blocker / Uncertainty
-- The main blocker remains the contradiction between the safe live summary and the unchanged target artifacts on disk.
-- The smallest next move is source/test-only: persist a sanitized child-run receipt or final freshness summary from `capture:physical-address` inside the bootstrap flow so the repo has durable proof of whether the child runner exited blocked on stale artifacts or actually reported a fresh write.
+- RUN37 does not answer the original live contradiction by itself; it only instruments and verifies the receipt path.
+- One future authorized live RUN38 is still needed to exercise the new receipt flow on the real signer surface.
 
 ## Screenshot Handling
-- No screenshot was needed for RUN36.
-- If a screenshot were attached, it would be ignored for this artifact-freshness validation task.
+- No screenshot was needed for RUN37.
+- If a screenshot were attached, it would be ignored for this receipt/freshness task.
 
 ## Recommendation
-Redirect.
+Continue only if one new live step is authorized.
 
-Do not spend another live capture next.
+The next live step should be exactly one capture-only validation run as `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN38` to verify that `bootstrap:capture:physical-address` preserves the child receipt on a real run and conclusively reports stale-artifact blocking versus fresh post-toggle artifact output.
 
 ## Recommended Next Copilot Prompt
-Stay source/test-only and persist a sanitized bootstrap/live receipt for `capture:physical-address` so the next review can prove whether the child runner reported stale-artifact blocking or a real fresh write, without relying on conversational command summaries.
+Execute exactly one authorized live capture-only RUN38 to verify that `bootstrap:capture:physical-address` preserves the child receipt on a real run and conclusively reports stale-artifact blocking versus fresh post-toggle artifact output.
 
 ## Branch / Commit Status
 - Branch: `main`
-- Current HEAD before any new commit: `312fe2fd224d4195ea868004f7df94027faf87d8`
-- RUN36 handoff commit: pending at write time
+- Current HEAD before any new commit: `5a88f42da11ff50f3073b798477471e8dbb0b4a6`
+- RUN37 handoff commit: pending at write time
 
-CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN36
+CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN37
