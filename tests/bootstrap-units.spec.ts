@@ -5919,6 +5919,21 @@ test.describe('interactive validation safety', () => {
     ...overrides,
   });
 
+  const calibratedFallbackReason = 'calibrated-business-primary-location-physical-address-option';
+  const calibratedFallbackSlot = 2;
+  const calibratedBusinessPrimaryLocationRadioField = (
+    index: number,
+    overrides: Record<string, unknown> = {},
+  ) => fallbackRadioField({
+    index,
+    sectionName: null,
+    label: null,
+    resolvedLabel: null,
+    groupName: 'addressOptions',
+    idOrNameKey: null,
+    ...overrides,
+  });
+
   test('guarded physical address discovery fallback selects one visible radio-like control near explicit Physical Operating Address text', () => {
     const selection = explainPhysicalOperatingAddressToggleSelection([
       {
@@ -7535,6 +7550,272 @@ test.describe('interactive validation safety', () => {
     expect(selection.fallbackInventory?.entries.every((entry) => entry.radioGraphicSignature?.tokenHintBuckets.includes('generated/generic-only-token'))).toBe(true);
     expect(selection.fallbackInventory?.entries.every((entry) => entry.graphicCueMatches.physicalOperatingAddress === false)).toBe(true);
     expect(selection.fallbackInventory?.entries.every((entry) => entry.radioGraphicSignature?.sameWrapperChildTagBuckets.length === 3)).toBe(true);
+  });
+
+  test('guarded physical address discovery calibrated fallback selects the second unlabeled radio in the exact-three business primary location layout', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      calibratedBusinessPrimaryLocationRadioField(141),
+      calibratedBusinessPrimaryLocationRadioField(142),
+      calibratedBusinessPrimaryLocationRadioField(143),
+    ] as any);
+
+    expect(selection.selectionMode).toBe('calibrated-fallback');
+    expect(selection.selectionReason).toBe(calibratedFallbackReason);
+    expect(selection.selectedField?.index).toBe(142);
+    expect(selection.fallbackInventory?.matchingFallbackCandidateCount).toBe(0);
+    expect(selection.fallbackInventory?.calibratedFallback).toEqual(expect.objectContaining({
+      candidateCount: 3,
+      eligibleCandidateCount: 3,
+      targetCalibratedSlot: calibratedFallbackSlot,
+      selectedCalibratedSlot: calibratedFallbackSlot,
+      fallbackReason: calibratedFallbackReason,
+      cueBasedFailureReason: 'no-explicit-physical-cue-match',
+      allowed: true,
+      addressOptionsClusterGuardPassed: true,
+      candidateOrderStable: true,
+      exactThreeRadioGuardPassed: true,
+      conflictingCueDetected: false,
+      generatedValuesOmitted: true,
+    }));
+    expect(selection.fallbackInventory?.entries.every((entry) => entry.resolvedLabelFragments.length === 0)).toBe(true);
+  });
+
+  test('guarded physical address discovery calibrated fallback fails closed when fewer than three unlabeled candidates are present', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      calibratedBusinessPrimaryLocationRadioField(144),
+      calibratedBusinessPrimaryLocationRadioField(145),
+    ] as any);
+
+    expect(selection.selectedField).toBeNull();
+    expect(selection.selectionMode).toBeNull();
+    expect(selection.fallbackInventory?.calibratedFallback).toEqual(expect.objectContaining({
+      candidateCount: 2,
+      allowed: false,
+      selectedCalibratedSlot: null,
+      exactThreeRadioGuardPassed: false,
+    }));
+    expect(selection.fallbackInventory?.calibratedFallback?.rejectedReasons).toContain('exact-three-visible-editable-radio-guard-failed');
+  });
+
+  test('guarded physical address discovery calibrated fallback fails closed when more than three unlabeled candidates are present', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      calibratedBusinessPrimaryLocationRadioField(146),
+      calibratedBusinessPrimaryLocationRadioField(147),
+      calibratedBusinessPrimaryLocationRadioField(148),
+      calibratedBusinessPrimaryLocationRadioField(149),
+    ] as any);
+
+    expect(selection.selectedField).toBeNull();
+    expect(selection.selectionMode).toBeNull();
+    expect(selection.fallbackInventory?.calibratedFallback).toEqual(expect.objectContaining({
+      candidateCount: 4,
+      allowed: false,
+      selectedCalibratedSlot: null,
+      exactThreeRadioGuardPassed: false,
+    }));
+    expect(selection.fallbackInventory?.calibratedFallback?.rejectedReasons).toContain('exact-three-visible-editable-radio-guard-failed');
+  });
+
+  test('guarded physical address discovery calibrated fallback fails closed when candidate order is not stable', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      calibratedBusinessPrimaryLocationRadioField(152),
+      calibratedBusinessPrimaryLocationRadioField(151),
+      calibratedBusinessPrimaryLocationRadioField(153),
+    ] as any);
+
+    expect(selection.selectedField).toBeNull();
+    expect(selection.selectionMode).toBeNull();
+    expect(selection.fallbackInventory?.calibratedFallback).toEqual(expect.objectContaining({
+      allowed: false,
+      addressOptionsClusterGuardPassed: true,
+      candidateOrderStable: false,
+      exactThreeRadioGuardPassed: true,
+    }));
+    expect(selection.fallbackInventory?.calibratedFallback?.rejectedReasons).toContain('candidate-order-unstable');
+  });
+
+  test('guarded physical address discovery cue-based fallback wins over the calibrated business primary location fallback when a safe physical cue exists', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      calibratedBusinessPrimaryLocationRadioField(154),
+      calibratedBusinessPrimaryLocationRadioField(155, { resolvedLabel: 'Physical Operating Address' }),
+      calibratedBusinessPrimaryLocationRadioField(156),
+    ] as any);
+
+    expect(selection.selectionMode).toBe('fallback');
+    expect(selection.selectionReason).toBe('fallback-explicit-physical-cue');
+    expect(selection.selectedField?.index).toBe(155);
+    expect(selection.fallbackInventory?.calibratedFallback).toBeNull();
+  });
+
+  test('guarded physical address discovery calibrated fallback fails closed on mailing legal or virtual ambiguity', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      calibratedBusinessPrimaryLocationRadioField(157, { resolvedLabel: 'Business Mailing Address' }),
+      calibratedBusinessPrimaryLocationRadioField(158, { resolvedLabel: 'Legal Address' }),
+      calibratedBusinessPrimaryLocationRadioField(159, { resolvedLabel: 'Virtual Address' }),
+    ] as any);
+
+    expect(selection.selectedField).toBeNull();
+    expect(selection.selectionMode).toBeNull();
+    expect(selection.fallbackInventory?.calibratedFallback).toEqual(expect.objectContaining({
+      allowed: false,
+      addressOptionsClusterGuardPassed: true,
+      candidateOrderStable: true,
+      exactThreeRadioGuardPassed: true,
+      conflictingCueDetected: true,
+    }));
+    expect(selection.fallbackInventory?.calibratedFallback?.rejectedReasons).toContain('conflicting-safe-cue-surfaced');
+  });
+
+  test('guarded physical address discovery calibrated fallback fails closed when same different yes or no cues appear without the exact-three-radio guard', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      calibratedBusinessPrimaryLocationRadioField(160, { label: 'Same', resolvedLabel: 'Same' }),
+      calibratedBusinessPrimaryLocationRadioField(161, { label: 'Different', resolvedLabel: 'Different' }),
+      calibratedBusinessPrimaryLocationRadioField(162, { label: 'Yes', resolvedLabel: 'Yes' }),
+      calibratedBusinessPrimaryLocationRadioField(163, { label: 'No', resolvedLabel: 'No' }),
+    ] as any);
+
+    expect(selection.selectedField).toBeNull();
+    expect(selection.selectionMode).toBeNull();
+    expect(selection.fallbackInventory?.calibratedFallback).toEqual(expect.objectContaining({
+      candidateCount: 4,
+      allowed: false,
+      exactThreeRadioGuardPassed: false,
+      conflictingCueDetected: true,
+    }));
+    expect(selection.fallbackInventory?.calibratedFallback?.rejectedReasons).toEqual(expect.arrayContaining([
+      'exact-three-visible-editable-radio-guard-failed',
+      'conflicting-safe-cue-surfaced',
+    ]));
+  });
+
+  test('guarded physical address discovery calibrated fallback ignores generated and generic-only signatures as proof but still allows the exact-three guarded branch', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      calibratedBusinessPrimaryLocationRadioField(164, {
+        domAttributeSignature: attributeSignature({
+          valueHintBuckets: ['generated-token-pattern', 'empty-value'],
+          valueHintCount: 2,
+          tokenShapeBuckets: ['generated-token-pattern', 'radio-like-token'],
+          tokenShapeCount: 2,
+        }),
+        proxyReferenceSignature: proxyReferenceSignature({
+          valueHintBuckets: ['generated-token-pattern'],
+          valueHintCount: 1,
+          tokenShapeBuckets: ['generated-token-pattern', 'radio-like-token'],
+          tokenShapeCount: 2,
+        }),
+        radioGraphicSignature: radioGraphicSignature({
+          tokenHintBuckets: ['radio-like-token', 'generated/generic-only-token'],
+          tokenHintCount: 2,
+          hasSharedTokenHintBucket: true,
+        }),
+      }),
+      calibratedBusinessPrimaryLocationRadioField(165, {
+        domAttributeSignature: attributeSignature({
+          valueHintBuckets: ['generated-token-pattern', 'empty-value'],
+          valueHintCount: 2,
+          tokenShapeBuckets: ['generated-token-pattern', 'radio-like-token'],
+          tokenShapeCount: 2,
+        }),
+        proxyReferenceSignature: proxyReferenceSignature({
+          valueHintBuckets: ['generated-token-pattern'],
+          valueHintCount: 1,
+          tokenShapeBuckets: ['generated-token-pattern', 'radio-like-token'],
+          tokenShapeCount: 2,
+        }),
+        radioGraphicSignature: radioGraphicSignature({
+          tokenHintBuckets: ['radio-like-token', 'generated/generic-only-token'],
+          tokenHintCount: 2,
+          hasSharedTokenHintBucket: true,
+        }),
+      }),
+      calibratedBusinessPrimaryLocationRadioField(166, {
+        domAttributeSignature: attributeSignature({
+          valueHintBuckets: ['generated-token-pattern', 'empty-value'],
+          valueHintCount: 2,
+          tokenShapeBuckets: ['generated-token-pattern', 'radio-like-token'],
+          tokenShapeCount: 2,
+        }),
+        proxyReferenceSignature: proxyReferenceSignature({
+          valueHintBuckets: ['generated-token-pattern'],
+          valueHintCount: 1,
+          tokenShapeBuckets: ['generated-token-pattern', 'radio-like-token'],
+          tokenShapeCount: 2,
+        }),
+        radioGraphicSignature: radioGraphicSignature({
+          tokenHintBuckets: ['radio-like-token', 'generated/generic-only-token'],
+          tokenHintCount: 2,
+          hasSharedTokenHintBucket: true,
+        }),
+      }),
+    ] as any);
+
+    expect(selection.selectionMode).toBe('calibrated-fallback');
+    expect(selection.selectedField?.index).toBe(165);
+    expect(selection.fallbackInventory?.entries.every((entry) => entry.cueMatches.physicalOperatingAddress === false)).toBe(true);
+    expect(selection.fallbackInventory?.entries.every((entry) => entry.attributeCueMatches.physicalOperatingAddress === false)).toBe(true);
+    expect(selection.fallbackInventory?.entries.every((entry) => entry.proxyCueMatches.physicalOperatingAddress === false)).toBe(true);
+    expect(selection.fallbackInventory?.entries.every((entry) => entry.graphicCueMatches.physicalOperatingAddress === false)).toBe(true);
+    expect(selection.fallbackInventory?.calibratedFallback).toEqual(expect.objectContaining({
+      allowed: true,
+      addressOptionsClusterGuardPassed: true,
+      generatedValuesOmitted: true,
+      selectedCalibratedSlot: calibratedFallbackSlot,
+    }));
+  });
+
+  test('guarded physical address discovery calibrated fallback diagnostics stay redacted and bounded', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      calibratedBusinessPrimaryLocationRadioField(167, {
+        sectionName: 'https://demo.docusign.net/start?token=secret-token-value',
+        idOrNameKey: 'tab-form-element-secret-proxy',
+        rawCandidateLabels: [
+          { source: 'preceding-text', value: 'hidden.person@example.test' },
+          { source: 'helper-text', value: 'customer-private-value-42' },
+        ],
+        containerContextLabels: [
+          { source: 'container-parent', value: 'class=wrapper-control-secret' },
+        ],
+      }),
+      calibratedBusinessPrimaryLocationRadioField(168, {
+        sectionName: 'https://demo.docusign.net/start?token=second-secret-token-value',
+        idOrNameKey: 'tab-form-element-secret-middle',
+        rawCandidateLabels: [
+          { source: 'preceding-text', value: 'hidden.middle@example.test' },
+          { source: 'helper-text', value: 'customer-private-value-43' },
+        ],
+        containerContextLabels: [
+          { source: 'container-parent', value: 'class=wrapper-control-secret-middle' },
+        ],
+      }),
+      calibratedBusinessPrimaryLocationRadioField(169, {
+        sectionName: 'https://demo.docusign.net/start?token=third-secret-token-value',
+        idOrNameKey: 'tab-form-element-secret-last',
+        rawCandidateLabels: [
+          { source: 'preceding-text', value: 'hidden.last@example.test' },
+          { source: 'helper-text', value: 'customer-private-value-44' },
+        ],
+        containerContextLabels: [
+          { source: 'container-parent', value: 'class=wrapper-control-secret-last' },
+        ],
+      }),
+    ] as any);
+
+    const serializedInventory = JSON.stringify(selection.fallbackInventory);
+
+    expect(selection.selectionMode).toBe('calibrated-fallback');
+    expect(selection.selectedField?.index).toBe(168);
+    expect(serializedInventory).not.toContain('https://demo.docusign.net/start');
+    expect(serializedInventory).not.toContain('hidden.person@example.test');
+    expect(serializedInventory).not.toContain('hidden.middle@example.test');
+    expect(serializedInventory).not.toContain('secret-token-value');
+    expect(serializedInventory).not.toContain('tab-form-element-secret-proxy');
+    expect(serializedInventory).not.toContain('class=wrapper-control-secret');
+    expect(serializedInventory).not.toContain('customer-private-value-42');
+    expect(serializedInventory).not.toContain('customer-private-value-43');
+    expect(serializedInventory).toContain('[redacted:url]');
+    expect(serializedInventory).toContain('[redacted:email]');
+    expect(serializedInventory).toContain('[redacted:token]');
+    expect(serializedInventory).toContain('[redacted:text]');
   });
 
   test('guarded physical address discovery fallback refuses mailing or legal container cues', () => {

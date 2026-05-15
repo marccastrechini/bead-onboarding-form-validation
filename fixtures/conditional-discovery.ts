@@ -42,7 +42,7 @@ export interface GuardedPhysicalOperatingAddressDiscoveryOptions {
   stopAfterCaptureAttempt?: boolean;
 }
 
-const ADDRESS_OPTIONS_RE = /\baddressoptions\b/i;
+const ADDRESS_OPTIONS_RE = /\baddress\s+options\b|\baddressoptions\b/i;
 const OPERATING_ADDRESS_RE = /\bisoperatingaddress\b|\boperating\s+address\b/i;
 const BUSINESS_PHYSICAL_ADDRESS_RE = /\bbusiness\s+physical\s+address\b/i;
 const LEGAL_ADDRESS_RE = /\bislegaladdress\b|\blegal\s+address\b/i;
@@ -56,6 +56,9 @@ const NO_TOGGLE_RE = /\bno\b/i;
 const TOGGLE_INVENTORY_CANDIDATE_LIMIT = 6;
 const TOGGLE_INVENTORY_FRAGMENT_LIMIT = 4;
 const TOGGLE_FALLBACK_CUE_LIMIT = 4;
+const CALIBRATED_BUSINESS_PRIMARY_LOCATION_FALLBACK_REASON = 'calibrated-business-primary-location-physical-address-option';
+const CALIBRATED_BUSINESS_PRIMARY_LOCATION_CANDIDATE_COUNT = 3;
+const CALIBRATED_BUSINESS_PRIMARY_LOCATION_TARGET_SLOT = 2;
 const ANCESTOR_TOGGLE_LABEL_SOURCES = new Set([
   'aria-labelledby',
   'wrapping-label',
@@ -83,7 +86,7 @@ const SAFE_TOGGLE_FRAGMENT_PATTERNS = [
   { label: 'Mailing Address', pattern: /\bmailing\s+address\b/i },
   { label: 'Legal Address', pattern: /\blegal\s+address\b/i },
   { label: 'Virtual Address', pattern: /\bvirtual\s+address\b/i },
-  { label: 'addressOptions', pattern: /\baddressoptions\b/i },
+  { label: 'addressOptions', pattern: /\baddress\s+options\b|\baddressoptions\b/i },
   { label: 'isOperatingAddress', pattern: /\bisoperatingaddress\b/i },
   { label: 'isMailingAddress', pattern: /\bismailingaddress\b/i },
   { label: 'isLegalAddress', pattern: /\bislegaladdress\b/i },
@@ -238,6 +241,22 @@ type PhysicalOperatingAddressToggleFallbackCueEntry = {
   cueMatches: PhysicalOperatingAddressCuePatternMatches;
 };
 
+type PhysicalOperatingAddressToggleCalibratedFallbackDiagnostics = {
+  candidateCount: number;
+  eligibleCandidateCount: number;
+  targetCalibratedSlot: number;
+  selectedCalibratedSlot: number | null;
+  fallbackReason: string;
+  cueBasedFailureReason: 'no-explicit-physical-cue-match' | 'ambiguous-explicit-physical-cue-match';
+  allowed: boolean;
+  rejectedReasons: string[];
+  addressOptionsClusterGuardPassed: boolean;
+  candidateOrderStable: boolean;
+  exactThreeRadioGuardPassed: boolean;
+  conflictingCueDetected: boolean;
+  generatedValuesOmitted: boolean;
+};
+
 type PhysicalOperatingAddressToggleFallbackInventory = {
   visibleRadioInputCount: number;
   visibleRoleRadioCount: number;
@@ -251,11 +270,13 @@ type PhysicalOperatingAddressToggleFallbackInventory = {
   truncatedCueObservationCount: number;
   entries: PhysicalOperatingAddressToggleFallbackInventoryEntry[];
   cueObservations: PhysicalOperatingAddressToggleFallbackCueEntry[];
+  calibratedFallback: PhysicalOperatingAddressToggleCalibratedFallbackDiagnostics | null;
 };
 
 type PhysicalOperatingAddressToggleSelection<T extends GuardedToggleField> = {
   selectedField: T | null;
-  selectionMode: 'primary' | 'fallback' | null;
+  selectionMode: 'primary' | 'fallback' | 'calibrated-fallback' | null;
+  selectionReason: string | null;
   primaryInventory: PhysicalOperatingAddressToggleInventory;
   fallbackInventory: PhysicalOperatingAddressToggleFallbackInventory | null;
 };
@@ -540,6 +561,93 @@ function hasAnyPhysicalAddressCueMatch(matches: PhysicalOperatingAddressCuePatte
     || matches.mailingAddress
     || matches.legalAddress
     || matches.virtualAddress;
+}
+
+function hasAnyToggleCueSignal(matches: PhysicalOperatingAddressCuePatternMatches): boolean {
+  return hasAnyPhysicalAddressCueMatch(matches)
+    || matches.same
+    || matches.different
+    || matches.yes
+    || matches.no;
+}
+
+function hasStableCalibratedCandidateOrder(
+  entries: PhysicalOperatingAddressToggleFallbackInventoryEntry[],
+): boolean {
+  if (entries.length !== CALIBRATED_BUSINESS_PRIMARY_LOCATION_CANDIDATE_COUNT) return false;
+
+  const seenFieldIndexes = new Set<number>();
+  let previousFieldIndex = -1;
+
+  for (const [index, entry] of entries.entries()) {
+    if (entry.slot !== index + 1) return false;
+    if (typeof entry.fieldIndex !== 'number') return false;
+    if (seenFieldIndexes.has(entry.fieldIndex)) return false;
+    if (entry.fieldIndex <= previousFieldIndex) return false;
+
+    seenFieldIndexes.add(entry.fieldIndex);
+    previousFieldIndex = entry.fieldIndex;
+  }
+
+  return true;
+}
+
+function buildCalibratedPhysicalOperatingAddressFallbackDiagnostics(
+  primaryInventory: PhysicalOperatingAddressToggleInventory,
+  fallbackInventory: PhysicalOperatingAddressToggleFallbackInventory,
+): PhysicalOperatingAddressToggleCalibratedFallbackDiagnostics {
+  const entries = fallbackInventory.entries;
+  const addressOptionsClusterGuardPassed = primaryInventory.candidateCount === CALIBRATED_BUSINESS_PRIMARY_LOCATION_CANDIDATE_COUNT
+    && primaryInventory.matchingCandidateCount === 0
+    && primaryInventory.truncatedCandidateCount === 0
+    && primaryInventory.entries.length === CALIBRATED_BUSINESS_PRIMARY_LOCATION_CANDIDATE_COUNT
+    && primaryInventory.entries.every((entry) => entry.matches.addressOptionPattern);
+  const exactThreeRadioGuardPassed = fallbackInventory.visibleRadioInputCount === CALIBRATED_BUSINESS_PRIMARY_LOCATION_CANDIDATE_COUNT
+    && fallbackInventory.visibleRoleRadioCount === 0
+    && fallbackInventory.visibleRadioLikeCandidateCount === CALIBRATED_BUSINESS_PRIMARY_LOCATION_CANDIDATE_COUNT
+    && fallbackInventory.eligibleFallbackCandidateCount === CALIBRATED_BUSINESS_PRIMARY_LOCATION_CANDIDATE_COUNT
+    && fallbackInventory.truncatedCandidateCount === 0
+    && entries.length === CALIBRATED_BUSINESS_PRIMARY_LOCATION_CANDIDATE_COUNT
+    && entries.every((entry) => entry.inputKind === 'radio'
+      && entry.controlCategory === 'merchant_input'
+      && entry.visible
+      && entry.editable
+      && (entry.inputType ?? '').toLowerCase() === 'radio');
+  const candidateOrderStable = exactThreeRadioGuardPassed && hasStableCalibratedCandidateOrder(entries);
+  const conflictingCueDetected = entries.some((entry) => hasAnyToggleCueSignal(entry.cueMatches));
+  const cueBasedFailureReason = fallbackInventory.matchingFallbackCandidateCount === 0
+    ? 'no-explicit-physical-cue-match'
+    : 'ambiguous-explicit-physical-cue-match';
+  const rejectedReasons: string[] = [];
+
+  if (fallbackInventory.matchingFallbackCandidateCount !== 0) {
+    rejectedReasons.push(
+      fallbackInventory.matchingFallbackCandidateCount === 1
+        ? 'cue-based-selection-already-available'
+        : 'cue-based-selection-ambiguous',
+    );
+  }
+  if (!addressOptionsClusterGuardPassed) rejectedReasons.push('address-options-cluster-anchor-missing');
+  if (!exactThreeRadioGuardPassed) rejectedReasons.push('exact-three-visible-editable-radio-guard-failed');
+  if (!candidateOrderStable) rejectedReasons.push('candidate-order-unstable');
+  if (conflictingCueDetected) rejectedReasons.push('conflicting-safe-cue-surfaced');
+
+  return {
+    candidateCount: fallbackInventory.visibleRadioLikeCandidateCount,
+    eligibleCandidateCount: fallbackInventory.eligibleFallbackCandidateCount,
+    targetCalibratedSlot: CALIBRATED_BUSINESS_PRIMARY_LOCATION_TARGET_SLOT,
+    selectedCalibratedSlot:
+      rejectedReasons.length === 0 ? CALIBRATED_BUSINESS_PRIMARY_LOCATION_TARGET_SLOT : null,
+    fallbackReason: CALIBRATED_BUSINESS_PRIMARY_LOCATION_FALLBACK_REASON,
+    cueBasedFailureReason,
+    allowed: rejectedReasons.length === 0,
+    rejectedReasons,
+    addressOptionsClusterGuardPassed,
+    candidateOrderStable,
+    exactThreeRadioGuardPassed,
+    conflictingCueDetected,
+    generatedValuesOmitted: true,
+  };
 }
 
 function sanitizeToggleDiagnosticFragment(value: string | null | undefined): string | null {
@@ -948,6 +1056,7 @@ function buildPhysicalOperatingAddressToggleFallbackInventory(
     truncatedCueObservationCount: Math.max(0, cueObservations.length - cueEntries.length),
     entries,
     cueObservations: cueEntries,
+    calibratedFallback: null,
   };
 }
 
@@ -984,6 +1093,7 @@ export function explainPhysicalOperatingAddressToggleSelection<T extends Guarded
     return {
       selectedField: primaryMatches[0],
       selectionMode: 'primary',
+      selectionReason: 'primary-operating-address-cue',
       primaryInventory,
       fallbackInventory: null,
     };
@@ -996,22 +1106,48 @@ export function explainPhysicalOperatingAddressToggleSelection<T extends Guarded
       return {
         selectedField: fallbackMatches[0],
         selectionMode: 'fallback',
+        selectionReason: 'fallback-explicit-physical-cue',
         primaryInventory,
         fallbackInventory,
       };
     }
 
+    const calibratedFallback = buildCalibratedPhysicalOperatingAddressFallbackDiagnostics(primaryInventory, fallbackInventory);
+    const fallbackInventoryWithCalibrated = {
+      ...fallbackInventory,
+      calibratedFallback,
+    };
+
+    if (calibratedFallback.allowed) {
+      const eligibleFallbackCandidates = fields.filter(
+        (field) => buildPhysicalOperatingAddressToggleFallbackAnalysis(field).eligibleRadioLike,
+      );
+      const calibratedField = eligibleFallbackCandidates[CALIBRATED_BUSINESS_PRIMARY_LOCATION_TARGET_SLOT - 1] ?? null;
+
+      if (calibratedField) {
+        return {
+          selectedField: calibratedField,
+          selectionMode: 'calibrated-fallback',
+          selectionReason: CALIBRATED_BUSINESS_PRIMARY_LOCATION_FALLBACK_REASON,
+          primaryInventory,
+          fallbackInventory: fallbackInventoryWithCalibrated,
+        };
+      }
+    }
+
     return {
       selectedField: null,
       selectionMode: null,
+      selectionReason: null,
       primaryInventory,
-      fallbackInventory,
+      fallbackInventory: fallbackInventoryWithCalibrated,
     };
   }
 
   return {
     selectedField: null,
     selectionMode: null,
+    selectionReason: null,
     primaryInventory,
     fallbackInventory: null,
   };
@@ -1072,6 +1208,13 @@ export async function maybeExpandPhysicalOperatingAddressSection(
     if (toggleSelection.selectionMode === 'fallback') {
       diagnostics.push('physical-operating-address discovery toggle candidate source: fallback radio-like candidate');
     }
+    if (toggleSelection.selectionMode === 'calibrated-fallback') {
+      diagnostics.push('physical-operating-address discovery toggle candidate source: calibrated business primary location fallback');
+    }
+  }
+
+  if (toggleSelection.selectionReason) {
+    diagnostics.push(`physical-operating-address discovery toggle selection reason: ${toggleSelection.selectionReason}`);
   }
 
   const toggleField = toggleSelection.selectedField;

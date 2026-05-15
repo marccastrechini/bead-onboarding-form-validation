@@ -1,123 +1,95 @@
 ## ChatGPT Review Summary
-- What changed: RUN32 spent exactly one authorized live `npm run bootstrap:capture:physical-address` run and updated only the AI handoff files with the live outcome. No source, test, docs, or package files changed in RUN32.
-- Whether `radioGraphicSignature` was exercised live: yes, but all three visible editable radio candidates returned `radioGraphicSignature: null`, so no same-wrapper child tag buckets, direct previous/next sibling tag buckets, decorative-node buckets, safe role buckets, safe token-hint buckets, commonality buckets, or unique/shared token-hint booleans populated.
-- Whether wrapper/sibling/decorative graphic cues surfaced: no. All three live candidates still exposed no safe physical/business/operating, mailing/legal/virtual, same/different/yes/no, or generated/generic-only graphic cues.
-- Whether primary or fallback selection found exactly one live toggle candidate: no. Primary selection found zero candidates; fallback inventory again found the same three visible editable radio inputs but zero safe matches.
-- Whether the toggle was expanded: no.
-- Whether coverage moved forward: yes. RUN32 falsified the new live wrapper/sibling/decorative graphic seam and narrowed the remaining blocker to non-DOM or rendered-image surfaces outside the current text, layout, attribute, reference, and graphic inventories.
-- Whether fresh artifacts were produced: no. `artifacts/latest-physical-operating-address-post-toggle-structure.json` and `artifacts/latest-physical-operating-address-post-toggle-dom.html` remained at 2026-05-01T16:41:44Z and were not refreshed by RUN32.
-- Tests/commands run and pass/fail: `npm run bootstrap:capture:physical-address` ran exactly once and blocked after reaching the signer surface without finding a safe toggle candidate. `npm run reports:refresh` and `npm run findings:open` were intentionally not run because no fresh sanitized post-toggle artifacts were produced. No additional unit tests were run in RUN32.
-- Classification for each `business_mailing_*` concept: `business_mailing_address_line_1` = `still capture-blocked`; `business_mailing_city` = `still capture-blocked`; `business_mailing_state` = `still capture-blocked`; `business_mailing_postal_code` = `still capture-blocked`.
-- Remaining blocker / uncertainty: the live DocuSign radio cluster still exposes no safe text, container, layout, DOM-attribute, proxy/reference, or graphic signature evidence for the same three radios even though the expected human-visible prompt and options exist in the completed-PDF example. The remaining signal may live only in the rendered page image or another non-DOM visual layer.
-- Whether a screenshot is helpful for the next run and exactly what area to capture: yes. Capture only the physical-address toggle block after the signer surface loads and before any clicks, including the question/prompt above the three radios, the three radio controls, the option text next to each radio, and any immediate wrapper/ring/decorative nodes around them. Hide the browser URL and blur merchant data. Do not commit screenshots.
-- Whether to continue, stop, or redirect: redirect.
-- The next best Copilot prompt: stay source/test-only and investigate whether the physical-address prompt and option text live only in the rendered page image or another non-DOM layer around the three radios, using the RUN32 all-null `radioGraphicSignature` result and an optional cropped screenshot for guidance.
+- What changed: RUN33 added a strict calibrated last-resort fallback in `fixtures/conditional-discovery.ts` and focused coverage in `tests/bootstrap-units.spec.ts`. The new branch selects slot 2 only for the neutral `addressOptions` radio cluster when primary selection and cue-based fallback both find zero matches, exactly three visible editable radio inputs remain, the order is stable, and all safe cue surfaces stay empty.
+- Whether a calibrated Business Primary Location fallback was added: yes. The selection path now emits `selectionMode: calibrated-fallback` with reason `calibrated-business-primary-location-physical-address-option`.
+- Whether the matcher was broadened and under what strict guards: yes, but only under strict guards. The calibrated branch requires zero primary eligible candidates, zero cue-based fallback matches, the `addressOptions` cluster anchor, exactly three visible editable radio inputs, stable slot order, and no physical/business/mailing/legal/virtual/same/different/yes/no cue signal. Generated or generic-only signatures remain neutral only and cannot prove the match.
+- Why the second radio is the calibrated target: the known three-option cluster is visually documented in the completed-PDF / screenshot guidance, and the middle radio is the Physical or Business Physical Address option in that cluster. The code records slot 2 only for that cluster and never generalizes to an arbitrary middle-radio rule.
+- What guardrails were preserved: RUN33 stayed source/test-only, did not run another live capture, did not mutate `.env`, did not enable destructive validation, did not upload anything, did not click any finalization controls, and kept diagnostics bounded and redacted.
+- Whether the result moved us forward: yes. There is now a narrow, auditable fallback path ready for live validation instead of another broad exploration pass.
+- Tests/commands run and pass/fail: `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "guarded physical address discovery"` passed with 67 tests. `npm run test:units` passed with 320 tests.
+- Remaining blocker / uncertainty: RUN33 did not spend another live signer URL, so the new fallback is still unverified against the live all-null three-radio cluster. If the live cluster does not expose the neutral `addressOptions` anchor under the same normalized discovery path, the matcher will still fail closed.
+- Whether a screenshot was used only as visual guidance: yes. The screenshot/PDF guidance was used only to calibrate the target slot; no screenshot was committed and no image-derived text was injected into discovery.
+- Whether another live capture is recommended next, and the exact next run ID: yes, if authorized. The next live validation should be exactly one capture-only run as `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN34`.
+- Whether to continue, stop, or redirect: continue only with that single authorized live validation run; otherwise stop source edits because RUN33 is complete.
+- The next best Copilot prompt: execute exactly one authorized live capture-only RUN34 to verify whether the new strict `addressOptions` calibrated fallback selects slot 2, expands the Physical Operating Address section, and produces fresh sanitized post-toggle artifacts without widening beyond the known three-radio cluster.
 
 # Copilot Handoff Result
 
-CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN32
+CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN33
 
 ## Status
 Ready for ChatGPT review
 
 ## Objective
-Execute exactly one authorized live capture-only run to inspect whether `radioGraphicSignature` now surfaces a unique safe Physical Operating Address or Business Physical Address cue on the three live radio candidates, whether fallback selects exactly one safe candidate, whether the toggle expands, and whether fresh Physical Operating Address artifacts are produced.
+Do not run another live capture. Stay source/test-only and add a strict calibrated fallback strategy for the specific three-radio Business Primary Location layout after every safe DOM, text, layout, attribute, proxy/reference, and graphic cue path returned empty or null live.
 
 ## What Changed
-- Executed exactly one authorized `npm run bootstrap:capture:physical-address` live capture.
-- Updated only the AI handoff files with the RUN32 live outcome.
-- Did not modify source, test, docs, or package files in RUN32.
+- Added a strict calibrated fallback branch in `fixtures/conditional-discovery.ts`.
+- Added an explicit fallback reason, `selectionMode: calibrated-fallback`, and bounded calibrated diagnostics on the fallback inventory.
+- Anchored the calibrated branch to the neutral `addressOptions` cluster and fixed the neutral `addressOptions` regex so camel-case normalization still matches `address Options`.
+- Added focused RUN33 tests in `tests/bootstrap-units.spec.ts` for slot-2 selection, exact-three guards, stable-order guards, cue precedence, ambiguity rejection, generated/generic-only neutrality, and redaction-safe diagnostics.
+- Updated the AI handoff files for RUN33.
 
-## Live Outcome
-- `openSigner()` reached the signer surface.
-- Initial discovered field count was 125.
-- Primary operating-address selection found zero candidates.
-- Fallback inventory found the same three visible editable radio inputs.
-- Visible radio input count: 3.
-- Visible `role=radio` count: 0.
-- Visible radio-like candidate count: 3.
-- Eligible fallback candidate count: 3.
-- Matching fallback candidate count: 0.
-- The new bounded `radioGraphicSignature` seam was exercised live, but every candidate returned `radioGraphicSignature: null`.
-- Slot 1 summary: same-wrapper child tag buckets none; previous sibling tag buckets none; next sibling tag buckets none; decorative-node buckets none; role buckets none; token-hint buckets none; same-wrapper commonality unavailable; direct-sibling commonality unavailable; unique safe token hint none; shared safe token hint none; physical/business/operating graphic cue none; mailing/legal/virtual graphic cue none; same/different/yes/no cue none; generated/generic-only signature not observed; excluded for `explicit-physical-cue-missing`.
-- Slot 2 summary: same-wrapper child tag buckets none; previous sibling tag buckets none; next sibling tag buckets none; decorative-node buckets none; role buckets none; token-hint buckets none; same-wrapper commonality unavailable; direct-sibling commonality unavailable; unique safe token hint none; shared safe token hint none; physical/business/operating graphic cue none; mailing/legal/virtual graphic cue none; same/different/yes/no cue none; generated/generic-only signature not observed; excluded for `explicit-physical-cue-missing`.
-- Slot 3 summary: same-wrapper child tag buckets none; previous sibling tag buckets none; next sibling tag buckets none; decorative-node buckets none; role buckets none; token-hint buckets none; same-wrapper commonality unavailable; direct-sibling commonality unavailable; unique safe token hint none; shared safe token hint none; physical/business/operating graphic cue none; mailing/legal/virtual graphic cue none; same/different/yes/no cue none; generated/generic-only signature not observed; excluded for `explicit-physical-cue-missing`.
-- The three radios remained uniform and indistinguishable under the current safe graphic seam.
-- `maybeExpandPhysicalOperatingAddressSection()` did not expand the toggle.
-- Guarded post-toggle capture did not produce a sanitized capture report.
+## Calibrated Fallback Design
+- The branch only runs after primary selection finds zero eligible candidates and cue-based fallback finds zero explicit physical or business-physical matches.
+- The branch only considers the neutral `addressOptions` radio cluster.
+- The branch requires exactly three visible editable radio inputs and stable slot order.
+- The branch rejects any surfaced physical/business/mailing/legal/virtual/same/different/yes/no cue.
+- The branch records `calibrated-business-primary-location-physical-address-option` as the auditable reason.
+- The branch targets slot 2 only.
+- Generated or generic-only attribute, proxy/reference, and graphic signatures do not count as proof and do not override the strict guards.
+
+## Why Slot 2
+- The completed-PDF / screenshot guidance shows a known three-option cluster above the Physical Operating Address section.
+- Within that known cluster, the middle radio is the Physical Operating Address or Business Physical Address choice.
+- RUN33 keeps this as a calibrated last resort for that cluster only; it does not infer that a middle radio is generally correct elsewhere.
 
 ## Guardrails Preserved
+- No live capture command was run.
 - `bootstrap:interactive` was not run.
 - `interactive:watchdog` was not run.
-- Full signer discovery was not run.
+- `.env` was not mutated.
 - `DESTRUCTIVE_VALIDATION` was not enabled.
 - No uploads were performed.
-- No Finish, Complete, Submit, Sign, Adopt, or finalization controls were clicked.
-- No raw signer URL was printed or committed.
-- `.env` was not mutated.
-- Generated artifacts were not staged or committed.
+- No Finish, Complete, Submit, Sign, Adopt, or other finalization controls were clicked.
+- Diagnostics remain bounded and redacted.
 
 ## Files Changed
+- `fixtures/conditional-discovery.ts`
+- `tests/bootstrap-units.spec.ts`
 - `artifacts/ai-handoff/status.json`
 - `artifacts/ai-handoff/latest-copilot-result.md`
 
 ## Validation
-- `npm run bootstrap:capture:physical-address` -> blocked after reaching the signer surface without a safe toggle match
-- `artifacts/latest-physical-operating-address-post-toggle-structure.json` last write time remained `2026-05-01T16:41:44Z`
-- `artifacts/latest-physical-operating-address-post-toggle-dom.html` last write time remained `2026-05-01T16:41:44Z`
-- `npm run reports:refresh` -> not run
-- `npm run findings:open` -> not run
-
-## Artifact Freshness
-- No fresh Physical Operating Address artifacts were produced in RUN32.
-- The existing post-toggle structure and DOM files remain the stale May 1 artifacts and should not be treated as RUN32 evidence.
-- Because no fresh post-toggle artifacts were produced, field-local label proof for Address Line 1, City, State, ZIP, and Postal Code remains unavailable in RUN32.
-
-## Classification
-- `business_mailing_address_line_1`: `still capture-blocked`
-- `business_mailing_city`: `still capture-blocked`
-- `business_mailing_state`: `still capture-blocked`
-- `business_mailing_postal_code`: `still capture-blocked`
+- `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "guarded physical address discovery"` -> passed (67 tests)
+- `npm run test:units` -> passed (320 tests)
 
 ## Result
 - Forward progress: yes.
-- RUN32 answered the new live question directly: the broader bounded wrapper/sibling/decorative graphic inventory also stayed empty for all three visible radios.
-- The guarded matcher remained fail-closed and did not auto-select a live toggle without a uniquely safe explicit physical/business cue.
-- No fresh post-toggle artifacts were produced, so capture did not move beyond the radio toggle blocker.
+- RUN33 converted the prior screenshot-guided hypothesis into a narrow, auditable, fail-closed implementation with passing coverage.
+- The guarded matcher is still not broadly widened: generic three-radio groups continue to fail closed, and only the known `addressOptions` cluster can reach the calibrated slot-2 branch.
 
 ## Remaining Blocker / Uncertainty
-- The live DocuSign radio cluster still exposes no safe text in resolved-label, group, ancestor, sibling, nearby, container, layout-proximity, non-text layout-signature, DOM wrapper/input-attribute, proxy/reference, or radio graphic buckets.
-- Given the completed-PDF example, the missing human-visible prompt and option text may exist only in the rendered page image or another non-DOM visual layer rather than in DOM-accessible labels, wrappers, siblings, attributes, or references.
-- Another immediate live rerun is not the smallest next move because RUN32 already exercised the new graphic seam and it remained uniformly null.
+- RUN33 did not perform live validation, so the new branch is not yet proven against the live all-null three-radio cluster.
+- If the live cluster does not surface the neutral `addressOptions` anchor under the same normalized discovery path, the new branch will still fail closed.
+- The second-slot calibration still depends on screenshot/PDF-only visual guidance rather than on a newly recovered live DOM cue.
 
-## Screenshot Helpfulness
-- A screenshot is now helpful.
-- Exact area to capture: only the physical-address toggle block after the signer surface loads and before any interaction, including the question/prompt above the three radios, the three radio controls, the option text next to each radio, and any immediate wrapper/ring/decorative nodes around them.
-- Hide the browser URL and blur merchant data.
-- Do not commit screenshots.
+## Screenshot Guidance
+- Screenshot/PDF evidence was used only as visual guidance to calibrate the slot-2 target.
+- No screenshot was committed.
+- No image-derived text was injected into discovery or diagnostics.
 
 ## Recommendation
-Redirect.
+Continue only if one new live step is authorized.
 
-Do not run another live capture next.
+The next live step should be exactly one capture-only validation run as `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN34` to verify that the new strict calibrated fallback selects slot 2, expands the Physical Operating Address section, and produces fresh sanitized artifacts.
 
 ## Recommended Next Copilot Prompt
-Stay source/test-only and investigate whether the physical-address prompt and option text live only in the rendered page image or another non-DOM surface around the three radios, using the RUN32 all-null `radioGraphicSignature` result and an optional cropped screenshot of the toggle block for guidance.
+Execute exactly one authorized live capture-only RUN34 to verify whether the new strict `addressOptions` calibrated fallback selects slot 2, expands the Physical Operating Address section, and produces fresh sanitized post-toggle artifacts without widening beyond the known three-radio cluster.
 
 ## Branch / Commit Status
 - Branch: `main`
-- Pre-RUN32 commit: `1c1bade6a79130cce70b49b390da4e7691cfe4c4`
-- RUN32 handoff commit: pending at write time
+- Current HEAD before any new commit: `d88017757d4121a77794e256ed151da9ebcf4b17`
+- No commit or push was created in RUN33 because no commit or push was requested.
+- Suggested commit message if needed: `AI-HANDOFF: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN33 ready for ChatGPT review`
 
-## Commit Scope
-- Stage and commit:
-  - `artifacts/ai-handoff/status.json`
-  - `artifacts/ai-handoff/latest-copilot-result.md`
-- Do not commit:
-  - `artifacts/latest-*`
-  - `artifacts/latest-physical-operating-address-*`
-  - `artifacts/playwright*`
-  - `.env`
-  - `samples/private/**`
-
-CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN32
+CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN33
