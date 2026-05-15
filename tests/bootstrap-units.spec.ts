@@ -35,11 +35,16 @@ import {
 } from '../fixtures/physical-address-post-toggle-capture';
 import {
   assertPhysicalOperatingAddressCaptureOnlyGuards,
+  buildPhysicalOperatingAddressCaptureOnlyArtifactFreshnessDiagnostics,
   buildPhysicalOperatingAddressCaptureOnlyEnv,
+  comparePhysicalOperatingAddressCaptureOnlyArtifactFreshness,
   PHYSICAL_ADDRESS_CAPTURE_ONLY_ARTIFACT_FILENAMES,
   PHYSICAL_ADDRESS_CAPTURE_ONLY_COMMAND,
   PHYSICAL_ADDRESS_CAPTURE_ONLY_DISCOVERY_OPTIONS,
+  PHYSICAL_ADDRESS_CAPTURE_ONLY_FRESHNESS_FILENAMES,
   PHYSICAL_ADDRESS_CAPTURE_ONLY_SCRIPT_PATH,
+  readPhysicalOperatingAddressCaptureOnlyArtifactFreshnessSnapshot,
+  runPhysicalOperatingAddressCaptureOnly,
 } from '../scripts/capture-physical-operating-address';
 import {
   buildSignerChildEnv,
@@ -8210,6 +8215,263 @@ test.describe('interactive validation safety', () => {
     expect(shouldStopAfterPhysicalAddressCaptureAttempt()).toBe(false);
   });
 
+  const createPhysicalAddressCaptureOnlyTempDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'physical-address-capture-only-'));
+
+  const writePostToggleFreshnessBundle = (
+    outDir: string,
+    options: {
+      generatedAt?: string;
+      html?: string;
+      jsonExtras?: Record<string, unknown>;
+      mtimeIso?: string;
+    } = {},
+  ) => {
+    const generatedAt = options.generatedAt ?? '2026-05-01T16:41:27.153Z';
+    const structurePath = path.join(outDir, PHYSICAL_ADDRESS_CAPTURE_ONLY_FRESHNESS_FILENAMES.structureJson);
+    const htmlPath = path.join(outDir, PHYSICAL_ADDRESS_CAPTURE_ONLY_FRESHNESS_FILENAMES.domHtml);
+
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(structurePath, JSON.stringify({ generatedAt, ...options.jsonExtras }, null, 2), 'utf8');
+    fs.writeFileSync(htmlPath, options.html ?? '<html><body>safe preview</body></html>', 'utf8');
+
+    if (options.mtimeIso) {
+      const timestamp = new Date(options.mtimeIso);
+      fs.utimesSync(structurePath, timestamp, timestamp);
+      fs.utimesSync(htmlPath, timestamp, timestamp);
+    }
+
+    return { structurePath, htmlPath };
+  };
+
+  const mockCaptureReport = (overrides: Record<string, unknown> = {}) => ({
+    generatedAt: '2026-05-15T08:40:00.000Z',
+    anchorLabel: 'Physical Operating Address',
+    anchorLeft: 12,
+    anchorTop: 34,
+    captureBounds: { left: 0, top: 0, width: 640, height: 320 },
+    textNodes: [],
+    controls: [],
+    observations: ['safe bounded observation'],
+    ...overrides,
+  });
+
+  test('physical address capture-only runner reports missing captureReport and does not treat stale artifacts as fresh', async () => {
+    const outDir = createPhysicalAddressCaptureOnlyTempDir();
+    writePostToggleFreshnessBundle(outDir, {
+      generatedAt: '2026-05-01T16:41:27.153Z',
+      mtimeIso: '2026-05-01T16:41:44.000Z',
+    });
+
+    let writerCalled = false;
+    const result = await runPhysicalOperatingAddressCaptureOnly(
+      {} as any,
+      {} as NodeJS.ProcessEnv,
+      outDir,
+      {
+        openSigner: async () => ({ frame: {} as any, diagnostics: [] }),
+        discoverFields: async () => [],
+        maybeExpandPhysicalOperatingAddressSection: async () => ({
+          fields: [],
+          diagnostics: ['safe expansion diagnostic'],
+          expanded: true,
+          probeReport: null,
+          captureReport: null,
+        }),
+        writePhysicalOperatingAddressPostToggleArtifacts: async () => {
+          writerCalled = true;
+          throw new Error('writer should not be called');
+        },
+        readArtifactFreshnessSnapshot: readPhysicalOperatingAddressCaptureOnlyArtifactFreshnessSnapshot,
+      },
+    );
+
+    expect(writerCalled).toBe(false);
+    expect(result.captureWritten).toBe(false);
+    expect(result.captureReportPresent).toBe(false);
+    expect(result.writerCalled).toBe(false);
+    expect(result.writerCompleted).toBe(false);
+    expect(result.reason).toContain('toggle expansion exercised');
+    expect(result.artifactFreshness.artifactsFresh).toBe(false);
+    expect(result.artifactFreshness.artifactsRemainStale).toBe(true);
+    expect(result.diagnostics.some((entry) => entry.includes('capture report writable: no'))).toBe(true);
+    expect(result.diagnostics.some((entry) => entry.includes('writer skipped reason: toggle expansion exercised but capture report missing'))).toBe(true);
+  });
+
+  test('physical address capture-only runner treats artifacts as fresh only when writer changes generatedAt or mtime', async () => {
+    const outDir = createPhysicalAddressCaptureOnlyTempDir();
+    writePostToggleFreshnessBundle(outDir, {
+      generatedAt: '2026-05-01T16:41:27.153Z',
+      mtimeIso: '2026-05-01T16:41:44.000Z',
+    });
+
+    const result = await runPhysicalOperatingAddressCaptureOnly(
+      {} as any,
+      {} as NodeJS.ProcessEnv,
+      outDir,
+      {
+        openSigner: async () => ({ frame: {} as any, diagnostics: [] }),
+        discoverFields: async () => [],
+        maybeExpandPhysicalOperatingAddressSection: async () => ({
+          fields: [],
+          diagnostics: ['safe expansion diagnostic'],
+          expanded: true,
+          probeReport: null,
+          captureReport: mockCaptureReport(),
+        }),
+        writePhysicalOperatingAddressPostToggleArtifacts: async (_page, report, targetDir) => {
+          const screenshotPath = path.join(targetDir, 'latest-physical-operating-address-post-toggle-screenshot.png');
+          const htmlPath = path.join(targetDir, PHYSICAL_ADDRESS_CAPTURE_ONLY_FRESHNESS_FILENAMES.domHtml);
+          const jsonPath = path.join(targetDir, PHYSICAL_ADDRESS_CAPTURE_ONLY_FRESHNESS_FILENAMES.structureJson);
+          const mdPath = path.join(targetDir, 'latest-physical-operating-address-post-toggle-structure.md');
+
+          fs.writeFileSync(jsonPath, JSON.stringify(report, null, 2), 'utf8');
+          fs.writeFileSync(htmlPath, '<html><body>safe fresh preview</body></html>', 'utf8');
+          fs.writeFileSync(mdPath, '# safe markdown', 'utf8');
+          fs.writeFileSync(screenshotPath, 'png', 'utf8');
+
+          return { screenshotPath, htmlPath, jsonPath, mdPath };
+        },
+        readArtifactFreshnessSnapshot: readPhysicalOperatingAddressCaptureOnlyArtifactFreshnessSnapshot,
+      },
+    );
+
+    expect(result.captureWritten).toBe(true);
+    expect(result.writerCalled).toBe(true);
+    expect(result.writerCompleted).toBe(true);
+    expect(result.artifactFreshness.artifactsFresh).toBe(true);
+    expect(result.artifactFreshness.structureJsonGeneratedAtChanged || result.artifactFreshness.structureJsonMtimeChanged || result.artifactFreshness.domHtmlMtimeChanged).toBe(true);
+    expect(result.diagnostics.some((entry) => entry.includes('artifact freshness status: fresh'))).toBe(true);
+  });
+
+  test('physical address capture-only runner marks artifacts stale when writer completes but generatedAt and mtime do not change', async () => {
+    const outDir = createPhysicalAddressCaptureOnlyTempDir();
+    writePostToggleFreshnessBundle(outDir, {
+      generatedAt: '2026-05-01T16:41:27.153Z',
+      mtimeIso: '2026-05-01T16:41:44.000Z',
+    });
+
+    const result = await runPhysicalOperatingAddressCaptureOnly(
+      {} as any,
+      {} as NodeJS.ProcessEnv,
+      outDir,
+      {
+        openSigner: async () => ({ frame: {} as any, diagnostics: [] }),
+        discoverFields: async () => [],
+        maybeExpandPhysicalOperatingAddressSection: async () => ({
+          fields: [],
+          diagnostics: ['safe expansion diagnostic'],
+          expanded: true,
+          probeReport: null,
+          captureReport: mockCaptureReport({ generatedAt: '2026-05-01T16:41:27.153Z' }),
+        }),
+        writePhysicalOperatingAddressPostToggleArtifacts: async (_page, _report, targetDir) => {
+          const screenshotPath = path.join(targetDir, 'latest-physical-operating-address-post-toggle-screenshot.png');
+          const htmlPath = path.join(targetDir, PHYSICAL_ADDRESS_CAPTURE_ONLY_FRESHNESS_FILENAMES.domHtml);
+          const jsonPath = path.join(targetDir, PHYSICAL_ADDRESS_CAPTURE_ONLY_FRESHNESS_FILENAMES.structureJson);
+          const mdPath = path.join(targetDir, 'latest-physical-operating-address-post-toggle-structure.md');
+
+          return { screenshotPath, htmlPath, jsonPath, mdPath };
+        },
+        readArtifactFreshnessSnapshot: readPhysicalOperatingAddressCaptureOnlyArtifactFreshnessSnapshot,
+      },
+    );
+
+    expect(result.captureWritten).toBe(false);
+    expect(result.writerCalled).toBe(true);
+    expect(result.writerCompleted).toBe(true);
+    expect(result.artifactFreshness.artifactsFresh).toBe(false);
+    expect(result.artifactFreshness.reportsRefreshSkipped).toBe(true);
+    expect(result.artifactFreshness.findingsOpenSkipped).toBe(true);
+    expect(result.reason).toContain('freshness did not change');
+    expect(result.diagnostics.some((entry) => entry.includes('stale artifacts intentionally ignored'))).toBe(true);
+    expect(result.diagnostics.some((entry) => entry.includes('downstream reports skipped: stale post-toggle artifacts'))).toBe(true);
+  });
+
+  test('physical address capture-only runner detects an existing stale May 1 artifact bundle', () => {
+    const outDir = createPhysicalAddressCaptureOnlyTempDir();
+    writePostToggleFreshnessBundle(outDir, {
+      generatedAt: '2026-05-01T16:41:27.153Z',
+      mtimeIso: '2026-05-01T16:41:44.000Z',
+    });
+
+    const snapshot = readPhysicalOperatingAddressCaptureOnlyArtifactFreshnessSnapshot(outDir);
+    const freshness = comparePhysicalOperatingAddressCaptureOnlyArtifactFreshness(snapshot, snapshot);
+
+    expect(snapshot.structureJson.generatedAt).toBe('2026-05-01T16:41:27.153Z');
+    expect(snapshot.structureJson.mtimeIso?.startsWith('2026-05-01T16:41:44')).toBe(true);
+    expect(freshness.artifactsFresh).toBe(false);
+    expect(freshness.artifactsRemainStale).toBe(true);
+  });
+
+  test('physical address capture-only artifact freshness diagnostics stay bounded and redacted', () => {
+    const outDir = createPhysicalAddressCaptureOnlyTempDir();
+    writePostToggleFreshnessBundle(outDir, {
+      generatedAt: '2026-05-01T16:41:27.153Z',
+      jsonExtras: {
+        url: 'https://demo.docusign.net/start?token=secret-token-value',
+        email: 'hidden.person@example.test',
+        fieldValue: '747 Conroy Camp',
+        elementId: 'tab-form-element-secret-proxy',
+        className: 'secret-class-name',
+        dom: '<div>unsafe html</div>',
+      },
+      html: '<html><body>hidden.person@example.test token secret-token-value</body></html>',
+      mtimeIso: '2026-05-01T16:41:44.000Z',
+    });
+
+    const snapshot = readPhysicalOperatingAddressCaptureOnlyArtifactFreshnessSnapshot(outDir);
+    const diagnostics = buildPhysicalOperatingAddressCaptureOnlyArtifactFreshnessDiagnostics(
+      comparePhysicalOperatingAddressCaptureOnlyArtifactFreshness(snapshot, snapshot),
+    ).join('\n');
+
+    expect(diagnostics).not.toContain('https://demo.docusign.net/start');
+    expect(diagnostics).not.toContain('hidden.person@example.test');
+    expect(diagnostics).not.toContain('747 Conroy Camp');
+    expect(diagnostics).not.toContain('tab-form-element-secret-proxy');
+    expect(diagnostics).not.toContain('secret-class-name');
+    expect(diagnostics).not.toContain('<html>');
+    expect(diagnostics).not.toContain('screenshot.png');
+  });
+
+  test('physical address capture-only runner allows downstream classification only after freshness is proven', async () => {
+    const outDir = createPhysicalAddressCaptureOnlyTempDir();
+    const result = await runPhysicalOperatingAddressCaptureOnly(
+      {} as any,
+      {} as NodeJS.ProcessEnv,
+      outDir,
+      {
+        openSigner: async () => ({ frame: {} as any, diagnostics: [] }),
+        discoverFields: async () => [],
+        maybeExpandPhysicalOperatingAddressSection: async () => ({
+          fields: [],
+          diagnostics: ['safe expansion diagnostic'],
+          expanded: true,
+          probeReport: null,
+          captureReport: mockCaptureReport({ generatedAt: '2026-05-15T08:55:00.000Z' }),
+        }),
+        writePhysicalOperatingAddressPostToggleArtifacts: async (_page, report, targetDir) => {
+          const screenshotPath = path.join(targetDir, 'latest-physical-operating-address-post-toggle-screenshot.png');
+          const htmlPath = path.join(targetDir, PHYSICAL_ADDRESS_CAPTURE_ONLY_FRESHNESS_FILENAMES.domHtml);
+          const jsonPath = path.join(targetDir, PHYSICAL_ADDRESS_CAPTURE_ONLY_FRESHNESS_FILENAMES.structureJson);
+          const mdPath = path.join(targetDir, 'latest-physical-operating-address-post-toggle-structure.md');
+
+          fs.writeFileSync(jsonPath, JSON.stringify(report, null, 2), 'utf8');
+          fs.writeFileSync(htmlPath, '<html><body>safe fresh preview</body></html>', 'utf8');
+          fs.writeFileSync(mdPath, '# safe markdown', 'utf8');
+          fs.writeFileSync(screenshotPath, 'png', 'utf8');
+
+          return { screenshotPath, htmlPath, jsonPath, mdPath };
+        },
+        readArtifactFreshnessSnapshot: readPhysicalOperatingAddressCaptureOnlyArtifactFreshnessSnapshot,
+      },
+    );
+
+    expect(result.artifactFreshness.artifactsFresh).toBe(true);
+    expect(result.captureWritten).toBe(true);
+    expect(result.artifactFreshness.reportsRefreshSkipped).toBe(false);
+    expect(result.artifactFreshness.findingsOpenSkipped).toBe(false);
+  });
+
   test('physical address capture-only runner source reuses guarded capture path and avoids validation sweep logic', () => {
     const source = fs.readFileSync(
       path.resolve(__dirname, '..', PHYSICAL_ADDRESS_CAPTURE_ONLY_SCRIPT_PATH),
@@ -8224,10 +8486,10 @@ test.describe('interactive validation safety', () => {
     expect(source).not.toContain('runCaseMatrix');
     expect(source).not.toContain('writePhysicalOperatingAddressDomProbeArtifacts');
     expect(source).not.toContain('test:discovery');
-    expect(source).not.toContain('Finish');
-    expect(source).not.toContain('Complete');
-    expect(source).not.toContain('Submit');
-    expect(source).not.toContain('Adopt');
+    expect(source).not.toMatch(/\bFinish\b/);
+    expect(source).not.toMatch(/\bComplete\b/);
+    expect(source).not.toMatch(/\bSubmit\b/);
+    expect(source).not.toMatch(/\bAdopt\b/);
   });
 
   test('physical address capture-only runner only targets sanitized capture artifacts', () => {

@@ -1,107 +1,92 @@
 ## ChatGPT Review Summary
-- What changed: RUN34 executed exactly one authorized live `npm run bootstrap:capture:physical-address` run and updated only the AI handoff files with the live outcome. No source or test files were intentionally changed in RUN34.
-- Whether exactly one live capture was run: yes.
-- Whether the calibrated fallback was exercised live: yes. The safe live summary reported that primary selection found zero candidates, cue-based fallback found zero candidates, the calibrated fallback was considered, the neutral `addressOptions` anchor matched, exactly three visible editable radio inputs remained, candidate order was stable, and no conflicting cues surfaced.
-- Whether `addressOptions` anchor matched: yes, per the live summary.
-- Whether the calibrated fallback selected slot 2: yes, per the live summary.
-- Whether `selectionMode` and fallback reason were reported: yes. The live summary reported `selectionMode: calibrated-fallback` and `calibrated-business-primary-location-physical-address-option`.
-- Whether the toggle was expanded: the live summary reported that the toggle expansion path was exercised.
-- Whether fresh artifacts were produced: no trustworthy fresh artifacts were produced. The on-disk `artifacts/latest-physical-operating-address-post-toggle-structure.json` and `artifacts/latest-physical-operating-address-post-toggle-dom.html` files still have May 1 timestamps, and the structure file still reports `generatedAt: 2026-05-01T16:41:27.153Z`.
-- Tests/commands run and pass/fail: `npm run bootstrap:capture:physical-address` was run exactly once. `npm run reports:refresh` and `npm run findings:open` were intentionally not run because the artifact bundle on disk was stale. No additional unit tests were run in RUN34.
-- Classification for each `business_mailing_*` concept: `business_mailing_address_line_1` = `still capture-blocked`; `business_mailing_city` = `still capture-blocked`; `business_mailing_state` = `still capture-blocked`; `business_mailing_postal_code` = `still capture-blocked`.
-- Remaining blocker / uncertainty: RUN34 leaves a contradiction between the live command summary and the unchanged May 1 post-toggle artifact files. The smallest next move is source/test-only instrumentation around `expansion.captureReport`, `writePhysicalOperatingAddressPostToggleArtifacts`, and before/after artifact timestamps so a later live run can distinguish a real fresh write from stale artifact reuse.
-- Whether the screenshot was used only as visual guidance: yes. The attached screenshot was treated only as layout guidance; it was not committed, parsed, OCR’d, or used for runtime clicking.
-- Whether to continue, stop, or redirect: redirect.
-- The next best Copilot prompt: stay source/test-only and instrument the capture-only artifact write/freshness path so the next authorized live run can prove whether the calibrated fallback actually rewrites the post-toggle artifact bundle.
+- What changed: RUN35 stayed source/test-only and added bounded artifact-freshness instrumentation in `scripts/capture-physical-operating-address.ts`, plus focused unit coverage in `tests/bootstrap-units.spec.ts`. The runner now reports whether `maybeExpandPhysicalOperatingAddressSection()` returned, whether `expansion.captureReport` exists, whether that report is writable, whether the artifact writer was called and completed, and whether the structure/dom files actually changed during the current run.
+- Whether artifact freshness instrumentation was added: yes.
+- Whether `expansion.captureReport` presence is now reported: yes.
+- Whether writer execution is now reported: yes. The runner now distinguishes writer skipped, writer called, writer completed, and writer failed before freshness could be confirmed.
+- Whether before/after artifact timestamps/generatedAt values are now reported: yes. The runner emits bounded before/after existence, mtime, generatedAt, changed/not-changed flags, and a fresh/stale status for the two relevant files only.
+- Whether stale artifacts are prevented from being treated as fresh: yes. A stale unchanged bundle now blocks success, explicitly marks stale artifacts as ignored, and reports that `reports:refresh` and `findings:open` are skipped because freshness was not proven.
+- What guardrails were preserved: RUN35 did not run another live capture, did not mutate `.env`, did not enable destructive validation, did not upload anything, did not click any finalization controls, and kept diagnostics bounded and redacted.
+- Whether the result moved us forward: yes. The next live run can now prove whether the calibrated fallback actually rewrites the post-toggle artifact bundle instead of relying on ambiguous path-level success.
+- Tests/commands run and pass/fail: `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "physical address capture-only"` passed 10 tests. `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "guarded physical address discovery"` passed 67 tests. `npm run test:units` passed 326 tests.
+- Remaining blocker / uncertainty: the new instrumentation is validated only in unit tests so far. One authorized live RUN36 is still needed to observe whether the real writer path rewrites the structure/dom files after the calibrated fallback selects slot 2.
+- Whether a screenshot was ignored or used only as visual guidance: no screenshot was needed for RUN35, and any screenshot would be ignored for this source/test-only artifact-freshness task.
+- Whether another live capture is recommended next, and only if so, the exact next run ID: yes, if authorized. The next live validation should be exactly `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN36`.
+- Whether to continue, stop, or redirect: continue only with that one authorized live validation run; otherwise stop source edits because RUN35 is complete.
+- The next best Copilot prompt: execute exactly one authorized live capture-only RUN36 to verify whether the calibrated fallback plus the new freshness diagnostics now produce a genuinely fresh post-toggle artifact bundle and safe downstream reporting eligibility.
 
 # Copilot Handoff Result
 
-CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN34
+CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN35
 
 ## Status
 Ready for ChatGPT review
 
 ## Objective
-Execute exactly one authorized live capture-only run to verify whether the new strict `addressOptions` calibrated fallback selects slot 2, expands the Physical Operating Address section, and produces fresh sanitized post-toggle artifacts.
+Do not run another live capture. Stay source/test-only and instrument the capture-only post-toggle artifact write/freshness path so the next authorized live run can prove whether fresh post-toggle artifacts were actually rewritten.
 
 ## What Changed
-- Executed exactly one authorized `npm run bootstrap:capture:physical-address` live capture-only run.
-- Updated only the AI handoff files with the RUN34 live outcome.
-- No source or test files were intentionally changed in RUN34.
-
-## Live Outcome
-- `openSigner()` reached the signer surface.
-- Initial field discovery reported 123 fields.
-- Primary selection found zero operating-address candidates.
-- Cue-based fallback found zero operating-address candidates.
-- The live summary reported that the calibrated fallback was considered.
-- The live summary reported that the neutral `addressOptions` cluster anchor matched.
-- The live summary reported that exactly three visible editable radio inputs remained.
-- The live summary reported that candidate order was stable.
-- The live summary reported that all cue surfaces remained empty or neutral and that no conflicting physical/business/mailing/legal/virtual/same/different/yes/no cues surfaced.
-- The live summary reported that the calibrated fallback selected slot 2.
-- The live summary reported `selectionMode: calibrated-fallback`.
-- The live summary reported fallback reason `calibrated-business-primary-location-physical-address-option`.
-- The live summary reported that the toggle expansion path was exercised.
-
-## Artifact Freshness Check
-- The on-disk `artifacts/latest-physical-operating-address-post-toggle-structure.json` file still reports `generatedAt: 2026-05-01T16:41:27.153Z`.
-- The on-disk `artifacts/latest-physical-operating-address-post-toggle-structure.json` and `artifacts/latest-physical-operating-address-post-toggle-dom.html` files still show May 1 last-write timestamps.
-- The stale structure file still contains the observation: `No field-local Physical Operating Address leaf labels were recovered inside the post-toggle capture bounds.`
-- The stale structure file also still shows a checked radio state on the third input rather than a trustworthy fresh RUN34 artifact bundle.
-- Conclusion: RUN34 did not leave a fresh trustworthy sanitized post-toggle artifact bundle on disk, so the post-toggle artifact review remains blocked.
-
-## Field-Local Label Proof
-- Address Line 1: no fresh field-local proof.
-- City: no fresh field-local proof.
-- State: no fresh field-local proof.
-- ZIP: no fresh field-local proof.
-- Postal Code: no fresh field-local proof.
-
-## Classification
-- `business_mailing_address_line_1`: `still capture-blocked`
-- `business_mailing_city`: `still capture-blocked`
-- `business_mailing_state`: `still capture-blocked`
-- `business_mailing_postal_code`: `still capture-blocked`
+- Added bounded artifact-freshness helpers to `scripts/capture-physical-operating-address.ts`.
+- The capture-only runner now records before/after existence, mtime, generatedAt, changed/not-changed flags, and fresh/stale status for:
+	- `latest-physical-operating-address-post-toggle-structure.json`
+	- `latest-physical-operating-address-post-toggle-dom.html`
+- The runner now explicitly reports:
+	- expansion returned
+	- expansion expanded
+	- captureReport present or missing
+	- captureReport writable or not
+	- writer called or skipped
+	- writer completed or failed
+	- stale artifacts intentionally ignored
+	- `reports:refresh` and `findings:open` skipped because freshness was not proven
+- Added focused RUN35 tests in `tests/bootstrap-units.spec.ts` for missing captureReport, fresh writer success, unchanged stale writer output, stale May 1 bundle detection, bounded diagnostics, and downstream gating on proven freshness.
+- Updated the AI handoff files for RUN35.
 
 ## Guardrails Preserved
+- No live capture command was run.
 - `bootstrap:interactive` was not run.
 - `interactive:watchdog` was not run.
 - Full signer discovery was not run.
 - `DESTRUCTIVE_VALIDATION` was not enabled.
 - No uploads were performed.
 - No Finish, Complete, Submit, Sign, Adopt, or finalization controls were clicked.
-- No raw signer URL was printed or committed.
 - `.env` was not mutated.
-- The screenshot was used only as visual guidance and was not added to the repo.
+- Diagnostics stay bounded and redacted.
 
 ## Validation
-- `npm run bootstrap:capture:physical-address` -> executed exactly once
-- `Get-Item artifacts/latest-physical-operating-address-post-toggle-structure.json, artifacts/latest-physical-operating-address-post-toggle-dom.html` -> both files still showed May 1 UTC timestamps
-- `npm run reports:refresh` -> not run
-- `npm run findings:open` -> not run
+- `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "physical address capture-only"` -> passed (10 tests)
+- `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "guarded physical address discovery"` -> passed (67 tests)
+- `npm run test:units` -> passed (326 tests)
 
 ## Result
-- Forward progress: mixed.
-- RUN34 indicates that the calibrated fallback path was likely exercised live and that the guarded matcher no longer blocked at candidate selection.
-- RUN34 still failed the artifact-freshness goal because the post-toggle files on disk remained stale, so the run did not yield a trustworthy fresh sanitized capture bundle for downstream proof or reporting.
+- Forward progress: yes.
+- RUN35 turns the prior RUN34 ambiguity into an explicitly testable contract.
+- The next live run can now distinguish all of these safely:
+	- expansion path exercised but no captureReport
+	- captureReport present but not writable
+	- writer skipped
+	- writer failed
+	- writer completed but files stayed stale
+	- writer completed and the artifact bundle is genuinely fresh
 
 ## Remaining Blocker / Uncertainty
-- The main blocker is now artifact freshness rather than radio selection.
-- There is an unresolved contradiction between the live command summary and the unchanged May 1 files on disk.
-- The smallest next move is source/test-only instrumentation of `scripts/capture-physical-operating-address.ts` and `fixtures/physical-address-post-toggle-capture.ts` so the runner emits explicit safe diagnostics for `expansion.captureReport` presence, artifact writer execution, and before/after file timestamps.
+- RUN35 does not answer whether the live writer path actually refreshes the bundle; it only instruments and validates the detection logic.
+- One authorized live RUN36 is still needed to observe the real before/after artifact state after the calibrated slot-2 fallback path.
+
+## Screenshot Handling
+- No screenshot was needed for RUN35.
+- If a screenshot were attached, it would be ignored for this source/test-only artifact-freshness task.
 
 ## Recommendation
-Redirect.
+Continue only if one new live step is authorized.
 
-Do not spend another live capture next.
+The next live step should be exactly one capture-only validation run as `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN36` to verify whether the calibrated fallback plus the new freshness instrumentation produces a genuinely fresh post-toggle artifact bundle.
 
 ## Recommended Next Copilot Prompt
-Stay source/test-only and instrument the capture-only post-toggle artifact write/freshness path so the next authorized live run can safely prove whether the calibrated fallback actually rewrites `latest-physical-operating-address-post-toggle-*` or whether stale May 1 files are being reused.
+Execute exactly one authorized live capture-only RUN36 to verify whether the calibrated fallback plus the new freshness diagnostics now produce a genuinely fresh post-toggle artifact bundle and safe downstream reporting eligibility.
 
 ## Branch / Commit Status
 - Branch: `main`
-- Current HEAD before any new commit: `8bbde8a95e3899d8d76249809d856be1e237cfc8`
-- RUN34 handoff commit: pending at write time
+- Current HEAD before any new commit: `5c36a0cda9bab8a8e5762df14f86236fbfbffcad`
+- RUN35 handoff commit: pending at write time
 
-CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN34
+CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN35
