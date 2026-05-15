@@ -5,6 +5,11 @@ import {
   maybeExpandPhysicalOperatingAddressSection,
   SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS_ENV,
   type GuardedPhysicalOperatingAddressDiscoveryOptions,
+  type PhysicalOperatingAddressAddressOptionsAnchorEvidenceSummary,
+  type PhysicalOperatingAddressAddressOptionsAnchorOutcomeCategory,
+  type PhysicalOperatingAddressAddressOptionsAnchorRejectedReason,
+  type PhysicalOperatingAddressAddressOptionsAnchorSourceChecked,
+  type PhysicalOperatingAddressAddressOptionsAnchorTokenBucket,
   type PhysicalOperatingAddressCalibratedFallbackGuardSummary,
   type PhysicalOperatingAddressCalibratedFallbackRejectedReason,
   type PhysicalOperatingAddressExpansionSkippedReason,
@@ -91,6 +96,15 @@ export type PhysicalOperatingAddressCaptureOnlyBlockedReasonCategory =
 
 export interface PhysicalOperatingAddressCaptureOnlyCalibratedFallbackGuardSummary {
   addressOptionsAnchorMatched: boolean | null;
+  addressOptionsAnchorOutcomeCategory: PhysicalOperatingAddressAddressOptionsAnchorOutcomeCategory | null;
+  addressOptionsAnchorRejectedReasons: PhysicalOperatingAddressAddressOptionsAnchorRejectedReason[];
+  addressOptionsAnchorEvidenceSummary: PhysicalOperatingAddressAddressOptionsAnchorEvidenceSummary | null;
+  addressOptionsAnchorSourcesChecked: PhysicalOperatingAddressAddressOptionsAnchorSourceChecked[];
+  addressOptionsAnchorSafeTokensObserved: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
+  addressOptionsAnchorTextBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
+  addressOptionsAnchorFieldKeyBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
+  addressOptionsAnchorContainerBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
+  addressOptionsAnchorAttributeBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
   exactThreeRadioGuardPassed: boolean | null;
   candidateOrderStable: boolean | null;
   conflictingCueDetected: boolean | null;
@@ -131,10 +145,18 @@ export interface PhysicalOperatingAddressCaptureOnlyReceipt {
   eligibleRadioCandidateCount: number | null;
   exactThreeRadioGuardPassed: boolean | null;
   addressOptionsAnchorMatched: boolean | null;
+  addressOptionsAnchorOutcomeCategory: PhysicalOperatingAddressAddressOptionsAnchorOutcomeCategory | null;
+  addressOptionsAnchorRejectedReasons: PhysicalOperatingAddressAddressOptionsAnchorRejectedReason[];
+  addressOptionsAnchorEvidenceSummary: PhysicalOperatingAddressAddressOptionsAnchorEvidenceSummary | null;
+  addressOptionsAnchorSourcesChecked: PhysicalOperatingAddressAddressOptionsAnchorSourceChecked[];
+  addressOptionsAnchorSafeTokensObserved: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
+  addressOptionsAnchorTextBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
+  addressOptionsAnchorFieldKeyBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
+  addressOptionsAnchorContainerBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
+  addressOptionsAnchorAttributeBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
   candidateOrderStable: boolean | null;
   conflictingCueDetected: boolean | null;
   selectionMode: PhysicalOperatingAddressCaptureOnlySelectionMode;
-  fallbackReason: string | null;
   proofOfAddressUploadVisibleBefore: boolean | null;
   proofOfAddressUploadVisibleAfter: boolean | null;
   proofOfAddressUploadVisibilityChanged: boolean | null;
@@ -200,6 +222,15 @@ export interface PhysicalOperatingAddressCaptureOnlyResult {
   eligibleRadioCandidateCount: number;
   exactThreeRadioGuardPassed: boolean;
   addressOptionsAnchorMatched: boolean;
+  addressOptionsAnchorOutcomeCategory: PhysicalOperatingAddressAddressOptionsAnchorOutcomeCategory;
+  addressOptionsAnchorRejectedReasons: PhysicalOperatingAddressAddressOptionsAnchorRejectedReason[];
+  addressOptionsAnchorEvidenceSummary: PhysicalOperatingAddressAddressOptionsAnchorEvidenceSummary;
+  addressOptionsAnchorSourcesChecked: PhysicalOperatingAddressAddressOptionsAnchorSourceChecked[];
+  addressOptionsAnchorSafeTokensObserved: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
+  addressOptionsAnchorTextBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
+  addressOptionsAnchorFieldKeyBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
+  addressOptionsAnchorContainerBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
+  addressOptionsAnchorAttributeBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
   candidateOrderStable: boolean;
   conflictingCueDetected: boolean;
   proofOfAddressUploadVisibleBefore: boolean;
@@ -242,6 +273,15 @@ function buildPhysicalOperatingAddressCaptureOnlyFallbackFreshness(
 function buildPhysicalOperatingAddressCaptureOnlyFallbackGuardSummary(): PhysicalOperatingAddressCaptureOnlyCalibratedFallbackGuardSummary {
   return {
     addressOptionsAnchorMatched: null,
+    addressOptionsAnchorOutcomeCategory: null,
+    addressOptionsAnchorRejectedReasons: [],
+    addressOptionsAnchorEvidenceSummary: null,
+    addressOptionsAnchorSourcesChecked: [],
+    addressOptionsAnchorSafeTokensObserved: [],
+    addressOptionsAnchorTextBucketsPresent: [],
+    addressOptionsAnchorFieldKeyBucketsPresent: [],
+    addressOptionsAnchorContainerBucketsPresent: [],
+    addressOptionsAnchorAttributeBucketsPresent: [],
     exactThreeRadioGuardPassed: null,
     candidateOrderStable: null,
     conflictingCueDetected: null,
@@ -310,6 +350,15 @@ function buildFallbackPhysicalOperatingAddressCaptureOnlyResultFields(input: {
     eligibleRadioCandidateCount: 0,
     exactThreeRadioGuardPassed: false,
     addressOptionsAnchorMatched: false,
+    addressOptionsAnchorOutcomeCategory: null,
+    addressOptionsAnchorRejectedReasons: [],
+    addressOptionsAnchorEvidenceSummary: null,
+    addressOptionsAnchorSourcesChecked: [],
+    addressOptionsAnchorSafeTokensObserved: [],
+    addressOptionsAnchorTextBucketsPresent: [],
+    addressOptionsAnchorFieldKeyBucketsPresent: [],
+    addressOptionsAnchorContainerBucketsPresent: [],
+    addressOptionsAnchorAttributeBucketsPresent: [],
     candidateOrderStable: false,
     conflictingCueDetected: false,
     proofOfAddressUploadVisibleBefore: false,
@@ -396,6 +445,67 @@ function isPhysicalOperatingAddressCalibratedFallbackRejectedReason(
     || value === 'another-bounded-reason';
 }
 
+function isPhysicalOperatingAddressAddressOptionsAnchorOutcomeCategory(
+  value: unknown,
+): value is PhysicalOperatingAddressAddressOptionsAnchorOutcomeCategory {
+  return value === 'anchor-matched-field-key'
+    || value === 'anchor-matched-label'
+    || value === 'anchor-matched-container'
+    || value === 'anchor-matched-attribute-token'
+    || value === 'anchor-missing-no-safe-evidence'
+    || value === 'anchor-missing-safe-evidence-empty'
+    || value === 'anchor-missing-only-generic-evidence'
+    || value === 'anchor-missing-conflicting-evidence'
+    || value === 'anchor-not-checked';
+}
+
+function isPhysicalOperatingAddressAddressOptionsAnchorRejectedReason(
+  value: unknown,
+): value is PhysicalOperatingAddressAddressOptionsAnchorRejectedReason {
+  return value === 'anchor-missing'
+    || value === 'no-safe-evidence'
+    || value === 'safe-evidence-empty'
+    || value === 'only-generic-evidence'
+    || value === 'conflicting-evidence'
+    || value === 'not-checked-prior-guard-failed';
+}
+
+function isPhysicalOperatingAddressAddressOptionsAnchorEvidenceSummary(
+  value: unknown,
+): value is PhysicalOperatingAddressAddressOptionsAnchorEvidenceSummary {
+  return value === 'matched via field-key address-options bucket'
+    || value === 'matched via label address-options bucket'
+    || value === 'matched via container address-options bucket'
+    || value === 'matched via attribute-token address-options bucket'
+    || value === 'checked sources contained no address-options bucket'
+    || value === 'checked sources were empty'
+    || value === 'only generic anchor evidence buckets were observed'
+    || value === 'conflicting cue blocked anchor broadening'
+    || value === 'anchor check skipped because the exact-three-radio guard failed';
+}
+
+function isPhysicalOperatingAddressAddressOptionsAnchorSourceChecked(
+  value: unknown,
+): value is PhysicalOperatingAddressAddressOptionsAnchorSourceChecked {
+  return value === 'field-key'
+    || value === 'label'
+    || value === 'container'
+    || value === 'attribute-token'
+    || value === 'proxy-token'
+    || value === 'graphic-token';
+}
+
+function isPhysicalOperatingAddressAddressOptionsAnchorTokenBucket(
+  value: unknown,
+): value is PhysicalOperatingAddressAddressOptionsAnchorTokenBucket {
+  return value === 'address-options'
+    || value === 'address'
+    || value === 'operating-address'
+    || value === 'physical-address'
+    || value === 'radio-group'
+    || value === 'generic-only';
+}
+
 function isPhysicalOperatingAddressUiEffectOutcomeCategory(
   value: unknown,
 ): value is PhysicalOperatingAddressUiEffectOutcomeCategory {
@@ -454,6 +564,15 @@ export function buildPhysicalOperatingAddressCaptureOnlyReceipt(input: {
     calibratedFallbackRejectedReasons: result.calibratedFallbackRejectedReasons,
     calibratedFallbackGuardSummary: {
       addressOptionsAnchorMatched: result.calibratedFallbackGuardSummary.addressOptionsAnchorMatched,
+      addressOptionsAnchorOutcomeCategory: result.calibratedFallbackGuardSummary.addressOptionsAnchorOutcomeCategory,
+      addressOptionsAnchorRejectedReasons: result.calibratedFallbackGuardSummary.addressOptionsAnchorRejectedReasons,
+      addressOptionsAnchorEvidenceSummary: result.calibratedFallbackGuardSummary.addressOptionsAnchorEvidenceSummary,
+      addressOptionsAnchorSourcesChecked: result.calibratedFallbackGuardSummary.addressOptionsAnchorSourcesChecked,
+      addressOptionsAnchorSafeTokensObserved: result.calibratedFallbackGuardSummary.addressOptionsAnchorSafeTokensObserved,
+      addressOptionsAnchorTextBucketsPresent: result.calibratedFallbackGuardSummary.addressOptionsAnchorTextBucketsPresent,
+      addressOptionsAnchorFieldKeyBucketsPresent: result.calibratedFallbackGuardSummary.addressOptionsAnchorFieldKeyBucketsPresent,
+      addressOptionsAnchorContainerBucketsPresent: result.calibratedFallbackGuardSummary.addressOptionsAnchorContainerBucketsPresent,
+      addressOptionsAnchorAttributeBucketsPresent: result.calibratedFallbackGuardSummary.addressOptionsAnchorAttributeBucketsPresent,
       exactThreeRadioGuardPassed: result.calibratedFallbackGuardSummary.exactThreeRadioGuardPassed,
       candidateOrderStable: result.calibratedFallbackGuardSummary.candidateOrderStable,
       conflictingCueDetected: result.calibratedFallbackGuardSummary.conflictingCueDetected,
@@ -464,6 +583,15 @@ export function buildPhysicalOperatingAddressCaptureOnlyReceipt(input: {
     eligibleRadioCandidateCount: input.result?.eligibleRadioCandidateCount ?? null,
     exactThreeRadioGuardPassed: input.result?.exactThreeRadioGuardPassed ?? null,
     addressOptionsAnchorMatched: input.result?.addressOptionsAnchorMatched ?? null,
+    addressOptionsAnchorOutcomeCategory: input.result?.addressOptionsAnchorOutcomeCategory ?? null,
+    addressOptionsAnchorRejectedReasons: result.addressOptionsAnchorRejectedReasons,
+    addressOptionsAnchorEvidenceSummary: input.result?.addressOptionsAnchorEvidenceSummary ?? null,
+    addressOptionsAnchorSourcesChecked: result.addressOptionsAnchorSourcesChecked,
+    addressOptionsAnchorSafeTokensObserved: result.addressOptionsAnchorSafeTokensObserved,
+    addressOptionsAnchorTextBucketsPresent: result.addressOptionsAnchorTextBucketsPresent,
+    addressOptionsAnchorFieldKeyBucketsPresent: result.addressOptionsAnchorFieldKeyBucketsPresent,
+    addressOptionsAnchorContainerBucketsPresent: result.addressOptionsAnchorContainerBucketsPresent,
+    addressOptionsAnchorAttributeBucketsPresent: result.addressOptionsAnchorAttributeBucketsPresent,
     candidateOrderStable: input.result?.candidateOrderStable ?? null,
     conflictingCueDetected: input.result?.conflictingCueDetected ?? null,
     selectionMode: result.toggleSelectionMode,
@@ -539,12 +667,53 @@ export function isPhysicalOperatingAddressCaptureOnlyReceipt(
     && Boolean(candidate.calibratedFallbackGuardSummary)
     && (typeof (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsAnchorMatched === 'boolean'
       || (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsAnchorMatched === null)
+    && (((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsAnchorOutcomeCategory === null)
+      || isPhysicalOperatingAddressAddressOptionsAnchorOutcomeCategory((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsAnchorOutcomeCategory))
+    && Array.isArray((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsAnchorRejectedReasons)
+    && ((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsAnchorRejectedReasons as unknown[])
+      .every(isPhysicalOperatingAddressAddressOptionsAnchorRejectedReason)
+    && (((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsAnchorEvidenceSummary === null)
+      || isPhysicalOperatingAddressAddressOptionsAnchorEvidenceSummary((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsAnchorEvidenceSummary))
+    && Array.isArray((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsAnchorSourcesChecked)
+    && ((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsAnchorSourcesChecked as unknown[])
+      .every(isPhysicalOperatingAddressAddressOptionsAnchorSourceChecked)
+    && Array.isArray((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsAnchorSafeTokensObserved)
+    && ((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsAnchorSafeTokensObserved as unknown[])
+      .every(isPhysicalOperatingAddressAddressOptionsAnchorTokenBucket)
+    && Array.isArray((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsAnchorTextBucketsPresent)
+    && ((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsAnchorTextBucketsPresent as unknown[])
+      .every(isPhysicalOperatingAddressAddressOptionsAnchorTokenBucket)
+    && Array.isArray((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsAnchorFieldKeyBucketsPresent)
+    && ((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsAnchorFieldKeyBucketsPresent as unknown[])
+      .every(isPhysicalOperatingAddressAddressOptionsAnchorTokenBucket)
+    && Array.isArray((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsAnchorContainerBucketsPresent)
+    && ((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsAnchorContainerBucketsPresent as unknown[])
+      .every(isPhysicalOperatingAddressAddressOptionsAnchorTokenBucket)
+    && Array.isArray((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsAnchorAttributeBucketsPresent)
+    && ((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsAnchorAttributeBucketsPresent as unknown[])
+      .every(isPhysicalOperatingAddressAddressOptionsAnchorTokenBucket)
     && (typeof candidate.primarySelectionCandidateCount === 'number' || candidate.primarySelectionCandidateCount === null)
     && (typeof candidate.cueBasedFallbackCandidateCount === 'number' || candidate.cueBasedFallbackCandidateCount === null)
     && (typeof candidate.calibratedFallbackCandidateCount === 'number' || candidate.calibratedFallbackCandidateCount === null)
     && (typeof candidate.eligibleRadioCandidateCount === 'number' || candidate.eligibleRadioCandidateCount === null)
     && (typeof candidate.exactThreeRadioGuardPassed === 'boolean' || candidate.exactThreeRadioGuardPassed === null)
     && (typeof candidate.addressOptionsAnchorMatched === 'boolean' || candidate.addressOptionsAnchorMatched === null)
+    && (candidate.addressOptionsAnchorOutcomeCategory === null || isPhysicalOperatingAddressAddressOptionsAnchorOutcomeCategory(candidate.addressOptionsAnchorOutcomeCategory))
+    && Array.isArray(candidate.addressOptionsAnchorRejectedReasons)
+    && candidate.addressOptionsAnchorRejectedReasons.every(isPhysicalOperatingAddressAddressOptionsAnchorRejectedReason)
+    && (candidate.addressOptionsAnchorEvidenceSummary === null || isPhysicalOperatingAddressAddressOptionsAnchorEvidenceSummary(candidate.addressOptionsAnchorEvidenceSummary))
+    && Array.isArray(candidate.addressOptionsAnchorSourcesChecked)
+    && candidate.addressOptionsAnchorSourcesChecked.every(isPhysicalOperatingAddressAddressOptionsAnchorSourceChecked)
+    && Array.isArray(candidate.addressOptionsAnchorSafeTokensObserved)
+    && candidate.addressOptionsAnchorSafeTokensObserved.every(isPhysicalOperatingAddressAddressOptionsAnchorTokenBucket)
+    && Array.isArray(candidate.addressOptionsAnchorTextBucketsPresent)
+    && candidate.addressOptionsAnchorTextBucketsPresent.every(isPhysicalOperatingAddressAddressOptionsAnchorTokenBucket)
+    && Array.isArray(candidate.addressOptionsAnchorFieldKeyBucketsPresent)
+    && candidate.addressOptionsAnchorFieldKeyBucketsPresent.every(isPhysicalOperatingAddressAddressOptionsAnchorTokenBucket)
+    && Array.isArray(candidate.addressOptionsAnchorContainerBucketsPresent)
+    && candidate.addressOptionsAnchorContainerBucketsPresent.every(isPhysicalOperatingAddressAddressOptionsAnchorTokenBucket)
+    && Array.isArray(candidate.addressOptionsAnchorAttributeBucketsPresent)
+    && candidate.addressOptionsAnchorAttributeBucketsPresent.every(isPhysicalOperatingAddressAddressOptionsAnchorTokenBucket)
     && (typeof candidate.candidateOrderStable === 'boolean' || candidate.candidateOrderStable === null)
     && (typeof candidate.conflictingCueDetected === 'boolean' || candidate.conflictingCueDetected === null)
     && isPhysicalOperatingAddressCaptureOnlySelectionMode(candidate.selectionMode)
@@ -827,6 +996,15 @@ export async function runPhysicalOperatingAddressCaptureOnly(
       eligibleRadioCandidateCount: expansion.toggleSelectionSummary.eligibleRadioCandidateCount,
       exactThreeRadioGuardPassed: expansion.toggleSelectionSummary.exactThreeRadioGuardPassed,
       addressOptionsAnchorMatched: expansion.toggleSelectionSummary.addressOptionsAnchorMatched,
+      addressOptionsAnchorOutcomeCategory: expansion.toggleSelectionSummary.addressOptionsAnchorOutcomeCategory,
+      addressOptionsAnchorRejectedReasons: expansion.toggleSelectionSummary.addressOptionsAnchorRejectedReasons,
+      addressOptionsAnchorEvidenceSummary: expansion.toggleSelectionSummary.addressOptionsAnchorEvidenceSummary,
+      addressOptionsAnchorSourcesChecked: expansion.toggleSelectionSummary.addressOptionsAnchorSourcesChecked,
+      addressOptionsAnchorSafeTokensObserved: expansion.toggleSelectionSummary.addressOptionsAnchorSafeTokensObserved,
+      addressOptionsAnchorTextBucketsPresent: expansion.toggleSelectionSummary.addressOptionsAnchorTextBucketsPresent,
+      addressOptionsAnchorFieldKeyBucketsPresent: expansion.toggleSelectionSummary.addressOptionsAnchorFieldKeyBucketsPresent,
+      addressOptionsAnchorContainerBucketsPresent: expansion.toggleSelectionSummary.addressOptionsAnchorContainerBucketsPresent,
+      addressOptionsAnchorAttributeBucketsPresent: expansion.toggleSelectionSummary.addressOptionsAnchorAttributeBucketsPresent,
       candidateOrderStable: expansion.toggleSelectionSummary.candidateOrderStable,
       conflictingCueDetected: expansion.toggleSelectionSummary.conflictingCueDetected,
       proofOfAddressUploadVisibleBefore: expansion.uiEffectSummary.proofOfAddressUploadVisibleBefore,
@@ -901,6 +1079,15 @@ export async function runPhysicalOperatingAddressCaptureOnly(
       eligibleRadioCandidateCount: expansion.toggleSelectionSummary.eligibleRadioCandidateCount,
       exactThreeRadioGuardPassed: expansion.toggleSelectionSummary.exactThreeRadioGuardPassed,
       addressOptionsAnchorMatched: expansion.toggleSelectionSummary.addressOptionsAnchorMatched,
+      addressOptionsAnchorOutcomeCategory: expansion.toggleSelectionSummary.addressOptionsAnchorOutcomeCategory,
+      addressOptionsAnchorRejectedReasons: expansion.toggleSelectionSummary.addressOptionsAnchorRejectedReasons,
+      addressOptionsAnchorEvidenceSummary: expansion.toggleSelectionSummary.addressOptionsAnchorEvidenceSummary,
+      addressOptionsAnchorSourcesChecked: expansion.toggleSelectionSummary.addressOptionsAnchorSourcesChecked,
+      addressOptionsAnchorSafeTokensObserved: expansion.toggleSelectionSummary.addressOptionsAnchorSafeTokensObserved,
+      addressOptionsAnchorTextBucketsPresent: expansion.toggleSelectionSummary.addressOptionsAnchorTextBucketsPresent,
+      addressOptionsAnchorFieldKeyBucketsPresent: expansion.toggleSelectionSummary.addressOptionsAnchorFieldKeyBucketsPresent,
+      addressOptionsAnchorContainerBucketsPresent: expansion.toggleSelectionSummary.addressOptionsAnchorContainerBucketsPresent,
+      addressOptionsAnchorAttributeBucketsPresent: expansion.toggleSelectionSummary.addressOptionsAnchorAttributeBucketsPresent,
       candidateOrderStable: expansion.toggleSelectionSummary.candidateOrderStable,
       conflictingCueDetected: expansion.toggleSelectionSummary.conflictingCueDetected,
       proofOfAddressUploadVisibleBefore: expansion.uiEffectSummary.proofOfAddressUploadVisibleBefore,
@@ -957,6 +1144,15 @@ export async function runPhysicalOperatingAddressCaptureOnly(
       eligibleRadioCandidateCount: expansion.toggleSelectionSummary.eligibleRadioCandidateCount,
       exactThreeRadioGuardPassed: expansion.toggleSelectionSummary.exactThreeRadioGuardPassed,
       addressOptionsAnchorMatched: expansion.toggleSelectionSummary.addressOptionsAnchorMatched,
+      addressOptionsAnchorOutcomeCategory: expansion.toggleSelectionSummary.addressOptionsAnchorOutcomeCategory,
+      addressOptionsAnchorRejectedReasons: expansion.toggleSelectionSummary.addressOptionsAnchorRejectedReasons,
+      addressOptionsAnchorEvidenceSummary: expansion.toggleSelectionSummary.addressOptionsAnchorEvidenceSummary,
+      addressOptionsAnchorSourcesChecked: expansion.toggleSelectionSummary.addressOptionsAnchorSourcesChecked,
+      addressOptionsAnchorSafeTokensObserved: expansion.toggleSelectionSummary.addressOptionsAnchorSafeTokensObserved,
+      addressOptionsAnchorTextBucketsPresent: expansion.toggleSelectionSummary.addressOptionsAnchorTextBucketsPresent,
+      addressOptionsAnchorFieldKeyBucketsPresent: expansion.toggleSelectionSummary.addressOptionsAnchorFieldKeyBucketsPresent,
+      addressOptionsAnchorContainerBucketsPresent: expansion.toggleSelectionSummary.addressOptionsAnchorContainerBucketsPresent,
+      addressOptionsAnchorAttributeBucketsPresent: expansion.toggleSelectionSummary.addressOptionsAnchorAttributeBucketsPresent,
       candidateOrderStable: expansion.toggleSelectionSummary.candidateOrderStable,
       conflictingCueDetected: expansion.toggleSelectionSummary.conflictingCueDetected,
       proofOfAddressUploadVisibleBefore: expansion.uiEffectSummary.proofOfAddressUploadVisibleBefore,
@@ -1006,6 +1202,15 @@ export async function runPhysicalOperatingAddressCaptureOnly(
     eligibleRadioCandidateCount: expansion.toggleSelectionSummary.eligibleRadioCandidateCount,
     exactThreeRadioGuardPassed: expansion.toggleSelectionSummary.exactThreeRadioGuardPassed,
     addressOptionsAnchorMatched: expansion.toggleSelectionSummary.addressOptionsAnchorMatched,
+    addressOptionsAnchorOutcomeCategory: expansion.toggleSelectionSummary.addressOptionsAnchorOutcomeCategory,
+    addressOptionsAnchorRejectedReasons: expansion.toggleSelectionSummary.addressOptionsAnchorRejectedReasons,
+    addressOptionsAnchorEvidenceSummary: expansion.toggleSelectionSummary.addressOptionsAnchorEvidenceSummary,
+    addressOptionsAnchorSourcesChecked: expansion.toggleSelectionSummary.addressOptionsAnchorSourcesChecked,
+    addressOptionsAnchorSafeTokensObserved: expansion.toggleSelectionSummary.addressOptionsAnchorSafeTokensObserved,
+    addressOptionsAnchorTextBucketsPresent: expansion.toggleSelectionSummary.addressOptionsAnchorTextBucketsPresent,
+    addressOptionsAnchorFieldKeyBucketsPresent: expansion.toggleSelectionSummary.addressOptionsAnchorFieldKeyBucketsPresent,
+    addressOptionsAnchorContainerBucketsPresent: expansion.toggleSelectionSummary.addressOptionsAnchorContainerBucketsPresent,
+    addressOptionsAnchorAttributeBucketsPresent: expansion.toggleSelectionSummary.addressOptionsAnchorAttributeBucketsPresent,
     candidateOrderStable: expansion.toggleSelectionSummary.candidateOrderStable,
     conflictingCueDetected: expansion.toggleSelectionSummary.conflictingCueDetected,
     proofOfAddressUploadVisibleBefore: expansion.uiEffectSummary.proofOfAddressUploadVisibleBefore,

@@ -1,173 +1,87 @@
 ## ChatGPT Review Summary
-- What changed: RUN40 executed exactly one authorized live `npm run bootstrap:capture:physical-address` run, inspected the preserved sanitized receipt and artifact freshness, skipped downstream report commands because artifacts remained stale, and updated only the AI handoff files.
-- Whether exactly one live capture was run: yes.
-- Whether the receipt file was produced and preserved: yes. The receipt file existed before RUN40, was rewritten during RUN40, and bootstrap preserved the child receipt with both child and bootstrap exit codes.
-- `childExitCode` and `bootstrapExitCode`: both were `3` in the preserved receipt.
-- `toggleSelectionOutcomeCategory`: `calibrated-rejected-anchor-missing`.
-- `selectedToggleSlot`: `null`.
-- `fallbackReason`: `calibrated-business-primary-location-physical-address-option`.
-- `uiEffectOutcomeCategory`: `proof-address-hidden-physical-fields-hidden`.
-- `proofOfAddressUploadVisibleAfter`: `false`.
-- `physicalOperatingAddressFieldsVisibleAfter`: `false`.
-- `expansionAttempted`: `false`.
-- `expansionSkippedReason`: `no-selected-toggle`.
-- `blockedReasonCategory`: `expansion-skipped-no-selected-toggle`.
-- `artifactsFresh` / `artifactsRemainStale`: `false` / `true`.
-- Whether `reports:refresh` and `findings:open` were run or skipped: both were skipped because the preserved receipt reported stale artifacts and the target post-toggle files stayed on May 1 timestamps.
-- Whether fresh artifacts were produced: no. The receipt was fresh for RUN40, but the post-toggle structure/dom targets remained stale May 1 files.
-- Classification for each `business_mailing_*` concept: `business_mailing_address_line_1` = `still capture-blocked`; `business_mailing_city` = `still capture-blocked`; `business_mailing_state` = `still capture-blocked`; `business_mailing_postal_code` = `still capture-blocked`.
-- Tests/commands run and pass/fail: `npm run bootstrap:capture:physical-address` was run exactly once; the preserved receipt reported a bounded fail-closed outcome with exit code 3. No unit tests were run in RUN40. `reports:refresh` and `findings:open` were intentionally not run.
-- Remaining blocker / uncertainty: the new receipt now localizes the live failure more precisely than RUN38. The calibrated branch was considered, the exact-three-radio guard passed, but `addressOptionsAnchorMatched=false` caused a bounded calibrated-anchor rejection before any toggle was selected or any expansion/UI effect occurred.
-- Whether a screenshot was ignored or not needed: no screenshot was needed for RUN40, and any screenshot would be ignored for this live receipt validation task.
+- What changed: RUN41 stayed source/test-only, added bounded address-options anchor-evidence categories and summaries to guarded discovery, threaded those fields through the capture-only receipt path, and expanded unit coverage for guarded discovery, receipt preservation, and redaction.
+- Whether another live capture was run: no.
+- Whether matcher behavior changed: no. Selection behavior stayed diagnostics-only; no calibrated broadening was introduced.
+- Whether the remaining live `addressOptionsAnchorMatched=false` failure is explained more precisely now: yes. The code now distinguishes `anchor-not-checked`, `anchor-matched-field-key`, `anchor-matched-label`, `anchor-matched-container`, `anchor-missing-safe-evidence-empty`, `anchor-missing-only-generic-evidence`, and bounded conflicting-evidence cases.
+- Whether receipt propagation was updated: yes. The new anchor-evidence fields are present both in `calibratedFallbackGuardSummary` and at the receipt top level.
+- Whether bootstrap preservation still works: yes, covered by unit tests.
+- Whether redaction was rechecked for the new fields: yes, with bounded summary serialization and receipt tests.
+- Tests/commands run and pass/fail: `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "anchor evidence"` -> 4 passed; `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "guarded physical address discovery"` -> 82 passed; `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "physical address capture-only"` -> 15 passed; `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "physical address bootstrap capture receipt"` -> 7 passed; `npm run test:units` -> 353 passed.
+- Remaining blocker / uncertainty: RUN41 improves bounded explanation only. It does not prove, without another authorized live run, which new anchor outcome the live three-radio layout will surface in production.
+- Screenshot handling: the attached screenshot was treated only as visual guidance, was not OCRed, was not used at runtime, and was not committed.
 - Whether to continue, stop, or redirect: redirect.
-- The next best Copilot prompt: stay source/test-only and add one more bounded anchor-evidence explanation for why `addressOptionsAnchorMatched` is false in the three-radio live layout when the exact-three-radio guard already passes, then validate it with focused unit tests.
+- The next best Copilot prompt: execute exactly one newly authorized live capture-only run and inspect whether the preserved receipt now reports a concrete bounded anchor outcome and evidence summary for the three-radio layout without changing matcher behavior.
 
 # Copilot Handoff Result
 
-CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN40
+CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN41
 
 ## Status
 Ready for ChatGPT review
 
 ## Objective
-Execute exactly one authorized live capture-only run, inspect the preserved sanitized receipt with the new structured outcome fields, determine whether the business-primary-location slot-2 path was reached safely, and refresh downstream reporting only if fresh post-toggle artifacts were produced.
+Stay source/test-only and add one bounded anchor-evidence explanation for why `addressOptionsAnchorMatched` is false when `exactThreeRadioGuardPassed` is true in the live three-radio business-primary-location layout, while preserving fail-closed selection behavior.
 
 ## What Changed
-- Executed exactly one authorized live `npm run bootstrap:capture:physical-address` run.
-- Inspected the preserved sanitized receipt and artifact freshness state.
-- Confirmed the refined RUN39 receipt fields now surface a more precise bounded fail-closed live result.
-- Updated only the AI handoff files with the RUN40 live outcome.
+- Added bounded address-options anchor evidence types, token buckets, source lists, rejected reasons, and evidence summaries in guarded physical-address discovery.
+- Derived those anchor explanations from existing sanitized field-key, label, container, and signature-bucket diagnostics without capturing raw DOM or raw values.
+- Threaded the new fields through the capture-only result, receipt builder, and receipt validator at both nested and top-level receipt locations.
+- Expanded unit tests to cover safe field-key matches, safe container matches, exact-three/no-anchor-evidence failures, generic-only evidence failures, prior-guard-not-checked behavior, conflicting cue behavior, bootstrap receipt preservation, and redaction.
 
 ## Files Changed
+- `fixtures/conditional-discovery.ts`
+- `scripts/capture-physical-operating-address.ts`
+- `tests/bootstrap-units.spec.ts`
 - `artifacts/ai-handoff/latest-copilot-result.md`
 - `artifacts/ai-handoff/status.json`
 
-## Receipt Outcome
-- `artifacts/latest-physical-operating-address-capture-receipt.json` existed before RUN40 and was rewritten during RUN40.
-- Pre-run receipt timestamp: `2026-05-15T10:52:58.7376284-04:00`
-- Post-run receipt timestamp: `2026-05-15T12:26:50Z`
-- Conclusion: the receipt file was generated during RUN40.
-- Bootstrap preserved the child receipt on the live run.
-- The preserved receipt reported:
-  - `childExitCode: 3`
-  - `bootstrapExitCode: 3`
-  - `signerSurfaceReached: true`
-  - `initialFieldCount: 125`
-  - `toggleSelectionOutcomeCategory: calibrated-rejected-anchor-missing`
-  - `toggleSelectionStage: calibrated-fallback`
-  - `toggleSelectionMode: null`
-  - `selectedToggleSlot: null`
-  - `selectedToggleReason: null`
-  - `fallbackReason: calibrated-business-primary-location-physical-address-option`
-  - `calibratedFallbackConsidered: true`
-  - `calibratedFallbackAllowed: false`
-  - `calibratedFallbackSelected: false`
-  - `calibratedFallbackSelectedSlot: null`
-  - `calibratedFallbackRejectedReasons: [anchor-missing]`
-  - `calibratedFallbackGuardSummary.addressOptionsAnchorMatched: false`
-  - `calibratedFallbackGuardSummary.exactThreeRadioGuardPassed: true`
-  - `calibratedFallbackGuardSummary.candidateOrderStable: true`
-  - `calibratedFallbackGuardSummary.conflictingCueDetected: false`
-  - `primarySelectionCandidateCount: 0`
-  - `cueBasedFallbackCandidateCount: 0`
-  - `calibratedFallbackCandidateCount: 3`
-  - `eligibleRadioCandidateCount: 3`
-  - `exactThreeRadioGuardPassed: true`
-  - `addressOptionsAnchorMatched: false`
-  - `candidateOrderStable: true`
-  - `conflictingCueDetected: false`
-  - `proofOfAddressUploadVisibleBefore: false`
-  - `proofOfAddressUploadVisibleAfter: false`
-  - `proofOfAddressUploadVisibilityChanged: false`
-  - `proofOfAddressUploadExpectedForSelectedOption: null`
-  - `physicalOperatingAddressFieldsVisibleBefore: false`
-  - `physicalOperatingAddressFieldsVisibleAfter: false`
-  - `physicalOperatingAddressFieldsVisibilityChanged: false`
-  - `physicalOperatingAddressFieldsExpectedForSelectedOption: null`
-  - `uiEffectOutcomeCategory: proof-address-hidden-physical-fields-hidden`
-  - `expansionAttempted: false`
-  - `expansionSkippedReason: no-selected-toggle`
-  - `expansionReturned: true`
-  - `expansionExpanded: false`
-  - `captureReportPresent: false`
-  - `captureReportWritable: false`
-  - `writerCalled: false`
-  - `writerCompleted: false`
-  - `artifactsFresh: false`
-  - `artifactsRemainStale: true`
-  - `staleArtifactsIgnored: true`
-  - `blockedReasonCategory: expansion-skipped-no-selected-toggle`
-  - `reportsRefreshSkipped: true`
-  - `findingsOpenSkipped: true`
+## Implementation Result
+- `PhysicalOperatingAddressCalibratedFallbackGuardSummary` and `PhysicalOperatingAddressToggleSelectionSummary` now expose bounded anchor evidence fields such as outcome category, rejected reasons, evidence summary, sources checked, safe tokens observed, and bucket presence.
+- `PhysicalOperatingAddressCaptureOnlyReceipt` now preserves the same anchor evidence fields both under `calibratedFallbackGuardSummary` and at the receipt top level.
+- Default/fallback receipt branches and receipt validation were updated so missing-result paths remain bounded and structurally valid.
+- Selection behavior is unchanged: RUN41 is diagnostics-only. The calibrated fallback still fails closed when the anchor guard does not pass.
 
-## Artifact Freshness
-- The receipt itself was fresh for RUN40.
-- The target post-toggle files remained stale:
-  - `latest-physical-operating-address-post-toggle-structure.json` -> post-run timestamp still `2026-05-01T12:41:44Z`
-  - `latest-physical-operating-address-post-toggle-dom.html` -> post-run timestamp still `2026-05-01T12:41:44Z`
-- The receipt target freshness summary also reported no `mtime` or `generatedAt` change.
-- Conclusion: RUN40 did not produce a fresh trustworthy post-toggle artifact bundle.
-
-## Interpretation
-- The strongest new live fact is not a slot-2 success; it is an earlier, more precise bounded rejection.
-- Calibrated fallback was considered, the exact-three-radio guard passed, candidate order was stable, and no conflicting cue was detected.
-- The calibrated path still failed closed because `addressOptionsAnchorMatched=false`.
-- No toggle was selected.
-- Expansion did not even begin.
-- No proof-of-address upload and no physical operating address fields became visible.
-- `uiEffectOutcomeCategory=proof-address-hidden-physical-fields-hidden` should be treated as a not-target or remote-like path, not as business-mailing calibration proof.
-
-## Downstream Reporting And Classification
-- `npm run reports:refresh` -> not run
-- `npm run findings:open` -> not run
-- Reason: `artifactsFresh=false` and `artifactsRemainStale=true`.
-- `business_mailing_address_line_1`: `still capture-blocked`
-- `business_mailing_city`: `still capture-blocked`
-- `business_mailing_state`: `still capture-blocked`
-- `business_mailing_postal_code`: `still capture-blocked`
+## Validation
+- `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "anchor evidence"` -> 4 passed
+- `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "guarded physical address discovery"` -> 82 passed
+- `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "physical address capture-only"` -> 15 passed
+- `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "physical address bootstrap capture receipt"` -> 7 passed
+- `npm run test:units` -> 353 passed
 
 ## Guardrails Preserved
+- No live capture command was run in RUN41.
+- `npm run bootstrap:capture:physical-address` was not run.
+- `npm run capture:physical-address` was not run.
 - `bootstrap:interactive` was not run.
 - `interactive:watchdog` was not run.
 - Full signer discovery was not run.
 - `DESTRUCTIVE_VALIDATION` was not enabled.
-- No uploads were performed.
-- No Finish, Complete, Submit, Sign, Adopt, or other finalization controls were clicked.
-- No raw signer URL was printed or committed.
 - `.env` was not mutated.
-- No screenshot was needed or used.
-- Generated receipt and capture artifacts were not staged intentionally.
-
-## Validation
-- `npm run bootstrap:capture:physical-address` -> executed exactly once; preserved live receipt reported child/bootstrap exit code `3`
-- `Read artifacts/latest-physical-operating-address-capture-receipt.json` -> confirmed preserved structured RUN40 receipt
-- `Get-Item artifacts/latest-physical-operating-address-capture-receipt.json, artifacts/latest-physical-operating-address-post-toggle-structure.json, artifacts/latest-physical-operating-address-post-toggle-dom.html` -> confirmed fresh RUN40 receipt timestamp and stale May 1 target artifact timestamps
+- No raw signer URL was printed or committed.
+- No uploads were performed.
+- The attached screenshot was used only as visual guidance and was not OCRed or committed.
 
 ## Result
 - Forward progress: yes.
-- RUN40 proved the RUN39 receipt refinements are useful live.
-- Compared with RUN38, the live fail-closed result is now narrower and more actionable: the flow no longer stops at generic `expansion not expanded`; it now shows a calibrated-anchor rejection before selection, before expansion, and before any UI-effect change.
+- RUN41 closes the diagnostic gap identified by RUN40. The code can now explain, in bounded categories, why the exact-three-radio guarded branch still rejects when `addressOptionsAnchorMatched=false`.
+- Receipt preservation and redaction remain covered after the schema expansion.
 
 ## Remaining Blocker / Uncertainty
-- The remaining blocker is the bounded calibrated anchor guard: the live layout still satisfies the exact-three-radio guard but fails `addressOptionsAnchorMatched`.
-- Because no fresh artifacts were produced, there is still no safe field-local proof for `business_mailing_*` calibration.
-- The smallest next move is source/test-only: expose one more bounded explanation of the anchor-match failure so the next live run can confirm whether the layout needs a safe anchor broadening or a different bounded calibrated guard.
-
-## Screenshot Handling
-- No screenshot was needed for RUN40.
-- Any screenshot would be irrelevant to this live receipt validation task and should be ignored.
+- RUN41 does not include another live proof step, so the exact bounded anchor outcome for the real three-radio production layout remains unobserved.
+- Matcher behavior remains intentionally unchanged, so the live flow will still fail closed until a future authorized run shows evidence strong enough to justify a safe broadening.
+- Business-mailing concept status remains unchanged from RUN40 because no new live artifact evidence was gathered in RUN41.
 
 ## Recommendation
 Redirect.
 
-Do not spend another live capture immediately.
+If another live step is authorized, spend exactly one live capture-only run on RUN42 to inspect the preserved receipt for the new bounded anchor-evidence fields before considering any matcher broadening.
 
 ## Recommended Next Copilot Prompt
-Stay source/test-only and add one bounded anchor-evidence explanation for why `addressOptionsAnchorMatched` is false when `exactThreeRadioGuardPassed` is true in the live three-radio business-primary-location layout, then validate it with focused guarded-discovery and receipt tests.
+Execute exactly one authorized live `npm run bootstrap:capture:physical-address` run, inspect the preserved receipt for `addressOptionsAnchorOutcomeCategory`, `addressOptionsAnchorRejectedReasons`, `addressOptionsAnchorEvidenceSummary`, and the bucket/source fields added in RUN41, and report whether the live three-radio layout now points to a safe anchor broadening or still requires fail-closed behavior.
 
 ## Branch / Commit Status
 - Branch: `main`
-- Current HEAD before the RUN40 handoff commit: `ac81d3247376a90e758691bb2dd964049c9a9b24`
-- RUN40 handoff commit: pending at write time
+- Current HEAD before the RUN41 handoff commit: `2d388ce6dae3ae5147bf46165f3e60b64f8a7a40`
+- RUN41 handoff commit: pending at write time
 
-CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN40
+CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN41

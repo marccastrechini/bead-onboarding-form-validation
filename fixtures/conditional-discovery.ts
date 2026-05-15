@@ -73,8 +73,63 @@ export type PhysicalOperatingAddressCalibratedFallbackRejectedReason =
   | 'calibrated-slot-missing'
   | 'another-bounded-reason';
 
+export type PhysicalOperatingAddressAddressOptionsAnchorOutcomeCategory =
+  | 'anchor-matched-field-key'
+  | 'anchor-matched-label'
+  | 'anchor-matched-container'
+  | 'anchor-matched-attribute-token'
+  | 'anchor-missing-no-safe-evidence'
+  | 'anchor-missing-safe-evidence-empty'
+  | 'anchor-missing-only-generic-evidence'
+  | 'anchor-missing-conflicting-evidence'
+  | 'anchor-not-checked';
+
+export type PhysicalOperatingAddressAddressOptionsAnchorRejectedReason =
+  | 'anchor-missing'
+  | 'no-safe-evidence'
+  | 'safe-evidence-empty'
+  | 'only-generic-evidence'
+  | 'conflicting-evidence'
+  | 'not-checked-prior-guard-failed';
+
+export type PhysicalOperatingAddressAddressOptionsAnchorEvidenceSummary =
+  | 'matched via field-key address-options bucket'
+  | 'matched via label address-options bucket'
+  | 'matched via container address-options bucket'
+  | 'matched via attribute-token address-options bucket'
+  | 'checked sources contained no address-options bucket'
+  | 'checked sources were empty'
+  | 'only generic anchor evidence buckets were observed'
+  | 'conflicting cue blocked anchor broadening'
+  | 'anchor check skipped because the exact-three-radio guard failed';
+
+export type PhysicalOperatingAddressAddressOptionsAnchorSourceChecked =
+  | 'field-key'
+  | 'label'
+  | 'container'
+  | 'attribute-token'
+  | 'proxy-token'
+  | 'graphic-token';
+
+export type PhysicalOperatingAddressAddressOptionsAnchorTokenBucket =
+  | 'address-options'
+  | 'address'
+  | 'operating-address'
+  | 'physical-address'
+  | 'radio-group'
+  | 'generic-only';
+
 export interface PhysicalOperatingAddressCalibratedFallbackGuardSummary {
   addressOptionsAnchorMatched: boolean;
+  addressOptionsAnchorOutcomeCategory: PhysicalOperatingAddressAddressOptionsAnchorOutcomeCategory;
+  addressOptionsAnchorRejectedReasons: PhysicalOperatingAddressAddressOptionsAnchorRejectedReason[];
+  addressOptionsAnchorEvidenceSummary: PhysicalOperatingAddressAddressOptionsAnchorEvidenceSummary;
+  addressOptionsAnchorSourcesChecked: PhysicalOperatingAddressAddressOptionsAnchorSourceChecked[];
+  addressOptionsAnchorSafeTokensObserved: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
+  addressOptionsAnchorTextBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
+  addressOptionsAnchorFieldKeyBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
+  addressOptionsAnchorContainerBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
+  addressOptionsAnchorAttributeBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
   exactThreeRadioGuardPassed: boolean;
   candidateOrderStable: boolean;
   conflictingCueDetected: boolean;
@@ -99,6 +154,15 @@ export interface PhysicalOperatingAddressToggleSelectionSummary {
   eligibleRadioCandidateCount: number;
   exactThreeRadioGuardPassed: boolean;
   addressOptionsAnchorMatched: boolean;
+  addressOptionsAnchorOutcomeCategory: PhysicalOperatingAddressAddressOptionsAnchorOutcomeCategory;
+  addressOptionsAnchorRejectedReasons: PhysicalOperatingAddressAddressOptionsAnchorRejectedReason[];
+  addressOptionsAnchorEvidenceSummary: PhysicalOperatingAddressAddressOptionsAnchorEvidenceSummary;
+  addressOptionsAnchorSourcesChecked: PhysicalOperatingAddressAddressOptionsAnchorSourceChecked[];
+  addressOptionsAnchorSafeTokensObserved: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
+  addressOptionsAnchorTextBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
+  addressOptionsAnchorFieldKeyBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
+  addressOptionsAnchorContainerBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
+  addressOptionsAnchorAttributeBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
   candidateOrderStable: boolean;
   conflictingCueDetected: boolean;
 }
@@ -140,6 +204,28 @@ const TOGGLE_FALLBACK_CUE_LIMIT = 4;
 const CALIBRATED_BUSINESS_PRIMARY_LOCATION_FALLBACK_REASON = 'calibrated-business-primary-location-physical-address-option';
 const CALIBRATED_BUSINESS_PRIMARY_LOCATION_CANDIDATE_COUNT = 3;
 const CALIBRATED_BUSINESS_PRIMARY_LOCATION_TARGET_SLOT = 2;
+const ADDRESS_OPTIONS_ANCHOR_SOURCES_CHECKED: PhysicalOperatingAddressAddressOptionsAnchorSourceChecked[] = [
+  'field-key',
+  'label',
+  'container',
+  'attribute-token',
+  'proxy-token',
+  'graphic-token',
+];
+const ADDRESS_OPTIONS_ANCHOR_TOKEN_BUCKET_ORDER: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[] = [
+  'address-options',
+  'address',
+  'operating-address',
+  'physical-address',
+  'radio-group',
+  'generic-only',
+];
+const ADDRESS_OPTIONS_ANCHOR_GENERIC_TEXT_RE = /\brequired\b|\boptional\b|\bsame\b|\bdifferent\b|\byes\b|\bno\b/i;
+const ADDRESS_OPTIONS_ANCHOR_GENERIC_SIGNATURE_BUCKETS = new Set([
+  'generated-token-pattern',
+  'generated/generic-only-token',
+  'empty-value',
+]);
 const ANCESTOR_TOGGLE_LABEL_SOURCES = new Set([
   'aria-labelledby',
   'wrapping-label',
@@ -332,6 +418,15 @@ type PhysicalOperatingAddressToggleCalibratedFallbackDiagnostics = {
   allowed: boolean;
   rejectedReasons: string[];
   addressOptionsAnchorMatched: boolean;
+  addressOptionsAnchorOutcomeCategory: PhysicalOperatingAddressAddressOptionsAnchorOutcomeCategory;
+  addressOptionsAnchorRejectedReasons: PhysicalOperatingAddressAddressOptionsAnchorRejectedReason[];
+  addressOptionsAnchorEvidenceSummary: PhysicalOperatingAddressAddressOptionsAnchorEvidenceSummary;
+  addressOptionsAnchorSourcesChecked: PhysicalOperatingAddressAddressOptionsAnchorSourceChecked[];
+  addressOptionsAnchorSafeTokensObserved: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
+  addressOptionsAnchorTextBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
+  addressOptionsAnchorFieldKeyBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
+  addressOptionsAnchorContainerBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
+  addressOptionsAnchorAttributeBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
   addressOptionsClusterGuardPassed: boolean;
   candidateOrderStable: boolean;
   exactThreeRadioGuardPassed: boolean;
@@ -674,6 +769,246 @@ function hasStableCalibratedCandidateOrder(
   return true;
 }
 
+function sortUniqueAddressOptionsAnchorTokenBuckets(
+  values: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[],
+): PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[] {
+  const seen = new Set(values);
+  return ADDRESS_OPTIONS_ANCHOR_TOKEN_BUCKET_ORDER.filter((bucket) => seen.has(bucket));
+}
+
+function collectAddressOptionsAnchorTextBuckets(
+  values: Array<string | null | undefined>,
+): PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[] {
+  const buckets: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[] = [];
+
+  for (const value of values) {
+    const normalized = normalizeText(value);
+    if (!normalized) continue;
+
+    const matchable = toMatchableText(normalized);
+    const localBuckets: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[] = [];
+
+    if (ADDRESS_OPTIONS_RE.test(matchable)) localBuckets.push('address-options');
+    if (/\baddress\b/i.test(matchable)) localBuckets.push('address');
+    if ((/\bphysical\b/i.test(matchable) && /\baddress\b/i.test(matchable)) || BUSINESS_PHYSICAL_ADDRESS_RE.test(matchable)) {
+      localBuckets.push('physical-address');
+    }
+    if ((/\boperating\b/i.test(matchable) && /\baddress\b/i.test(matchable)) || /\bisoperatingaddress\b/i.test(matchable)) {
+      localBuckets.push('operating-address');
+    }
+    if (/\bradio\b|\bgroup\b/i.test(matchable)) localBuckets.push('radio-group');
+    if (localBuckets.length === 0 && ADDRESS_OPTIONS_ANCHOR_GENERIC_TEXT_RE.test(matchable)) {
+      localBuckets.push('generic-only');
+    }
+
+    buckets.push(...localBuckets);
+  }
+
+  return sortUniqueAddressOptionsAnchorTokenBuckets(buckets);
+}
+
+function collectAddressOptionsAnchorSignatureBuckets(
+  values: string[],
+): PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[] {
+  const buckets: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[] = [];
+
+  for (const value of values) {
+    const normalized = normalizeText(value)?.toLowerCase();
+    if (!normalized) continue;
+
+    if (normalized.includes('addressoptions') || normalized.includes('address options')) {
+      buckets.push('address-options');
+    }
+    if (normalized.includes('address-like-token')) buckets.push('address');
+    if (normalized.includes('operating-like-token')) buckets.push('operating-address');
+    if (normalized.includes('physical-like-token')) buckets.push('physical-address');
+    if (normalized.includes('radio-like-token')) buckets.push('radio-group');
+    if (ADDRESS_OPTIONS_ANCHOR_GENERIC_SIGNATURE_BUCKETS.has(normalized)) buckets.push('generic-only');
+  }
+
+  return sortUniqueAddressOptionsAnchorTokenBuckets(buckets);
+}
+
+function buildAddressOptionsAnchorEvidenceSummary(
+  category: PhysicalOperatingAddressAddressOptionsAnchorOutcomeCategory,
+): PhysicalOperatingAddressAddressOptionsAnchorEvidenceSummary {
+  switch (category) {
+    case 'anchor-matched-field-key':
+      return 'matched via field-key address-options bucket';
+    case 'anchor-matched-label':
+      return 'matched via label address-options bucket';
+    case 'anchor-matched-container':
+      return 'matched via container address-options bucket';
+    case 'anchor-matched-attribute-token':
+      return 'matched via attribute-token address-options bucket';
+    case 'anchor-missing-safe-evidence-empty':
+      return 'checked sources were empty';
+    case 'anchor-missing-only-generic-evidence':
+      return 'only generic anchor evidence buckets were observed';
+    case 'anchor-missing-conflicting-evidence':
+      return 'conflicting cue blocked anchor broadening';
+    case 'anchor-not-checked':
+      return 'anchor check skipped because the exact-three-radio guard failed';
+    case 'anchor-missing-no-safe-evidence':
+    default:
+      return 'checked sources contained no address-options bucket';
+  }
+}
+
+function buildDefaultPhysicalOperatingAddressCalibratedFallbackGuardSummary(): PhysicalOperatingAddressCalibratedFallbackGuardSummary {
+  return {
+    addressOptionsAnchorMatched: false,
+    addressOptionsAnchorOutcomeCategory: 'anchor-not-checked',
+    addressOptionsAnchorRejectedReasons: [],
+    addressOptionsAnchorEvidenceSummary: 'anchor check skipped because the exact-three-radio guard failed',
+    addressOptionsAnchorSourcesChecked: [],
+    addressOptionsAnchorSafeTokensObserved: [],
+    addressOptionsAnchorTextBucketsPresent: [],
+    addressOptionsAnchorFieldKeyBucketsPresent: [],
+    addressOptionsAnchorContainerBucketsPresent: [],
+    addressOptionsAnchorAttributeBucketsPresent: [],
+    exactThreeRadioGuardPassed: false,
+    candidateOrderStable: false,
+    conflictingCueDetected: false,
+  };
+}
+
+function buildPhysicalOperatingAddressAddressOptionsAnchorEvidence(input: {
+  primaryInventory: PhysicalOperatingAddressToggleInventory;
+  fallbackInventory: PhysicalOperatingAddressToggleFallbackInventory;
+  addressOptionsAnchorMatched: boolean;
+  exactThreeRadioGuardPassed: boolean;
+  conflictingCueDetected: boolean;
+}): Pick<
+  PhysicalOperatingAddressToggleCalibratedFallbackDiagnostics,
+  | 'addressOptionsAnchorOutcomeCategory'
+  | 'addressOptionsAnchorRejectedReasons'
+  | 'addressOptionsAnchorEvidenceSummary'
+  | 'addressOptionsAnchorSourcesChecked'
+  | 'addressOptionsAnchorSafeTokensObserved'
+  | 'addressOptionsAnchorTextBucketsPresent'
+  | 'addressOptionsAnchorFieldKeyBucketsPresent'
+  | 'addressOptionsAnchorContainerBucketsPresent'
+  | 'addressOptionsAnchorAttributeBucketsPresent'
+> {
+  const textBucketsPresent = collectAddressOptionsAnchorTextBuckets(
+    input.primaryInventory.entries.flatMap((entry) => [
+      ...entry.resolvedLabelFragments,
+      ...entry.groupLabelFragments,
+      ...entry.nearbyLabelFragments.map((fragment) => fragment.text),
+    ]),
+  );
+  const fieldKeyBucketsPresent = collectAddressOptionsAnchorTextBuckets(
+    input.primaryInventory.entries.map((entry) => entry.fieldKey),
+  );
+  const containerBucketsPresent = collectAddressOptionsAnchorTextBuckets(
+    input.fallbackInventory.entries.flatMap((entry) => [
+      ...entry.containerParentTextFragments.map((fragment) => fragment.text),
+      ...entry.containerGrandparentTextFragments.map((fragment) => fragment.text),
+      ...entry.containerSectionTextFragments.map((fragment) => fragment.text),
+      ...entry.containerPrecedingTextFragments.map((fragment) => fragment.text),
+      ...entry.containerFollowingTextFragments.map((fragment) => fragment.text),
+    ]),
+  );
+  const attributeBucketsPresent = collectAddressOptionsAnchorSignatureBuckets(
+    input.fallbackInventory.entries.flatMap((entry) => [
+      ...(entry.domAttributeSignature?.valueHintBuckets ?? []),
+      ...(entry.proxyReferenceSignature?.valueHintBuckets ?? []),
+      ...(entry.radioGraphicSignature?.tokenHintBuckets ?? []),
+    ]),
+  );
+  const safeTokensObserved = sortUniqueAddressOptionsAnchorTokenBuckets([
+    ...fieldKeyBucketsPresent,
+    ...textBucketsPresent,
+    ...containerBucketsPresent,
+    ...attributeBucketsPresent,
+  ]);
+  const fieldKeySourceHasContent = input.primaryInventory.entries.some((entry) => Boolean(entry.fieldKey));
+  const textSourceHasContent = input.primaryInventory.entries.some((entry) =>
+    entry.resolvedLabelFragments.length > 0 || entry.groupLabelFragments.length > 0 || entry.nearbyLabelFragments.length > 0);
+  const containerSourceHasContent = input.fallbackInventory.entries.some((entry) =>
+    entry.containerParentTextFragments.length > 0
+      || entry.containerGrandparentTextFragments.length > 0
+      || entry.containerSectionTextFragments.length > 0
+      || entry.containerPrecedingTextFragments.length > 0
+      || entry.containerFollowingTextFragments.length > 0);
+  const attributeSourceHasContent = input.fallbackInventory.entries.some((entry) =>
+    (entry.domAttributeSignature?.valueHintBuckets.length ?? 0) > 0);
+  const proxySourceHasContent = input.fallbackInventory.entries.some((entry) =>
+    (entry.proxyReferenceSignature?.valueHintBuckets.length ?? 0) > 0);
+  const graphicSourceHasContent = input.fallbackInventory.entries.some((entry) =>
+    (entry.radioGraphicSignature?.tokenHintBuckets.length ?? 0) > 0);
+  const anySourceHasContent = fieldKeySourceHasContent
+    || textSourceHasContent
+    || containerSourceHasContent
+    || attributeSourceHasContent
+    || proxySourceHasContent
+    || graphicSourceHasContent;
+  const fieldKeyMatched = fieldKeyBucketsPresent.includes('address-options');
+  const textMatched = textBucketsPresent.includes('address-options');
+  const containerMatched = containerBucketsPresent.includes('address-options');
+  const attributeMatched = attributeBucketsPresent.includes('address-options');
+  const onlyGenericEvidence = safeTokensObserved.length > 0
+    && safeTokensObserved.every((bucket) => bucket === 'radio-group' || bucket === 'generic-only');
+
+  let addressOptionsAnchorOutcomeCategory: PhysicalOperatingAddressAddressOptionsAnchorOutcomeCategory = 'anchor-missing-no-safe-evidence';
+  if (!input.exactThreeRadioGuardPassed) {
+    addressOptionsAnchorOutcomeCategory = 'anchor-not-checked';
+  } else if (input.addressOptionsAnchorMatched) {
+    if (fieldKeyMatched) {
+      addressOptionsAnchorOutcomeCategory = 'anchor-matched-field-key';
+    } else if (textMatched) {
+      addressOptionsAnchorOutcomeCategory = 'anchor-matched-label';
+    } else if (containerMatched) {
+      addressOptionsAnchorOutcomeCategory = 'anchor-matched-container';
+    } else if (attributeMatched) {
+      addressOptionsAnchorOutcomeCategory = 'anchor-matched-attribute-token';
+    } else {
+      addressOptionsAnchorOutcomeCategory = 'anchor-matched-label';
+    }
+  } else if (input.conflictingCueDetected) {
+    addressOptionsAnchorOutcomeCategory = 'anchor-missing-conflicting-evidence';
+  } else if (!anySourceHasContent) {
+    addressOptionsAnchorOutcomeCategory = 'anchor-missing-safe-evidence-empty';
+  } else if (onlyGenericEvidence) {
+    addressOptionsAnchorOutcomeCategory = 'anchor-missing-only-generic-evidence';
+  }
+
+  const addressOptionsAnchorRejectedReasons: PhysicalOperatingAddressAddressOptionsAnchorRejectedReason[] = [];
+  if (addressOptionsAnchorOutcomeCategory === 'anchor-not-checked') {
+    addressOptionsAnchorRejectedReasons.push('not-checked-prior-guard-failed');
+  } else if (!input.addressOptionsAnchorMatched) {
+    addressOptionsAnchorRejectedReasons.push('anchor-missing');
+    switch (addressOptionsAnchorOutcomeCategory) {
+      case 'anchor-missing-safe-evidence-empty':
+        addressOptionsAnchorRejectedReasons.push('safe-evidence-empty');
+        break;
+      case 'anchor-missing-only-generic-evidence':
+        addressOptionsAnchorRejectedReasons.push('only-generic-evidence');
+        break;
+      case 'anchor-missing-conflicting-evidence':
+        addressOptionsAnchorRejectedReasons.push('conflicting-evidence');
+        break;
+      case 'anchor-missing-no-safe-evidence':
+      default:
+        addressOptionsAnchorRejectedReasons.push('no-safe-evidence');
+        break;
+    }
+  }
+
+  return {
+    addressOptionsAnchorOutcomeCategory,
+    addressOptionsAnchorRejectedReasons,
+    addressOptionsAnchorEvidenceSummary: buildAddressOptionsAnchorEvidenceSummary(addressOptionsAnchorOutcomeCategory),
+    addressOptionsAnchorSourcesChecked: ADDRESS_OPTIONS_ANCHOR_SOURCES_CHECKED.slice(),
+    addressOptionsAnchorSafeTokensObserved: safeTokensObserved,
+    addressOptionsAnchorTextBucketsPresent: textBucketsPresent,
+    addressOptionsAnchorFieldKeyBucketsPresent: fieldKeyBucketsPresent,
+    addressOptionsAnchorContainerBucketsPresent: containerBucketsPresent,
+    addressOptionsAnchorAttributeBucketsPresent: attributeBucketsPresent,
+  };
+}
+
 function buildCalibratedPhysicalOperatingAddressFallbackDiagnostics(
   primaryInventory: PhysicalOperatingAddressToggleInventory,
   fallbackInventory: PhysicalOperatingAddressToggleFallbackInventory,
@@ -699,6 +1034,13 @@ function buildCalibratedPhysicalOperatingAddressFallbackDiagnostics(
       && (entry.inputType ?? '').toLowerCase() === 'radio');
   const candidateOrderStable = exactThreeRadioGuardPassed && hasStableCalibratedCandidateOrder(entries);
   const conflictingCueDetected = entries.some((entry) => hasAnyToggleCueSignal(entry.cueMatches));
+  const anchorEvidence = buildPhysicalOperatingAddressAddressOptionsAnchorEvidence({
+    primaryInventory,
+    fallbackInventory,
+    addressOptionsAnchorMatched,
+    exactThreeRadioGuardPassed,
+    conflictingCueDetected,
+  });
   const cueBasedFailureReason = fallbackInventory.matchingFallbackCandidateCount === 0
     ? 'no-explicit-physical-cue-match'
     : 'ambiguous-explicit-physical-cue-match';
@@ -711,7 +1053,7 @@ function buildCalibratedPhysicalOperatingAddressFallbackDiagnostics(
         : 'cue-based-selection-ambiguous',
     );
   }
-  if (!addressOptionsAnchorMatched) rejectedReasons.push('address-options-anchor-missing');
+  if (exactThreeRadioGuardPassed && !addressOptionsAnchorMatched) rejectedReasons.push('address-options-anchor-missing');
   if (addressOptionsAnchorMatched && !exactThreeRadioGuardPassed) rejectedReasons.push('candidate-count-not-exactly-three');
   if (!candidateOrderStable) rejectedReasons.push('candidate-order-unstable');
   if (conflictingCueDetected) rejectedReasons.push('conflicting-safe-cue-surfaced');
@@ -727,6 +1069,15 @@ function buildCalibratedPhysicalOperatingAddressFallbackDiagnostics(
     allowed: rejectedReasons.length === 0,
     rejectedReasons,
     addressOptionsAnchorMatched,
+    addressOptionsAnchorOutcomeCategory: anchorEvidence.addressOptionsAnchorOutcomeCategory,
+    addressOptionsAnchorRejectedReasons: anchorEvidence.addressOptionsAnchorRejectedReasons,
+    addressOptionsAnchorEvidenceSummary: anchorEvidence.addressOptionsAnchorEvidenceSummary,
+    addressOptionsAnchorSourcesChecked: anchorEvidence.addressOptionsAnchorSourcesChecked,
+    addressOptionsAnchorSafeTokensObserved: anchorEvidence.addressOptionsAnchorSafeTokensObserved,
+    addressOptionsAnchorTextBucketsPresent: anchorEvidence.addressOptionsAnchorTextBucketsPresent,
+    addressOptionsAnchorFieldKeyBucketsPresent: anchorEvidence.addressOptionsAnchorFieldKeyBucketsPresent,
+    addressOptionsAnchorContainerBucketsPresent: anchorEvidence.addressOptionsAnchorContainerBucketsPresent,
+    addressOptionsAnchorAttributeBucketsPresent: anchorEvidence.addressOptionsAnchorAttributeBucketsPresent,
     addressOptionsClusterGuardPassed,
     candidateOrderStable,
     exactThreeRadioGuardPassed,
@@ -778,6 +1129,23 @@ export function buildPhysicalOperatingAddressToggleSelectionSummary<T extends Gu
   toggleSelection: PhysicalOperatingAddressToggleSelection<T>,
 ): PhysicalOperatingAddressToggleSelectionSummary {
   const calibratedFallback = toggleSelection.fallbackInventory?.calibratedFallback ?? null;
+  const calibratedFallbackGuardSummary = calibratedFallback
+    ? {
+      addressOptionsAnchorMatched: calibratedFallback.addressOptionsAnchorMatched,
+      addressOptionsAnchorOutcomeCategory: calibratedFallback.addressOptionsAnchorOutcomeCategory,
+      addressOptionsAnchorRejectedReasons: calibratedFallback.addressOptionsAnchorRejectedReasons,
+      addressOptionsAnchorEvidenceSummary: calibratedFallback.addressOptionsAnchorEvidenceSummary,
+      addressOptionsAnchorSourcesChecked: calibratedFallback.addressOptionsAnchorSourcesChecked,
+      addressOptionsAnchorSafeTokensObserved: calibratedFallback.addressOptionsAnchorSafeTokensObserved,
+      addressOptionsAnchorTextBucketsPresent: calibratedFallback.addressOptionsAnchorTextBucketsPresent,
+      addressOptionsAnchorFieldKeyBucketsPresent: calibratedFallback.addressOptionsAnchorFieldKeyBucketsPresent,
+      addressOptionsAnchorContainerBucketsPresent: calibratedFallback.addressOptionsAnchorContainerBucketsPresent,
+      addressOptionsAnchorAttributeBucketsPresent: calibratedFallback.addressOptionsAnchorAttributeBucketsPresent,
+      exactThreeRadioGuardPassed: calibratedFallback.exactThreeRadioGuardPassed,
+      candidateOrderStable: calibratedFallback.candidateOrderStable,
+      conflictingCueDetected: calibratedFallback.conflictingCueDetected,
+    }
+    : buildDefaultPhysicalOperatingAddressCalibratedFallbackGuardSummary();
   const calibratedFallbackRejectedReasons = (calibratedFallback?.rejectedReasons ?? []).map(
     mapPhysicalOperatingAddressCalibratedRejectedReason,
   );
@@ -830,20 +1198,24 @@ export function buildPhysicalOperatingAddressToggleSelectionSummary<T extends Gu
     calibratedFallbackSelected: toggleSelection.selectionMode === 'calibrated-fallback' && selectedToggleSlot !== null,
     calibratedFallbackSelectedSlot: calibratedFallback?.selectedCalibratedSlot ?? null,
     calibratedFallbackRejectedReasons,
-    calibratedFallbackGuardSummary: {
-      addressOptionsAnchorMatched: calibratedFallback?.addressOptionsAnchorMatched ?? false,
-      exactThreeRadioGuardPassed: calibratedFallback?.exactThreeRadioGuardPassed ?? false,
-      candidateOrderStable: calibratedFallback?.candidateOrderStable ?? false,
-      conflictingCueDetected: calibratedFallback?.conflictingCueDetected ?? false,
-    },
+    calibratedFallbackGuardSummary,
     primarySelectionCandidateCount: toggleSelection.primaryInventory.matchingCandidateCount,
     cueBasedFallbackCandidateCount: toggleSelection.fallbackInventory?.matchingFallbackCandidateCount ?? 0,
     calibratedFallbackCandidateCount: calibratedFallback?.candidateCount ?? 0,
     eligibleRadioCandidateCount: toggleSelection.fallbackInventory?.eligibleFallbackCandidateCount ?? toggleSelection.primaryInventory.eligibleCandidateCount,
-    exactThreeRadioGuardPassed: calibratedFallback?.exactThreeRadioGuardPassed ?? false,
-    addressOptionsAnchorMatched: calibratedFallback?.addressOptionsAnchorMatched ?? false,
-    candidateOrderStable: calibratedFallback?.candidateOrderStable ?? false,
-    conflictingCueDetected: calibratedFallback?.conflictingCueDetected ?? false,
+    exactThreeRadioGuardPassed: calibratedFallbackGuardSummary.exactThreeRadioGuardPassed,
+    addressOptionsAnchorMatched: calibratedFallbackGuardSummary.addressOptionsAnchorMatched,
+    addressOptionsAnchorOutcomeCategory: calibratedFallbackGuardSummary.addressOptionsAnchorOutcomeCategory,
+    addressOptionsAnchorRejectedReasons: calibratedFallbackGuardSummary.addressOptionsAnchorRejectedReasons,
+    addressOptionsAnchorEvidenceSummary: calibratedFallbackGuardSummary.addressOptionsAnchorEvidenceSummary,
+    addressOptionsAnchorSourcesChecked: calibratedFallbackGuardSummary.addressOptionsAnchorSourcesChecked,
+    addressOptionsAnchorSafeTokensObserved: calibratedFallbackGuardSummary.addressOptionsAnchorSafeTokensObserved,
+    addressOptionsAnchorTextBucketsPresent: calibratedFallbackGuardSummary.addressOptionsAnchorTextBucketsPresent,
+    addressOptionsAnchorFieldKeyBucketsPresent: calibratedFallbackGuardSummary.addressOptionsAnchorFieldKeyBucketsPresent,
+    addressOptionsAnchorContainerBucketsPresent: calibratedFallbackGuardSummary.addressOptionsAnchorContainerBucketsPresent,
+    addressOptionsAnchorAttributeBucketsPresent: calibratedFallbackGuardSummary.addressOptionsAnchorAttributeBucketsPresent,
+    candidateOrderStable: calibratedFallbackGuardSummary.candidateOrderStable,
+    conflictingCueDetected: calibratedFallbackGuardSummary.conflictingCueDetected,
   };
 }
 
@@ -1461,18 +1833,22 @@ export async function maybeExpandPhysicalOperatingAddressSection(
       calibratedFallbackSelected: false,
       calibratedFallbackSelectedSlot: null,
       calibratedFallbackRejectedReasons: [],
-      calibratedFallbackGuardSummary: {
-        addressOptionsAnchorMatched: false,
-        exactThreeRadioGuardPassed: false,
-        candidateOrderStable: false,
-        conflictingCueDetected: false,
-      },
+      calibratedFallbackGuardSummary: buildDefaultPhysicalOperatingAddressCalibratedFallbackGuardSummary(),
       primarySelectionCandidateCount: 0,
       cueBasedFallbackCandidateCount: 0,
       calibratedFallbackCandidateCount: 0,
       eligibleRadioCandidateCount: 0,
       exactThreeRadioGuardPassed: false,
       addressOptionsAnchorMatched: false,
+      addressOptionsAnchorOutcomeCategory: 'anchor-not-checked',
+      addressOptionsAnchorRejectedReasons: [],
+      addressOptionsAnchorEvidenceSummary: 'anchor check skipped because the exact-three-radio guard failed',
+      addressOptionsAnchorSourcesChecked: [],
+      addressOptionsAnchorSafeTokensObserved: [],
+      addressOptionsAnchorTextBucketsPresent: [],
+      addressOptionsAnchorFieldKeyBucketsPresent: [],
+      addressOptionsAnchorContainerBucketsPresent: [],
+      addressOptionsAnchorAttributeBucketsPresent: [],
       candidateOrderStable: false,
       conflictingCueDetected: false,
     };
