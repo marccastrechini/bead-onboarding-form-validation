@@ -161,6 +161,31 @@ export type RadioProxyPatternBucket = 'same-proxy-pattern' | 'distinct-proxy-pat
 
 export type RadioReferencePatternBucket = 'same-reference-pattern' | 'distinct-reference-pattern' | 'mixed-reference-pattern';
 
+export type RadioGraphicNodeBucket = 'svg' | 'span' | 'div' | 'label' | 'button' | 'pseudo-radio' | 'unknown';
+
+export type RadioGraphicTokenHintBucket =
+  | 'radio-like-token'
+  | 'selected-token'
+  | 'checked-token'
+  | 'address-like-token'
+  | 'physical-like-token'
+  | 'operating-like-token'
+  | 'business-like-token'
+  | 'mailing-like-token'
+  | 'legal-like-token'
+  | 'virtual-like-token'
+  | 'generated/generic-only-token';
+
+export type RadioWrapperGraphicPatternBucket =
+  | 'same-wrapper-graphic-pattern'
+  | 'distinct-wrapper-graphic-pattern'
+  | 'mixed-wrapper-graphic-pattern';
+
+export type RadioSiblingGraphicPatternBucket =
+  | 'same-direct-sibling-graphic-pattern'
+  | 'distinct-direct-sibling-graphic-pattern'
+  | 'mixed-direct-sibling-graphic-pattern';
+
 export interface RadioWrapperAttributeSurface {
   depthBucket: RadioWrapperDepthBucket;
   tagName: string;
@@ -248,6 +273,36 @@ export interface RadioProxyReferenceSignature {
   referencePatternBucket: RadioReferencePatternBucket;
 }
 
+export interface RadioGraphicSignature {
+  candidateSlot: number;
+  sameWrapperChildTagBuckets: RadioGraphicNodeBucket[];
+  sameWrapperChildTagCount: number;
+  sameWrapperChildTagsTruncated: boolean;
+  previousSiblingTagBuckets: RadioGraphicNodeBucket[];
+  previousSiblingTagCount: number;
+  previousSiblingTagsTruncated: boolean;
+  nextSiblingTagBuckets: RadioGraphicNodeBucket[];
+  nextSiblingTagCount: number;
+  nextSiblingTagsTruncated: boolean;
+  decorativeNodeBuckets: RadioGraphicNodeBucket[];
+  decorativeNodeCount: number;
+  decorativeNodesTruncated: boolean;
+  roleBuckets: RadioProxyRoleBucket[];
+  roleCount: number;
+  rolesTruncated: boolean;
+  tokenHintBuckets: RadioGraphicTokenHintBucket[];
+  tokenHintCount: number;
+  tokenHintsTruncated: boolean;
+  hasSameChoiceCue: boolean;
+  hasDifferentChoiceCue: boolean;
+  hasYesChoiceCue: boolean;
+  hasNoChoiceCue: boolean;
+  sameWrapperCommonalityBucket: RadioWrapperGraphicPatternBucket;
+  directSiblingCommonalityBucket: RadioSiblingGraphicPatternBucket;
+  hasUniqueTokenHintBucket: boolean;
+  hasSharedTokenHintBucket: boolean;
+}
+
 export interface RadioNonTextLayoutSignature {
   groupMemberCount: number;
   repeatedGroupPattern: boolean;
@@ -293,6 +348,8 @@ export interface DiscoveredField {
   domAttributeSignature?: RadioDomAttributeSignature | null;
   /** Bounded visible-proxy wrapper and association-reference inventory for radio-like controls. */
   proxyReferenceSignature?: RadioProxyReferenceSignature | null;
+  /** Bounded same-wrapper and direct-sibling graphic inventory for radio-like controls. */
+  radioGraphicSignature?: RadioGraphicSignature | null;
   rejectedLabelCandidates: RejectedLabelCandidate[];
   /** Text near the control that clearly reads as a field value, not a prompt. */
   observedValueLikeTextNearControl: string | null;
@@ -468,6 +525,7 @@ async function extractDomContext(loc: Locator): Promise<{
   nonTextLayoutSignature: RadioNonTextLayoutSignature | null;
   domAttributeSignature: RadioDomAttributeSignature | null;
   proxyReferenceSignature: RadioProxyReferenceSignature | null;
+  radioGraphicSignature: RadioGraphicSignature | null;
   pageIndex: number | null;
   ordinalOnPage: number | null;
   tabLeft: number | null;
@@ -503,6 +561,7 @@ async function extractDomContext(loc: Locator): Promise<{
     nonTextLayoutSignature: null,
     domAttributeSignature: null,
     proxyReferenceSignature: null,
+    radioGraphicSignature: null,
     pageIndex: null,
     ordinalOnPage: null,
     tabLeft: null,
@@ -906,6 +965,7 @@ async function extractDomContext(loc: Locator): Promise<{
       let nonTextLayoutSignature: RadioNonTextLayoutSignature | null = null;
       let domAttributeSignature: RadioDomAttributeSignature | null = null;
       let proxyReferenceSignature: RadioProxyReferenceSignature | null = null;
+      let radioGraphicSignature: RadioGraphicSignature | null = null;
 
       try {
         const inputEl = el as HTMLElement;
@@ -1032,6 +1092,49 @@ async function extractDomContext(loc: Locator): Promise<{
           return 'other';
         };
 
+        const toGraphicStructuralTagBucket = (node: Element): Exclude<RadioGraphicNodeBucket, 'pseudo-radio'> => {
+          switch (node.tagName.toLowerCase()) {
+            case 'label':
+              return 'label';
+            case 'span':
+              return 'span';
+            case 'div':
+              return 'div';
+            case 'svg':
+              return 'svg';
+            case 'button':
+              return 'button';
+            default:
+              return 'unknown';
+          }
+        };
+
+        const toGraphicNodeBucket = (node: Element): RadioGraphicNodeBucket => {
+          const structuralBucket = toGraphicStructuralTagBucket(node);
+          const role = clean(node.getAttribute('role'))?.toLowerCase() ?? null;
+          const attributeEntries = collectElementAttributeEntries(node);
+          const matchable = toMatchableToken([
+            role ?? '',
+            ...attributeEntries.map((entry) => entry.name),
+            ...attributeEntries.map((entry) => entry.value),
+          ].join(' '));
+
+          if (
+            role === 'radio'
+            || node.hasAttribute('aria-checked')
+            || node.hasAttribute('aria-selected')
+            || (
+              structuralBucket !== 'label'
+              && structuralBucket !== 'button'
+              && /\b(radio|toggle|choice|option|selected|checked)\b/i.test(matchable)
+            )
+          ) {
+            return 'pseudo-radio';
+          }
+
+          return structuralBucket;
+        };
+
         const collectReferenceTokens = (values: Array<string | null | undefined>, limit = 8): string[] => {
           const tokens: string[] = [];
           const seenTokens = new Set<string>();
@@ -1140,6 +1243,94 @@ async function extractDomContext(loc: Locator): Promise<{
           return summarizeItems(buckets, limit);
         };
 
+        const collectGraphicTokenHintSummary = (
+          values: Array<string | null | undefined>,
+          limit = 8,
+        ): {
+          items: RadioGraphicTokenHintBucket[];
+          count: number;
+          truncated: boolean;
+          cueState: {
+            same: boolean;
+            different: boolean;
+            yes: boolean;
+            no: boolean;
+          };
+        } => {
+          const buckets: RadioGraphicTokenHintBucket[] = [];
+          const cueState = {
+            same: false,
+            different: false,
+            yes: false,
+            no: false,
+          };
+          let sawGenericOrGeneratedToken = false;
+          let sawAddressMeaning = false;
+
+          for (const rawValue of values) {
+            const raw = (rawValue ?? '').trim();
+            if (!raw) continue;
+
+            const matchable = toMatchableToken(raw);
+            if (/\b(radio|toggle|choice|option|select|ring|bullet|dot)\b/i.test(matchable)) {
+              buckets.push('radio-like-token');
+              sawGenericOrGeneratedToken = true;
+            }
+            if (/\bselected\b/i.test(matchable)) buckets.push('selected-token');
+            if (/\bchecked\b/i.test(matchable)) buckets.push('checked-token');
+            if (/\baddress\b/i.test(matchable)) {
+              buckets.push('address-like-token');
+              sawAddressMeaning = true;
+            }
+            if (/\bphysical\b/i.test(matchable)) {
+              buckets.push('physical-like-token');
+              sawAddressMeaning = true;
+            }
+            if (/\boperating\b/i.test(matchable)) {
+              buckets.push('operating-like-token');
+              sawAddressMeaning = true;
+            }
+            if (/\bbusiness\b/i.test(matchable)) {
+              buckets.push('business-like-token');
+              sawAddressMeaning = true;
+            }
+            if (/\bmailing\b/i.test(matchable)) {
+              buckets.push('mailing-like-token');
+              sawAddressMeaning = true;
+            }
+            if (/\blegal\b/i.test(matchable)) {
+              buckets.push('legal-like-token');
+              sawAddressMeaning = true;
+            }
+            if (/\bvirtual\b/i.test(matchable)) {
+              buckets.push('virtual-like-token');
+              sawAddressMeaning = true;
+            }
+            if (/\bsame\b/i.test(matchable)) cueState.same = true;
+            if (/\bdifferent\b/i.test(matchable)) cueState.different = true;
+            if (/\byes\b/i.test(matchable)) cueState.yes = true;
+            if (/\bno\b/i.test(matchable)) cueState.no = true;
+            if (
+              GENERATED_TOKEN_RE.test(raw)
+              || /^tab-form-element[-_:\s]/i.test(raw)
+              || /^:r[0-9a-z]+:$/i.test(raw)
+              || /\b(choice|option|radio|toggle|select|ring|shell|wrapper|icon|button|label)\b/i.test(matchable)
+            ) {
+              sawGenericOrGeneratedToken = true;
+            }
+          }
+
+          if (sawGenericOrGeneratedToken && !sawAddressMeaning) {
+            buckets.push('generated/generic-only-token');
+          }
+
+          const summary = summarizeItems(buckets, limit);
+          return {
+            ...summary,
+            cueState,
+          };
+        };
+
         type RawWrapperSurface = {
           surface: RadioWrapperAttributeSurface;
           rawValues: string[];
@@ -1194,6 +1385,16 @@ async function extractDomContext(loc: Locator): Promise<{
           signature: Omit<RadioProxyReferenceSignature, 'proxyPatternBucket' | 'referencePatternBucket'>;
           proxyPatternKey: string;
           referencePatternKey: string;
+        };
+
+        type RawRadioGraphicSignature = {
+          signature: Omit<
+            RadioGraphicSignature,
+            'sameWrapperCommonalityBucket' | 'directSiblingCommonalityBucket' | 'hasUniqueTokenHintBucket' | 'hasSharedTokenHintBucket'
+          >;
+          wrapperPatternKey: string;
+          siblingPatternKey: string;
+          tokenHintSet: Set<RadioGraphicTokenHintBucket>;
         };
 
         const buildRawRadioAttributeSignature = (node: HTMLElement): RawRadioAttributeSignature => {
@@ -1483,6 +1684,132 @@ async function extractDomContext(loc: Locator): Promise<{
           };
         };
 
+        const buildRawRadioGraphicSignature = (
+          node: HTMLElement,
+          candidateSlot: number,
+        ): RawRadioGraphicSignature => {
+          const sameWrapperChildren = Array.from(node.parentElement?.children ?? [])
+            .filter((candidate): candidate is HTMLElement => candidate instanceof HTMLElement)
+            .filter((candidate) => candidate !== node)
+            .filter((candidate) => isRenderedElement(candidate));
+          const previousSibling = node.previousElementSibling instanceof HTMLElement && isRenderedElement(node.previousElementSibling)
+            ? [node.previousElementSibling]
+            : [];
+          const nextSibling = node.nextElementSibling instanceof HTMLElement && isRenderedElement(node.nextElementSibling)
+            ? [node.nextElementSibling]
+            : [];
+
+          const collectGraphicNodes = (scopeNodes: HTMLElement[]): HTMLElement[] => {
+            const graphicNodes: HTMLElement[] = [];
+            const seenGraphicNodes = new Set<HTMLElement>();
+
+            const addGraphicNode = (candidate: Element | null) => {
+              if (!(candidate instanceof HTMLElement) || candidate === node || seenGraphicNodes.has(candidate)) return;
+              if (!isRenderedElement(candidate)) return;
+
+              const attributeEntries = collectElementAttributeEntries(candidate);
+              const hintSummary = collectGraphicTokenHintSummary([
+                clean(candidate.getAttribute('role')),
+                ...attributeEntries.map((entry) => entry.name),
+                ...attributeEntries.map((entry) => entry.value),
+              ]);
+              const graphicBucket = toGraphicNodeBucket(candidate);
+              if (graphicBucket === 'unknown' && hintSummary.count === 0) return;
+
+              seenGraphicNodes.add(candidate);
+              graphicNodes.push(candidate);
+            };
+
+            for (const scopeNode of scopeNodes.slice(0, 6)) {
+              addGraphicNode(scopeNode);
+              const descendants = Array.from(
+                scopeNode.querySelectorAll('svg, span, div, label, button, [role="radio"], [aria-checked], [aria-selected]'),
+              )
+                .filter((candidate): candidate is HTMLElement => candidate instanceof HTMLElement)
+                .slice(0, 6);
+              for (const candidate of descendants) {
+                addGraphicNode(candidate);
+              }
+            }
+
+            return graphicNodes;
+          };
+
+          const wrapperGraphicNodes = collectGraphicNodes(sameWrapperChildren);
+          const previousSiblingGraphicNodes = collectGraphicNodes(previousSibling);
+          const nextSiblingGraphicNodes = collectGraphicNodes(nextSibling);
+          const decorativeNodes = Array.from(new Set([
+            ...wrapperGraphicNodes,
+            ...previousSiblingGraphicNodes,
+            ...nextSiblingGraphicNodes,
+          ]));
+
+          const sameWrapperChildTagBuckets = summarizeItems(sameWrapperChildren.map((candidate) => toGraphicStructuralTagBucket(candidate)), 6);
+          const previousSiblingTagBuckets = summarizeItems(previousSibling.map((candidate) => toGraphicStructuralTagBucket(candidate)), 2);
+          const nextSiblingTagBuckets = summarizeItems(nextSibling.map((candidate) => toGraphicStructuralTagBucket(candidate)), 2);
+          const decorativeNodeBuckets = summarizeItems(decorativeNodes.map((candidate) => toGraphicNodeBucket(candidate)), 8);
+          const roleBuckets = summarizeItems(decorativeNodes.map((candidate) => toProxyRoleBucket(candidate)), 5);
+          const tokenHintSummary = collectGraphicTokenHintSummary(decorativeNodes.flatMap((candidate) => {
+            const attributeEntries = collectElementAttributeEntries(candidate);
+            return [
+              candidate.tagName.toLowerCase(),
+              clean(candidate.getAttribute('role')),
+              ...attributeEntries.map((entry) => entry.name),
+              ...attributeEntries.map((entry) => entry.value),
+            ];
+          }));
+          const wrapperDecorativeBuckets = summarizeItems(wrapperGraphicNodes.map((candidate) => toGraphicNodeBucket(candidate)), 8);
+          const wrapperRoleBuckets = summarizeItems(wrapperGraphicNodes.map((candidate) => toProxyRoleBucket(candidate)), 5);
+          const siblingDecorativeBuckets = summarizeItems([
+            ...previousSiblingGraphicNodes,
+            ...nextSiblingGraphicNodes,
+          ].map((candidate) => toGraphicNodeBucket(candidate)), 8);
+          const siblingRoleBuckets = summarizeItems([
+            ...previousSiblingGraphicNodes,
+            ...nextSiblingGraphicNodes,
+          ].map((candidate) => toProxyRoleBucket(candidate)), 5);
+
+          return {
+            signature: {
+              candidateSlot,
+              sameWrapperChildTagBuckets: sameWrapperChildTagBuckets.items,
+              sameWrapperChildTagCount: sameWrapperChildTagBuckets.count,
+              sameWrapperChildTagsTruncated: sameWrapperChildTagBuckets.truncated,
+              previousSiblingTagBuckets: previousSiblingTagBuckets.items,
+              previousSiblingTagCount: previousSiblingTagBuckets.count,
+              previousSiblingTagsTruncated: previousSiblingTagBuckets.truncated,
+              nextSiblingTagBuckets: nextSiblingTagBuckets.items,
+              nextSiblingTagCount: nextSiblingTagBuckets.count,
+              nextSiblingTagsTruncated: nextSiblingTagBuckets.truncated,
+              decorativeNodeBuckets: decorativeNodeBuckets.items,
+              decorativeNodeCount: decorativeNodeBuckets.count,
+              decorativeNodesTruncated: decorativeNodeBuckets.truncated,
+              roleBuckets: roleBuckets.items,
+              roleCount: roleBuckets.count,
+              rolesTruncated: roleBuckets.truncated,
+              tokenHintBuckets: tokenHintSummary.items,
+              tokenHintCount: tokenHintSummary.count,
+              tokenHintsTruncated: tokenHintSummary.truncated,
+              hasSameChoiceCue: tokenHintSummary.cueState.same,
+              hasDifferentChoiceCue: tokenHintSummary.cueState.different,
+              hasYesChoiceCue: tokenHintSummary.cueState.yes,
+              hasNoChoiceCue: tokenHintSummary.cueState.no,
+            },
+            wrapperPatternKey: [
+              sameWrapperChildTagBuckets.items.join(','),
+              wrapperDecorativeBuckets.items.join(','),
+              wrapperRoleBuckets.items.join(','),
+            ].join('|') || 'no-wrapper-graphics',
+            siblingPatternKey: [
+              previousSiblingTagBuckets.items.join(','),
+              nextSiblingTagBuckets.items.join(','),
+              siblingDecorativeBuckets.items.join(','),
+              siblingRoleBuckets.items.join(','),
+            ].join('|') || 'no-direct-sibling-graphics',
+            tokenHintSet: new Set(tokenHintSummary.items),
+          };
+        };
+
         const bucketPatternCommonality = <T extends string>(
           keys: string[],
           sameBucket: T,
@@ -1606,6 +1933,39 @@ async function extractDomContext(loc: Locator): Promise<{
                 'distinct-reference-pattern',
                 'mixed-reference-pattern',
               ),
+            };
+          }
+
+          const rawGraphicSignatures = radioRects.map((entry) => ({
+            isCurrent: entry.isCurrent,
+            ...buildRawRadioGraphicSignature(entry.node, entry.index + 1),
+          }));
+          const currentGraphicSignature = rawGraphicSignatures.find((entry) => entry.isCurrent) ?? null;
+
+          if (currentGraphicSignature) {
+            const otherTokenHintSets = rawGraphicSignatures
+              .filter((entry) => !entry.isCurrent)
+              .map((entry) => entry.tokenHintSet);
+            const currentTokenHints = [...currentGraphicSignature.tokenHintSet];
+
+            radioGraphicSignature = {
+              ...currentGraphicSignature.signature,
+              sameWrapperCommonalityBucket: bucketPatternCommonality(
+                rawGraphicSignatures.map((entry) => entry.wrapperPatternKey),
+                'same-wrapper-graphic-pattern',
+                'distinct-wrapper-graphic-pattern',
+                'mixed-wrapper-graphic-pattern',
+              ),
+              directSiblingCommonalityBucket: bucketPatternCommonality(
+                rawGraphicSignatures.map((entry) => entry.siblingPatternKey),
+                'same-direct-sibling-graphic-pattern',
+                'distinct-direct-sibling-graphic-pattern',
+                'mixed-direct-sibling-graphic-pattern',
+              ),
+              hasUniqueTokenHintBucket: otherTokenHintSets.length > 0
+                && currentTokenHints.some((bucket) => otherTokenHintSets.every((set) => !set.has(bucket))),
+              hasSharedTokenHintBucket: otherTokenHintSets.length > 0
+                && currentTokenHints.some((bucket) => otherTokenHintSets.some((set) => set.has(bucket))),
             };
           }
 
@@ -1924,6 +2284,7 @@ async function extractDomContext(loc: Locator): Promise<{
         nonTextLayoutSignature,
         domAttributeSignature,
         proxyReferenceSignature,
+        radioGraphicSignature,
         pageIndex,
         ordinalOnPage,
         tabLeft,
@@ -2405,6 +2766,17 @@ async function describe(
         valueHintBuckets: [...domCtx.proxyReferenceSignature.valueHintBuckets],
       }
     : null;
+  const radioGraphicSignature = domCtx.radioGraphicSignature
+    ? {
+        ...domCtx.radioGraphicSignature,
+        sameWrapperChildTagBuckets: [...domCtx.radioGraphicSignature.sameWrapperChildTagBuckets],
+        previousSiblingTagBuckets: [...domCtx.radioGraphicSignature.previousSiblingTagBuckets],
+        nextSiblingTagBuckets: [...domCtx.radioGraphicSignature.nextSiblingTagBuckets],
+        decorativeNodeBuckets: [...domCtx.radioGraphicSignature.decorativeNodeBuckets],
+        roleBuckets: [...domCtx.radioGraphicSignature.roleBuckets],
+        tokenHintBuckets: [...domCtx.radioGraphicSignature.tokenHintBuckets],
+      }
+    : null;
   const push = (source: LabelSource, value: string | null | undefined) => {
     if (value && value.trim()) rawCandidateLabels.push({ source, value: value.trim() });
   };
@@ -2534,6 +2906,7 @@ async function describe(
     nonTextLayoutSignature,
     domAttributeSignature,
     proxyReferenceSignature,
+    radioGraphicSignature,
     rejectedLabelCandidates: labelResult.rejected,
     observedValueLikeTextNearControl: domCtx.valueLikeNearText,
     idOrNameKey,

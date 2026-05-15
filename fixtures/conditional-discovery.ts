@@ -6,6 +6,7 @@ import {
   type LayoutProximityDistanceBucket,
   type LayoutProximityLabelCandidate,
   type RadioDomAttributeSignature,
+  type RadioGraphicSignature,
   type RadioNonTextLayoutSignature,
   type RadioProxyReferenceSignature,
 } from './field-discovery';
@@ -26,7 +27,7 @@ export const SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS_ENV = 'SAFE_DISCOVERY_EXPAND
 
 type GuardedToggleField = Pick<
   DiscoveredField,
-  'index' | 'kind' | 'type' | 'controlCategory' | 'visible' | 'editable' | 'resolvedLabel' | 'label' | 'sectionName' | 'rawCandidateLabels' | 'containerContextLabels' | 'layoutProximityLabels' | 'nonTextLayoutSignature' | 'domAttributeSignature' | 'proxyReferenceSignature' | 'groupName' | 'idOrNameKey' | 'inferredType'
+  'index' | 'kind' | 'type' | 'controlCategory' | 'visible' | 'editable' | 'resolvedLabel' | 'label' | 'sectionName' | 'rawCandidateLabels' | 'containerContextLabels' | 'layoutProximityLabels' | 'nonTextLayoutSignature' | 'domAttributeSignature' | 'proxyReferenceSignature' | 'radioGraphicSignature' | 'groupName' | 'idOrNameKey' | 'inferredType'
 >;
 
 export interface GuardedPhysicalOperatingAddressDiscoveryResult {
@@ -216,6 +217,8 @@ type PhysicalOperatingAddressToggleFallbackInventoryEntry = {
   attributeCueMatches: PhysicalOperatingAddressCuePatternMatches;
   proxyReferenceSignature: RadioProxyReferenceSignature | null;
   proxyCueMatches: PhysicalOperatingAddressCuePatternMatches;
+  radioGraphicSignature: RadioGraphicSignature | null;
+  graphicCueMatches: PhysicalOperatingAddressCuePatternMatches;
   nearbyLabelFragments: Array<{ source: string; text: string }>;
   nearbyTextFragments: Array<{ source: string; text: string }>;
   nearbyTextTruncated: boolean;
@@ -271,6 +274,7 @@ type ToggleCueContext = {
   layoutProximityEntries: ToggleCueFragment[];
   attributeSignatureEntries: ToggleCueFragment[];
   proxyReferenceSignatureEntries: ToggleCueFragment[];
+  radioGraphicSignatureEntries: ToggleCueFragment[];
   nearbyEntries: ToggleCueFragment[];
   allEntries: ToggleCueFragment[];
 };
@@ -359,6 +363,41 @@ function isToggleContainerFollowingLabelSource(source: string): boolean {
   return CONTAINER_FOLLOWING_TOGGLE_LABEL_SOURCES.has(source);
 }
 
+function buildRadioGraphicCueEntries(signature: RadioGraphicSignature | null | undefined): ToggleCueFragment[] {
+  if (!signature) return [];
+
+  const tokenHints = new Set(signature.tokenHintBuckets);
+  const entries: ToggleCueFragment[] = [];
+  const push = (value: string) => {
+    entries.push({ source: 'radio-graphic-signature', value });
+  };
+
+  if (tokenHints.has('business-like-token') && tokenHints.has('physical-like-token') && tokenHints.has('address-like-token')) {
+    push('Business Physical Address');
+  }
+  if (tokenHints.has('physical-like-token') && tokenHints.has('operating-like-token') && tokenHints.has('address-like-token')) {
+    push('Physical Operating Address');
+  }
+  if (tokenHints.has('operating-like-token') && tokenHints.has('address-like-token')) {
+    push('Operating Address');
+  }
+  if (tokenHints.has('mailing-like-token') && tokenHints.has('address-like-token')) {
+    push('Mailing Address');
+  }
+  if (tokenHints.has('legal-like-token') && tokenHints.has('address-like-token')) {
+    push('Legal Address');
+  }
+  if (tokenHints.has('virtual-like-token') && tokenHints.has('address-like-token')) {
+    push('Virtual Address');
+  }
+  if (signature.hasSameChoiceCue) push('Same');
+  if (signature.hasDifferentChoiceCue) push('Different');
+  if (signature.hasYesChoiceCue) push('Yes');
+  if (signature.hasNoChoiceCue) push('No');
+
+  return uniqueToggleCueFragments(entries);
+}
+
 function buildToggleCueContext(
   field: GuardedToggleField,
   options?: ToggleCueContextOptions,
@@ -433,6 +472,7 @@ function buildToggleCueContext(
       value,
     })),
   );
+  const radioGraphicSignatureEntries = buildRadioGraphicCueEntries(field.radioGraphicSignature);
   const nearbyEntries = uniqueToggleCueFragments([
     { source: 'section', value: field.sectionName ?? '' },
     ...field.rawCandidateLabels.map((candidate) => ({ source: candidate.source, value: candidate.value })),
@@ -452,6 +492,7 @@ function buildToggleCueContext(
     layoutProximityEntries,
     attributeSignatureEntries,
     proxyReferenceSignatureEntries,
+    radioGraphicSignatureEntries,
     nearbyEntries,
     allEntries: uniqueToggleCueFragments([
       ...currentLabelEntries,
@@ -462,6 +503,7 @@ function buildToggleCueContext(
       ...layoutProximityEntries,
       ...attributeSignatureEntries,
       ...proxyReferenceSignatureEntries,
+      ...radioGraphicSignatureEntries,
     ]),
   };
 }
@@ -815,6 +857,7 @@ function buildPhysicalOperatingAddressToggleFallbackInventory(
       const nearbyTextFragments = collectBoundedSanitizedToggleNearbyFragments(cueContext.nearbyEntries);
       const attributeCueMatches = buildPhysicalOperatingAddressCuePatternMatches(cueContext.attributeSignatureEntries);
       const proxyCueMatches = buildPhysicalOperatingAddressCuePatternMatches(cueContext.proxyReferenceSignatureEntries);
+      const graphicCueMatches = buildPhysicalOperatingAddressCuePatternMatches(cueContext.radioGraphicSignatureEntries);
 
       return {
         slot: index + 1,
@@ -862,6 +905,8 @@ function buildPhysicalOperatingAddressToggleFallbackInventory(
         attributeCueMatches,
         proxyReferenceSignature: field.proxyReferenceSignature ?? null,
         proxyCueMatches,
+        radioGraphicSignature: field.radioGraphicSignature ?? null,
+        graphicCueMatches,
         nearbyLabelFragments: nearbyTextFragments.fragments,
         nearbyTextFragments: nearbyTextFragments.fragments,
         nearbyTextTruncated: nearbyTextFragments.truncated,

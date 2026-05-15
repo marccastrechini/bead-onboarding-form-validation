@@ -5628,6 +5628,118 @@ test.describe('interactive validation safety', () => {
     expect(serializedSignature).not.toContain('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9');
   });
 
+  test('guarded physical address discovery field discovery collects bounded same-wrapper and direct-sibling graphic signatures', async ({ page }) => {
+    await page.setContent(`
+      <style>
+        .graphic-choice {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin: 8px 0;
+        }
+        .graphic-choice label,
+        .graphic-choice span,
+        .graphic-choice button {
+          display: inline-flex;
+          width: 18px;
+          height: 18px;
+        }
+      </style>
+      <div class="graphic-choice" data-choice-kind="physical-operating-address">
+        <label class="choice-label selected-state"></label>
+        <input id="graphic-radio-a" type="radio" name="addressOptions" />
+        <span class="radio-ring selected physical operating address"></span>
+        <button type="button" class="choice-dot"></button>
+      </div>
+      <div class="graphic-choice" data-choice-kind="same-choice">
+        <label class="choice-label same-choice"></label>
+        <input id="graphic-radio-b" type="radio" name="addressOptions" />
+        <span class="radio-ring same choice"></span>
+        <button type="button" class="choice-dot"></button>
+      </div>
+      <div class="graphic-choice" data-choice-kind="business-physical-address">
+        <label class="choice-label business-choice"></label>
+        <input id="graphic-radio-c" type="radio" name="addressOptions" />
+        <span class="radio-ring business physical address"></span>
+        <button type="button" class="choice-dot"></button>
+      </div>
+    `);
+
+    const fields = await discoverFields(page);
+    const radios = fields.filter((field) => field.kind === 'radio' && field.type === 'radio');
+    const physical = radios.find((field) => field.elementId === 'graphic-radio-a');
+    const businessPhysical = radios.find((field) => field.elementId === 'graphic-radio-c');
+
+    expect(radios).toHaveLength(3);
+    expect(physical?.radioGraphicSignature).toEqual(expect.objectContaining({
+      candidateSlot: 1,
+      sameWrapperChildTagBuckets: expect.arrayContaining(['label', 'span', 'button']),
+      previousSiblingTagBuckets: expect.arrayContaining(['label']),
+      nextSiblingTagBuckets: expect.arrayContaining(['span']),
+      decorativeNodeBuckets: expect.arrayContaining(['pseudo-radio', 'button']),
+      tokenHintBuckets: expect.arrayContaining([
+        'radio-like-token',
+        'selected-token',
+        'address-like-token',
+        'physical-like-token',
+        'operating-like-token',
+      ]),
+      sameWrapperCommonalityBucket: 'same-wrapper-graphic-pattern',
+      directSiblingCommonalityBucket: 'same-direct-sibling-graphic-pattern',
+      hasUniqueTokenHintBucket: true,
+      hasSharedTokenHintBucket: true,
+    }));
+    expect(businessPhysical?.radioGraphicSignature?.tokenHintBuckets).toEqual(expect.arrayContaining([
+      'radio-like-token',
+      'address-like-token',
+      'business-like-token',
+      'physical-like-token',
+    ]));
+  });
+
+  test('guarded physical address discovery field discovery omits raw wrapper and sibling graphic values and keeps only safe buckets', async ({ page }) => {
+    await page.setContent(`
+      <style>
+        .graphic-choice {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .graphic-choice label,
+        .graphic-choice span,
+        .graphic-choice button {
+          display: inline-flex;
+          width: 18px;
+          height: 18px;
+        }
+      </style>
+      <div class="graphic-choice https://demo.docusign.net/start?token=secret-token-value" data-choice-kind="physical-operating-address">
+        <label class="hidden.person@example.test"></label>
+        <input id="graphic-radio-raw" type="radio" name="addressOptions" />
+        <span class="radio-ring selected physical operating address token-secret-value"></span>
+        <button type="button" data-target="hidden.person@example.test"></button>
+      </div>
+    `);
+
+    const fields = await discoverFields(page);
+    const signature = fields.find((field) => field.kind === 'radio')?.radioGraphicSignature;
+    const serializedSignature = JSON.stringify(signature);
+
+    expect(signature).toEqual(expect.objectContaining({
+      tokenHintBuckets: expect.arrayContaining([
+        'radio-like-token',
+        'selected-token',
+        'address-like-token',
+        'physical-like-token',
+        'operating-like-token',
+      ]),
+    }));
+    expect(serializedSignature).not.toContain('https://demo.docusign.net/start');
+    expect(serializedSignature).not.toContain('hidden.person@example.test');
+    expect(serializedSignature).not.toContain('secret-token-value');
+    expect(serializedSignature).not.toContain('token-secret-value');
+  });
+
   const fallbackRadioField = (overrides: Record<string, unknown> = {}) => ({
     index: 1,
     kind: 'radio',
@@ -5644,6 +5756,7 @@ test.describe('interactive validation safety', () => {
     nonTextLayoutSignature: null,
     domAttributeSignature: null,
     proxyReferenceSignature: null,
+    radioGraphicSignature: null,
     groupName: 'location_group',
     idOrNameKey: null,
     inferredType: { type: 'unknown' },
@@ -5759,6 +5872,39 @@ test.describe('interactive validation safety', () => {
     valueHintsTruncated: false,
     proxyPatternBucket: 'same-proxy-pattern',
     referencePatternBucket: 'mixed-reference-pattern',
+    ...overrides,
+  });
+
+  const radioGraphicSignature = (
+    overrides: Record<string, unknown> = {},
+  ) => ({
+    candidateSlot: 1,
+    sameWrapperChildTagBuckets: ['label', 'span', 'button'],
+    sameWrapperChildTagCount: 3,
+    sameWrapperChildTagsTruncated: false,
+    previousSiblingTagBuckets: ['label'],
+    previousSiblingTagCount: 1,
+    previousSiblingTagsTruncated: false,
+    nextSiblingTagBuckets: ['span'],
+    nextSiblingTagCount: 1,
+    nextSiblingTagsTruncated: false,
+    decorativeNodeBuckets: ['pseudo-radio', 'button'],
+    decorativeNodeCount: 2,
+    decorativeNodesTruncated: false,
+    roleBuckets: ['none'],
+    roleCount: 1,
+    rolesTruncated: false,
+    tokenHintBuckets: ['radio-like-token'],
+    tokenHintCount: 1,
+    tokenHintsTruncated: false,
+    hasSameChoiceCue: false,
+    hasDifferentChoiceCue: false,
+    hasYesChoiceCue: false,
+    hasNoChoiceCue: false,
+    sameWrapperCommonalityBucket: 'same-wrapper-graphic-pattern',
+    directSiblingCommonalityBucket: 'same-direct-sibling-graphic-pattern',
+    hasUniqueTokenHintBucket: false,
+    hasSharedTokenHintBucket: true,
     ...overrides,
   });
 
@@ -7148,6 +7294,247 @@ test.describe('interactive validation safety', () => {
     expect(selection.fallbackInventory?.entries.every((entry) => entry.proxyReferenceSignature?.valueHintBuckets.includes('generated-token-pattern'))).toBe(true);
     expect(selection.fallbackInventory?.entries.every((entry) => entry.proxyReferenceSignature?.proxyTagBuckets.length === 1)).toBe(true);
     expect(selection.fallbackInventory?.entries.every((entry) => entry.proxyCueMatches.physicalOperatingAddress === false)).toBe(true);
+  });
+
+  test('guarded physical address discovery fallback selects one radio-like control with a unique Physical Operating Address graphic signature', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      fallbackRadioField({
+        index: 122,
+        idOrNameKey: 'graphicNeutralToggle',
+        radioGraphicSignature: radioGraphicSignature({
+          tokenHintBuckets: ['radio-like-token', 'generated/generic-only-token'],
+          tokenHintCount: 2,
+          hasUniqueTokenHintBucket: false,
+        }),
+      }),
+      fallbackRadioField({
+        index: 123,
+        idOrNameKey: 'graphicPhysicalToggle',
+        radioGraphicSignature: radioGraphicSignature({
+          tokenHintBuckets: ['radio-like-token', 'selected-token', 'address-like-token', 'physical-like-token', 'operating-like-token'],
+          tokenHintCount: 5,
+          hasUniqueTokenHintBucket: true,
+          hasSharedTokenHintBucket: true,
+        }),
+      }),
+      fallbackRadioField({
+        index: 124,
+        idOrNameKey: 'graphicNoToggle',
+        radioGraphicSignature: radioGraphicSignature({
+          tokenHintBuckets: ['radio-like-token', 'generated/generic-only-token'],
+          tokenHintCount: 2,
+          hasNoChoiceCue: true,
+        }),
+      }),
+    ] as any);
+
+    const targetEntry = selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 123);
+
+    expect(selection.selectionMode).toBe('fallback');
+    expect(selection.selectedField?.idOrNameKey).toBe('graphicPhysicalToggle');
+    expect(selection.fallbackInventory?.matchingFallbackCandidateCount).toBe(1);
+    expect(targetEntry?.graphicCueMatches.physicalOperatingAddress).toBe(true);
+    expect(targetEntry?.radioGraphicSignature?.hasUniqueTokenHintBucket).toBe(true);
+  });
+
+  test('guarded physical address discovery fallback selects one radio-like control with a unique Business Physical Address graphic signature', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      fallbackRadioField({
+        index: 125,
+        idOrNameKey: 'graphicSameToggle',
+        radioGraphicSignature: radioGraphicSignature({
+          tokenHintBuckets: ['radio-like-token', 'generated/generic-only-token'],
+          tokenHintCount: 2,
+          hasSameChoiceCue: true,
+        }),
+      }),
+      fallbackRadioField({
+        index: 126,
+        idOrNameKey: 'graphicBusinessPhysicalToggle',
+        radioGraphicSignature: radioGraphicSignature({
+          tokenHintBuckets: ['radio-like-token', 'address-like-token', 'business-like-token', 'physical-like-token'],
+          tokenHintCount: 4,
+          hasUniqueTokenHintBucket: true,
+          hasSharedTokenHintBucket: true,
+        }),
+      }),
+      fallbackRadioField({
+        index: 127,
+        idOrNameKey: 'graphicNoToggle',
+        radioGraphicSignature: radioGraphicSignature({
+          tokenHintBuckets: ['radio-like-token', 'generated/generic-only-token'],
+          tokenHintCount: 2,
+          hasNoChoiceCue: true,
+        }),
+      }),
+    ] as any);
+
+    const targetEntry = selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 126);
+
+    expect(selection.selectionMode).toBe('fallback');
+    expect(selection.selectedField?.idOrNameKey).toBe('graphicBusinessPhysicalToggle');
+    expect(selection.fallbackInventory?.matchingFallbackCandidateCount).toBe(1);
+    expect(targetEntry?.graphicCueMatches.businessPhysicalAddress).toBe(true);
+    expect(targetEntry?.radioGraphicSignature?.directSiblingCommonalityBucket).toBe('same-direct-sibling-graphic-pattern');
+  });
+
+  test('guarded physical address discovery fallback refuses mailing legal or virtual graphic signatures', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      fallbackRadioField({
+        index: 128,
+        idOrNameKey: 'graphicMailingToggle',
+        radioGraphicSignature: radioGraphicSignature({
+          tokenHintBuckets: ['radio-like-token', 'address-like-token', 'mailing-like-token'],
+          tokenHintCount: 3,
+          hasUniqueTokenHintBucket: true,
+        }),
+      }),
+      fallbackRadioField({
+        index: 129,
+        idOrNameKey: 'graphicLegalToggle',
+        radioGraphicSignature: radioGraphicSignature({
+          tokenHintBuckets: ['radio-like-token', 'address-like-token', 'legal-like-token'],
+          tokenHintCount: 3,
+          hasUniqueTokenHintBucket: true,
+        }),
+      }),
+      fallbackRadioField({
+        index: 130,
+        idOrNameKey: 'graphicVirtualToggle',
+        radioGraphicSignature: radioGraphicSignature({
+          tokenHintBuckets: ['radio-like-token', 'address-like-token', 'virtual-like-token'],
+          tokenHintCount: 3,
+          hasUniqueTokenHintBucket: true,
+        }),
+      }),
+    ] as any);
+
+    expect(selection.selectedField).toBeNull();
+    expect(selection.fallbackInventory?.matchingFallbackCandidateCount).toBe(0);
+    expect(selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 128)?.graphicCueMatches.mailingAddress).toBe(true);
+    expect(selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 129)?.graphicCueMatches.legalAddress).toBe(true);
+    expect(selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 130)?.graphicCueMatches.virtualAddress).toBe(true);
+  });
+
+  test('guarded physical address discovery fallback inventories same different yes and no graphic cues but stays fail-closed', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      fallbackRadioField({
+        index: 131,
+        idOrNameKey: 'graphicSameToggle',
+        radioGraphicSignature: radioGraphicSignature({
+          tokenHintBuckets: ['radio-like-token', 'generated/generic-only-token'],
+          tokenHintCount: 2,
+          hasSameChoiceCue: true,
+        }),
+      }),
+      fallbackRadioField({
+        index: 132,
+        idOrNameKey: 'graphicDifferentToggle',
+        radioGraphicSignature: radioGraphicSignature({
+          tokenHintBuckets: ['radio-like-token', 'generated/generic-only-token'],
+          tokenHintCount: 2,
+          hasDifferentChoiceCue: true,
+        }),
+      }),
+      fallbackRadioField({
+        index: 133,
+        idOrNameKey: 'graphicYesToggle',
+        radioGraphicSignature: radioGraphicSignature({
+          tokenHintBuckets: ['radio-like-token', 'generated/generic-only-token'],
+          tokenHintCount: 2,
+          hasYesChoiceCue: true,
+        }),
+      }),
+      fallbackRadioField({
+        index: 134,
+        idOrNameKey: 'graphicNoToggle',
+        radioGraphicSignature: radioGraphicSignature({
+          tokenHintBuckets: ['radio-like-token', 'generated/generic-only-token'],
+          tokenHintCount: 2,
+          hasNoChoiceCue: true,
+        }),
+      }),
+    ] as any);
+
+    expect(selection.selectedField).toBeNull();
+    expect(selection.fallbackInventory?.matchingFallbackCandidateCount).toBe(0);
+    expect(selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 131)?.graphicCueMatches.same).toBe(true);
+    expect(selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 132)?.graphicCueMatches.different).toBe(true);
+    expect(selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 133)?.graphicCueMatches.yes).toBe(true);
+    expect(selection.fallbackInventory?.entries.find((entry) => entry.fieldIndex === 134)?.graphicCueMatches.no).toBe(true);
+  });
+
+  test('guarded physical address discovery fallback fails closed when multiple radio-like controls carry graphic physical cues', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      fallbackRadioField({
+        index: 135,
+        idOrNameKey: 'graphicPhysicalToggleA',
+        radioGraphicSignature: radioGraphicSignature({
+          tokenHintBuckets: ['radio-like-token', 'address-like-token', 'physical-like-token', 'operating-like-token'],
+          tokenHintCount: 4,
+          hasUniqueTokenHintBucket: true,
+        }),
+      }),
+      fallbackRadioField({
+        index: 136,
+        idOrNameKey: 'graphicPhysicalToggleB',
+        radioGraphicSignature: radioGraphicSignature({
+          tokenHintBuckets: ['radio-like-token', 'address-like-token', 'business-like-token', 'physical-like-token'],
+          tokenHintCount: 4,
+          hasUniqueTokenHintBucket: true,
+        }),
+      }),
+      fallbackRadioField({
+        index: 137,
+        idOrNameKey: 'graphicNeutralToggle',
+        radioGraphicSignature: radioGraphicSignature({
+          tokenHintBuckets: ['radio-like-token', 'generated/generic-only-token'],
+          tokenHintCount: 2,
+        }),
+      }),
+    ] as any);
+
+    expect(selection.selectedField).toBeNull();
+    expect(selection.fallbackInventory?.matchingFallbackCandidateCount).toBe(2);
+    expect(selection.fallbackInventory?.entries.filter((entry) => entry.selectedByFallback)).toHaveLength(2);
+  });
+
+  test('guarded physical address discovery fallback keeps generated and generic graphic signatures bounded and fail-closed', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      fallbackRadioField({
+        index: 138,
+        idOrNameKey: 'graphicGenericToggleA',
+        radioGraphicSignature: radioGraphicSignature({
+          tokenHintBuckets: ['radio-like-token', 'generated/generic-only-token'],
+          tokenHintCount: 2,
+          hasSharedTokenHintBucket: true,
+        }),
+      }),
+      fallbackRadioField({
+        index: 139,
+        idOrNameKey: 'graphicGenericToggleB',
+        radioGraphicSignature: radioGraphicSignature({
+          tokenHintBuckets: ['radio-like-token', 'generated/generic-only-token'],
+          tokenHintCount: 2,
+          hasSharedTokenHintBucket: true,
+        }),
+      }),
+      fallbackRadioField({
+        index: 140,
+        idOrNameKey: 'graphicGenericToggleC',
+        radioGraphicSignature: radioGraphicSignature({
+          tokenHintBuckets: ['radio-like-token', 'generated/generic-only-token'],
+          tokenHintCount: 2,
+          hasSharedTokenHintBucket: true,
+        }),
+      }),
+    ] as any);
+
+    expect(selection.selectedField).toBeNull();
+    expect(selection.fallbackInventory?.matchingFallbackCandidateCount).toBe(0);
+    expect(selection.fallbackInventory?.entries.every((entry) => entry.radioGraphicSignature?.tokenHintBuckets.includes('generated/generic-only-token'))).toBe(true);
+    expect(selection.fallbackInventory?.entries.every((entry) => entry.graphicCueMatches.physicalOperatingAddress === false)).toBe(true);
+    expect(selection.fallbackInventory?.entries.every((entry) => entry.radioGraphicSignature?.sameWrapperChildTagBuckets.length === 3)).toBe(true);
   });
 
   test('guarded physical address discovery fallback refuses mailing or legal container cues', () => {
