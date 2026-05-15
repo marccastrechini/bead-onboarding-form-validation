@@ -1,53 +1,55 @@
 {
   "status": "ready_for_review",
-  "run_id": "PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN33",
+  "run_id": "PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN34",
   "model_used": "GitHub Copilot (GPT-5.4)",
   "branch": "main",
   "commit": null,
-  "commit_message": "AI-HANDOFF: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN33 ready for ChatGPT review",
-  "push_status": "not_requested",
-  "started_at": "2026-05-15T08:14:59.2869098-04:00",
-  "completed_at": "2026-05-15T08:14:59.2869098-04:00",
-  "git_commit_before": "d88017757d4121a77794e256ed151da9ebcf4b17",
+  "commit_message": "AI-HANDOFF: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN34 ready for ChatGPT review",
+  "push_status": "pending_at_write_time",
+  "started_at": "2026-05-15T08:36:41.0970123-04:00",
+  "completed_at": "2026-05-15T08:36:41.0970123-04:00",
+  "git_commit_before": "8bbde8a95e3899d8d76249809d856be1e237cfc8",
   "git_commit_after": null,
   "summary_file": "artifacts/ai-handoff/latest-copilot-result.md",
   "needs_chatgpt_review": true,
-  "command_run_exactly_once": "RUN33 stayed source/test-only and did not execute any live capture command.",
+  "command_run_exactly_once": "RUN34 executed npm run bootstrap:capture:physical-address exactly once and did not retry it.",
   "files_changed": [
-    "fixtures/conditional-discovery.ts",
-    "tests/bootstrap-units.spec.ts",
     "artifacts/ai-handoff/status.json",
     "artifacts/ai-handoff/latest-copilot-result.md"
   ],
   "commands_run": [
-    "No live capture command was run in RUN33; work stayed source/test-only.",
-    "npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g \"guarded physical address discovery\" -> passed (67 tests)",
-    "npm run test:units -> passed (320 tests)"
+    "npm run bootstrap:capture:physical-address -> executed exactly once; safe summary indicated signer surface reached, initial field count 123, primary and cue-based selection found zero candidates, calibrated fallback was considered, addressOptions anchor matched, exactly three visible editable radio inputs remained, candidate order was stable, no conflicting cues surfaced, slot 2 was selected under selectionMode calibrated-fallback with reason calibrated-business-primary-location-physical-address-option, and the toggle expansion path was exercised",
+    "Check artifacts/latest-physical-operating-address-post-toggle-structure.json and artifacts/latest-physical-operating-address-post-toggle-dom.html timestamps -> both still showed 2026-05-01T16:41:44Z on disk",
+    "Do not run reports:refresh or findings:open because the post-toggle artifacts on disk were not refreshed by RUN34"
   ],
   "tests_run": [
-    "npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g \"guarded physical address discovery\" -> passed (67 tests)",
-    "npm run test:units -> passed (320 tests)"
+    "No additional unit tests were run in RUN34 because this step was authorized as a single live capture-only validation run"
   ],
   "validation_summary": {
-    "source_test_only": true,
-    "live_capture_rerun_performed": false,
-    "calibrated_business_primary_location_fallback_added": true,
-    "selection_mode_added": "calibrated-fallback",
-    "calibrated_fallback_reason": "calibrated-business-primary-location-physical-address-option",
-    "calibrated_target_slot": 2,
-    "matcher_broadened_under_strict_guards_only": true,
-    "calibrated_requires_zero_primary_eligible_candidates": true,
-    "calibrated_requires_zero_cue_based_matches": true,
-    "calibrated_requires_address_options_cluster_anchor": true,
-    "calibrated_requires_exact_three_visible_editable_radio_inputs": true,
-    "calibrated_requires_stable_candidate_order": true,
-    "calibrated_rejects_conflicting_safe_cues": true,
-    "generated_generic_only_signatures_do_not_count_as_proof": true,
-    "address_options_regex_handles_camel_case_split": true,
-    "guarded_slice_passed": true,
-    "guarded_slice_test_count": 67,
-    "full_unit_suite_passed": true,
-    "full_unit_test_count": 320,
+    "live_capture_rerun_performed": true,
+    "live_capture_command": "npm run bootstrap:capture:physical-address",
+    "live_capture_command_executed_once": true,
+    "open_signer_reached_signer_surface": true,
+    "initial_field_count": 123,
+    "primary_selection_found_candidate": false,
+    "cue_based_fallback_found_candidate": false,
+    "calibrated_fallback_considered": true,
+    "address_options_anchor_matched": true,
+    "exactly_three_visible_editable_radio_inputs": true,
+    "candidate_order_stable": true,
+    "all_cue_surfaces_empty_or_neutral": true,
+    "conflicting_physical_business_mailing_legal_virtual_same_different_yes_no_cues": false,
+    "calibrated_fallback_selected_slot_2": true,
+    "selection_mode_reported": "calibrated-fallback",
+    "fallback_reason_reported": "calibrated-business-primary-location-physical-address-option",
+    "toggle_expanded_reported": true,
+    "fresh_post_toggle_artifacts_produced": false,
+    "post_toggle_artifact_last_write_time_utc": "2026-05-01T16:41:44Z",
+    "post_toggle_structure_generated_at_utc": "2026-05-01T16:41:27.153Z",
+    "post_toggle_artifacts_remain_stale_may_1": true,
+    "field_local_physical_operating_address_leaf_labels_recovered": false,
+    "reports_refresh_run": false,
+    "findings_open_run": false,
     "screenshot_used_only_as_visual_guidance": true,
     "raw_url_exposed": false,
     "env_mutated": false,
@@ -56,19 +58,20 @@
     "finalization_controls_clicked": false
   },
   "concept_classification": {
-    "business_mailing_address_line_1": "unchanged_pending_live_validation",
-    "business_mailing_city": "unchanged_pending_live_validation",
-    "business_mailing_state": "unchanged_pending_live_validation",
-    "business_mailing_postal_code": "unchanged_pending_live_validation"
+    "business_mailing_address_line_1": "still capture-blocked",
+    "business_mailing_city": "still capture-blocked",
+    "business_mailing_state": "still capture-blocked",
+    "business_mailing_postal_code": "still capture-blocked"
   },
-  "key_outcome": "RUN33 added a strict calibrated `addressOptions`-anchored fallback that selects slot 2 only when primary selection and cue-based fallback both fail, exactly three visible editable radio inputs remain, candidate order is stable, and every safe cue surface stays empty; the guarded physical-address slice and the full unit suite both passed.",
+  "key_outcome": "RUN34 spent exactly one authorized live capture-only run. The live summary indicated that the new strict addressOptions calibrated fallback was exercised, matched the anchor, selected slot 2, reported selectionMode calibrated-fallback with reason calibrated-business-primary-location-physical-address-option, and exercised the toggle expansion path, but the on-disk post-toggle artifacts remained the stale May 1 files, so RUN34 did not produce a fresh trustworthy sanitized artifact bundle.",
   "blockers": [
-    "RUN33 did not spend another live signer URL, so the new calibrated fallback has not yet been verified against the live all-null three-radio cluster.",
-    "If the live cluster does not expose the neutral `addressOptions` anchor under the same normalized discovery path, the calibrated branch will continue to fail closed."
+    "The post-toggle artifact files on disk still have May 1 timestamps and a May 1 generatedAt value even though the live run summary reported the calibrated fallback and toggle expansion path.",
+    "The stale post-toggle artifact bundle still reports that no field-local Physical Operating Address leaf labels were recovered inside the capture bounds, so RUN34 cannot safely classify Address Line 1, City, State, ZIP, or Postal Code from fresh evidence.",
+    "Because no fresh trustworthy post-toggle artifacts were produced, reports:refresh and findings:open were intentionally not run."
   ],
   "uncertainty": [
-    "The second-slot target comes from screenshot/PDF-only human visual guidance for the known three-option cluster rather than from a newly recovered live DOM cue.",
-    "One authorized capture-only RUN34 is still needed to confirm that the calibrated branch selects slot 2, expands the Physical Operating Address section, and produces fresh sanitized artifacts without widening beyond the known cluster."
+    "RUN34 leaves an unresolved contradiction between the live command summary and the unchanged May 1 artifact files: either the capture writer path did not actually refresh the artifact bundle, or the live success summary overstated fresh artifact production.",
+    "The screenshot was used only as visual guidance to calibrate the expected slot-2 choice; no screenshot was committed, parsed, or used at runtime."
   ],
-  "next_recommendation": "If another live step is authorized, continue with exactly one capture-only validation run as PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN34 to confirm that the calibrated `addressOptions` fallback selects slot 2 and expands the section; otherwise stop source edits because RUN33 is complete."
+  "next_recommendation": "Redirect to PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN35 for a source/test-only investigation into the capture-only artifact write/freshness path: add explicit safe diagnostics around expansion.captureReport presence, writePhysicalOperatingAddressPostToggleArtifacts execution, and before/after artifact timestamps so the next live validation cannot misclassify stale May 1 artifacts as a fresh post-toggle capture."
 }
