@@ -17,8 +17,10 @@ import {
   type PhysicalOperatingAddressDomProbeReport,
 } from './physical-address-dom-probe';
 import {
+  capturePhysicalOperatingAddressUiEffectSnapshot,
   capturePhysicalOperatingAddressPostToggleStructure,
   guardedPhysicalOperatingAddressPostToggleCaptureEnabled,
+  type PhysicalOperatingAddressUiEffectSnapshot,
   type PhysicalOperatingAddressPostToggleCaptureReport,
 } from './physical-address-post-toggle-capture';
 import type { FrameHost } from './signer-helpers';
@@ -36,10 +38,89 @@ export interface GuardedPhysicalOperatingAddressDiscoveryResult {
   expanded: boolean;
   probeReport: PhysicalOperatingAddressDomProbeReport | null;
   captureReport: PhysicalOperatingAddressPostToggleCaptureReport | null;
+  toggleSelectionSummary: PhysicalOperatingAddressToggleSelectionSummary;
+  uiEffectSummary: PhysicalOperatingAddressUiEffectSummary;
+  expansionAttempted: boolean;
+  expansionSkippedReason: PhysicalOperatingAddressExpansionSkippedReason;
 }
 
 export interface GuardedPhysicalOperatingAddressDiscoveryOptions {
   stopAfterCaptureAttempt?: boolean;
+}
+
+export type PhysicalOperatingAddressToggleSelectionStage = 'primary' | 'cue-based-fallback' | 'calibrated-fallback' | 'none';
+
+export type PhysicalOperatingAddressToggleSelectionMode = 'primary' | 'fallback' | 'calibrated-fallback' | null;
+
+export type PhysicalOperatingAddressToggleSelectionOutcomeCategory =
+  | 'primary-selected'
+  | 'cue-based-selected'
+  | 'calibrated-selected'
+  | 'calibrated-considered-not-selected'
+  | 'calibrated-rejected-anchor-missing'
+  | 'calibrated-rejected-candidate-count'
+  | 'calibrated-rejected-order-unstable'
+  | 'calibrated-rejected-conflicting-cue'
+  | 'no-safe-toggle-selected';
+
+export type PhysicalOperatingAddressCalibratedFallbackRejectedReason =
+  | 'anchor-missing'
+  | 'candidate-count'
+  | 'order-unstable'
+  | 'conflicting-cue'
+  | 'cue-based-selection-already-available'
+  | 'cue-based-selection-ambiguous'
+  | 'calibrated-slot-missing'
+  | 'another-bounded-reason';
+
+export interface PhysicalOperatingAddressCalibratedFallbackGuardSummary {
+  addressOptionsAnchorMatched: boolean;
+  exactThreeRadioGuardPassed: boolean;
+  candidateOrderStable: boolean;
+  conflictingCueDetected: boolean;
+}
+
+export interface PhysicalOperatingAddressToggleSelectionSummary {
+  toggleSelectionOutcomeCategory: PhysicalOperatingAddressToggleSelectionOutcomeCategory;
+  toggleSelectionStage: PhysicalOperatingAddressToggleSelectionStage;
+  toggleSelectionMode: PhysicalOperatingAddressToggleSelectionMode;
+  selectedToggleSlot: number | null;
+  selectedToggleReason: string | null;
+  fallbackReason: string | null;
+  calibratedFallbackConsidered: boolean;
+  calibratedFallbackAllowed: boolean | null;
+  calibratedFallbackSelected: boolean;
+  calibratedFallbackSelectedSlot: number | null;
+  calibratedFallbackRejectedReasons: PhysicalOperatingAddressCalibratedFallbackRejectedReason[];
+  calibratedFallbackGuardSummary: PhysicalOperatingAddressCalibratedFallbackGuardSummary;
+  primarySelectionCandidateCount: number;
+  cueBasedFallbackCandidateCount: number;
+  calibratedFallbackCandidateCount: number;
+  eligibleRadioCandidateCount: number;
+  exactThreeRadioGuardPassed: boolean;
+  addressOptionsAnchorMatched: boolean;
+  candidateOrderStable: boolean;
+  conflictingCueDetected: boolean;
+}
+
+export type PhysicalOperatingAddressUiEffectOutcomeCategory =
+  | 'proof-address-visible-physical-fields-hidden'
+  | 'proof-address-visible-physical-fields-visible'
+  | 'proof-address-hidden-physical-fields-hidden'
+  | 'proof-address-hidden-physical-fields-visible';
+
+export type PhysicalOperatingAddressExpansionSkippedReason = 'no-selected-toggle' | null;
+
+export interface PhysicalOperatingAddressUiEffectSummary {
+  proofOfAddressUploadVisibleBefore: boolean;
+  proofOfAddressUploadVisibleAfter: boolean;
+  proofOfAddressUploadVisibilityChanged: boolean;
+  proofOfAddressUploadExpectedForSelectedOption: boolean | null;
+  physicalOperatingAddressFieldsVisibleBefore: boolean;
+  physicalOperatingAddressFieldsVisibleAfter: boolean;
+  physicalOperatingAddressFieldsVisibilityChanged: boolean;
+  physicalOperatingAddressFieldsExpectedForSelectedOption: boolean | null;
+  uiEffectOutcomeCategory: PhysicalOperatingAddressUiEffectOutcomeCategory;
 }
 
 const ADDRESS_OPTIONS_RE = /\baddress\s+options\b|\baddressoptions\b/i;
@@ -250,6 +331,7 @@ type PhysicalOperatingAddressToggleCalibratedFallbackDiagnostics = {
   cueBasedFailureReason: 'no-explicit-physical-cue-match' | 'ambiguous-explicit-physical-cue-match';
   allowed: boolean;
   rejectedReasons: string[];
+  addressOptionsAnchorMatched: boolean;
   addressOptionsClusterGuardPassed: boolean;
   candidateOrderStable: boolean;
   exactThreeRadioGuardPassed: boolean;
@@ -597,11 +679,13 @@ function buildCalibratedPhysicalOperatingAddressFallbackDiagnostics(
   fallbackInventory: PhysicalOperatingAddressToggleFallbackInventory,
 ): PhysicalOperatingAddressToggleCalibratedFallbackDiagnostics {
   const entries = fallbackInventory.entries;
-  const addressOptionsClusterGuardPassed = primaryInventory.candidateCount === CALIBRATED_BUSINESS_PRIMARY_LOCATION_CANDIDATE_COUNT
+  const addressOptionsAnchorMatched = primaryInventory.entries.length > 0
+    && primaryInventory.entries.every((entry) => entry.matches.addressOptionPattern);
+  const addressOptionsClusterGuardPassed = addressOptionsAnchorMatched
+    && primaryInventory.candidateCount === CALIBRATED_BUSINESS_PRIMARY_LOCATION_CANDIDATE_COUNT
     && primaryInventory.matchingCandidateCount === 0
     && primaryInventory.truncatedCandidateCount === 0
-    && primaryInventory.entries.length === CALIBRATED_BUSINESS_PRIMARY_LOCATION_CANDIDATE_COUNT
-    && primaryInventory.entries.every((entry) => entry.matches.addressOptionPattern);
+    && primaryInventory.entries.length === CALIBRATED_BUSINESS_PRIMARY_LOCATION_CANDIDATE_COUNT;
   const exactThreeRadioGuardPassed = fallbackInventory.visibleRadioInputCount === CALIBRATED_BUSINESS_PRIMARY_LOCATION_CANDIDATE_COUNT
     && fallbackInventory.visibleRoleRadioCount === 0
     && fallbackInventory.visibleRadioLikeCandidateCount === CALIBRATED_BUSINESS_PRIMARY_LOCATION_CANDIDATE_COUNT
@@ -627,8 +711,8 @@ function buildCalibratedPhysicalOperatingAddressFallbackDiagnostics(
         : 'cue-based-selection-ambiguous',
     );
   }
-  if (!addressOptionsClusterGuardPassed) rejectedReasons.push('address-options-cluster-anchor-missing');
-  if (!exactThreeRadioGuardPassed) rejectedReasons.push('exact-three-visible-editable-radio-guard-failed');
+  if (!addressOptionsAnchorMatched) rejectedReasons.push('address-options-anchor-missing');
+  if (addressOptionsAnchorMatched && !exactThreeRadioGuardPassed) rejectedReasons.push('candidate-count-not-exactly-three');
   if (!candidateOrderStable) rejectedReasons.push('candidate-order-unstable');
   if (conflictingCueDetected) rejectedReasons.push('conflicting-safe-cue-surfaced');
 
@@ -642,6 +726,7 @@ function buildCalibratedPhysicalOperatingAddressFallbackDiagnostics(
     cueBasedFailureReason,
     allowed: rejectedReasons.length === 0,
     rejectedReasons,
+    addressOptionsAnchorMatched,
     addressOptionsClusterGuardPassed,
     candidateOrderStable,
     exactThreeRadioGuardPassed,
@@ -649,6 +734,171 @@ function buildCalibratedPhysicalOperatingAddressFallbackDiagnostics(
     generatedValuesOmitted: true,
   };
 }
+
+function mapPhysicalOperatingAddressCalibratedRejectedReason(
+  reason: string,
+): PhysicalOperatingAddressCalibratedFallbackRejectedReason {
+  switch (reason) {
+    case 'address-options-anchor-missing':
+      return 'anchor-missing';
+    case 'candidate-count-not-exactly-three':
+      return 'candidate-count';
+    case 'candidate-order-unstable':
+      return 'order-unstable';
+    case 'conflicting-safe-cue-surfaced':
+      return 'conflicting-cue';
+    case 'cue-based-selection-already-available':
+      return 'cue-based-selection-already-available';
+    case 'cue-based-selection-ambiguous':
+      return 'cue-based-selection-ambiguous';
+    case 'calibrated-slot-missing':
+      return 'calibrated-slot-missing';
+    default:
+      return 'another-bounded-reason';
+  }
+}
+
+function resolveSelectedToggleSlot<T extends GuardedToggleField>(
+  toggleSelection: PhysicalOperatingAddressToggleSelection<T>,
+): number | null {
+  if (toggleSelection.selectionMode === 'primary') {
+    return toggleSelection.primaryInventory.entries.find((entry) => entry.selectedByMatcher)?.slot ?? null;
+  }
+  if (toggleSelection.selectionMode === 'fallback') {
+    return toggleSelection.fallbackInventory?.entries.find((entry) => entry.selectedByFallback)?.slot ?? null;
+  }
+  if (toggleSelection.selectionMode === 'calibrated-fallback') {
+    return toggleSelection.fallbackInventory?.calibratedFallback?.selectedCalibratedSlot ?? null;
+  }
+
+  return null;
+}
+
+export function buildPhysicalOperatingAddressToggleSelectionSummary<T extends GuardedToggleField>(
+  toggleSelection: PhysicalOperatingAddressToggleSelection<T>,
+): PhysicalOperatingAddressToggleSelectionSummary {
+  const calibratedFallback = toggleSelection.fallbackInventory?.calibratedFallback ?? null;
+  const calibratedFallbackRejectedReasons = (calibratedFallback?.rejectedReasons ?? []).map(
+    mapPhysicalOperatingAddressCalibratedRejectedReason,
+  );
+  const selectedToggleSlot = resolveSelectedToggleSlot(toggleSelection);
+
+  let toggleSelectionOutcomeCategory: PhysicalOperatingAddressToggleSelectionOutcomeCategory = 'no-safe-toggle-selected';
+  if (toggleSelection.selectionMode === 'primary') {
+    toggleSelectionOutcomeCategory = 'primary-selected';
+  } else if (toggleSelection.selectionMode === 'fallback') {
+    toggleSelectionOutcomeCategory = 'cue-based-selected';
+  } else if (toggleSelection.selectionMode === 'calibrated-fallback' && selectedToggleSlot !== null) {
+    toggleSelectionOutcomeCategory = 'calibrated-selected';
+  } else if (calibratedFallback) {
+    if (calibratedFallbackRejectedReasons.includes('anchor-missing')) {
+      toggleSelectionOutcomeCategory = 'calibrated-rejected-anchor-missing';
+    } else if (calibratedFallbackRejectedReasons.includes('candidate-count')) {
+      toggleSelectionOutcomeCategory = 'calibrated-rejected-candidate-count';
+    } else if (calibratedFallbackRejectedReasons.includes('order-unstable')) {
+      toggleSelectionOutcomeCategory = 'calibrated-rejected-order-unstable';
+    } else if (calibratedFallbackRejectedReasons.includes('conflicting-cue')) {
+      toggleSelectionOutcomeCategory = 'calibrated-rejected-conflicting-cue';
+    } else {
+      toggleSelectionOutcomeCategory = 'calibrated-considered-not-selected';
+    }
+  }
+
+  let toggleSelectionStage: PhysicalOperatingAddressToggleSelectionStage = 'none';
+  if (toggleSelection.selectionMode === 'primary') {
+    toggleSelectionStage = 'primary';
+  } else if (toggleSelection.selectionMode === 'fallback') {
+    toggleSelectionStage = 'cue-based-fallback';
+  } else if (calibratedFallback) {
+    toggleSelectionStage = 'calibrated-fallback';
+  } else if (toggleSelection.fallbackInventory) {
+    toggleSelectionStage = 'cue-based-fallback';
+  } else if (toggleSelection.primaryInventory.candidateCount > 0) {
+    toggleSelectionStage = 'primary';
+  }
+
+  return {
+    toggleSelectionOutcomeCategory,
+    toggleSelectionStage,
+    toggleSelectionMode: toggleSelection.selectionMode,
+    selectedToggleSlot,
+    selectedToggleReason: toggleSelection.selectionReason,
+    fallbackReason: calibratedFallback?.fallbackReason
+      ?? (toggleSelection.selectionMode === 'fallback' ? toggleSelection.selectionReason : null),
+    calibratedFallbackConsidered: calibratedFallback !== null,
+    calibratedFallbackAllowed: calibratedFallback?.allowed ?? null,
+    calibratedFallbackSelected: toggleSelection.selectionMode === 'calibrated-fallback' && selectedToggleSlot !== null,
+    calibratedFallbackSelectedSlot: calibratedFallback?.selectedCalibratedSlot ?? null,
+    calibratedFallbackRejectedReasons,
+    calibratedFallbackGuardSummary: {
+      addressOptionsAnchorMatched: calibratedFallback?.addressOptionsAnchorMatched ?? false,
+      exactThreeRadioGuardPassed: calibratedFallback?.exactThreeRadioGuardPassed ?? false,
+      candidateOrderStable: calibratedFallback?.candidateOrderStable ?? false,
+      conflictingCueDetected: calibratedFallback?.conflictingCueDetected ?? false,
+    },
+    primarySelectionCandidateCount: toggleSelection.primaryInventory.matchingCandidateCount,
+    cueBasedFallbackCandidateCount: toggleSelection.fallbackInventory?.matchingFallbackCandidateCount ?? 0,
+    calibratedFallbackCandidateCount: calibratedFallback?.candidateCount ?? 0,
+    eligibleRadioCandidateCount: toggleSelection.fallbackInventory?.eligibleFallbackCandidateCount ?? toggleSelection.primaryInventory.eligibleCandidateCount,
+    exactThreeRadioGuardPassed: calibratedFallback?.exactThreeRadioGuardPassed ?? false,
+    addressOptionsAnchorMatched: calibratedFallback?.addressOptionsAnchorMatched ?? false,
+    candidateOrderStable: calibratedFallback?.candidateOrderStable ?? false,
+    conflictingCueDetected: calibratedFallback?.conflictingCueDetected ?? false,
+  };
+}
+
+function expectedProofOfAddressUploadVisibility(selectedToggleSlot: number | null): boolean | null {
+  if (selectedToggleSlot === 1 || selectedToggleSlot === 2) return true;
+  if (selectedToggleSlot === 3) return false;
+  return null;
+}
+
+function expectedPhysicalOperatingAddressFieldsVisibility(selectedToggleSlot: number | null): boolean | null {
+  if (selectedToggleSlot === 2) return true;
+  if (selectedToggleSlot === 1 || selectedToggleSlot === 3) return false;
+  return null;
+}
+
+function buildPhysicalOperatingAddressUiEffectOutcomeCategory(
+  after: PhysicalOperatingAddressUiEffectSnapshot,
+): PhysicalOperatingAddressUiEffectOutcomeCategory {
+  if (after.proofOfAddressUploadVisible && after.physicalOperatingAddressFieldsVisible) {
+    return 'proof-address-visible-physical-fields-visible';
+  }
+  if (after.proofOfAddressUploadVisible && !after.physicalOperatingAddressFieldsVisible) {
+    return 'proof-address-visible-physical-fields-hidden';
+  }
+  if (!after.proofOfAddressUploadVisible && after.physicalOperatingAddressFieldsVisible) {
+    return 'proof-address-hidden-physical-fields-visible';
+  }
+  return 'proof-address-hidden-physical-fields-hidden';
+}
+
+export function buildPhysicalOperatingAddressUiEffectSummary(input: {
+  before: PhysicalOperatingAddressUiEffectSnapshot;
+  after: PhysicalOperatingAddressUiEffectSnapshot;
+  selectedToggleSlot: number | null;
+}): PhysicalOperatingAddressUiEffectSummary {
+  return {
+    proofOfAddressUploadVisibleBefore: input.before.proofOfAddressUploadVisible,
+    proofOfAddressUploadVisibleAfter: input.after.proofOfAddressUploadVisible,
+    proofOfAddressUploadVisibilityChanged:
+      input.before.proofOfAddressUploadVisible !== input.after.proofOfAddressUploadVisible,
+    proofOfAddressUploadExpectedForSelectedOption: expectedProofOfAddressUploadVisibility(input.selectedToggleSlot),
+    physicalOperatingAddressFieldsVisibleBefore: input.before.physicalOperatingAddressFieldsVisible,
+    physicalOperatingAddressFieldsVisibleAfter: input.after.physicalOperatingAddressFieldsVisible,
+    physicalOperatingAddressFieldsVisibilityChanged:
+      input.before.physicalOperatingAddressFieldsVisible !== input.after.physicalOperatingAddressFieldsVisible,
+    physicalOperatingAddressFieldsExpectedForSelectedOption:
+      expectedPhysicalOperatingAddressFieldsVisibility(input.selectedToggleSlot),
+    uiEffectOutcomeCategory: buildPhysicalOperatingAddressUiEffectOutcomeCategory(input.after),
+  };
+}
+
+const DEFAULT_PHYSICAL_OPERATING_ADDRESS_UI_EFFECT_SNAPSHOT: PhysicalOperatingAddressUiEffectSnapshot = {
+  proofOfAddressUploadVisible: false,
+  physicalOperatingAddressFieldsVisible: false,
+};
 
 function sanitizeToggleDiagnosticFragment(value: string | null | undefined): string | null {
   const normalized = normalizeText(value);
@@ -1194,13 +1444,57 @@ export async function maybeExpandPhysicalOperatingAddressSection(
   options?: GuardedPhysicalOperatingAddressDiscoveryOptions,
 ): Promise<GuardedPhysicalOperatingAddressDiscoveryResult> {
   const diagnostics: string[] = [];
+  const beforeUiEffectSnapshot = await capturePhysicalOperatingAddressUiEffectSnapshot(frame)
+    .catch(() => DEFAULT_PHYSICAL_OPERATING_ADDRESS_UI_EFFECT_SNAPSHOT);
 
   if (!guardedPhysicalOperatingAddressDiscoveryEnabled(env)) {
     diagnostics.push('physical-operating-address discovery toggle: disabled');
-    return { fields: initialFields, diagnostics, expanded: false, probeReport: null, captureReport: null };
+    const toggleSelectionSummary: PhysicalOperatingAddressToggleSelectionSummary = {
+      toggleSelectionOutcomeCategory: 'no-safe-toggle-selected',
+      toggleSelectionStage: 'none',
+      toggleSelectionMode: null,
+      selectedToggleSlot: null,
+      selectedToggleReason: null,
+      fallbackReason: null,
+      calibratedFallbackConsidered: false,
+      calibratedFallbackAllowed: null,
+      calibratedFallbackSelected: false,
+      calibratedFallbackSelectedSlot: null,
+      calibratedFallbackRejectedReasons: [],
+      calibratedFallbackGuardSummary: {
+        addressOptionsAnchorMatched: false,
+        exactThreeRadioGuardPassed: false,
+        candidateOrderStable: false,
+        conflictingCueDetected: false,
+      },
+      primarySelectionCandidateCount: 0,
+      cueBasedFallbackCandidateCount: 0,
+      calibratedFallbackCandidateCount: 0,
+      eligibleRadioCandidateCount: 0,
+      exactThreeRadioGuardPassed: false,
+      addressOptionsAnchorMatched: false,
+      candidateOrderStable: false,
+      conflictingCueDetected: false,
+    };
+    return {
+      fields: initialFields,
+      diagnostics,
+      expanded: false,
+      probeReport: null,
+      captureReport: null,
+      toggleSelectionSummary,
+      uiEffectSummary: buildPhysicalOperatingAddressUiEffectSummary({
+        before: beforeUiEffectSnapshot,
+        after: beforeUiEffectSnapshot,
+        selectedToggleSlot: null,
+      }),
+      expansionAttempted: false,
+      expansionSkippedReason: 'no-selected-toggle',
+    };
   }
 
   const toggleSelection = explainPhysicalOperatingAddressToggleSelection(initialFields);
+  const toggleSelectionSummary = buildPhysicalOperatingAddressToggleSelectionSummary(toggleSelection);
   if (toggleSelection.fallbackInventory) {
     diagnostics.push(
       `physical-operating-address discovery toggle fallback inventory: ${JSON.stringify(toggleSelection.fallbackInventory)}`,
@@ -1223,7 +1517,21 @@ export async function maybeExpandPhysicalOperatingAddressSection(
     diagnostics.push(
       `physical-operating-address discovery toggle inventory: ${JSON.stringify(toggleSelection.primaryInventory)}`,
     );
-    return { fields: initialFields, diagnostics, expanded: false, probeReport: null, captureReport: null };
+    return {
+      fields: initialFields,
+      diagnostics,
+      expanded: false,
+      probeReport: null,
+      captureReport: null,
+      toggleSelectionSummary,
+      uiEffectSummary: buildPhysicalOperatingAddressUiEffectSummary({
+        before: beforeUiEffectSnapshot,
+        after: beforeUiEffectSnapshot,
+        selectedToggleSlot: null,
+      }),
+      expansionAttempted: false,
+      expansionSkippedReason: 'no-selected-toggle',
+    };
   }
 
   const toggleLabel = normalizeText(toggleField.resolvedLabel ?? toggleField.label) ?? '(unlabelled radio)';
@@ -1252,6 +1560,8 @@ export async function maybeExpandPhysicalOperatingAddressSection(
   const afterProbeSnapshot = probeEnabled
     ? await capturePhysicalOperatingAddressDomProbeSnapshot(frame, 'after-toggle')
     : null;
+  const afterUiEffectSnapshot = await capturePhysicalOperatingAddressUiEffectSnapshot(frame)
+    .catch(() => beforeUiEffectSnapshot);
 
   const captureReport = captureEnabled
     ? await capturePhysicalOperatingAddressPostToggleStructure(frame)
@@ -1272,6 +1582,14 @@ export async function maybeExpandPhysicalOperatingAddressSection(
       expanded: true,
       probeReport: null,
       captureReport,
+      toggleSelectionSummary,
+      uiEffectSummary: buildPhysicalOperatingAddressUiEffectSummary({
+        before: beforeUiEffectSnapshot,
+        after: afterUiEffectSnapshot,
+        selectedToggleSlot: toggleSelectionSummary.selectedToggleSlot,
+      }),
+      expansionAttempted: true,
+      expansionSkippedReason: null,
     };
   }
 
@@ -1303,5 +1621,19 @@ export async function maybeExpandPhysicalOperatingAddressSection(
     diagnostics.push('physical-operating-address post-toggle capture: captured sanitized structural review payload');
   }
 
-  return { fields, diagnostics, expanded: true, probeReport, captureReport };
+  return {
+    fields,
+    diagnostics,
+    expanded: true,
+    probeReport,
+    captureReport,
+    toggleSelectionSummary,
+    uiEffectSummary: buildPhysicalOperatingAddressUiEffectSummary({
+      before: beforeUiEffectSnapshot,
+      after: afterUiEffectSnapshot,
+      selectedToggleSlot: toggleSelectionSummary.selectedToggleSlot,
+    }),
+    expansionAttempted: true,
+    expansionSkippedReason: null,
+  };
 }

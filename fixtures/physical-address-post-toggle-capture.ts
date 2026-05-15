@@ -62,8 +62,81 @@ export interface PhysicalOperatingAddressPostToggleCaptureReport {
   observations: string[];
 }
 
+export interface PhysicalOperatingAddressUiEffectSnapshot {
+  proofOfAddressUploadVisible: boolean;
+  physicalOperatingAddressFieldsVisible: boolean;
+}
+
+const PROOF_OF_ADDRESS_RE = /\bproof\s+of\s+address\b|\baddress\s+proof\b/i;
+const UPLOAD_TRIGGER_RE = /\bupload\b|\bdrag\b|\bdrop\b|\bbrowse\b|\bchoose\b|\bselect\b|\bdocument\b|\bfile\b/i;
+const PHYSICAL_ADDRESS_LEAF_LABEL_RE = /\baddress\s+line\s*1\b|\baddress\s+line\s*2\b|\bcity\b|\bstate\b|\bzip\b|\bpostal\s+code\b/i;
+
 export function guardedPhysicalOperatingAddressPostToggleCaptureEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return env[SAFE_DISCOVERY_CAPTURE_PHYSICAL_ADDRESS_ENV] === '1';
+}
+
+export async function capturePhysicalOperatingAddressUiEffectSnapshot(
+  frame: FrameHost,
+): Promise<PhysicalOperatingAddressUiEffectSnapshot> {
+  const body = frame.locator('body').first();
+
+  return await body.evaluate((root, payload) => {
+    const normalize = (value: string | null | undefined): string | null => {
+      const normalized = (value ?? '').replace(/\s+/g, ' ').trim();
+      return normalized ? normalized.slice(0, 200) : null;
+    };
+
+    const isVisible = (element: Element): boolean => {
+      const rect = element.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return false;
+      const style = window.getComputedStyle(element as HTMLElement);
+      return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+    };
+
+    const proofPattern = new RegExp(payload.proofPatternSource, 'i');
+    const uploadPattern = new RegExp(payload.uploadPatternSource, 'i');
+    const fieldPattern = new RegExp(payload.fieldPatternSource, 'i');
+
+    const textValues = Array.from(root.querySelectorAll('label, span, div, p, legend, strong, h1, h2, h3, h4, td, th, button'))
+      .filter((element) => isVisible(element))
+      .map((element) => normalize((element as HTMLElement).innerText || element.textContent))
+      .filter((value): value is string => Boolean(value));
+
+    const controlTextValues = Array.from(root.querySelectorAll('input, select, textarea, button, [role="button"], [role="textbox"], [role="combobox"]'))
+      .filter((element) => isVisible(element))
+      .flatMap((element) => [
+        normalize(element.getAttribute('aria-label')),
+        normalize(element.getAttribute('name')),
+        normalize(element.getAttribute('placeholder')),
+        normalize(element.getAttribute('data-type')),
+        normalize(element.getAttribute('data-tab-type')),
+        normalize(element.closest('label') ? ((element.closest('label') as HTMLElement).innerText || element.closest('label')?.textContent) : null),
+      ])
+      .filter((value): value is string => Boolean(value));
+
+    const visibleValues = [...textValues, ...controlTextValues];
+    const proofOfAddressLabelVisible = visibleValues.some((value) => proofPattern.test(value));
+    const uploadCueVisible = visibleValues.some((value) => uploadPattern.test(value))
+      || Array.from(root.querySelectorAll('input[type="file"]')).some((element) => isVisible(element));
+
+    const visibleFieldKeywords = new Set(
+      visibleValues
+        .filter((value) => fieldPattern.test(value))
+        .flatMap((value) => keywordsForPhysicalOperatingAddressProbeText(value))
+        .filter((keyword) => ['Address Line 1', 'Address Line 2', 'City', 'State', 'ZIP'].includes(keyword)),
+    );
+    const physicalOperatingAddressFieldsVisible = visibleFieldKeywords.has('Address Line 1')
+      && (visibleFieldKeywords.has('City') || visibleFieldKeywords.has('State') || visibleFieldKeywords.has('ZIP') || visibleFieldKeywords.has('Address Line 2'));
+
+    return {
+      proofOfAddressUploadVisible: proofOfAddressLabelVisible && uploadCueVisible,
+      physicalOperatingAddressFieldsVisible,
+    };
+  }, {
+    proofPatternSource: PROOF_OF_ADDRESS_RE.source,
+    uploadPatternSource: UPLOAD_TRIGGER_RE.source,
+    fieldPatternSource: PHYSICAL_ADDRESS_LEAF_LABEL_RE.source,
+  });
 }
 
 export function sanitizePhysicalOperatingAddressPostToggleCaptureText(value: string | null | undefined): string | null {

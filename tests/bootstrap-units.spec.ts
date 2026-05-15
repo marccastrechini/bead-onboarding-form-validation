@@ -13,6 +13,8 @@ import * as path from 'node:path';
 import { PassThrough } from 'node:stream';
 import { buildResendUrl, normalizeResendMethod } from '../lib/bead-client';
 import {
+  buildPhysicalOperatingAddressToggleSelectionSummary,
+  buildPhysicalOperatingAddressUiEffectSummary,
   explainPhysicalOperatingAddressToggleSelection,
   findPhysicalOperatingAddressToggle,
   guardedPhysicalOperatingAddressDiscoveryEnabled,
@@ -7609,7 +7611,7 @@ test.describe('interactive validation safety', () => {
       selectedCalibratedSlot: null,
       exactThreeRadioGuardPassed: false,
     }));
-    expect(selection.fallbackInventory?.calibratedFallback?.rejectedReasons).toContain('exact-three-visible-editable-radio-guard-failed');
+    expect(selection.fallbackInventory?.calibratedFallback?.rejectedReasons).toContain('candidate-count-not-exactly-three');
   });
 
   test('guarded physical address discovery calibrated fallback fails closed when more than three unlabeled candidates are present', () => {
@@ -7628,7 +7630,7 @@ test.describe('interactive validation safety', () => {
       selectedCalibratedSlot: null,
       exactThreeRadioGuardPassed: false,
     }));
-    expect(selection.fallbackInventory?.calibratedFallback?.rejectedReasons).toContain('exact-three-visible-editable-radio-guard-failed');
+    expect(selection.fallbackInventory?.calibratedFallback?.rejectedReasons).toContain('candidate-count-not-exactly-three');
   });
 
   test('guarded physical address discovery calibrated fallback fails closed when candidate order is not stable', () => {
@@ -7698,9 +7700,227 @@ test.describe('interactive validation safety', () => {
       conflictingCueDetected: true,
     }));
     expect(selection.fallbackInventory?.calibratedFallback?.rejectedReasons).toEqual(expect.arrayContaining([
-      'exact-three-visible-editable-radio-guard-failed',
+      'candidate-count-not-exactly-three',
       'conflicting-safe-cue-surfaced',
     ]));
+  });
+
+  test('guarded physical address discovery selection summary reports primary selection won', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      {
+        index: 170,
+        kind: 'radio',
+        type: 'radio',
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+        sectionName: 'addressOptions',
+        label: 'Required - addressOptions - isOperatingAddress',
+        resolvedLabel: 'Required - addressOptions - isOperatingAddress',
+        rawCandidateLabels: [
+          { source: 'section+row', value: 'Required - addressOptions - isOperatingAddress' },
+        ],
+        groupName: 'addressOptions_group',
+        idOrNameKey: 'isOperatingAddress',
+        inferredType: { type: 'address_option' },
+      },
+    ] as any);
+
+    const summary = buildPhysicalOperatingAddressToggleSelectionSummary(selection);
+
+    expect(summary.toggleSelectionOutcomeCategory).toBe('primary-selected');
+    expect(summary.toggleSelectionStage).toBe('primary');
+    expect(summary.toggleSelectionMode).toBe('primary');
+    expect(summary.fallbackReason).toBeNull();
+  });
+
+  test('guarded physical address discovery selection summary reports cue-based fallback won', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      fallbackRadioField({
+        index: 171,
+        rawCandidateLabels: [
+          { source: 'preceding-text', value: 'Physical Operating Address' },
+        ],
+      }),
+    ] as any);
+
+    const summary = buildPhysicalOperatingAddressToggleSelectionSummary(selection);
+
+    expect(summary.toggleSelectionOutcomeCategory).toBe('cue-based-selected');
+    expect(summary.toggleSelectionStage).toBe('cue-based-fallback');
+    expect(summary.toggleSelectionMode).toBe('fallback');
+    expect(summary.fallbackReason).toBe('fallback-explicit-physical-cue');
+  });
+
+  test('guarded physical address discovery selection summary reports calibrated fallback selected', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      calibratedBusinessPrimaryLocationRadioField(172),
+      calibratedBusinessPrimaryLocationRadioField(173),
+      calibratedBusinessPrimaryLocationRadioField(174),
+    ] as any);
+
+    const summary = buildPhysicalOperatingAddressToggleSelectionSummary(selection);
+
+    expect(summary.toggleSelectionOutcomeCategory).toBe('calibrated-selected');
+    expect(summary.toggleSelectionStage).toBe('calibrated-fallback');
+    expect(summary.toggleSelectionMode).toBe('calibrated-fallback');
+    expect(summary.selectedToggleSlot).toBe(2);
+    expect(summary.fallbackReason).toBe(calibratedFallbackReason);
+    expect(summary.calibratedFallbackSelected).toBe(true);
+  });
+
+  test('guarded physical address discovery selection summary reports calibrated anchor missing rejection and preserves fallback reason', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      calibratedBusinessPrimaryLocationRadioField(175, { groupName: 'other_options' }),
+      calibratedBusinessPrimaryLocationRadioField(176, { groupName: 'other_options' }),
+      calibratedBusinessPrimaryLocationRadioField(177, { groupName: 'other_options' }),
+    ] as any);
+
+    const summary = buildPhysicalOperatingAddressToggleSelectionSummary(selection);
+
+    expect(summary.toggleSelectionOutcomeCategory).toBe('calibrated-rejected-anchor-missing');
+    expect(summary.calibratedFallbackRejectedReasons).toContain('anchor-missing');
+    expect(summary.fallbackReason).toBe(calibratedFallbackReason);
+  });
+
+  test('guarded physical address discovery selection summary reports candidate-count rejection', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      calibratedBusinessPrimaryLocationRadioField(178),
+      calibratedBusinessPrimaryLocationRadioField(179),
+    ] as any);
+
+    const summary = buildPhysicalOperatingAddressToggleSelectionSummary(selection);
+
+    expect(summary.toggleSelectionOutcomeCategory).toBe('calibrated-rejected-candidate-count');
+    expect(summary.calibratedFallbackRejectedReasons).toContain('candidate-count');
+    expect(summary.fallbackReason).toBe(calibratedFallbackReason);
+  });
+
+  test('guarded physical address discovery selection summary reports order-unstable rejection', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      calibratedBusinessPrimaryLocationRadioField(182),
+      calibratedBusinessPrimaryLocationRadioField(181),
+      calibratedBusinessPrimaryLocationRadioField(183),
+    ] as any);
+
+    const summary = buildPhysicalOperatingAddressToggleSelectionSummary(selection);
+
+    expect(summary.toggleSelectionOutcomeCategory).toBe('calibrated-rejected-order-unstable');
+    expect(summary.calibratedFallbackRejectedReasons).toContain('order-unstable');
+    expect(summary.fallbackReason).toBe(calibratedFallbackReason);
+  });
+
+  test('guarded physical address discovery selection summary reports conflicting-cue rejection', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      calibratedBusinessPrimaryLocationRadioField(184, { resolvedLabel: 'Business Mailing Address' }),
+      calibratedBusinessPrimaryLocationRadioField(185, { resolvedLabel: 'Legal Address' }),
+      calibratedBusinessPrimaryLocationRadioField(186, { resolvedLabel: 'Virtual Address' }),
+    ] as any);
+
+    const summary = buildPhysicalOperatingAddressToggleSelectionSummary(selection);
+
+    expect(summary.toggleSelectionOutcomeCategory).toBe('calibrated-rejected-conflicting-cue');
+    expect(summary.calibratedFallbackRejectedReasons).toContain('conflicting-cue');
+    expect(summary.fallbackReason).toBe(calibratedFallbackReason);
+  });
+
+  test('guarded physical address discovery selection summary reports no safe toggle selected when multiple cue matches remain', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      {
+        index: 187,
+        kind: 'radio',
+        type: 'radio',
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+        sectionName: 'Business Physical Address',
+        label: 'Physical Operating Address',
+        resolvedLabel: 'Physical Operating Address',
+        rawCandidateLabels: [
+          { source: 'section+row', value: 'Physical Operating Address' },
+        ],
+        groupName: 'addressOptions_group',
+        idOrNameKey: 'isOperatingAddress',
+        inferredType: { type: 'address_option' },
+      },
+      {
+        index: 188,
+        kind: 'radio',
+        type: 'radio',
+        controlCategory: 'merchant_input',
+        visible: true,
+        editable: true,
+        sectionName: 'Business Physical Address',
+        label: 'Business Physical Address',
+        resolvedLabel: 'Business Physical Address',
+        rawCandidateLabels: [
+          { source: 'preceding-text', value: 'Business Physical Address' },
+        ],
+        groupName: 'addressOptions_group',
+        idOrNameKey: 'isOperatingAddressAlternate',
+        inferredType: { type: 'address_option' },
+      },
+    ] as any);
+
+    const summary = buildPhysicalOperatingAddressToggleSelectionSummary(selection);
+
+    expect(summary.toggleSelectionOutcomeCategory).toBe('no-safe-toggle-selected');
+    expect(summary.toggleSelectionMode).toBeNull();
+    expect(summary.selectedToggleSlot).toBeNull();
+  });
+
+  test('guarded physical address discovery UI effect summary distinguishes option 1 style state', () => {
+    const summary = buildPhysicalOperatingAddressUiEffectSummary({
+      before: {
+        proofOfAddressUploadVisible: false,
+        physicalOperatingAddressFieldsVisible: false,
+      },
+      after: {
+        proofOfAddressUploadVisible: true,
+        physicalOperatingAddressFieldsVisible: false,
+      },
+      selectedToggleSlot: 1,
+    });
+
+    expect(summary.uiEffectOutcomeCategory).toBe('proof-address-visible-physical-fields-hidden');
+    expect(summary.proofOfAddressUploadExpectedForSelectedOption).toBe(true);
+    expect(summary.physicalOperatingAddressFieldsExpectedForSelectedOption).toBe(false);
+  });
+
+  test('guarded physical address discovery UI effect summary distinguishes option 2 style state', () => {
+    const summary = buildPhysicalOperatingAddressUiEffectSummary({
+      before: {
+        proofOfAddressUploadVisible: false,
+        physicalOperatingAddressFieldsVisible: false,
+      },
+      after: {
+        proofOfAddressUploadVisible: true,
+        physicalOperatingAddressFieldsVisible: true,
+      },
+      selectedToggleSlot: 2,
+    });
+
+    expect(summary.uiEffectOutcomeCategory).toBe('proof-address-visible-physical-fields-visible');
+    expect(summary.proofOfAddressUploadExpectedForSelectedOption).toBe(true);
+    expect(summary.physicalOperatingAddressFieldsExpectedForSelectedOption).toBe(true);
+  });
+
+  test('guarded physical address discovery UI effect summary distinguishes option 3 style state', () => {
+    const summary = buildPhysicalOperatingAddressUiEffectSummary({
+      before: {
+        proofOfAddressUploadVisible: true,
+        physicalOperatingAddressFieldsVisible: true,
+      },
+      after: {
+        proofOfAddressUploadVisible: false,
+        physicalOperatingAddressFieldsVisible: false,
+      },
+      selectedToggleSlot: 3,
+    });
+
+    expect(summary.uiEffectOutcomeCategory).toBe('proof-address-hidden-physical-fields-hidden');
+    expect(summary.proofOfAddressUploadExpectedForSelectedOption).toBe(false);
+    expect(summary.physicalOperatingAddressFieldsExpectedForSelectedOption).toBe(false);
   });
 
   test('guarded physical address discovery calibrated fallback ignores generated and generic-only signatures as proof but still allows the exact-three guarded branch', () => {
@@ -8265,6 +8485,61 @@ test.describe('interactive validation safety', () => {
     ...overrides,
   });
 
+  const mockToggleSelectionSummary = (overrides: Record<string, unknown> = {}) => ({
+    toggleSelectionOutcomeCategory: 'calibrated-selected',
+    toggleSelectionStage: 'calibrated-fallback',
+    toggleSelectionMode: 'calibrated-fallback',
+    selectedToggleSlot: 2,
+    selectedToggleReason: calibratedFallbackReason,
+    fallbackReason: calibratedFallbackReason,
+    calibratedFallbackConsidered: true,
+    calibratedFallbackAllowed: true,
+    calibratedFallbackSelected: true,
+    calibratedFallbackSelectedSlot: 2,
+    calibratedFallbackRejectedReasons: [],
+    calibratedFallbackGuardSummary: {
+      addressOptionsAnchorMatched: true,
+      exactThreeRadioGuardPassed: true,
+      candidateOrderStable: true,
+      conflictingCueDetected: false,
+    },
+    primarySelectionCandidateCount: 0,
+    cueBasedFallbackCandidateCount: 0,
+    calibratedFallbackCandidateCount: 3,
+    eligibleRadioCandidateCount: 3,
+    exactThreeRadioGuardPassed: true,
+    addressOptionsAnchorMatched: true,
+    candidateOrderStable: true,
+    conflictingCueDetected: false,
+    ...overrides,
+  });
+
+  const mockUiEffectSummary = (overrides: Record<string, unknown> = {}) => ({
+    proofOfAddressUploadVisibleBefore: false,
+    proofOfAddressUploadVisibleAfter: true,
+    proofOfAddressUploadVisibilityChanged: true,
+    proofOfAddressUploadExpectedForSelectedOption: true,
+    physicalOperatingAddressFieldsVisibleBefore: false,
+    physicalOperatingAddressFieldsVisibleAfter: true,
+    physicalOperatingAddressFieldsVisibilityChanged: true,
+    physicalOperatingAddressFieldsExpectedForSelectedOption: true,
+    uiEffectOutcomeCategory: 'proof-address-visible-physical-fields-visible',
+    ...overrides,
+  });
+
+  const mockExpansionResult = (overrides: Record<string, unknown> = {}) => ({
+    fields: [],
+    diagnostics: ['safe expansion diagnostic'],
+    expanded: true,
+    probeReport: null,
+    captureReport: mockCaptureReport(),
+    toggleSelectionSummary: mockToggleSelectionSummary(),
+    uiEffectSummary: mockUiEffectSummary(),
+    expansionAttempted: true,
+    expansionSkippedReason: null,
+    ...overrides,
+  });
+
   const createPhysicalAddressBootstrapCaptureReceipt = (
     overrides: Partial<PhysicalOperatingAddressCaptureOnlyReceipt> = {},
   ): PhysicalOperatingAddressCaptureOnlyReceipt => ({
@@ -8274,10 +8549,43 @@ test.describe('interactive validation safety', () => {
     bootstrapExitCode: null,
     signerSurfaceReached: true,
     initialFieldCount: 14,
+    toggleSelectionOutcomeCategory: 'calibrated-selected',
+    toggleSelectionStage: 'calibrated-fallback',
+    toggleSelectionMode: 'calibrated-fallback',
+    selectedToggleSlot: 2,
+    selectedToggleReason: calibratedFallbackReason,
+    fallbackReason: calibratedFallbackReason,
     calibratedFallbackConsidered: true,
+    calibratedFallbackAllowed: true,
+    calibratedFallbackSelected: true,
     calibratedFallbackSelectedSlot: 2,
+    calibratedFallbackRejectedReasons: [],
+    calibratedFallbackGuardSummary: {
+      addressOptionsAnchorMatched: true,
+      exactThreeRadioGuardPassed: true,
+      candidateOrderStable: true,
+      conflictingCueDetected: false,
+    },
+    primarySelectionCandidateCount: 0,
+    cueBasedFallbackCandidateCount: 0,
+    calibratedFallbackCandidateCount: 3,
+    eligibleRadioCandidateCount: 3,
+    exactThreeRadioGuardPassed: true,
+    addressOptionsAnchorMatched: true,
+    candidateOrderStable: true,
+    conflictingCueDetected: false,
     selectionMode: 'calibrated-fallback',
-    fallbackReason: 'calibrated-business-primary-location-physical-address-option',
+    proofOfAddressUploadVisibleBefore: false,
+    proofOfAddressUploadVisibleAfter: true,
+    proofOfAddressUploadVisibilityChanged: true,
+    proofOfAddressUploadExpectedForSelectedOption: true,
+    physicalOperatingAddressFieldsVisibleBefore: false,
+    physicalOperatingAddressFieldsVisibleAfter: true,
+    physicalOperatingAddressFieldsVisibilityChanged: true,
+    physicalOperatingAddressFieldsExpectedForSelectedOption: true,
+    uiEffectOutcomeCategory: 'proof-address-visible-physical-fields-visible',
+    expansionAttempted: true,
+    expansionSkippedReason: null,
     expansionReturned: true,
     expansionExpanded: true,
     captureReportPresent: true,
@@ -8402,11 +8710,7 @@ test.describe('interactive validation safety', () => {
       {
         openSigner: async () => ({ frame: {} as any, diagnostics: [] }),
         discoverFields: async () => [],
-        maybeExpandPhysicalOperatingAddressSection: async () => ({
-          fields: [],
-          diagnostics: ['safe expansion diagnostic'],
-          expanded: true,
-          probeReport: null,
+        maybeExpandPhysicalOperatingAddressSection: async () => mockExpansionResult({
           captureReport: null,
         }),
         writePhysicalOperatingAddressPostToggleArtifacts: async () => {
@@ -8443,13 +8747,7 @@ test.describe('interactive validation safety', () => {
       {
         openSigner: async () => ({ frame: {} as any, diagnostics: [] }),
         discoverFields: async () => [],
-        maybeExpandPhysicalOperatingAddressSection: async () => ({
-          fields: [],
-          diagnostics: ['safe expansion diagnostic'],
-          expanded: true,
-          probeReport: null,
-          captureReport: mockCaptureReport(),
-        }),
+        maybeExpandPhysicalOperatingAddressSection: async () => mockExpansionResult(),
         writePhysicalOperatingAddressPostToggleArtifacts: async (_page, report, targetDir) => {
           const screenshotPath = path.join(targetDir, 'latest-physical-operating-address-post-toggle-screenshot.png');
           const htmlPath = path.join(targetDir, PHYSICAL_ADDRESS_CAPTURE_ONLY_FRESHNESS_FILENAMES.domHtml);
@@ -8489,11 +8787,7 @@ test.describe('interactive validation safety', () => {
       {
         openSigner: async () => ({ frame: {} as any, diagnostics: [] }),
         discoverFields: async () => [],
-        maybeExpandPhysicalOperatingAddressSection: async () => ({
-          fields: [],
-          diagnostics: ['safe expansion diagnostic'],
-          expanded: true,
-          probeReport: null,
+        maybeExpandPhysicalOperatingAddressSection: async () => mockExpansionResult({
           captureReport: mockCaptureReport({ generatedAt: '2026-05-01T16:41:27.153Z' }),
         }),
         writePhysicalOperatingAddressPostToggleArtifacts: async (_page, _report, targetDir) => {
@@ -8574,11 +8868,7 @@ test.describe('interactive validation safety', () => {
       {
         openSigner: async () => ({ frame: {} as any, diagnostics: [] }),
         discoverFields: async () => [],
-        maybeExpandPhysicalOperatingAddressSection: async () => ({
-          fields: [],
-          diagnostics: ['safe expansion diagnostic'],
-          expanded: true,
-          probeReport: null,
+        maybeExpandPhysicalOperatingAddressSection: async () => mockExpansionResult({
           captureReport: mockCaptureReport({ generatedAt: '2026-05-15T08:55:00.000Z' }),
         }),
         writePhysicalOperatingAddressPostToggleArtifacts: async (_page, report, targetDir) => {
@@ -8618,16 +8908,7 @@ test.describe('interactive validation safety', () => {
       {
         openSigner: async () => ({ frame: {} as any, diagnostics: [] }),
         discoverFields: async () => Array.from({ length: 14 }, () => ({} as DiscoveredField)),
-        maybeExpandPhysicalOperatingAddressSection: async () => ({
-          fields: [],
-          diagnostics: [
-            'physical-operating-address discovery toggle fallback inventory: {"calibratedFallback":{"selectedCalibratedSlot":2,"fallbackReason":"calibrated-business-primary-location-physical-address-option"}}',
-            'physical-operating-address discovery toggle candidate source: calibrated business primary location fallback',
-            'physical-operating-address discovery toggle selection reason: calibrated-business-primary-location-physical-address-option',
-            'physical-operating-address discovery toggle candidate: Required - addressOptions - isOperatingAddress',
-          ],
-          expanded: true,
-          probeReport: null,
+        maybeExpandPhysicalOperatingAddressSection: async () => mockExpansionResult({
           captureReport: mockCaptureReport({ generatedAt: '2026-05-15T08:55:00.000Z' }),
         }),
         writePhysicalOperatingAddressPostToggleArtifacts: async (_page, report, targetDir) => {
@@ -8655,6 +8936,10 @@ test.describe('interactive validation safety', () => {
 
     expect(receipt.artifactsFresh).toBe(true);
     expect(receipt.childExitCode).toBe(0);
+    expect(receipt.toggleSelectionOutcomeCategory).toBe('calibrated-selected');
+    expect(receipt.selectedToggleSlot).toBe(2);
+    expect(receipt.fallbackReason).toBe(calibratedFallbackReason);
+    expect(receipt.uiEffectOutcomeCategory).toBe('proof-address-visible-physical-fields-visible');
     expect(receipt.selectionMode).toBe('calibrated-fallback');
     expect(receipt.calibratedFallbackSelectedSlot).toBe(2);
     expect(receipt.blockedReasonCategory).toBeNull();
@@ -8674,15 +8959,7 @@ test.describe('interactive validation safety', () => {
       {
         openSigner: async () => ({ frame: {} as any, diagnostics: [] }),
         discoverFields: async () => Array.from({ length: 14 }, () => ({} as DiscoveredField)),
-        maybeExpandPhysicalOperatingAddressSection: async () => ({
-          fields: [],
-          diagnostics: [
-            'physical-operating-address discovery toggle fallback inventory: {"calibratedFallback":{"selectedCalibratedSlot":2,"fallbackReason":"calibrated-business-primary-location-physical-address-option"}}',
-            'physical-operating-address discovery toggle candidate source: calibrated business primary location fallback',
-            'physical-operating-address discovery toggle selection reason: calibrated-business-primary-location-physical-address-option',
-          ],
-          expanded: true,
-          probeReport: null,
+        maybeExpandPhysicalOperatingAddressSection: async () => mockExpansionResult({
           captureReport: mockCaptureReport({ generatedAt: '2026-05-01T16:41:27.153Z' }),
         }),
         writePhysicalOperatingAddressPostToggleArtifacts: async (_page, _report, targetDir) => ({
@@ -8703,9 +8980,109 @@ test.describe('interactive validation safety', () => {
 
     expect(receipt.artifactsFresh).toBe(false);
     expect(receipt.artifactsRemainStale).toBe(true);
-    expect(receipt.blockedReasonCategory).toBe('writer completed but mtime/generatedAt did not change');
+    expect(receipt.blockedReasonCategory).toBe('stale-artifact-blocked');
     expect(receipt.reportsRefreshSkipped).toBe(true);
     expect(receipt.findingsOpenSkipped).toBe(true);
+  });
+
+  test('physical address capture-only receipt records expansion skipped because no selected toggle existed', async () => {
+    const outDir = createPhysicalAddressCaptureOnlyTempDir();
+
+    const result = await runPhysicalOperatingAddressCaptureOnly(
+      {} as any,
+      {} as NodeJS.ProcessEnv,
+      outDir,
+      {
+        openSigner: async () => ({ frame: {} as any, diagnostics: [] }),
+        discoverFields: async () => Array.from({ length: 14 }, () => ({} as DiscoveredField)),
+        maybeExpandPhysicalOperatingAddressSection: async () => mockExpansionResult({
+          expanded: false,
+          captureReport: null,
+          toggleSelectionSummary: mockToggleSelectionSummary({
+            toggleSelectionOutcomeCategory: 'no-safe-toggle-selected',
+            toggleSelectionStage: 'primary',
+            toggleSelectionMode: null,
+            selectedToggleSlot: null,
+            selectedToggleReason: null,
+            fallbackReason: null,
+            calibratedFallbackConsidered: false,
+            calibratedFallbackAllowed: null,
+            calibratedFallbackSelected: false,
+            calibratedFallbackSelectedSlot: null,
+            calibratedFallbackRejectedReasons: [],
+            calibratedFallbackGuardSummary: {
+              addressOptionsAnchorMatched: false,
+              exactThreeRadioGuardPassed: false,
+              candidateOrderStable: false,
+              conflictingCueDetected: false,
+            },
+            exactThreeRadioGuardPassed: false,
+            addressOptionsAnchorMatched: false,
+            candidateOrderStable: false,
+            conflictingCueDetected: false,
+          }),
+          uiEffectSummary: mockUiEffectSummary({
+            proofOfAddressUploadVisibleAfter: false,
+            proofOfAddressUploadVisibilityChanged: false,
+            proofOfAddressUploadExpectedForSelectedOption: null,
+            physicalOperatingAddressFieldsVisibleAfter: false,
+            physicalOperatingAddressFieldsVisibilityChanged: false,
+            physicalOperatingAddressFieldsExpectedForSelectedOption: null,
+            uiEffectOutcomeCategory: 'proof-address-hidden-physical-fields-hidden',
+          }),
+          expansionAttempted: false,
+          expansionSkippedReason: 'no-selected-toggle',
+        }),
+        writePhysicalOperatingAddressPostToggleArtifacts: async () => {
+          throw new Error('writer should not be called');
+        },
+        readArtifactFreshnessSnapshot: readPhysicalOperatingAddressCaptureOnlyArtifactFreshnessSnapshot,
+      },
+    );
+
+    const receipt = buildPhysicalOperatingAddressCaptureOnlyReceipt({
+      result,
+      childExitCode: 3,
+      artifactsDir: outDir,
+    });
+
+    expect(receipt.toggleSelectionOutcomeCategory).toBe('no-safe-toggle-selected');
+    expect(receipt.expansionAttempted).toBe(false);
+    expect(receipt.expansionSkippedReason).toBe('no-selected-toggle');
+    expect(receipt.blockedReasonCategory).toBe('expansion-skipped-no-selected-toggle');
+  });
+
+  test('physical address capture-only receipt records expansion attempted but not expanded', async () => {
+    const outDir = createPhysicalAddressCaptureOnlyTempDir();
+
+    const result = await runPhysicalOperatingAddressCaptureOnly(
+      {} as any,
+      {} as NodeJS.ProcessEnv,
+      outDir,
+      {
+        openSigner: async () => ({ frame: {} as any, diagnostics: [] }),
+        discoverFields: async () => Array.from({ length: 14 }, () => ({} as DiscoveredField)),
+        maybeExpandPhysicalOperatingAddressSection: async () => mockExpansionResult({
+          expanded: false,
+          captureReport: null,
+        }),
+        writePhysicalOperatingAddressPostToggleArtifacts: async () => {
+          throw new Error('writer should not be called');
+        },
+        readArtifactFreshnessSnapshot: readPhysicalOperatingAddressCaptureOnlyArtifactFreshnessSnapshot,
+      },
+    );
+
+    const receipt = buildPhysicalOperatingAddressCaptureOnlyReceipt({
+      result,
+      childExitCode: 3,
+      artifactsDir: outDir,
+    });
+
+    expect(receipt.selectedToggleSlot).toBe(2);
+    expect(receipt.expansionAttempted).toBe(true);
+    expect(receipt.expansionExpanded).toBe(false);
+    expect(receipt.blockedReasonCategory).toBe('expansion-attempted-not-expanded');
   });
 
   test('physical address capture-only receipt stays bounded and redacted', () => {
@@ -8858,7 +9235,7 @@ test.describe('interactive validation safety', () => {
       artifactsFresh: false,
       artifactsRemainStale: true,
       staleArtifactsIgnored: true,
-      blockedReasonCategory: 'writer completed but mtime/generatedAt did not change',
+      blockedReasonCategory: 'stale-artifact-blocked',
       reportsRefreshSkipped: true,
       findingsOpenSkipped: true,
       targetFileFreshnessSummary: [
@@ -8899,13 +9276,15 @@ test.describe('interactive validation safety', () => {
     );
 
     expect(result.code).toBe(3);
-    expect(result.reason).toContain('writer completed but mtime/generatedAt did not change');
+    expect(result.reason).toContain('stale-artifact-blocked');
     expect(receipt?.childExitCode).toBe(3);
     expect(receipt?.bootstrapExitCode).toBe(3);
     expect(receipt?.artifactsFresh).toBe(false);
     expect(receipt?.artifactsRemainStale).toBe(true);
     expect(receipt?.reportsRefreshSkipped).toBe(true);
     expect(receipt?.findingsOpenSkipped).toBe(true);
+    expect(receipt?.toggleSelectionOutcomeCategory).toBe('calibrated-selected');
+    expect(receipt?.uiEffectOutcomeCategory).toBe('proof-address-visible-physical-fields-visible');
   });
 
   test('physical address bootstrap capture receipt writes a bounded fallback receipt when the child exits before receipt', async () => {
@@ -8944,7 +9323,7 @@ test.describe('interactive validation safety', () => {
       artifactsFresh: false,
       artifactsRemainStale: true,
       staleArtifactsIgnored: true,
-      blockedReasonCategory: 'writer completed but mtime/generatedAt did not change',
+      blockedReasonCategory: 'stale-artifact-blocked',
       reportsRefreshSkipped: true,
       findingsOpenSkipped: true,
     });
@@ -8965,7 +9344,7 @@ test.describe('interactive validation safety', () => {
     );
 
     expect(result.code).toBe(3);
-    expect(result.reason).toContain('writer completed but mtime/generatedAt did not change');
+    expect(result.reason).toContain('stale-artifact-blocked');
     expect(receipt?.childExitCode).toBe(0);
     expect(receipt?.bootstrapExitCode).toBe(3);
     expect(receipt?.artifactsFresh).toBe(false);
