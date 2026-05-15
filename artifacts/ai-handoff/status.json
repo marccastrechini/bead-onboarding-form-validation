@@ -1,57 +1,133 @@
 {
   "status": "ready_for_review",
-  "run_id": "PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN31",
+  "run_id": "PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN32",
   "model_used": "GitHub Copilot (GPT-5.4)",
   "branch": "main",
   "commit": null,
-  "commit_message": "AI-HANDOFF: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN31 ready for ChatGPT review",
+  "commit_message": "AI-HANDOFF: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN32 ready for ChatGPT review",
   "push_status": "pending_at_write_time",
-  "started_at": "2026-05-15T07:37:07.7147890-04:00",
-  "completed_at": "2026-05-15T07:37:07.7147890-04:00",
-  "git_commit_before": "72efecc4e9f39d19adbe4e0c69f2df69ac59f3fa",
+  "started_at": "2026-05-15T07:48:10.8977418-04:00",
+  "completed_at": "2026-05-15T07:48:10.8977418-04:00",
+  "git_commit_before": "1c1bade6a79130cce70b49b390da4e7691cfe4c4",
   "git_commit_after": null,
   "summary_file": "artifacts/ai-handoff/latest-copilot-result.md",
   "needs_chatgpt_review": true,
-  "command_run_exactly_once": "RUN31 did not execute any live capture commands and stayed source/test-only.",
+  "command_run_exactly_once": "RUN32 executed npm run bootstrap:capture:physical-address exactly once and did not retry it.",
   "files_changed": [
-    "fixtures/field-discovery.ts",
-    "fixtures/conditional-discovery.ts",
-    "tests/bootstrap-units.spec.ts",
     "artifacts/ai-handoff/status.json",
     "artifacts/ai-handoff/latest-copilot-result.md"
   ],
   "commands_run": [
-    "npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g \"guarded physical address discovery\" -> passed (58 tests)",
-    "npm run test:units -> passed (311 tests)"
+    "npm run bootstrap:capture:physical-address -> blocked after reaching the signer surface, finding zero primary toggle candidates, finding three fallback radio candidates with null radioGraphicSignature values, and producing no fresh post-toggle artifacts",
+    "Check artifacts/latest-physical-operating-address-post-toggle-structure.json and artifacts/latest-physical-operating-address-post-toggle-dom.html timestamps -> both remained at 2026-05-01T16:41:44Z",
+    "Do not run reports:refresh or findings:open because RUN32 did not produce fresh sanitized post-toggle artifacts"
   ],
   "tests_run": [
-    "npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g \"guarded physical address discovery\" -> passed (58 tests)",
-    "npm run test:units -> passed (311 tests)"
+    "No additional unit tests were run in RUN32 because this step was authorized as a single live capture-only validation run"
   ],
   "validation_summary": {
-    "source_test_only_run": true,
-    "live_capture_rerun_performed": false,
-    "bounded_wrapper_sibling_graphic_inventory_added": true,
-    "graphic_signature_threaded_into_fallback_inventory": true,
-    "matcher_broadened_with_graphic_signature": true,
-    "focused_guarded_tests_passed": true,
-    "focused_guarded_tests_total": 58,
-    "unit_suite_passed": true,
-    "unit_suite_total": 311,
-    "graphic_signature_detects_physical_candidate_in_tests": true,
-    "graphic_signature_detects_business_physical_candidate_in_tests": true,
-    "graphic_signature_rejects_mailing_legal_virtual_in_tests": true,
-    "graphic_signature_rejects_same_different_yes_no_only_in_tests": true,
-    "graphic_signature_fails_closed_on_multiple_matches": true,
-    "graphic_signature_keeps_generated_generic_only_fail_closed": true,
-    "graphic_signature_redaction_test_passed": true,
+    "live_capture_rerun_performed": true,
+    "live_capture_command": "npm run bootstrap:capture:physical-address",
+    "live_capture_command_executed_once": true,
+    "open_signer_reached_signer_surface": true,
+    "initial_field_count": 125,
+    "primary_selection_found_candidate": false,
+    "primary_candidate_count": 0,
+    "fallback_inventory_found_visible_radio_inputs": true,
+    "visible_radio_input_count": 3,
+    "visible_role_radio_count": 0,
+    "visible_radio_like_candidate_count": 3,
+    "eligible_fallback_candidate_count": 3,
+    "matching_fallback_candidate_count": 0,
+    "radio_graphic_signature_exercised_live": true,
+    "radio_graphic_signature_populated": false,
+    "wrapper_buckets_populated": false,
+    "direct_sibling_buckets_populated": false,
+    "decorative_buckets_populated": false,
+    "safe_physical_business_operating_graphic_hint_observed": false,
+    "safe_mailing_legal_virtual_graphic_hint_observed": false,
+    "safe_same_different_yes_no_graphic_hint_observed": false,
+    "generated_generic_only_graphic_hint_observed": false,
+    "candidate_graphic_summary": [
+      {
+        "slot": 1,
+        "radio_graphic_signature_present": false,
+        "same_wrapper_child_tag_buckets": [],
+        "previous_sibling_tag_buckets": [],
+        "next_sibling_tag_buckets": [],
+        "decorative_node_buckets": [],
+        "role_buckets": [],
+        "token_hint_buckets": [],
+        "same_wrapper_commonality": null,
+        "direct_sibling_commonality": null,
+        "unique_safe_token_hint": false,
+        "shared_safe_token_hint": false,
+        "physical_business_operating_graphic_cue": false,
+        "mailing_legal_virtual_graphic_cue": false,
+        "same_different_yes_no_graphic_cue": false,
+        "generated_generic_only_signature": false,
+        "excluded_reasons": [
+          "explicit-physical-cue-missing"
+        ]
+      },
+      {
+        "slot": 2,
+        "radio_graphic_signature_present": false,
+        "same_wrapper_child_tag_buckets": [],
+        "previous_sibling_tag_buckets": [],
+        "next_sibling_tag_buckets": [],
+        "decorative_node_buckets": [],
+        "role_buckets": [],
+        "token_hint_buckets": [],
+        "same_wrapper_commonality": null,
+        "direct_sibling_commonality": null,
+        "unique_safe_token_hint": false,
+        "shared_safe_token_hint": false,
+        "physical_business_operating_graphic_cue": false,
+        "mailing_legal_virtual_graphic_cue": false,
+        "same_different_yes_no_graphic_cue": false,
+        "generated_generic_only_signature": false,
+        "excluded_reasons": [
+          "explicit-physical-cue-missing"
+        ]
+      },
+      {
+        "slot": 3,
+        "radio_graphic_signature_present": false,
+        "same_wrapper_child_tag_buckets": [],
+        "previous_sibling_tag_buckets": [],
+        "next_sibling_tag_buckets": [],
+        "decorative_node_buckets": [],
+        "role_buckets": [],
+        "token_hint_buckets": [],
+        "same_wrapper_commonality": null,
+        "direct_sibling_commonality": null,
+        "unique_safe_token_hint": false,
+        "shared_safe_token_hint": false,
+        "physical_business_operating_graphic_cue": false,
+        "mailing_legal_virtual_graphic_cue": false,
+        "same_different_yes_no_graphic_cue": false,
+        "generated_generic_only_signature": false,
+        "excluded_reasons": [
+          "explicit-physical-cue-missing"
+        ]
+      }
+    ],
+    "radio_candidates_graphic_relationship": "indistinguishable_under_current_graphic_seam",
+    "graphic_signatures_distinguish_candidates": false,
+    "fallback_selected_exactly_one_live_toggle": false,
+    "toggle_expanded": false,
+    "fresh_post_toggle_artifacts_produced": false,
+    "post_toggle_artifact_last_write_time_utc": "2026-05-01T16:41:44Z",
+    "reports_refresh_run": false,
+    "findings_open_run": false,
     "guardrails_preserved": true,
     "coverage_moved_forward": true,
     "raw_url_exposed": false,
     "env_mutated": false,
     "destructive_validation_enabled": false,
     "uploads_performed": false,
-    "live_signer_url_consumed": false
+    "finalization_controls_clicked": false
   },
   "concept_classification": {
     "business_mailing_address_line_1": "still capture-blocked",
@@ -59,14 +135,14 @@
     "business_mailing_state": "still capture-blocked",
     "business_mailing_postal_code": "still capture-blocked"
   },
-  "key_outcome": "RUN31 stayed source/test-only, added a bounded radioGraphicSignature seam for same-wrapper children and direct siblings, threaded it into guarded fallback diagnostics, safely broadened fallback selection for exactly one explicit physical/business-physical graphic signature, and passed both the focused guarded slice and the full unit suite.",
+  "key_outcome": "RUN32 spent exactly one authorized live capture-only run. openSigner() still reached the signer surface and field discovery again found the same three visible editable radio candidates, but primary selection found zero candidates, every fallback candidate still lacked an explicit physical/business cue, radioGraphicSignature remained null for all three radios, the toggle did not expand, and the post-toggle artifacts remained stale May 1 files.",
   "blockers": [
-    "RUN31 did not spend a live signer URL, so the repo still lacks live proof that the DocuSign three-radio cluster exposes a distinguishable wrapper/sibling graphic signature under the new bounded seam.",
-    "The business_mailing_* concepts remain capture-blocked until a fresh live capture confirms that the new graphic seam can safely identify and expand the operating-address toggle."
+    "The live DocuSign radio cluster still exposes no safe resolved-label, group, ancestor, sibling, nearby, container, layout-proximity, non-text layout, DOM wrapper/input attribute, proxy/reference, or wrapper/sibling/decorative graphic signature evidence for the same three visible editable radio-like candidates.",
+    "Primary selection found zero eligible isOperatingAddress candidates, fallback selection found the same three eligible visible radio-like candidates but zero safe matches, and guarded post-toggle capture therefore did not produce fresh sanitized artifacts."
   ],
   "uncertainty": [
-    "The new matcher is only test-proven today; a live RUN32 is still required to confirm whether the real signer page exposes physical/business clues on same-wrapper children or direct decorative siblings rather than staying uniform.",
-    "A screenshot is not required before RUN32. If RUN32 still returns uniform or empty radioGraphicSignature inventories, an optional cropped capture of only the physical-address toggle block with the three radios and their immediate label/span/button wrapper nodes would help interpret the bounded inventory."
+    "Because the new radioGraphicSignature seam also stayed null for all three live radios, the remaining differentiating signal may live only in the rendered page image or another non-DOM visual layer rather than on DOM-connected wrappers, siblings, attributes, references, or nearby text seams.",
+    "A screenshot is now helpful. Capture only the physical-address toggle block after the signer surface loads and before any clicks, including the question/prompt above the three radios, the three radio controls, the option text next to each radio, and any immediate wrapper/ring/decorative nodes around them. Hide the browser URL and blur merchant data. Do not commit screenshots."
   ],
-  "next_recommendation": "Continue to PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN32 with exactly one authorized live npm run bootstrap:capture:physical-address run to determine whether the live three-radio cluster now surfaces a unique bounded same-wrapper/direct-sibling graphic signature and safe fallback match."
+  "next_recommendation": "Do not spend another live signer URL next. Redirect to PHYSICALADDRESSCAPTUREEMAILRUNNER-20260513-RUN33 for a source/test-only document-layer and screenshot-guided investigation into whether the human-visible prompt and option text exist only in the rendered page image or another non-DOM surface around the three radios."
 }
