@@ -15,6 +15,12 @@ import {
   type PhysicalOperatingAddressAddressOptionsGroupAnchorRejectedReason,
   type PhysicalOperatingAddressAddressOptionsGroupAnchorSourceChecked,
   type PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket,
+  type PhysicalOperatingAddressAddressOptionsOwnershipAnchorCommonOwnerCategory,
+  type PhysicalOperatingAddressAddressOptionsOwnershipAnchorEvidenceSummary,
+  type PhysicalOperatingAddressAddressOptionsOwnershipAnchorOutcomeCategory,
+  type PhysicalOperatingAddressAddressOptionsOwnershipAnchorRejectedReason,
+  type PhysicalOperatingAddressAddressOptionsOwnershipAnchorSourceChecked,
+  type PhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket,
   type PhysicalOperatingAddressCalibratedFallbackGuardSummary,
   type PhysicalOperatingAddressCalibratedFallbackRejectedReason,
   type PhysicalOperatingAddressExpansionSkippedReason,
@@ -120,6 +126,19 @@ export interface PhysicalOperatingAddressCaptureOnlyCalibratedFallbackGuardSumma
   radioGroupQuestionPromptBucketsPresent: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[];
   radioGroupSectionHeaderBucketsPresent: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[];
   radioGroupAssociationBucketsPresent: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[];
+  addressOptionsOwnershipAnchorOutcomeCategory: PhysicalOperatingAddressAddressOptionsOwnershipAnchorOutcomeCategory | null;
+  addressOptionsOwnershipAnchorRejectedReasons: PhysicalOperatingAddressAddressOptionsOwnershipAnchorRejectedReason[];
+  addressOptionsOwnershipAnchorEvidenceSummary: PhysicalOperatingAddressAddressOptionsOwnershipAnchorEvidenceSummary | null;
+  addressOptionsOwnershipAnchorSourcesChecked: PhysicalOperatingAddressAddressOptionsOwnershipAnchorSourceChecked[];
+  addressOptionsOwnershipAnchorSafeTokensObserved: PhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket[];
+  radioGroupAriaLabelledbyBucketsPresent: PhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket[];
+  radioGroupAriaDescribedbyBucketsPresent: PhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket[];
+  radioGroupSharedNameBucketsPresent: PhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket[];
+  radioGroupSharedOwnerBucketsPresent: PhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket[];
+  radioGroupDocusignOwnerBucketsPresent: PhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket[];
+  radioGroupReferenceTargetExists: boolean | null;
+  radioGroupReferenceTargetVisible: boolean | null;
+  radioGroupCommonOwnerCategory: PhysicalOperatingAddressAddressOptionsOwnershipAnchorCommonOwnerCategory | null;
   exactThreeRadioGuardPassed: boolean | null;
   candidateOrderStable: boolean | null;
   conflictingCueDetected: boolean | null;
@@ -179,6 +198,19 @@ export interface PhysicalOperatingAddressCaptureOnlyReceipt {
   radioGroupQuestionPromptBucketsPresent: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[];
   radioGroupSectionHeaderBucketsPresent: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[];
   radioGroupAssociationBucketsPresent: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[];
+  addressOptionsOwnershipAnchorOutcomeCategory: PhysicalOperatingAddressAddressOptionsOwnershipAnchorOutcomeCategory | null;
+  addressOptionsOwnershipAnchorRejectedReasons: PhysicalOperatingAddressAddressOptionsOwnershipAnchorRejectedReason[];
+  addressOptionsOwnershipAnchorEvidenceSummary: PhysicalOperatingAddressAddressOptionsOwnershipAnchorEvidenceSummary | null;
+  addressOptionsOwnershipAnchorSourcesChecked: PhysicalOperatingAddressAddressOptionsOwnershipAnchorSourceChecked[];
+  addressOptionsOwnershipAnchorSafeTokensObserved: PhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket[];
+  radioGroupAriaLabelledbyBucketsPresent: PhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket[];
+  radioGroupAriaDescribedbyBucketsPresent: PhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket[];
+  radioGroupSharedNameBucketsPresent: PhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket[];
+  radioGroupSharedOwnerBucketsPresent: PhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket[];
+  radioGroupDocusignOwnerBucketsPresent: PhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket[];
+  radioGroupReferenceTargetExists: boolean | null;
+  radioGroupReferenceTargetVisible: boolean | null;
+  radioGroupCommonOwnerCategory: PhysicalOperatingAddressAddressOptionsOwnershipAnchorCommonOwnerCategory | null;
   candidateOrderStable: boolean | null;
   conflictingCueDetected: boolean | null;
   selectionMode: PhysicalOperatingAddressCaptureOnlySelectionMode;
@@ -266,6 +298,19 @@ export interface PhysicalOperatingAddressCaptureOnlyResult {
   radioGroupQuestionPromptBucketsPresent: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[];
   radioGroupSectionHeaderBucketsPresent: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[];
   radioGroupAssociationBucketsPresent: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[];
+  addressOptionsOwnershipAnchorOutcomeCategory: PhysicalOperatingAddressAddressOptionsOwnershipAnchorOutcomeCategory;
+  addressOptionsOwnershipAnchorRejectedReasons: PhysicalOperatingAddressAddressOptionsOwnershipAnchorRejectedReason[];
+  addressOptionsOwnershipAnchorEvidenceSummary: PhysicalOperatingAddressAddressOptionsOwnershipAnchorEvidenceSummary;
+  addressOptionsOwnershipAnchorSourcesChecked: PhysicalOperatingAddressAddressOptionsOwnershipAnchorSourceChecked[];
+  addressOptionsOwnershipAnchorSafeTokensObserved: PhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket[];
+  radioGroupAriaLabelledbyBucketsPresent: PhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket[];
+  radioGroupAriaDescribedbyBucketsPresent: PhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket[];
+  radioGroupSharedNameBucketsPresent: PhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket[];
+  radioGroupSharedOwnerBucketsPresent: PhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket[];
+  radioGroupDocusignOwnerBucketsPresent: PhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket[];
+  radioGroupReferenceTargetExists: boolean;
+  radioGroupReferenceTargetVisible: boolean;
+  radioGroupCommonOwnerCategory: PhysicalOperatingAddressAddressOptionsOwnershipAnchorCommonOwnerCategory;
   candidateOrderStable: boolean;
   conflictingCueDetected: boolean;
   proofOfAddressUploadVisibleBefore: boolean;
@@ -327,6 +372,19 @@ function buildPhysicalOperatingAddressCaptureOnlyFallbackGuardSummary(): Physica
     radioGroupQuestionPromptBucketsPresent: [],
     radioGroupSectionHeaderBucketsPresent: [],
     radioGroupAssociationBucketsPresent: [],
+    addressOptionsOwnershipAnchorOutcomeCategory: null,
+    addressOptionsOwnershipAnchorRejectedReasons: [],
+    addressOptionsOwnershipAnchorEvidenceSummary: null,
+    addressOptionsOwnershipAnchorSourcesChecked: [],
+    addressOptionsOwnershipAnchorSafeTokensObserved: [],
+    radioGroupAriaLabelledbyBucketsPresent: [],
+    radioGroupAriaDescribedbyBucketsPresent: [],
+    radioGroupSharedNameBucketsPresent: [],
+    radioGroupSharedOwnerBucketsPresent: [],
+    radioGroupDocusignOwnerBucketsPresent: [],
+    radioGroupReferenceTargetExists: null,
+    radioGroupReferenceTargetVisible: null,
+    radioGroupCommonOwnerCategory: null,
     exactThreeRadioGuardPassed: null,
     candidateOrderStable: null,
     conflictingCueDetected: null,
@@ -414,6 +472,19 @@ function buildFallbackPhysicalOperatingAddressCaptureOnlyResultFields(input: {
     radioGroupQuestionPromptBucketsPresent: [],
     radioGroupSectionHeaderBucketsPresent: [],
     radioGroupAssociationBucketsPresent: [],
+    addressOptionsOwnershipAnchorOutcomeCategory: null,
+    addressOptionsOwnershipAnchorRejectedReasons: [],
+    addressOptionsOwnershipAnchorEvidenceSummary: null,
+    addressOptionsOwnershipAnchorSourcesChecked: [],
+    addressOptionsOwnershipAnchorSafeTokensObserved: [],
+    radioGroupAriaLabelledbyBucketsPresent: [],
+    radioGroupAriaDescribedbyBucketsPresent: [],
+    radioGroupSharedNameBucketsPresent: [],
+    radioGroupSharedOwnerBucketsPresent: [],
+    radioGroupDocusignOwnerBucketsPresent: [],
+    radioGroupReferenceTargetExists: false,
+    radioGroupReferenceTargetVisible: false,
+    radioGroupCommonOwnerCategory: null,
     candidateOrderStable: false,
     conflictingCueDetected: false,
     proofOfAddressUploadVisibleBefore: false,
@@ -623,6 +694,85 @@ function isPhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket(
     || value === 'generic-only';
 }
 
+function isPhysicalOperatingAddressAddressOptionsOwnershipAnchorOutcomeCategory(
+  value: unknown,
+): value is PhysicalOperatingAddressAddressOptionsOwnershipAnchorOutcomeCategory {
+  return value === 'ownership-anchor-matched-aria-labelledby'
+    || value === 'ownership-anchor-matched-aria-describedby'
+    || value === 'ownership-anchor-matched-shared-name'
+    || value === 'ownership-anchor-matched-shared-owner'
+    || value === 'ownership-anchor-matched-docusign-owner'
+    || value === 'ownership-anchor-missing-no-safe-evidence'
+    || value === 'ownership-anchor-missing-safe-evidence-empty'
+    || value === 'ownership-anchor-missing-only-generated-reference'
+    || value === 'ownership-anchor-missing-only-generic-evidence'
+    || value === 'ownership-anchor-not-checked';
+}
+
+function isPhysicalOperatingAddressAddressOptionsOwnershipAnchorRejectedReason(
+  value: unknown,
+): value is PhysicalOperatingAddressAddressOptionsOwnershipAnchorRejectedReason {
+  return value === 'ownership-anchor-missing'
+    || value === 'no-safe-evidence'
+    || value === 'safe-evidence-empty'
+    || value === 'only-generated-reference'
+    || value === 'only-generic-evidence'
+    || value === 'not-checked-prior-guard-failed';
+}
+
+function isPhysicalOperatingAddressAddressOptionsOwnershipAnchorEvidenceSummary(
+  value: unknown,
+): value is PhysicalOperatingAddressAddressOptionsOwnershipAnchorEvidenceSummary {
+  return value === 'matched via resolved aria-labelledby reference bucket'
+    || value === 'matched via resolved aria-describedby reference bucket'
+    || value === 'matched via shared radio-group name bucket'
+    || value === 'matched via shared owner-reference bucket'
+    || value === 'matched via DocuSign owner metadata bucket'
+    || value === 'checked ownership/reference sources contained no safe anchor bucket'
+    || value === 'checked ownership/reference sources were empty'
+    || value === 'only generated ownership/reference buckets were observed'
+    || value === 'only generic ownership/reference buckets were observed'
+    || value === 'ownership anchor check skipped because the exact-three-radio guard failed';
+}
+
+function isPhysicalOperatingAddressAddressOptionsOwnershipAnchorSourceChecked(
+  value: unknown,
+): value is PhysicalOperatingAddressAddressOptionsOwnershipAnchorSourceChecked {
+  return value === 'aria-labelledby'
+    || value === 'aria-describedby'
+    || value === 'shared-name'
+    || value === 'shared-owner'
+    || value === 'docusign-owner';
+}
+
+function isPhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket(
+  value: unknown,
+): value is PhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket {
+  return value === 'business-primary-location'
+    || value === 'registered-legal-address'
+    || value === 'proof-of-address'
+    || value === 'physical-operating-address'
+    || value === 'po-box'
+    || value === 'virtual-agent'
+    || value === 'address-options'
+    || value === 'radio-group'
+    || value === 'question-prompt'
+    || value === 'generated-reference-only'
+    || value === 'generic-only';
+}
+
+function isPhysicalOperatingAddressAddressOptionsOwnershipAnchorCommonOwnerCategory(
+  value: unknown,
+): value is PhysicalOperatingAddressAddressOptionsOwnershipAnchorCommonOwnerCategory {
+  return value === 'shared-name'
+    || value === 'shared-owner'
+    || value === 'docusign-owner'
+    || value === 'generated-reference-only'
+    || value === 'generic-only'
+    || value === 'none'
+    || value === 'not-checked';
+}
+
 function isPhysicalOperatingAddressUiEffectOutcomeCategory(
   value: unknown,
 ): value is PhysicalOperatingAddressUiEffectOutcomeCategory {
@@ -710,6 +860,32 @@ export function buildPhysicalOperatingAddressCaptureOnlyReceipt(input: {
         result.calibratedFallbackGuardSummary.radioGroupSectionHeaderBucketsPresent,
       radioGroupAssociationBucketsPresent:
         result.calibratedFallbackGuardSummary.radioGroupAssociationBucketsPresent,
+      addressOptionsOwnershipAnchorOutcomeCategory:
+        result.calibratedFallbackGuardSummary.addressOptionsOwnershipAnchorOutcomeCategory,
+      addressOptionsOwnershipAnchorRejectedReasons:
+        result.calibratedFallbackGuardSummary.addressOptionsOwnershipAnchorRejectedReasons,
+      addressOptionsOwnershipAnchorEvidenceSummary:
+        result.calibratedFallbackGuardSummary.addressOptionsOwnershipAnchorEvidenceSummary,
+      addressOptionsOwnershipAnchorSourcesChecked:
+        result.calibratedFallbackGuardSummary.addressOptionsOwnershipAnchorSourcesChecked,
+      addressOptionsOwnershipAnchorSafeTokensObserved:
+        result.calibratedFallbackGuardSummary.addressOptionsOwnershipAnchorSafeTokensObserved,
+      radioGroupAriaLabelledbyBucketsPresent:
+        result.calibratedFallbackGuardSummary.radioGroupAriaLabelledbyBucketsPresent,
+      radioGroupAriaDescribedbyBucketsPresent:
+        result.calibratedFallbackGuardSummary.radioGroupAriaDescribedbyBucketsPresent,
+      radioGroupSharedNameBucketsPresent:
+        result.calibratedFallbackGuardSummary.radioGroupSharedNameBucketsPresent,
+      radioGroupSharedOwnerBucketsPresent:
+        result.calibratedFallbackGuardSummary.radioGroupSharedOwnerBucketsPresent,
+      radioGroupDocusignOwnerBucketsPresent:
+        result.calibratedFallbackGuardSummary.radioGroupDocusignOwnerBucketsPresent,
+      radioGroupReferenceTargetExists:
+        result.calibratedFallbackGuardSummary.radioGroupReferenceTargetExists,
+      radioGroupReferenceTargetVisible:
+        result.calibratedFallbackGuardSummary.radioGroupReferenceTargetVisible,
+      radioGroupCommonOwnerCategory:
+        result.calibratedFallbackGuardSummary.radioGroupCommonOwnerCategory,
       exactThreeRadioGuardPassed: result.calibratedFallbackGuardSummary.exactThreeRadioGuardPassed,
       candidateOrderStable: result.calibratedFallbackGuardSummary.candidateOrderStable,
       conflictingCueDetected: result.calibratedFallbackGuardSummary.conflictingCueDetected,
@@ -739,6 +915,19 @@ export function buildPhysicalOperatingAddressCaptureOnlyReceipt(input: {
     radioGroupQuestionPromptBucketsPresent: result.radioGroupQuestionPromptBucketsPresent,
     radioGroupSectionHeaderBucketsPresent: result.radioGroupSectionHeaderBucketsPresent,
     radioGroupAssociationBucketsPresent: result.radioGroupAssociationBucketsPresent,
+    addressOptionsOwnershipAnchorOutcomeCategory: result.addressOptionsOwnershipAnchorOutcomeCategory,
+    addressOptionsOwnershipAnchorRejectedReasons: result.addressOptionsOwnershipAnchorRejectedReasons,
+    addressOptionsOwnershipAnchorEvidenceSummary: result.addressOptionsOwnershipAnchorEvidenceSummary,
+    addressOptionsOwnershipAnchorSourcesChecked: result.addressOptionsOwnershipAnchorSourcesChecked,
+    addressOptionsOwnershipAnchorSafeTokensObserved: result.addressOptionsOwnershipAnchorSafeTokensObserved,
+    radioGroupAriaLabelledbyBucketsPresent: result.radioGroupAriaLabelledbyBucketsPresent,
+    radioGroupAriaDescribedbyBucketsPresent: result.radioGroupAriaDescribedbyBucketsPresent,
+    radioGroupSharedNameBucketsPresent: result.radioGroupSharedNameBucketsPresent,
+    radioGroupSharedOwnerBucketsPresent: result.radioGroupSharedOwnerBucketsPresent,
+    radioGroupDocusignOwnerBucketsPresent: result.radioGroupDocusignOwnerBucketsPresent,
+    radioGroupReferenceTargetExists: result.radioGroupReferenceTargetExists,
+    radioGroupReferenceTargetVisible: result.radioGroupReferenceTargetVisible,
+    radioGroupCommonOwnerCategory: result.radioGroupCommonOwnerCategory,
     candidateOrderStable: input.result?.candidateOrderStable ?? null,
     conflictingCueDetected: input.result?.conflictingCueDetected ?? null,
     selectionMode: result.toggleSelectionMode,
@@ -871,6 +1060,46 @@ export function isPhysicalOperatingAddressCaptureOnlyReceipt(
     && Array.isArray((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).radioGroupAssociationBucketsPresent)
     && ((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).radioGroupAssociationBucketsPresent as unknown[])
       .every(isPhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket)
+    && ((((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsOwnershipAnchorOutcomeCategory) === null)
+      || isPhysicalOperatingAddressAddressOptionsOwnershipAnchorOutcomeCategory(
+        (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsOwnershipAnchorOutcomeCategory,
+      ))
+    && Array.isArray((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsOwnershipAnchorRejectedReasons)
+    && ((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsOwnershipAnchorRejectedReasons as unknown[])
+      .every(isPhysicalOperatingAddressAddressOptionsOwnershipAnchorRejectedReason)
+    && ((((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsOwnershipAnchorEvidenceSummary) === null)
+      || isPhysicalOperatingAddressAddressOptionsOwnershipAnchorEvidenceSummary(
+        (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsOwnershipAnchorEvidenceSummary,
+      ))
+    && Array.isArray((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsOwnershipAnchorSourcesChecked)
+    && ((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsOwnershipAnchorSourcesChecked as unknown[])
+      .every(isPhysicalOperatingAddressAddressOptionsOwnershipAnchorSourceChecked)
+    && Array.isArray((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsOwnershipAnchorSafeTokensObserved)
+    && ((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsOwnershipAnchorSafeTokensObserved as unknown[])
+      .every(isPhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket)
+    && Array.isArray((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).radioGroupAriaLabelledbyBucketsPresent)
+    && ((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).radioGroupAriaLabelledbyBucketsPresent as unknown[])
+      .every(isPhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket)
+    && Array.isArray((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).radioGroupAriaDescribedbyBucketsPresent)
+    && ((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).radioGroupAriaDescribedbyBucketsPresent as unknown[])
+      .every(isPhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket)
+    && Array.isArray((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).radioGroupSharedNameBucketsPresent)
+    && ((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).radioGroupSharedNameBucketsPresent as unknown[])
+      .every(isPhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket)
+    && Array.isArray((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).radioGroupSharedOwnerBucketsPresent)
+    && ((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).radioGroupSharedOwnerBucketsPresent as unknown[])
+      .every(isPhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket)
+    && Array.isArray((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).radioGroupDocusignOwnerBucketsPresent)
+    && ((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).radioGroupDocusignOwnerBucketsPresent as unknown[])
+      .every(isPhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket)
+    && (typeof (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).radioGroupReferenceTargetExists === 'boolean'
+      || (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).radioGroupReferenceTargetExists === null)
+    && (typeof (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).radioGroupReferenceTargetVisible === 'boolean'
+      || (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).radioGroupReferenceTargetVisible === null)
+    && ((((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).radioGroupCommonOwnerCategory) === null)
+      || isPhysicalOperatingAddressAddressOptionsOwnershipAnchorCommonOwnerCategory(
+        (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).radioGroupCommonOwnerCategory,
+      ))
     && (typeof candidate.primarySelectionCandidateCount === 'number' || candidate.primarySelectionCandidateCount === null)
     && (typeof candidate.cueBasedFallbackCandidateCount === 'number' || candidate.cueBasedFallbackCandidateCount === null)
     && (typeof candidate.calibratedFallbackCandidateCount === 'number' || candidate.calibratedFallbackCandidateCount === null)
@@ -913,6 +1142,31 @@ export function isPhysicalOperatingAddressCaptureOnlyReceipt(
     && candidate.radioGroupSectionHeaderBucketsPresent.every(isPhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket)
     && Array.isArray(candidate.radioGroupAssociationBucketsPresent)
     && candidate.radioGroupAssociationBucketsPresent.every(isPhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket)
+    && (candidate.addressOptionsOwnershipAnchorOutcomeCategory === null
+      || isPhysicalOperatingAddressAddressOptionsOwnershipAnchorOutcomeCategory(candidate.addressOptionsOwnershipAnchorOutcomeCategory))
+    && Array.isArray(candidate.addressOptionsOwnershipAnchorRejectedReasons)
+    && candidate.addressOptionsOwnershipAnchorRejectedReasons
+      .every(isPhysicalOperatingAddressAddressOptionsOwnershipAnchorRejectedReason)
+    && (candidate.addressOptionsOwnershipAnchorEvidenceSummary === null
+      || isPhysicalOperatingAddressAddressOptionsOwnershipAnchorEvidenceSummary(candidate.addressOptionsOwnershipAnchorEvidenceSummary))
+    && Array.isArray(candidate.addressOptionsOwnershipAnchorSourcesChecked)
+    && candidate.addressOptionsOwnershipAnchorSourcesChecked.every(isPhysicalOperatingAddressAddressOptionsOwnershipAnchorSourceChecked)
+    && Array.isArray(candidate.addressOptionsOwnershipAnchorSafeTokensObserved)
+    && candidate.addressOptionsOwnershipAnchorSafeTokensObserved.every(isPhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket)
+    && Array.isArray(candidate.radioGroupAriaLabelledbyBucketsPresent)
+    && candidate.radioGroupAriaLabelledbyBucketsPresent.every(isPhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket)
+    && Array.isArray(candidate.radioGroupAriaDescribedbyBucketsPresent)
+    && candidate.radioGroupAriaDescribedbyBucketsPresent.every(isPhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket)
+    && Array.isArray(candidate.radioGroupSharedNameBucketsPresent)
+    && candidate.radioGroupSharedNameBucketsPresent.every(isPhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket)
+    && Array.isArray(candidate.radioGroupSharedOwnerBucketsPresent)
+    && candidate.radioGroupSharedOwnerBucketsPresent.every(isPhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket)
+    && Array.isArray(candidate.radioGroupDocusignOwnerBucketsPresent)
+    && candidate.radioGroupDocusignOwnerBucketsPresent.every(isPhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket)
+    && (typeof candidate.radioGroupReferenceTargetExists === 'boolean' || candidate.radioGroupReferenceTargetExists === null)
+    && (typeof candidate.radioGroupReferenceTargetVisible === 'boolean' || candidate.radioGroupReferenceTargetVisible === null)
+    && (candidate.radioGroupCommonOwnerCategory === null
+      || isPhysicalOperatingAddressAddressOptionsOwnershipAnchorCommonOwnerCategory(candidate.radioGroupCommonOwnerCategory))
     && (typeof candidate.candidateOrderStable === 'boolean' || candidate.candidateOrderStable === null)
     && (typeof candidate.conflictingCueDetected === 'boolean' || candidate.conflictingCueDetected === null)
     && isPhysicalOperatingAddressCaptureOnlySelectionMode(candidate.selectionMode)
@@ -1214,6 +1468,19 @@ export async function runPhysicalOperatingAddressCaptureOnly(
       radioGroupQuestionPromptBucketsPresent: expansion.toggleSelectionSummary.radioGroupQuestionPromptBucketsPresent,
       radioGroupSectionHeaderBucketsPresent: expansion.toggleSelectionSummary.radioGroupSectionHeaderBucketsPresent,
       radioGroupAssociationBucketsPresent: expansion.toggleSelectionSummary.radioGroupAssociationBucketsPresent,
+      addressOptionsOwnershipAnchorOutcomeCategory: expansion.toggleSelectionSummary.addressOptionsOwnershipAnchorOutcomeCategory,
+      addressOptionsOwnershipAnchorRejectedReasons: expansion.toggleSelectionSummary.addressOptionsOwnershipAnchorRejectedReasons,
+      addressOptionsOwnershipAnchorEvidenceSummary: expansion.toggleSelectionSummary.addressOptionsOwnershipAnchorEvidenceSummary,
+      addressOptionsOwnershipAnchorSourcesChecked: expansion.toggleSelectionSummary.addressOptionsOwnershipAnchorSourcesChecked,
+      addressOptionsOwnershipAnchorSafeTokensObserved: expansion.toggleSelectionSummary.addressOptionsOwnershipAnchorSafeTokensObserved,
+      radioGroupAriaLabelledbyBucketsPresent: expansion.toggleSelectionSummary.radioGroupAriaLabelledbyBucketsPresent,
+      radioGroupAriaDescribedbyBucketsPresent: expansion.toggleSelectionSummary.radioGroupAriaDescribedbyBucketsPresent,
+      radioGroupSharedNameBucketsPresent: expansion.toggleSelectionSummary.radioGroupSharedNameBucketsPresent,
+      radioGroupSharedOwnerBucketsPresent: expansion.toggleSelectionSummary.radioGroupSharedOwnerBucketsPresent,
+      radioGroupDocusignOwnerBucketsPresent: expansion.toggleSelectionSummary.radioGroupDocusignOwnerBucketsPresent,
+      radioGroupReferenceTargetExists: expansion.toggleSelectionSummary.radioGroupReferenceTargetExists,
+      radioGroupReferenceTargetVisible: expansion.toggleSelectionSummary.radioGroupReferenceTargetVisible,
+      radioGroupCommonOwnerCategory: expansion.toggleSelectionSummary.radioGroupCommonOwnerCategory,
       candidateOrderStable: expansion.toggleSelectionSummary.candidateOrderStable,
       conflictingCueDetected: expansion.toggleSelectionSummary.conflictingCueDetected,
       proofOfAddressUploadVisibleBefore: expansion.uiEffectSummary.proofOfAddressUploadVisibleBefore,
@@ -1307,6 +1574,19 @@ export async function runPhysicalOperatingAddressCaptureOnly(
       radioGroupQuestionPromptBucketsPresent: expansion.toggleSelectionSummary.radioGroupQuestionPromptBucketsPresent,
       radioGroupSectionHeaderBucketsPresent: expansion.toggleSelectionSummary.radioGroupSectionHeaderBucketsPresent,
       radioGroupAssociationBucketsPresent: expansion.toggleSelectionSummary.radioGroupAssociationBucketsPresent,
+      addressOptionsOwnershipAnchorOutcomeCategory: expansion.toggleSelectionSummary.addressOptionsOwnershipAnchorOutcomeCategory,
+      addressOptionsOwnershipAnchorRejectedReasons: expansion.toggleSelectionSummary.addressOptionsOwnershipAnchorRejectedReasons,
+      addressOptionsOwnershipAnchorEvidenceSummary: expansion.toggleSelectionSummary.addressOptionsOwnershipAnchorEvidenceSummary,
+      addressOptionsOwnershipAnchorSourcesChecked: expansion.toggleSelectionSummary.addressOptionsOwnershipAnchorSourcesChecked,
+      addressOptionsOwnershipAnchorSafeTokensObserved: expansion.toggleSelectionSummary.addressOptionsOwnershipAnchorSafeTokensObserved,
+      radioGroupAriaLabelledbyBucketsPresent: expansion.toggleSelectionSummary.radioGroupAriaLabelledbyBucketsPresent,
+      radioGroupAriaDescribedbyBucketsPresent: expansion.toggleSelectionSummary.radioGroupAriaDescribedbyBucketsPresent,
+      radioGroupSharedNameBucketsPresent: expansion.toggleSelectionSummary.radioGroupSharedNameBucketsPresent,
+      radioGroupSharedOwnerBucketsPresent: expansion.toggleSelectionSummary.radioGroupSharedOwnerBucketsPresent,
+      radioGroupDocusignOwnerBucketsPresent: expansion.toggleSelectionSummary.radioGroupDocusignOwnerBucketsPresent,
+      radioGroupReferenceTargetExists: expansion.toggleSelectionSummary.radioGroupReferenceTargetExists,
+      radioGroupReferenceTargetVisible: expansion.toggleSelectionSummary.radioGroupReferenceTargetVisible,
+      radioGroupCommonOwnerCategory: expansion.toggleSelectionSummary.radioGroupCommonOwnerCategory,
       candidateOrderStable: expansion.toggleSelectionSummary.candidateOrderStable,
       conflictingCueDetected: expansion.toggleSelectionSummary.conflictingCueDetected,
       proofOfAddressUploadVisibleBefore: expansion.uiEffectSummary.proofOfAddressUploadVisibleBefore,
@@ -1382,6 +1662,19 @@ export async function runPhysicalOperatingAddressCaptureOnly(
       radioGroupQuestionPromptBucketsPresent: expansion.toggleSelectionSummary.radioGroupQuestionPromptBucketsPresent,
       radioGroupSectionHeaderBucketsPresent: expansion.toggleSelectionSummary.radioGroupSectionHeaderBucketsPresent,
       radioGroupAssociationBucketsPresent: expansion.toggleSelectionSummary.radioGroupAssociationBucketsPresent,
+      addressOptionsOwnershipAnchorOutcomeCategory: expansion.toggleSelectionSummary.addressOptionsOwnershipAnchorOutcomeCategory,
+      addressOptionsOwnershipAnchorRejectedReasons: expansion.toggleSelectionSummary.addressOptionsOwnershipAnchorRejectedReasons,
+      addressOptionsOwnershipAnchorEvidenceSummary: expansion.toggleSelectionSummary.addressOptionsOwnershipAnchorEvidenceSummary,
+      addressOptionsOwnershipAnchorSourcesChecked: expansion.toggleSelectionSummary.addressOptionsOwnershipAnchorSourcesChecked,
+      addressOptionsOwnershipAnchorSafeTokensObserved: expansion.toggleSelectionSummary.addressOptionsOwnershipAnchorSafeTokensObserved,
+      radioGroupAriaLabelledbyBucketsPresent: expansion.toggleSelectionSummary.radioGroupAriaLabelledbyBucketsPresent,
+      radioGroupAriaDescribedbyBucketsPresent: expansion.toggleSelectionSummary.radioGroupAriaDescribedbyBucketsPresent,
+      radioGroupSharedNameBucketsPresent: expansion.toggleSelectionSummary.radioGroupSharedNameBucketsPresent,
+      radioGroupSharedOwnerBucketsPresent: expansion.toggleSelectionSummary.radioGroupSharedOwnerBucketsPresent,
+      radioGroupDocusignOwnerBucketsPresent: expansion.toggleSelectionSummary.radioGroupDocusignOwnerBucketsPresent,
+      radioGroupReferenceTargetExists: expansion.toggleSelectionSummary.radioGroupReferenceTargetExists,
+      radioGroupReferenceTargetVisible: expansion.toggleSelectionSummary.radioGroupReferenceTargetVisible,
+      radioGroupCommonOwnerCategory: expansion.toggleSelectionSummary.radioGroupCommonOwnerCategory,
       candidateOrderStable: expansion.toggleSelectionSummary.candidateOrderStable,
       conflictingCueDetected: expansion.toggleSelectionSummary.conflictingCueDetected,
       proofOfAddressUploadVisibleBefore: expansion.uiEffectSummary.proofOfAddressUploadVisibleBefore,
@@ -1450,6 +1743,19 @@ export async function runPhysicalOperatingAddressCaptureOnly(
     radioGroupQuestionPromptBucketsPresent: expansion.toggleSelectionSummary.radioGroupQuestionPromptBucketsPresent,
     radioGroupSectionHeaderBucketsPresent: expansion.toggleSelectionSummary.radioGroupSectionHeaderBucketsPresent,
     radioGroupAssociationBucketsPresent: expansion.toggleSelectionSummary.radioGroupAssociationBucketsPresent,
+    addressOptionsOwnershipAnchorOutcomeCategory: expansion.toggleSelectionSummary.addressOptionsOwnershipAnchorOutcomeCategory,
+    addressOptionsOwnershipAnchorRejectedReasons: expansion.toggleSelectionSummary.addressOptionsOwnershipAnchorRejectedReasons,
+    addressOptionsOwnershipAnchorEvidenceSummary: expansion.toggleSelectionSummary.addressOptionsOwnershipAnchorEvidenceSummary,
+    addressOptionsOwnershipAnchorSourcesChecked: expansion.toggleSelectionSummary.addressOptionsOwnershipAnchorSourcesChecked,
+    addressOptionsOwnershipAnchorSafeTokensObserved: expansion.toggleSelectionSummary.addressOptionsOwnershipAnchorSafeTokensObserved,
+    radioGroupAriaLabelledbyBucketsPresent: expansion.toggleSelectionSummary.radioGroupAriaLabelledbyBucketsPresent,
+    radioGroupAriaDescribedbyBucketsPresent: expansion.toggleSelectionSummary.radioGroupAriaDescribedbyBucketsPresent,
+    radioGroupSharedNameBucketsPresent: expansion.toggleSelectionSummary.radioGroupSharedNameBucketsPresent,
+    radioGroupSharedOwnerBucketsPresent: expansion.toggleSelectionSummary.radioGroupSharedOwnerBucketsPresent,
+    radioGroupDocusignOwnerBucketsPresent: expansion.toggleSelectionSummary.radioGroupDocusignOwnerBucketsPresent,
+    radioGroupReferenceTargetExists: expansion.toggleSelectionSummary.radioGroupReferenceTargetExists,
+    radioGroupReferenceTargetVisible: expansion.toggleSelectionSummary.radioGroupReferenceTargetVisible,
+    radioGroupCommonOwnerCategory: expansion.toggleSelectionSummary.radioGroupCommonOwnerCategory,
     candidateOrderStable: expansion.toggleSelectionSummary.candidateOrderStable,
     conflictingCueDetected: expansion.toggleSelectionSummary.conflictingCueDetected,
     proofOfAddressUploadVisibleBefore: expansion.uiEffectSummary.proofOfAddressUploadVisibleBefore,
