@@ -7615,6 +7615,22 @@ test.describe('interactive validation safety', () => {
     expect(summary.addressOptionsAnchorSafeTokensObserved).toContain('address-options');
   });
 
+  test('guarded physical address discovery calibrated fallback group anchor evidence reports accessible-name match from safe buckets without raw text', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      calibratedBusinessPrimaryLocationRadioField(141, { groupName: 'Business Primary Location', idOrNameKey: 'addressOptions' }),
+      calibratedBusinessPrimaryLocationRadioField(142, { groupName: 'Business Primary Location', idOrNameKey: 'addressOptions' }),
+      calibratedBusinessPrimaryLocationRadioField(143, { groupName: 'Business Primary Location', idOrNameKey: 'addressOptions' }),
+    ] as any);
+
+    const summary = buildPhysicalOperatingAddressToggleSelectionSummary(selection);
+    const serialized = JSON.stringify(summary);
+
+    expect(summary.addressOptionsGroupAnchorOutcomeCategory).toBe('group-anchor-matched-accessible-name');
+    expect(summary.radioGroupAccessibleNameBucketsPresent).toEqual(expect.arrayContaining(['business-primary-location']));
+    expect(summary.addressOptionsGroupAnchorSafeTokensObserved).toEqual(expect.arrayContaining(['business-primary-location']));
+    expect(serialized).not.toContain('Business Primary Location');
+  });
+
   test('guarded physical address discovery calibrated fallback anchor evidence reports container match from safe container buckets', () => {
     const selection = explainPhysicalOperatingAddressToggleSelection([
       calibratedBusinessPrimaryLocationRadioField(144, {
@@ -7640,11 +7656,95 @@ test.describe('interactive validation safety', () => {
     );
   });
 
+  test('guarded physical address discovery calibrated fallback group anchor evidence reports legend match from bounded section buckets', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      calibratedBusinessPrimaryLocationRadioField(144, {
+        groupName: null,
+        idOrNameKey: 'addressOptions',
+        containerContextLabels: [{ source: 'container-section', value: 'Registered Legal Address' }],
+      }),
+      calibratedBusinessPrimaryLocationRadioField(145, {
+        groupName: null,
+        idOrNameKey: 'addressOptions',
+        containerContextLabels: [{ source: 'container-section', value: 'Registered Legal Address' }],
+      }),
+      calibratedBusinessPrimaryLocationRadioField(146, {
+        groupName: null,
+        idOrNameKey: 'addressOptions',
+        containerContextLabels: [{ source: 'container-section', value: 'Registered Legal Address' }],
+      }),
+    ] as any);
+
+    const summary = buildPhysicalOperatingAddressToggleSelectionSummary(selection);
+
+    expect(summary.addressOptionsGroupAnchorOutcomeCategory).toBe('group-anchor-matched-legend');
+    expect(summary.radioGroupLegendBucketsPresent).toEqual(expect.arrayContaining(['registered-legal-address']));
+  });
+
+  test('guarded physical address discovery calibrated fallback group anchor evidence reports question-prompt buckets without leaking raw prompt text', () => {
+    const prompt = 'Is the Registered Legal Address a P.O. Box or a virtual/registered agent address?';
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      calibratedBusinessPrimaryLocationRadioField(147, {
+        groupName: null,
+        idOrNameKey: 'addressOptions',
+        rawCandidateLabels: [{ source: 'positional-prompt', value: prompt }],
+      }),
+      calibratedBusinessPrimaryLocationRadioField(148, {
+        groupName: null,
+        idOrNameKey: 'addressOptions',
+        rawCandidateLabels: [{ source: 'positional-prompt', value: prompt }],
+      }),
+      calibratedBusinessPrimaryLocationRadioField(149, {
+        groupName: null,
+        idOrNameKey: 'addressOptions',
+        rawCandidateLabels: [{ source: 'positional-prompt', value: prompt }],
+      }),
+    ] as any);
+
+    const summary = buildPhysicalOperatingAddressToggleSelectionSummary(selection);
+    const serialized = JSON.stringify(summary);
+
+    expect(summary.addressOptionsGroupAnchorOutcomeCategory).toBe('group-anchor-matched-question-prompt');
+    expect(summary.radioGroupQuestionPromptBucketsPresent).toEqual(
+      expect.arrayContaining(['registered-legal-address', 'po-box', 'virtual-agent']),
+    );
+    expect(serialized).not.toContain(prompt);
+  });
+
+  test('guarded physical address discovery calibrated fallback group anchor evidence reports section and association buckets from bounded context', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      calibratedBusinessPrimaryLocationRadioField(150, {
+        groupName: null,
+        idOrNameKey: 'addressOptions',
+        sectionName: 'Business Primary Location',
+        layoutProximityLabels: [layoutLabel('Proof of Address')],
+      }),
+      calibratedBusinessPrimaryLocationRadioField(151, {
+        groupName: null,
+        idOrNameKey: 'addressOptions',
+        sectionName: 'Business Primary Location',
+        layoutProximityLabels: [layoutLabel('Proof of Address')],
+      }),
+      calibratedBusinessPrimaryLocationRadioField(152, {
+        groupName: null,
+        idOrNameKey: 'addressOptions',
+        sectionName: 'Business Primary Location',
+        layoutProximityLabels: [layoutLabel('Proof of Address')],
+      }),
+    ] as any);
+
+    const summary = buildPhysicalOperatingAddressToggleSelectionSummary(selection);
+
+    expect(summary.addressOptionsGroupAnchorOutcomeCategory).toBe('group-anchor-matched-section-header');
+    expect(summary.radioGroupSectionHeaderBucketsPresent).toEqual(expect.arrayContaining(['business-primary-location']));
+    expect(summary.radioGroupAssociationBucketsPresent).toEqual(expect.arrayContaining(['proof-of-address']));
+  });
+
   test('guarded physical address discovery calibrated fallback anchor evidence reports empty safe sources when exact three radios have no anchor evidence', () => {
     const selection = explainPhysicalOperatingAddressToggleSelection([
-      calibratedBusinessPrimaryLocationRadioField(147, { groupName: null }),
-      calibratedBusinessPrimaryLocationRadioField(148, { groupName: null }),
-      calibratedBusinessPrimaryLocationRadioField(149, { groupName: null }),
+      calibratedBusinessPrimaryLocationRadioField(153, { groupName: null }),
+      calibratedBusinessPrimaryLocationRadioField(154, { groupName: null }),
+      calibratedBusinessPrimaryLocationRadioField(155, { groupName: null }),
     ] as any);
 
     const summary = buildPhysicalOperatingAddressToggleSelectionSummary(selection);
@@ -7653,11 +7753,13 @@ test.describe('interactive validation safety', () => {
     expect(summary.addressOptionsAnchorOutcomeCategory).toBe('anchor-missing-safe-evidence-empty');
     expect(summary.addressOptionsAnchorRejectedReasons).toEqual(expect.arrayContaining(['anchor-missing', 'safe-evidence-empty']));
     expect(summary.addressOptionsAnchorSafeTokensObserved).toEqual([]);
+    expect(summary.addressOptionsGroupAnchorOutcomeCategory).toBe('group-anchor-missing-safe-evidence-empty');
+    expect(summary.toggleSelectionOutcomeCategory).toBe('calibrated-rejected-anchor-missing');
   });
 
   test('guarded physical address discovery calibrated fallback anchor evidence reports only generic buckets without leaking raw signature tokens', () => {
     const selection = explainPhysicalOperatingAddressToggleSelection([
-      calibratedBusinessPrimaryLocationRadioField(150, {
+      calibratedBusinessPrimaryLocationRadioField(156, {
         groupName: null,
         domAttributeSignature: attributeSignature({
           valueHintBuckets: ['generated-token-pattern', 'empty-value'],
@@ -7677,7 +7779,7 @@ test.describe('interactive validation safety', () => {
           hasSharedTokenHintBucket: true,
         }),
       }),
-      calibratedBusinessPrimaryLocationRadioField(151, {
+      calibratedBusinessPrimaryLocationRadioField(157, {
         groupName: null,
         domAttributeSignature: attributeSignature({
           valueHintBuckets: ['generated-token-pattern', 'empty-value'],
@@ -7697,7 +7799,7 @@ test.describe('interactive validation safety', () => {
           hasSharedTokenHintBucket: true,
         }),
       }),
-      calibratedBusinessPrimaryLocationRadioField(152, {
+      calibratedBusinessPrimaryLocationRadioField(158, {
         groupName: null,
         domAttributeSignature: attributeSignature({
           valueHintBuckets: ['generated-token-pattern', 'empty-value'],
@@ -7730,6 +7832,30 @@ test.describe('interactive validation safety', () => {
     expect(serialized).not.toContain('generated/generic-only-token');
   });
 
+  test('guarded physical address discovery calibrated fallback group anchor evidence reports only generic buckets and still fails closed', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      calibratedBusinessPrimaryLocationRadioField(159, {
+        groupName: 'Radio Group',
+        rawCandidateLabels: [{ source: 'positional-prompt', value: 'Required' }],
+      }),
+      calibratedBusinessPrimaryLocationRadioField(160, {
+        groupName: 'Radio Group',
+        rawCandidateLabels: [{ source: 'positional-prompt', value: 'Required' }],
+      }),
+      calibratedBusinessPrimaryLocationRadioField(161, {
+        groupName: 'Radio Group',
+        rawCandidateLabels: [{ source: 'positional-prompt', value: 'Required' }],
+      }),
+    ] as any);
+
+    const summary = buildPhysicalOperatingAddressToggleSelectionSummary(selection);
+
+    expect(summary.addressOptionsAnchorOutcomeCategory).toBe('anchor-missing-safe-evidence-empty');
+    expect(summary.addressOptionsGroupAnchorOutcomeCategory).toBe('group-anchor-missing-only-generic-evidence');
+    expect(summary.addressOptionsGroupAnchorSafeTokensObserved).toEqual(expect.arrayContaining(['radio-group', 'generic-only']));
+    expect(summary.toggleSelectionOutcomeCategory).toBe('calibrated-rejected-anchor-missing');
+  });
+
   test('guarded physical address discovery calibrated fallback fails closed when fewer than three unlabeled candidates are present', () => {
     const selection = explainPhysicalOperatingAddressToggleSelection([
       calibratedBusinessPrimaryLocationRadioField(144),
@@ -7747,6 +7873,8 @@ test.describe('interactive validation safety', () => {
     expect(selection.fallbackInventory?.calibratedFallback?.rejectedReasons).toContain('candidate-count-not-exactly-three');
     expect(selection.fallbackInventory?.calibratedFallback?.addressOptionsAnchorOutcomeCategory).toBe('anchor-not-checked');
     expect(selection.fallbackInventory?.calibratedFallback?.addressOptionsAnchorRejectedReasons).toEqual(['not-checked-prior-guard-failed']);
+    expect(selection.fallbackInventory?.calibratedFallback?.addressOptionsGroupAnchorOutcomeCategory).toBe('group-anchor-not-checked');
+    expect(selection.fallbackInventory?.calibratedFallback?.addressOptionsGroupAnchorRejectedReasons).toEqual(['not-checked-prior-guard-failed']);
   });
 
   test('guarded physical address discovery calibrated fallback fails closed when more than three unlabeled candidates are present', () => {
@@ -8660,6 +8788,16 @@ test.describe('interactive validation safety', () => {
       addressOptionsAnchorFieldKeyBucketsPresent: [],
       addressOptionsAnchorContainerBucketsPresent: [],
       addressOptionsAnchorAttributeBucketsPresent: [],
+      addressOptionsGroupAnchorOutcomeCategory: 'group-anchor-matched-section-header',
+      addressOptionsGroupAnchorRejectedReasons: [],
+      addressOptionsGroupAnchorEvidenceSummary: 'matched via radio-group section-header bucket',
+      addressOptionsGroupAnchorSourcesChecked: ['accessible-name', 'legend', 'question-prompt', 'section-header', 'association'],
+      addressOptionsGroupAnchorSafeTokensObserved: ['business-primary-location'],
+      radioGroupAccessibleNameBucketsPresent: [],
+      radioGroupLegendBucketsPresent: [],
+      radioGroupQuestionPromptBucketsPresent: [],
+      radioGroupSectionHeaderBucketsPresent: ['business-primary-location'],
+      radioGroupAssociationBucketsPresent: [],
       exactThreeRadioGuardPassed: true,
       candidateOrderStable: true,
       conflictingCueDetected: false,
@@ -8679,6 +8817,16 @@ test.describe('interactive validation safety', () => {
     addressOptionsAnchorFieldKeyBucketsPresent: [],
     addressOptionsAnchorContainerBucketsPresent: [],
     addressOptionsAnchorAttributeBucketsPresent: [],
+    addressOptionsGroupAnchorOutcomeCategory: 'group-anchor-matched-section-header',
+    addressOptionsGroupAnchorRejectedReasons: [],
+    addressOptionsGroupAnchorEvidenceSummary: 'matched via radio-group section-header bucket',
+    addressOptionsGroupAnchorSourcesChecked: ['accessible-name', 'legend', 'question-prompt', 'section-header', 'association'],
+    addressOptionsGroupAnchorSafeTokensObserved: ['business-primary-location'],
+    radioGroupAccessibleNameBucketsPresent: [],
+    radioGroupLegendBucketsPresent: [],
+    radioGroupQuestionPromptBucketsPresent: [],
+    radioGroupSectionHeaderBucketsPresent: ['business-primary-location'],
+    radioGroupAssociationBucketsPresent: [],
     candidateOrderStable: true,
     conflictingCueDetected: false,
     ...overrides,
@@ -8741,6 +8889,16 @@ test.describe('interactive validation safety', () => {
       addressOptionsAnchorFieldKeyBucketsPresent: [],
       addressOptionsAnchorContainerBucketsPresent: [],
       addressOptionsAnchorAttributeBucketsPresent: [],
+      addressOptionsGroupAnchorOutcomeCategory: 'group-anchor-matched-section-header',
+      addressOptionsGroupAnchorRejectedReasons: [],
+      addressOptionsGroupAnchorEvidenceSummary: 'matched via radio-group section-header bucket',
+      addressOptionsGroupAnchorSourcesChecked: ['accessible-name', 'legend', 'question-prompt', 'section-header', 'association'],
+      addressOptionsGroupAnchorSafeTokensObserved: ['business-primary-location'],
+      radioGroupAccessibleNameBucketsPresent: [],
+      radioGroupLegendBucketsPresent: [],
+      radioGroupQuestionPromptBucketsPresent: [],
+      radioGroupSectionHeaderBucketsPresent: ['business-primary-location'],
+      radioGroupAssociationBucketsPresent: [],
       exactThreeRadioGuardPassed: true,
       candidateOrderStable: true,
       conflictingCueDetected: false,
@@ -8760,6 +8918,16 @@ test.describe('interactive validation safety', () => {
     addressOptionsAnchorFieldKeyBucketsPresent: [],
     addressOptionsAnchorContainerBucketsPresent: [],
     addressOptionsAnchorAttributeBucketsPresent: [],
+    addressOptionsGroupAnchorOutcomeCategory: 'group-anchor-matched-section-header',
+    addressOptionsGroupAnchorRejectedReasons: [],
+    addressOptionsGroupAnchorEvidenceSummary: 'matched via radio-group section-header bucket',
+    addressOptionsGroupAnchorSourcesChecked: ['accessible-name', 'legend', 'question-prompt', 'section-header', 'association'],
+    addressOptionsGroupAnchorSafeTokensObserved: ['business-primary-location'],
+    radioGroupAccessibleNameBucketsPresent: [],
+    radioGroupLegendBucketsPresent: [],
+    radioGroupQuestionPromptBucketsPresent: [],
+    radioGroupSectionHeaderBucketsPresent: ['business-primary-location'],
+    radioGroupAssociationBucketsPresent: [],
     candidateOrderStable: true,
     conflictingCueDetected: false,
     selectionMode: 'calibrated-fallback',
@@ -9211,6 +9379,16 @@ test.describe('interactive validation safety', () => {
               addressOptionsAnchorFieldKeyBucketsPresent: [],
               addressOptionsAnchorContainerBucketsPresent: [],
               addressOptionsAnchorAttributeBucketsPresent: [],
+              addressOptionsGroupAnchorOutcomeCategory: 'group-anchor-not-checked',
+              addressOptionsGroupAnchorRejectedReasons: ['not-checked-prior-guard-failed'],
+              addressOptionsGroupAnchorEvidenceSummary: 'group anchor check skipped because the exact-three-radio guard failed',
+              addressOptionsGroupAnchorSourcesChecked: [],
+              addressOptionsGroupAnchorSafeTokensObserved: [],
+              radioGroupAccessibleNameBucketsPresent: [],
+              radioGroupLegendBucketsPresent: [],
+              radioGroupQuestionPromptBucketsPresent: [],
+              radioGroupSectionHeaderBucketsPresent: [],
+              radioGroupAssociationBucketsPresent: [],
               exactThreeRadioGuardPassed: false,
               candidateOrderStable: false,
               conflictingCueDetected: false,
@@ -9226,6 +9404,16 @@ test.describe('interactive validation safety', () => {
             addressOptionsAnchorFieldKeyBucketsPresent: [],
             addressOptionsAnchorContainerBucketsPresent: [],
             addressOptionsAnchorAttributeBucketsPresent: [],
+            addressOptionsGroupAnchorOutcomeCategory: 'group-anchor-not-checked',
+            addressOptionsGroupAnchorRejectedReasons: ['not-checked-prior-guard-failed'],
+            addressOptionsGroupAnchorEvidenceSummary: 'group anchor check skipped because the exact-three-radio guard failed',
+            addressOptionsGroupAnchorSourcesChecked: [],
+            addressOptionsGroupAnchorSafeTokensObserved: [],
+            radioGroupAccessibleNameBucketsPresent: [],
+            radioGroupLegendBucketsPresent: [],
+            radioGroupQuestionPromptBucketsPresent: [],
+            radioGroupSectionHeaderBucketsPresent: [],
+            radioGroupAssociationBucketsPresent: [],
             candidateOrderStable: false,
             conflictingCueDetected: false,
           }),
@@ -9324,6 +9512,15 @@ test.describe('interactive validation safety', () => {
     expect(serialized).not.toContain('secret-class-name');
     expect(serialized).not.toContain('<html>');
     expect(serialized).not.toContain('screenshot.png');
+  });
+
+  test('physical address bootstrap capture receipt keeps group anchor evidence bucketed and redacted', () => {
+    const serialized = JSON.stringify(createPhysicalAddressBootstrapCaptureReceipt());
+
+    expect(serialized).not.toContain('Business Primary Location');
+    expect(serialized).not.toContain('Registered Legal Address');
+    expect(serialized).not.toContain('Proof of Address');
+    expect(serialized).not.toContain('P.O. Box');
   });
 
   test('physical address capture-only runner source reuses guarded capture path and avoids validation sweep logic', () => {
@@ -9432,6 +9629,8 @@ test.describe('interactive validation safety', () => {
     expect(receipt?.bootstrapExitCode).toBe(0);
     expect(receipt?.artifactsFresh).toBe(true);
     expect(receipt?.blockedReasonCategory).toBeNull();
+    expect(receipt?.addressOptionsGroupAnchorOutcomeCategory).toBe('group-anchor-matched-section-header');
+    expect(receipt?.radioGroupSectionHeaderBucketsPresent).toEqual(expect.arrayContaining(['business-primary-location']));
     expect(logs.join('\n')).not.toContain('SECRET');
   });
 
@@ -9494,6 +9693,9 @@ test.describe('interactive validation safety', () => {
     expect(receipt?.toggleSelectionOutcomeCategory).toBe('calibrated-selected');
     expect(receipt?.addressOptionsAnchorOutcomeCategory).toBe('anchor-matched-label');
     expect(receipt?.addressOptionsAnchorSafeTokensObserved).toEqual(expect.arrayContaining(['address-options', 'address']));
+    expect(receipt?.addressOptionsGroupAnchorOutcomeCategory).toBe('group-anchor-matched-section-header');
+    expect(receipt?.calibratedFallbackGuardSummary.addressOptionsGroupAnchorOutcomeCategory).toBe('group-anchor-matched-section-header');
+    expect(receipt?.radioGroupSectionHeaderBucketsPresent).toEqual(expect.arrayContaining(['business-primary-location']));
     expect(receipt?.uiEffectOutcomeCategory).toBe('proof-address-visible-physical-fields-visible');
   });
 

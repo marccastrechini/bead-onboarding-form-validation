@@ -119,6 +119,53 @@ export type PhysicalOperatingAddressAddressOptionsAnchorTokenBucket =
   | 'radio-group'
   | 'generic-only';
 
+export type PhysicalOperatingAddressAddressOptionsGroupAnchorOutcomeCategory =
+  | 'group-anchor-matched-accessible-name'
+  | 'group-anchor-matched-legend'
+  | 'group-anchor-matched-question-prompt'
+  | 'group-anchor-matched-section-header'
+  | 'group-anchor-matched-association'
+  | 'group-anchor-missing-no-safe-evidence'
+  | 'group-anchor-missing-safe-evidence-empty'
+  | 'group-anchor-missing-only-generic-evidence'
+  | 'group-anchor-not-checked';
+
+export type PhysicalOperatingAddressAddressOptionsGroupAnchorRejectedReason =
+  | 'group-anchor-missing'
+  | 'no-safe-evidence'
+  | 'safe-evidence-empty'
+  | 'only-generic-evidence'
+  | 'not-checked-prior-guard-failed';
+
+export type PhysicalOperatingAddressAddressOptionsGroupAnchorEvidenceSummary =
+  | 'matched via radio-group accessible-name bucket'
+  | 'matched via radio-group legend bucket'
+  | 'matched via radio-group question-prompt bucket'
+  | 'matched via radio-group section-header bucket'
+  | 'matched via radio-group association bucket'
+  | 'checked group-level sources contained no safe anchor bucket'
+  | 'checked group-level sources were empty'
+  | 'only generic group-level anchor buckets were observed'
+  | 'group anchor check skipped because the exact-three-radio guard failed';
+
+export type PhysicalOperatingAddressAddressOptionsGroupAnchorSourceChecked =
+  | 'accessible-name'
+  | 'legend'
+  | 'question-prompt'
+  | 'section-header'
+  | 'association';
+
+export type PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket =
+  | 'business-primary-location'
+  | 'registered-legal-address'
+  | 'proof-of-address'
+  | 'physical-operating-address'
+  | 'po-box'
+  | 'virtual-agent'
+  | 'radio-group'
+  | 'question-prompt'
+  | 'generic-only';
+
 export interface PhysicalOperatingAddressCalibratedFallbackGuardSummary {
   addressOptionsAnchorMatched: boolean;
   addressOptionsAnchorOutcomeCategory: PhysicalOperatingAddressAddressOptionsAnchorOutcomeCategory;
@@ -130,6 +177,16 @@ export interface PhysicalOperatingAddressCalibratedFallbackGuardSummary {
   addressOptionsAnchorFieldKeyBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
   addressOptionsAnchorContainerBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
   addressOptionsAnchorAttributeBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
+  addressOptionsGroupAnchorOutcomeCategory: PhysicalOperatingAddressAddressOptionsGroupAnchorOutcomeCategory;
+  addressOptionsGroupAnchorRejectedReasons: PhysicalOperatingAddressAddressOptionsGroupAnchorRejectedReason[];
+  addressOptionsGroupAnchorEvidenceSummary: PhysicalOperatingAddressAddressOptionsGroupAnchorEvidenceSummary;
+  addressOptionsGroupAnchorSourcesChecked: PhysicalOperatingAddressAddressOptionsGroupAnchorSourceChecked[];
+  addressOptionsGroupAnchorSafeTokensObserved: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[];
+  radioGroupAccessibleNameBucketsPresent: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[];
+  radioGroupLegendBucketsPresent: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[];
+  radioGroupQuestionPromptBucketsPresent: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[];
+  radioGroupSectionHeaderBucketsPresent: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[];
+  radioGroupAssociationBucketsPresent: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[];
   exactThreeRadioGuardPassed: boolean;
   candidateOrderStable: boolean;
   conflictingCueDetected: boolean;
@@ -163,6 +220,16 @@ export interface PhysicalOperatingAddressToggleSelectionSummary {
   addressOptionsAnchorFieldKeyBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
   addressOptionsAnchorContainerBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
   addressOptionsAnchorAttributeBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
+  addressOptionsGroupAnchorOutcomeCategory: PhysicalOperatingAddressAddressOptionsGroupAnchorOutcomeCategory;
+  addressOptionsGroupAnchorRejectedReasons: PhysicalOperatingAddressAddressOptionsGroupAnchorRejectedReason[];
+  addressOptionsGroupAnchorEvidenceSummary: PhysicalOperatingAddressAddressOptionsGroupAnchorEvidenceSummary;
+  addressOptionsGroupAnchorSourcesChecked: PhysicalOperatingAddressAddressOptionsGroupAnchorSourceChecked[];
+  addressOptionsGroupAnchorSafeTokensObserved: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[];
+  radioGroupAccessibleNameBucketsPresent: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[];
+  radioGroupLegendBucketsPresent: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[];
+  radioGroupQuestionPromptBucketsPresent: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[];
+  radioGroupSectionHeaderBucketsPresent: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[];
+  radioGroupAssociationBucketsPresent: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[];
   candidateOrderStable: boolean;
   conflictingCueDetected: boolean;
 }
@@ -220,11 +287,47 @@ const ADDRESS_OPTIONS_ANCHOR_TOKEN_BUCKET_ORDER: PhysicalOperatingAddressAddress
   'radio-group',
   'generic-only',
 ];
+const ADDRESS_OPTIONS_GROUP_ANCHOR_SOURCES_CHECKED: PhysicalOperatingAddressAddressOptionsGroupAnchorSourceChecked[] = [
+  'accessible-name',
+  'legend',
+  'question-prompt',
+  'section-header',
+  'association',
+];
+const ADDRESS_OPTIONS_GROUP_ANCHOR_TOKEN_BUCKET_ORDER: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[] = [
+  'business-primary-location',
+  'registered-legal-address',
+  'proof-of-address',
+  'physical-operating-address',
+  'po-box',
+  'virtual-agent',
+  'radio-group',
+  'question-prompt',
+  'generic-only',
+];
 const ADDRESS_OPTIONS_ANCHOR_GENERIC_TEXT_RE = /\brequired\b|\boptional\b|\bsame\b|\bdifferent\b|\byes\b|\bno\b/i;
 const ADDRESS_OPTIONS_ANCHOR_GENERIC_SIGNATURE_BUCKETS = new Set([
   'generated-token-pattern',
   'generated/generic-only-token',
   'empty-value',
+]);
+const BUSINESS_PRIMARY_LOCATION_RE = /\bbusiness\s+primary\s+location\b/i;
+const REGISTERED_LEGAL_ADDRESS_RE = /\bregistered\s+legal\s+address\b/i;
+const PROOF_OF_ADDRESS_RE = /\bproof\s+of\s+address\b/i;
+const PO_BOX_RE = /\bp\.?\s*o\.?\s*box\b|\bpo\s+box\b/i;
+const VIRTUAL_AGENT_RE = /\bvirtual\b|\bregistered\s+agent\b/i;
+const GROUP_ANCHOR_QUESTION_PROMPT_SOURCES = new Set([
+  'aria-labelledby',
+  'wrapping-label',
+  'described-by',
+  'helper-text',
+  'preceding-text',
+  'positional-prompt',
+]);
+const GROUP_ANCHOR_ASSOCIATION_SOURCES = new Set([
+  'label-for',
+  'row-header',
+  'section+row',
 ]);
 const ANCESTOR_TOGGLE_LABEL_SOURCES = new Set([
   'aria-labelledby',
@@ -427,6 +530,16 @@ type PhysicalOperatingAddressToggleCalibratedFallbackDiagnostics = {
   addressOptionsAnchorFieldKeyBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
   addressOptionsAnchorContainerBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
   addressOptionsAnchorAttributeBucketsPresent: PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[];
+  addressOptionsGroupAnchorOutcomeCategory: PhysicalOperatingAddressAddressOptionsGroupAnchorOutcomeCategory;
+  addressOptionsGroupAnchorRejectedReasons: PhysicalOperatingAddressAddressOptionsGroupAnchorRejectedReason[];
+  addressOptionsGroupAnchorEvidenceSummary: PhysicalOperatingAddressAddressOptionsGroupAnchorEvidenceSummary;
+  addressOptionsGroupAnchorSourcesChecked: PhysicalOperatingAddressAddressOptionsGroupAnchorSourceChecked[];
+  addressOptionsGroupAnchorSafeTokensObserved: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[];
+  radioGroupAccessibleNameBucketsPresent: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[];
+  radioGroupLegendBucketsPresent: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[];
+  radioGroupQuestionPromptBucketsPresent: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[];
+  radioGroupSectionHeaderBucketsPresent: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[];
+  radioGroupAssociationBucketsPresent: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[];
   addressOptionsClusterGuardPassed: boolean;
   candidateOrderStable: boolean;
   exactThreeRadioGuardPassed: boolean;
@@ -776,6 +889,13 @@ function sortUniqueAddressOptionsAnchorTokenBuckets(
   return ADDRESS_OPTIONS_ANCHOR_TOKEN_BUCKET_ORDER.filter((bucket) => seen.has(bucket));
 }
 
+function sortUniqueAddressOptionsGroupAnchorTokenBuckets(
+  values: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[],
+): PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[] {
+  const seen = new Set(values);
+  return ADDRESS_OPTIONS_GROUP_ANCHOR_TOKEN_BUCKET_ORDER.filter((bucket) => seen.has(bucket));
+}
+
 function collectAddressOptionsAnchorTextBuckets(
   values: Array<string | null | undefined>,
 ): PhysicalOperatingAddressAddressOptionsAnchorTokenBucket[] {
@@ -829,6 +949,43 @@ function collectAddressOptionsAnchorSignatureBuckets(
   return sortUniqueAddressOptionsAnchorTokenBuckets(buckets);
 }
 
+function collectAddressOptionsGroupAnchorTextBuckets(
+  values: Array<string | null | undefined>,
+  source: PhysicalOperatingAddressAddressOptionsGroupAnchorSourceChecked,
+): PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[] {
+  const buckets: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[] = [];
+
+  for (const value of values) {
+    const normalized = normalizeText(value);
+    if (!normalized) continue;
+
+    const matchable = toMatchableText(normalized);
+    const localBuckets: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket[] = [];
+
+    if (BUSINESS_PRIMARY_LOCATION_RE.test(matchable)) localBuckets.push('business-primary-location');
+    if (REGISTERED_LEGAL_ADDRESS_RE.test(matchable)) localBuckets.push('registered-legal-address');
+    if (PROOF_OF_ADDRESS_RE.test(matchable)) localBuckets.push('proof-of-address');
+    if (PHYSICAL_ADDRESS_RE.test(matchable) || OPERATING_ADDRESS_RE.test(matchable) || BUSINESS_PHYSICAL_ADDRESS_RE.test(matchable)) {
+      localBuckets.push('physical-operating-address');
+    }
+    if (PO_BOX_RE.test(matchable)) localBuckets.push('po-box');
+    if (VIRTUAL_AGENT_RE.test(matchable)) localBuckets.push('virtual-agent');
+    if (source === 'question-prompt' && (matchable.includes('?') || /\b(is|does|do|can|will|should|would)\b/i.test(matchable))) {
+      localBuckets.push('question-prompt');
+    }
+    if ((source === 'accessible-name' || source === 'association') && /\bradio\b|\bgroup\b/i.test(matchable)) {
+      localBuckets.push('radio-group');
+    }
+    if (localBuckets.length === 0 && ADDRESS_OPTIONS_ANCHOR_GENERIC_TEXT_RE.test(matchable)) {
+      localBuckets.push('generic-only');
+    }
+
+    buckets.push(...localBuckets);
+  }
+
+  return sortUniqueAddressOptionsGroupAnchorTokenBuckets(buckets);
+}
+
 function buildAddressOptionsAnchorEvidenceSummary(
   category: PhysicalOperatingAddressAddressOptionsAnchorOutcomeCategory,
 ): PhysicalOperatingAddressAddressOptionsAnchorEvidenceSummary {
@@ -855,6 +1012,32 @@ function buildAddressOptionsAnchorEvidenceSummary(
   }
 }
 
+function buildAddressOptionsGroupAnchorEvidenceSummary(
+  category: PhysicalOperatingAddressAddressOptionsGroupAnchorOutcomeCategory,
+): PhysicalOperatingAddressAddressOptionsGroupAnchorEvidenceSummary {
+  switch (category) {
+    case 'group-anchor-matched-accessible-name':
+      return 'matched via radio-group accessible-name bucket';
+    case 'group-anchor-matched-legend':
+      return 'matched via radio-group legend bucket';
+    case 'group-anchor-matched-question-prompt':
+      return 'matched via radio-group question-prompt bucket';
+    case 'group-anchor-matched-section-header':
+      return 'matched via radio-group section-header bucket';
+    case 'group-anchor-matched-association':
+      return 'matched via radio-group association bucket';
+    case 'group-anchor-missing-safe-evidence-empty':
+      return 'checked group-level sources were empty';
+    case 'group-anchor-missing-only-generic-evidence':
+      return 'only generic group-level anchor buckets were observed';
+    case 'group-anchor-not-checked':
+      return 'group anchor check skipped because the exact-three-radio guard failed';
+    case 'group-anchor-missing-no-safe-evidence':
+    default:
+      return 'checked group-level sources contained no safe anchor bucket';
+  }
+}
+
 function buildDefaultPhysicalOperatingAddressCalibratedFallbackGuardSummary(): PhysicalOperatingAddressCalibratedFallbackGuardSummary {
   return {
     addressOptionsAnchorMatched: false,
@@ -867,9 +1050,164 @@ function buildDefaultPhysicalOperatingAddressCalibratedFallbackGuardSummary(): P
     addressOptionsAnchorFieldKeyBucketsPresent: [],
     addressOptionsAnchorContainerBucketsPresent: [],
     addressOptionsAnchorAttributeBucketsPresent: [],
+    addressOptionsGroupAnchorOutcomeCategory: 'group-anchor-not-checked',
+    addressOptionsGroupAnchorRejectedReasons: [],
+    addressOptionsGroupAnchorEvidenceSummary: 'group anchor check skipped because the exact-three-radio guard failed',
+    addressOptionsGroupAnchorSourcesChecked: [],
+    addressOptionsGroupAnchorSafeTokensObserved: [],
+    radioGroupAccessibleNameBucketsPresent: [],
+    radioGroupLegendBucketsPresent: [],
+    radioGroupQuestionPromptBucketsPresent: [],
+    radioGroupSectionHeaderBucketsPresent: [],
+    radioGroupAssociationBucketsPresent: [],
     exactThreeRadioGuardPassed: false,
     candidateOrderStable: false,
     conflictingCueDetected: false,
+  };
+}
+
+function isGroupAnchorQuestionPromptSource(source: string): boolean {
+  return GROUP_ANCHOR_QUESTION_PROMPT_SOURCES.has(source);
+}
+
+function isGroupAnchorAssociationSource(source: string): boolean {
+  return GROUP_ANCHOR_ASSOCIATION_SOURCES.has(source);
+}
+
+function isNonGenericAddressOptionsGroupAnchorTokenBucket(
+  bucket: PhysicalOperatingAddressAddressOptionsGroupAnchorTokenBucket,
+): boolean {
+  return bucket !== 'radio-group' && bucket !== 'question-prompt' && bucket !== 'generic-only';
+}
+
+function buildPhysicalOperatingAddressAddressOptionsGroupAnchorEvidence(input: {
+  fields: GuardedToggleField[];
+  exactThreeRadioGuardPassed: boolean;
+}): Pick<
+  PhysicalOperatingAddressToggleCalibratedFallbackDiagnostics,
+  | 'addressOptionsGroupAnchorOutcomeCategory'
+  | 'addressOptionsGroupAnchorRejectedReasons'
+  | 'addressOptionsGroupAnchorEvidenceSummary'
+  | 'addressOptionsGroupAnchorSourcesChecked'
+  | 'addressOptionsGroupAnchorSafeTokensObserved'
+  | 'radioGroupAccessibleNameBucketsPresent'
+  | 'radioGroupLegendBucketsPresent'
+  | 'radioGroupQuestionPromptBucketsPresent'
+  | 'radioGroupSectionHeaderBucketsPresent'
+  | 'radioGroupAssociationBucketsPresent'
+> {
+  const visibleRadioLikeFields = input.fields
+    .map((field) => ({ field, analysis: buildPhysicalOperatingAddressToggleFallbackAnalysis(field) }))
+    .filter(({ analysis }) => analysis.visibleRadioLike)
+    .map(({ field }) => field);
+  const accessibleNameValues = visibleRadioLikeFields.map((field) => field.groupName);
+  const legendValues = visibleRadioLikeFields.flatMap((field) => (field.containerContextLabels ?? [])
+    .filter((candidate) => candidate.source === 'container-section')
+    .map((candidate) => candidate.value));
+  const questionPromptValues = visibleRadioLikeFields.flatMap((field) => field.rawCandidateLabels
+    .filter((candidate) => isGroupAnchorQuestionPromptSource(candidate.source))
+    .map((candidate) => candidate.value));
+  const sectionHeaderValues = visibleRadioLikeFields.map((field) => field.sectionName);
+  const associationValues = visibleRadioLikeFields.flatMap((field) => [
+    ...field.rawCandidateLabels
+      .filter((candidate) => isGroupAnchorAssociationSource(candidate.source))
+      .map((candidate) => candidate.value),
+    ...(field.layoutProximityLabels ?? [])
+      .filter((candidate) => candidate.association === 'group')
+      .map((candidate) => candidate.value),
+  ]);
+  const radioGroupAccessibleNameBucketsPresent = collectAddressOptionsGroupAnchorTextBuckets(
+    accessibleNameValues,
+    'accessible-name',
+  );
+  const radioGroupLegendBucketsPresent = collectAddressOptionsGroupAnchorTextBuckets(legendValues, 'legend');
+  const radioGroupQuestionPromptBucketsPresent = collectAddressOptionsGroupAnchorTextBuckets(
+    questionPromptValues,
+    'question-prompt',
+  );
+  const radioGroupSectionHeaderBucketsPresent = collectAddressOptionsGroupAnchorTextBuckets(
+    sectionHeaderValues,
+    'section-header',
+  );
+  const radioGroupAssociationBucketsPresent = collectAddressOptionsGroupAnchorTextBuckets(
+    associationValues,
+    'association',
+  );
+  const safeTokensObserved = sortUniqueAddressOptionsGroupAnchorTokenBuckets([
+    ...radioGroupAccessibleNameBucketsPresent,
+    ...radioGroupLegendBucketsPresent,
+    ...radioGroupQuestionPromptBucketsPresent,
+    ...radioGroupSectionHeaderBucketsPresent,
+    ...radioGroupAssociationBucketsPresent,
+  ]);
+  const accessibleNameMatched = radioGroupAccessibleNameBucketsPresent.some(isNonGenericAddressOptionsGroupAnchorTokenBucket);
+  const legendMatched = radioGroupLegendBucketsPresent.some(isNonGenericAddressOptionsGroupAnchorTokenBucket);
+  const questionPromptMatched = radioGroupQuestionPromptBucketsPresent.some(isNonGenericAddressOptionsGroupAnchorTokenBucket);
+  const sectionHeaderMatched = radioGroupSectionHeaderBucketsPresent.some(isNonGenericAddressOptionsGroupAnchorTokenBucket);
+  const associationMatched = radioGroupAssociationBucketsPresent.some(isNonGenericAddressOptionsGroupAnchorTokenBucket);
+  const anySourceHasContent = accessibleNameValues.some((value) => Boolean(normalizeText(value)))
+    || legendValues.some((value) => Boolean(normalizeText(value)))
+    || questionPromptValues.some((value) => Boolean(normalizeText(value)))
+    || sectionHeaderValues.some((value) => Boolean(normalizeText(value)))
+    || associationValues.some((value) => Boolean(normalizeText(value)));
+  const onlyGenericEvidence = safeTokensObserved.length > 0
+    && safeTokensObserved.every((bucket) => !isNonGenericAddressOptionsGroupAnchorTokenBucket(bucket));
+
+  let addressOptionsGroupAnchorOutcomeCategory: PhysicalOperatingAddressAddressOptionsGroupAnchorOutcomeCategory =
+    'group-anchor-missing-no-safe-evidence';
+  if (!input.exactThreeRadioGuardPassed) {
+    addressOptionsGroupAnchorOutcomeCategory = 'group-anchor-not-checked';
+  } else if (accessibleNameMatched) {
+    addressOptionsGroupAnchorOutcomeCategory = 'group-anchor-matched-accessible-name';
+  } else if (legendMatched) {
+    addressOptionsGroupAnchorOutcomeCategory = 'group-anchor-matched-legend';
+  } else if (questionPromptMatched) {
+    addressOptionsGroupAnchorOutcomeCategory = 'group-anchor-matched-question-prompt';
+  } else if (sectionHeaderMatched) {
+    addressOptionsGroupAnchorOutcomeCategory = 'group-anchor-matched-section-header';
+  } else if (associationMatched) {
+    addressOptionsGroupAnchorOutcomeCategory = 'group-anchor-matched-association';
+  } else if (!anySourceHasContent) {
+    addressOptionsGroupAnchorOutcomeCategory = 'group-anchor-missing-safe-evidence-empty';
+  } else if (onlyGenericEvidence) {
+    addressOptionsGroupAnchorOutcomeCategory = 'group-anchor-missing-only-generic-evidence';
+  }
+
+  const addressOptionsGroupAnchorRejectedReasons: PhysicalOperatingAddressAddressOptionsGroupAnchorRejectedReason[] = [];
+  if (addressOptionsGroupAnchorOutcomeCategory === 'group-anchor-not-checked') {
+    addressOptionsGroupAnchorRejectedReasons.push('not-checked-prior-guard-failed');
+  } else if (
+    addressOptionsGroupAnchorOutcomeCategory === 'group-anchor-missing-no-safe-evidence'
+    || addressOptionsGroupAnchorOutcomeCategory === 'group-anchor-missing-safe-evidence-empty'
+    || addressOptionsGroupAnchorOutcomeCategory === 'group-anchor-missing-only-generic-evidence'
+  ) {
+    addressOptionsGroupAnchorRejectedReasons.push('group-anchor-missing');
+    switch (addressOptionsGroupAnchorOutcomeCategory) {
+      case 'group-anchor-missing-safe-evidence-empty':
+        addressOptionsGroupAnchorRejectedReasons.push('safe-evidence-empty');
+        break;
+      case 'group-anchor-missing-only-generic-evidence':
+        addressOptionsGroupAnchorRejectedReasons.push('only-generic-evidence');
+        break;
+      case 'group-anchor-missing-no-safe-evidence':
+      default:
+        addressOptionsGroupAnchorRejectedReasons.push('no-safe-evidence');
+        break;
+    }
+  }
+
+  return {
+    addressOptionsGroupAnchorOutcomeCategory,
+    addressOptionsGroupAnchorRejectedReasons,
+    addressOptionsGroupAnchorEvidenceSummary:
+      buildAddressOptionsGroupAnchorEvidenceSummary(addressOptionsGroupAnchorOutcomeCategory),
+    addressOptionsGroupAnchorSourcesChecked: ADDRESS_OPTIONS_GROUP_ANCHOR_SOURCES_CHECKED.slice(),
+    addressOptionsGroupAnchorSafeTokensObserved: safeTokensObserved,
+    radioGroupAccessibleNameBucketsPresent,
+    radioGroupLegendBucketsPresent,
+    radioGroupQuestionPromptBucketsPresent,
+    radioGroupSectionHeaderBucketsPresent,
+    radioGroupAssociationBucketsPresent,
   };
 }
 
@@ -1010,6 +1348,7 @@ function buildPhysicalOperatingAddressAddressOptionsAnchorEvidence(input: {
 }
 
 function buildCalibratedPhysicalOperatingAddressFallbackDiagnostics(
+  fields: GuardedToggleField[],
   primaryInventory: PhysicalOperatingAddressToggleInventory,
   fallbackInventory: PhysicalOperatingAddressToggleFallbackInventory,
 ): PhysicalOperatingAddressToggleCalibratedFallbackDiagnostics {
@@ -1040,6 +1379,10 @@ function buildCalibratedPhysicalOperatingAddressFallbackDiagnostics(
     addressOptionsAnchorMatched,
     exactThreeRadioGuardPassed,
     conflictingCueDetected,
+  });
+  const groupAnchorEvidence = buildPhysicalOperatingAddressAddressOptionsGroupAnchorEvidence({
+    fields,
+    exactThreeRadioGuardPassed,
   });
   const cueBasedFailureReason = fallbackInventory.matchingFallbackCandidateCount === 0
     ? 'no-explicit-physical-cue-match'
@@ -1078,6 +1421,16 @@ function buildCalibratedPhysicalOperatingAddressFallbackDiagnostics(
     addressOptionsAnchorFieldKeyBucketsPresent: anchorEvidence.addressOptionsAnchorFieldKeyBucketsPresent,
     addressOptionsAnchorContainerBucketsPresent: anchorEvidence.addressOptionsAnchorContainerBucketsPresent,
     addressOptionsAnchorAttributeBucketsPresent: anchorEvidence.addressOptionsAnchorAttributeBucketsPresent,
+    addressOptionsGroupAnchorOutcomeCategory: groupAnchorEvidence.addressOptionsGroupAnchorOutcomeCategory,
+    addressOptionsGroupAnchorRejectedReasons: groupAnchorEvidence.addressOptionsGroupAnchorRejectedReasons,
+    addressOptionsGroupAnchorEvidenceSummary: groupAnchorEvidence.addressOptionsGroupAnchorEvidenceSummary,
+    addressOptionsGroupAnchorSourcesChecked: groupAnchorEvidence.addressOptionsGroupAnchorSourcesChecked,
+    addressOptionsGroupAnchorSafeTokensObserved: groupAnchorEvidence.addressOptionsGroupAnchorSafeTokensObserved,
+    radioGroupAccessibleNameBucketsPresent: groupAnchorEvidence.radioGroupAccessibleNameBucketsPresent,
+    radioGroupLegendBucketsPresent: groupAnchorEvidence.radioGroupLegendBucketsPresent,
+    radioGroupQuestionPromptBucketsPresent: groupAnchorEvidence.radioGroupQuestionPromptBucketsPresent,
+    radioGroupSectionHeaderBucketsPresent: groupAnchorEvidence.radioGroupSectionHeaderBucketsPresent,
+    radioGroupAssociationBucketsPresent: groupAnchorEvidence.radioGroupAssociationBucketsPresent,
     addressOptionsClusterGuardPassed,
     candidateOrderStable,
     exactThreeRadioGuardPassed,
@@ -1141,6 +1494,16 @@ export function buildPhysicalOperatingAddressToggleSelectionSummary<T extends Gu
       addressOptionsAnchorFieldKeyBucketsPresent: calibratedFallback.addressOptionsAnchorFieldKeyBucketsPresent,
       addressOptionsAnchorContainerBucketsPresent: calibratedFallback.addressOptionsAnchorContainerBucketsPresent,
       addressOptionsAnchorAttributeBucketsPresent: calibratedFallback.addressOptionsAnchorAttributeBucketsPresent,
+      addressOptionsGroupAnchorOutcomeCategory: calibratedFallback.addressOptionsGroupAnchorOutcomeCategory,
+      addressOptionsGroupAnchorRejectedReasons: calibratedFallback.addressOptionsGroupAnchorRejectedReasons,
+      addressOptionsGroupAnchorEvidenceSummary: calibratedFallback.addressOptionsGroupAnchorEvidenceSummary,
+      addressOptionsGroupAnchorSourcesChecked: calibratedFallback.addressOptionsGroupAnchorSourcesChecked,
+      addressOptionsGroupAnchorSafeTokensObserved: calibratedFallback.addressOptionsGroupAnchorSafeTokensObserved,
+      radioGroupAccessibleNameBucketsPresent: calibratedFallback.radioGroupAccessibleNameBucketsPresent,
+      radioGroupLegendBucketsPresent: calibratedFallback.radioGroupLegendBucketsPresent,
+      radioGroupQuestionPromptBucketsPresent: calibratedFallback.radioGroupQuestionPromptBucketsPresent,
+      radioGroupSectionHeaderBucketsPresent: calibratedFallback.radioGroupSectionHeaderBucketsPresent,
+      radioGroupAssociationBucketsPresent: calibratedFallback.radioGroupAssociationBucketsPresent,
       exactThreeRadioGuardPassed: calibratedFallback.exactThreeRadioGuardPassed,
       candidateOrderStable: calibratedFallback.candidateOrderStable,
       conflictingCueDetected: calibratedFallback.conflictingCueDetected,
@@ -1214,6 +1577,16 @@ export function buildPhysicalOperatingAddressToggleSelectionSummary<T extends Gu
     addressOptionsAnchorFieldKeyBucketsPresent: calibratedFallbackGuardSummary.addressOptionsAnchorFieldKeyBucketsPresent,
     addressOptionsAnchorContainerBucketsPresent: calibratedFallbackGuardSummary.addressOptionsAnchorContainerBucketsPresent,
     addressOptionsAnchorAttributeBucketsPresent: calibratedFallbackGuardSummary.addressOptionsAnchorAttributeBucketsPresent,
+    addressOptionsGroupAnchorOutcomeCategory: calibratedFallbackGuardSummary.addressOptionsGroupAnchorOutcomeCategory,
+    addressOptionsGroupAnchorRejectedReasons: calibratedFallbackGuardSummary.addressOptionsGroupAnchorRejectedReasons,
+    addressOptionsGroupAnchorEvidenceSummary: calibratedFallbackGuardSummary.addressOptionsGroupAnchorEvidenceSummary,
+    addressOptionsGroupAnchorSourcesChecked: calibratedFallbackGuardSummary.addressOptionsGroupAnchorSourcesChecked,
+    addressOptionsGroupAnchorSafeTokensObserved: calibratedFallbackGuardSummary.addressOptionsGroupAnchorSafeTokensObserved,
+    radioGroupAccessibleNameBucketsPresent: calibratedFallbackGuardSummary.radioGroupAccessibleNameBucketsPresent,
+    radioGroupLegendBucketsPresent: calibratedFallbackGuardSummary.radioGroupLegendBucketsPresent,
+    radioGroupQuestionPromptBucketsPresent: calibratedFallbackGuardSummary.radioGroupQuestionPromptBucketsPresent,
+    radioGroupSectionHeaderBucketsPresent: calibratedFallbackGuardSummary.radioGroupSectionHeaderBucketsPresent,
+    radioGroupAssociationBucketsPresent: calibratedFallbackGuardSummary.radioGroupAssociationBucketsPresent,
     candidateOrderStable: calibratedFallbackGuardSummary.candidateOrderStable,
     conflictingCueDetected: calibratedFallbackGuardSummary.conflictingCueDetected,
   };
@@ -1734,7 +2107,11 @@ export function explainPhysicalOperatingAddressToggleSelection<T extends Guarded
       };
     }
 
-    const calibratedFallback = buildCalibratedPhysicalOperatingAddressFallbackDiagnostics(primaryInventory, fallbackInventory);
+    const calibratedFallback = buildCalibratedPhysicalOperatingAddressFallbackDiagnostics(
+      fields,
+      primaryInventory,
+      fallbackInventory,
+    );
     const fallbackInventoryWithCalibrated = {
       ...fallbackInventory,
       calibratedFallback,
