@@ -49,6 +49,10 @@ export interface GuardedPhysicalOperatingAddressDiscoveryOptions {
   stopAfterCaptureAttempt?: boolean;
 }
 
+type PhysicalOperatingAddressToggleSelectionOptions = {
+  allowCalibratedAnchorlessFallback?: boolean;
+};
+
 export type PhysicalOperatingAddressToggleSelectionStage = 'primary' | 'cue-based-fallback' | 'calibrated-fallback' | 'none';
 
 export type PhysicalOperatingAddressToggleSelectionMode = 'primary' | 'fallback' | 'calibrated-fallback' | null;
@@ -3502,8 +3506,10 @@ function buildCalibratedPhysicalOperatingAddressFallbackDiagnostics(
   fields: GuardedToggleField[],
   primaryInventory: PhysicalOperatingAddressToggleInventory,
   fallbackInventory: PhysicalOperatingAddressToggleFallbackInventory,
+  options: PhysicalOperatingAddressToggleSelectionOptions = {},
 ): PhysicalOperatingAddressToggleCalibratedFallbackDiagnostics {
   const entries = fallbackInventory.entries;
+  const allowCalibratedAnchorlessFallback = options.allowCalibratedAnchorlessFallback === true;
   const addressOptionsAnchorMatched = primaryInventory.entries.length > 0
     && primaryInventory.entries.every((entry) => entry.matches.addressOptionPattern);
   const addressOptionsClusterGuardPassed = addressOptionsAnchorMatched
@@ -3561,8 +3567,10 @@ function buildCalibratedPhysicalOperatingAddressFallbackDiagnostics(
         : 'cue-based-selection-ambiguous',
     );
   }
-  if (exactThreeRadioGuardPassed && !addressOptionsAnchorMatched) rejectedReasons.push('address-options-anchor-missing');
-  if (addressOptionsAnchorMatched && !exactThreeRadioGuardPassed) rejectedReasons.push('candidate-count-not-exactly-three');
+  if (!exactThreeRadioGuardPassed) rejectedReasons.push('candidate-count-not-exactly-three');
+  if (!addressOptionsAnchorMatched && !allowCalibratedAnchorlessFallback) {
+    rejectedReasons.push('address-options-anchor-missing');
+  }
   if (!candidateOrderStable) rejectedReasons.push('candidate-order-unstable');
   if (conflictingCueDetected) rejectedReasons.push('conflicting-safe-cue-surfaced');
 
@@ -4740,6 +4748,7 @@ export function guardedPhysicalOperatingAddressDiscoveryEnabled(env: NodeJS.Proc
 
 export function explainPhysicalOperatingAddressToggleSelection<T extends GuardedToggleField>(
   fields: T[],
+  options: PhysicalOperatingAddressToggleSelectionOptions = {},
 ): PhysicalOperatingAddressToggleSelection<T> {
   const primaryInventory = buildPhysicalOperatingAddressToggleInventory(fields);
   const primaryMatches = fields.filter((field) => buildPhysicalOperatingAddressToggleMatchAnalysis(field).selectedByMatcher);
@@ -4770,6 +4779,7 @@ export function explainPhysicalOperatingAddressToggleSelection<T extends Guarded
       fields,
       primaryInventory,
       fallbackInventory,
+      options,
     );
     const fallbackInventoryWithCalibrated = {
       ...fallbackInventory,
@@ -4905,7 +4915,9 @@ export async function maybeExpandPhysicalOperatingAddressSection(
     };
   }
 
-  const toggleSelection = explainPhysicalOperatingAddressToggleSelection(initialFields);
+  const toggleSelection = explainPhysicalOperatingAddressToggleSelection(initialFields, {
+    allowCalibratedAnchorlessFallback: shouldStopAfterPhysicalAddressCaptureAttempt(options),
+  });
   const toggleSelectionSummary = buildPhysicalOperatingAddressToggleSelectionSummary(toggleSelection);
   if (toggleSelection.fallbackInventory) {
     diagnostics.push(

@@ -75,6 +75,12 @@ export const PHYSICAL_ADDRESS_CAPTURE_ONLY_FRESHNESS_FILENAMES = {
 export const PHYSICAL_ADDRESS_CAPTURE_ONLY_RECEIPT_FILE_NAME = 'latest-physical-operating-address-capture-receipt.json';
 export const PHYSICAL_ADDRESS_CAPTURE_ONLY_RECEIPT_SENTINEL_PREFIX = 'PHYSICAL_ADDRESS_CAPTURE_RECEIPT_JSON:';
 
+const PHYSICAL_ADDRESS_CAPTURE_ONLY_CALIBRATED_TARGET_SLOT = 2;
+const PHYSICAL_ADDRESS_CAPTURE_ONLY_ANCHORLESS_FALLBACK_REASON =
+  'calibrated-slot-2-allowed-after-anchorless-exact-three-guard';
+const PHYSICAL_ADDRESS_CAPTURE_ONLY_ANCHORLESS_FALLBACK_USED_BECAUSE =
+  'primary-and-cue-selection-failed-under-exact-three-guard';
+
 const TOGGLE_FALLBACK_INVENTORY_DIAGNOSTIC_PREFIX = 'physical-operating-address discovery toggle fallback inventory: ';
 const TOGGLE_SELECTION_REASON_DIAGNOSTIC_PREFIX = 'physical-operating-address discovery toggle selection reason: ';
 const TOGGLE_CANDIDATE_SOURCE_DIAGNOSTIC_PREFIX = 'physical-operating-address discovery toggle candidate source: ';
@@ -108,12 +114,33 @@ export interface PhysicalOperatingAddressCaptureOnlyArtifactFreshness {
   findingsOpenSkipped: boolean;
 }
 
+export type PhysicalOperatingAddressCaptureOnlyCalibratedAnchorlessFallbackReason =
+  'calibrated-slot-2-allowed-after-anchorless-exact-three-guard';
+
+export type PhysicalOperatingAddressCaptureOnlyCalibratedAnchorlessFallbackUsedBecause =
+  'primary-and-cue-selection-failed-under-exact-three-guard';
+
+export type PhysicalOperatingAddressCaptureOnlyPostClickUiEffectValidationOutcome =
+  | 'not-required'
+  | 'passed-proof-visible-physical-fields-visible'
+  | 'failed-proof-visible-physical-fields-hidden'
+  | 'failed-proof-hidden-physical-fields-hidden'
+  | 'failed-proof-hidden-physical-fields-visible';
+
+export type PhysicalOperatingAddressCaptureOnlyCalibratedFallbackSafetyNote =
+  | 'capture-only-path'
+  | 'finalization-controls-forbidden'
+  | 'address-options-anchor-not-required-under-exact-three-guard'
+  | 'slot-2-selection-requires-post-click-ui-validation'
+  | 'proof-and-physical-fields-must-both-be-visible';
+
 export type PhysicalOperatingAddressCaptureOnlySelectionMode = 'primary' | 'fallback' | 'calibrated-fallback' | null;
 
 export type PhysicalOperatingAddressCaptureOnlyBlockedReasonCategory =
   | 'expansion-skipped-no-selected-toggle'
   | 'expansion-attempted-not-expanded'
   | 'expansion-expanded-no-capture-report'
+  | 'post-click-ui-effect-validation-failed'
   | 'capture-report-not-writable'
   | 'writer-failed'
   | 'stale-artifact-blocked'
@@ -278,6 +305,16 @@ export interface PhysicalOperatingAddressCaptureOnlyReceipt {
   calibratedFallbackSelected: boolean | null;
   calibratedFallbackSelectedSlot: number | null;
   calibratedFallbackRejectedReasons: PhysicalOperatingAddressCalibratedFallbackRejectedReason[];
+  calibratedAnchorlessFallbackEnabled: boolean;
+  calibratedAnchorlessFallbackReason: PhysicalOperatingAddressCaptureOnlyCalibratedAnchorlessFallbackReason | null;
+  calibratedAnchorlessFallbackGuardPassed: boolean;
+  calibratedAnchorlessFallbackTargetSlot: number | null;
+  calibratedAnchorlessFallbackCaptureOnly: boolean;
+  calibratedAnchorlessFallbackUsedBecause: PhysicalOperatingAddressCaptureOnlyCalibratedAnchorlessFallbackUsedBecause | null;
+  postClickUiEffectValidationRequired: boolean;
+  postClickUiEffectValidationPassed: boolean | null;
+  postClickUiEffectValidationOutcome: PhysicalOperatingAddressCaptureOnlyPostClickUiEffectValidationOutcome;
+  calibratedFallbackSafetyNotes: PhysicalOperatingAddressCaptureOnlyCalibratedFallbackSafetyNote[];
   calibratedFallbackGuardSummary: PhysicalOperatingAddressCaptureOnlyCalibratedFallbackGuardSummary;
   primarySelectionCandidateCount: number | null;
   cueBasedFallbackCandidateCount: number | null;
@@ -1106,12 +1143,137 @@ function buildFallbackPhysicalOperatingAddressCaptureOnlyResultFields(input: {
   };
 }
 
+type PhysicalOperatingAddressCaptureOnlyAnchorlessFallbackAuditInput = {
+  calibratedFallbackConsidered: boolean;
+  primarySelectionCandidateCount: number | null;
+  cueBasedFallbackCandidateCount: number | null;
+  calibratedFallbackCandidateCount: number | null;
+  eligibleRadioCandidateCount: number | null;
+  exactThreeRadioGuardPassed: boolean | null;
+  addressOptionsAnchorMatched: boolean | null;
+  candidateOrderStable: boolean | null;
+  conflictingCueDetected: boolean | null;
+};
+
+type PhysicalOperatingAddressCaptureOnlyAnchorlessFallbackAudit = {
+  enabled: boolean;
+  reason: PhysicalOperatingAddressCaptureOnlyCalibratedAnchorlessFallbackReason | null;
+  guardPassed: boolean;
+  targetSlot: number | null;
+  captureOnly: boolean;
+  usedBecause: PhysicalOperatingAddressCaptureOnlyCalibratedAnchorlessFallbackUsedBecause | null;
+  safetyNotes: PhysicalOperatingAddressCaptureOnlyCalibratedFallbackSafetyNote[];
+};
+
+type PhysicalOperatingAddressCaptureOnlyPostClickUiEffectValidation = {
+  required: boolean;
+  passed: boolean | null;
+  outcome: PhysicalOperatingAddressCaptureOnlyPostClickUiEffectValidationOutcome;
+};
+
+function buildPhysicalOperatingAddressCaptureOnlyAnchorlessFallbackAudit(
+  input: PhysicalOperatingAddressCaptureOnlyAnchorlessFallbackAuditInput,
+): PhysicalOperatingAddressCaptureOnlyAnchorlessFallbackAudit {
+  const enabled = input.calibratedFallbackConsidered && input.addressOptionsAnchorMatched === false;
+  const guardPassed = enabled
+    && input.primarySelectionCandidateCount === 0
+    && input.cueBasedFallbackCandidateCount === 0
+    && input.calibratedFallbackCandidateCount === PHYSICAL_ADDRESS_CAPTURE_ONLY_CALIBRATED_TARGET_SLOT + 1
+    && input.eligibleRadioCandidateCount === PHYSICAL_ADDRESS_CAPTURE_ONLY_CALIBRATED_TARGET_SLOT + 1
+    && input.exactThreeRadioGuardPassed === true
+    && input.candidateOrderStable === true
+    && input.conflictingCueDetected === false;
+  const safetyNotes: PhysicalOperatingAddressCaptureOnlyCalibratedFallbackSafetyNote[] = [
+    'capture-only-path',
+    'finalization-controls-forbidden',
+  ];
+
+  if (enabled) {
+    safetyNotes.push(
+      'address-options-anchor-not-required-under-exact-three-guard',
+      'slot-2-selection-requires-post-click-ui-validation',
+      'proof-and-physical-fields-must-both-be-visible',
+    );
+  }
+
+  return {
+    enabled,
+    reason: enabled ? PHYSICAL_ADDRESS_CAPTURE_ONLY_ANCHORLESS_FALLBACK_REASON : null,
+    guardPassed,
+    targetSlot: enabled ? PHYSICAL_ADDRESS_CAPTURE_ONLY_CALIBRATED_TARGET_SLOT : null,
+    captureOnly: enabled,
+    usedBecause: enabled ? PHYSICAL_ADDRESS_CAPTURE_ONLY_ANCHORLESS_FALLBACK_USED_BECAUSE : null,
+    safetyNotes,
+  };
+}
+
+function buildPhysicalOperatingAddressCaptureOnlyPostClickUiEffectValidation(input: {
+  toggleSelectionMode: PhysicalOperatingAddressCaptureOnlySelectionMode;
+  selectedToggleSlot: number | null;
+  proofOfAddressUploadVisibleAfter: boolean | null;
+  physicalOperatingAddressFieldsVisibleAfter: boolean | null;
+}): PhysicalOperatingAddressCaptureOnlyPostClickUiEffectValidation {
+  const required = input.toggleSelectionMode === 'calibrated-fallback'
+    && input.selectedToggleSlot === PHYSICAL_ADDRESS_CAPTURE_ONLY_CALIBRATED_TARGET_SLOT;
+
+  if (!required) {
+    return {
+      required: false,
+      passed: null,
+      outcome: 'not-required',
+    };
+  }
+
+  const proofVisible = input.proofOfAddressUploadVisibleAfter === true;
+  const physicalFieldsVisible = input.physicalOperatingAddressFieldsVisibleAfter === true;
+
+  if (proofVisible && physicalFieldsVisible) {
+    return {
+      required: true,
+      passed: true,
+      outcome: 'passed-proof-visible-physical-fields-visible',
+    };
+  }
+
+  if (proofVisible && !physicalFieldsVisible) {
+    return {
+      required: true,
+      passed: false,
+      outcome: 'failed-proof-visible-physical-fields-hidden',
+    };
+  }
+
+  if (!proofVisible && !physicalFieldsVisible) {
+    return {
+      required: true,
+      passed: false,
+      outcome: 'failed-proof-hidden-physical-fields-hidden',
+    };
+  }
+
+  return {
+    required: true,
+    passed: false,
+    outcome: 'failed-proof-hidden-physical-fields-visible',
+  };
+}
+
 function resolvePhysicalOperatingAddressCaptureOnlyBlockedReasonCategory(
   result: PhysicalOperatingAddressCaptureOnlyResult | null,
   childExitCode: number | null,
 ): PhysicalOperatingAddressCaptureOnlyBlockedReasonCategory {
   if (childExitCode === 0 && result?.artifactFreshness.artifactsFresh) return null;
   if (!result) return 'another bounded reason';
+  const postClickUiEffectValidation = buildPhysicalOperatingAddressCaptureOnlyPostClickUiEffectValidation({
+    toggleSelectionMode: result.toggleSelectionMode,
+    selectedToggleSlot: result.selectedToggleSlot,
+    proofOfAddressUploadVisibleAfter: result.proofOfAddressUploadVisibleAfter,
+    physicalOperatingAddressFieldsVisibleAfter: result.physicalOperatingAddressFieldsVisibleAfter,
+  });
+
+  if (postClickUiEffectValidation.required && postClickUiEffectValidation.passed === false) {
+    return 'post-click-ui-effect-validation-failed';
+  }
   if (!result.expansionAttempted || result.expansionSkippedReason === 'no-selected-toggle') {
     return 'expansion-skipped-no-selected-toggle';
   }
@@ -1136,10 +1298,43 @@ function isPhysicalOperatingAddressCaptureOnlyBlockedReasonCategory(
     || value === 'expansion-skipped-no-selected-toggle'
     || value === 'expansion-attempted-not-expanded'
     || value === 'expansion-expanded-no-capture-report'
+    || value === 'post-click-ui-effect-validation-failed'
     || value === 'capture-report-not-writable'
     || value === 'writer-failed'
     || value === 'stale-artifact-blocked'
     || value === 'another bounded reason';
+}
+
+function isPhysicalOperatingAddressCaptureOnlyCalibratedAnchorlessFallbackReason(
+  value: unknown,
+): value is PhysicalOperatingAddressCaptureOnlyCalibratedAnchorlessFallbackReason {
+  return value === 'calibrated-slot-2-allowed-after-anchorless-exact-three-guard';
+}
+
+function isPhysicalOperatingAddressCaptureOnlyCalibratedAnchorlessFallbackUsedBecause(
+  value: unknown,
+): value is PhysicalOperatingAddressCaptureOnlyCalibratedAnchorlessFallbackUsedBecause {
+  return value === 'primary-and-cue-selection-failed-under-exact-three-guard';
+}
+
+function isPhysicalOperatingAddressCaptureOnlyPostClickUiEffectValidationOutcome(
+  value: unknown,
+): value is PhysicalOperatingAddressCaptureOnlyPostClickUiEffectValidationOutcome {
+  return value === 'not-required'
+    || value === 'passed-proof-visible-physical-fields-visible'
+    || value === 'failed-proof-visible-physical-fields-hidden'
+    || value === 'failed-proof-hidden-physical-fields-hidden'
+    || value === 'failed-proof-hidden-physical-fields-visible';
+}
+
+function isPhysicalOperatingAddressCaptureOnlyCalibratedFallbackSafetyNote(
+  value: unknown,
+): value is PhysicalOperatingAddressCaptureOnlyCalibratedFallbackSafetyNote {
+  return value === 'capture-only-path'
+    || value === 'finalization-controls-forbidden'
+    || value === 'address-options-anchor-not-required-under-exact-three-guard'
+    || value === 'slot-2-selection-requires-post-click-ui-validation'
+    || value === 'proof-and-physical-fields-must-both-be-visible';
 }
 
 function isPhysicalOperatingAddressToggleSelectionStage(
@@ -1698,6 +1893,23 @@ export function buildPhysicalOperatingAddressCaptureOnlyReceipt(input: {
     reason: 'BLOCKED',
     ...fallbackFields,
   };
+  const calibratedAnchorlessFallbackAudit = buildPhysicalOperatingAddressCaptureOnlyAnchorlessFallbackAudit({
+    calibratedFallbackConsidered: result.calibratedFallbackConsidered,
+    primarySelectionCandidateCount: result.primarySelectionCandidateCount,
+    cueBasedFallbackCandidateCount: result.cueBasedFallbackCandidateCount,
+    calibratedFallbackCandidateCount: result.calibratedFallbackCandidateCount,
+    eligibleRadioCandidateCount: result.eligibleRadioCandidateCount,
+    exactThreeRadioGuardPassed: result.exactThreeRadioGuardPassed,
+    addressOptionsAnchorMatched: result.addressOptionsAnchorMatched,
+    candidateOrderStable: result.candidateOrderStable,
+    conflictingCueDetected: result.conflictingCueDetected,
+  });
+  const postClickUiEffectValidation = buildPhysicalOperatingAddressCaptureOnlyPostClickUiEffectValidation({
+    toggleSelectionMode: result.toggleSelectionMode,
+    selectedToggleSlot: result.selectedToggleSlot,
+    proofOfAddressUploadVisibleAfter: result.proofOfAddressUploadVisibleAfter,
+    physicalOperatingAddressFieldsVisibleAfter: result.physicalOperatingAddressFieldsVisibleAfter,
+  });
 
   return {
     runKind: PHYSICAL_ADDRESS_CAPTURE_ONLY_RUN_KIND,
@@ -1717,6 +1929,16 @@ export function buildPhysicalOperatingAddressCaptureOnlyReceipt(input: {
     calibratedFallbackSelected: input.result?.calibratedFallbackSelected ?? null,
     calibratedFallbackSelectedSlot: result.calibratedFallbackSelectedSlot,
     calibratedFallbackRejectedReasons: result.calibratedFallbackRejectedReasons,
+    calibratedAnchorlessFallbackEnabled: calibratedAnchorlessFallbackAudit.enabled,
+    calibratedAnchorlessFallbackReason: calibratedAnchorlessFallbackAudit.reason,
+    calibratedAnchorlessFallbackGuardPassed: calibratedAnchorlessFallbackAudit.guardPassed,
+    calibratedAnchorlessFallbackTargetSlot: calibratedAnchorlessFallbackAudit.targetSlot,
+    calibratedAnchorlessFallbackCaptureOnly: calibratedAnchorlessFallbackAudit.captureOnly,
+    calibratedAnchorlessFallbackUsedBecause: calibratedAnchorlessFallbackAudit.usedBecause,
+    postClickUiEffectValidationRequired: postClickUiEffectValidation.required,
+    postClickUiEffectValidationPassed: postClickUiEffectValidation.passed,
+    postClickUiEffectValidationOutcome: postClickUiEffectValidation.outcome,
+    calibratedFallbackSafetyNotes: calibratedAnchorlessFallbackAudit.safetyNotes,
     calibratedFallbackGuardSummary: {
       addressOptionsAnchorMatched: result.calibratedFallbackGuardSummary.addressOptionsAnchorMatched,
       addressOptionsAnchorOutcomeCategory: result.calibratedFallbackGuardSummary.addressOptionsAnchorOutcomeCategory,
@@ -2013,6 +2235,21 @@ export function isPhysicalOperatingAddressCaptureOnlyReceipt(
     && (typeof candidate.calibratedFallbackSelectedSlot === 'number' || candidate.calibratedFallbackSelectedSlot === null)
     && Array.isArray(candidate.calibratedFallbackRejectedReasons)
     && candidate.calibratedFallbackRejectedReasons.every(isPhysicalOperatingAddressCalibratedFallbackRejectedReason)
+    && typeof candidate.calibratedAnchorlessFallbackEnabled === 'boolean'
+    && (candidate.calibratedAnchorlessFallbackReason === null
+      || isPhysicalOperatingAddressCaptureOnlyCalibratedAnchorlessFallbackReason(candidate.calibratedAnchorlessFallbackReason))
+    && typeof candidate.calibratedAnchorlessFallbackGuardPassed === 'boolean'
+    && (typeof candidate.calibratedAnchorlessFallbackTargetSlot === 'number'
+      || candidate.calibratedAnchorlessFallbackTargetSlot === null)
+    && typeof candidate.calibratedAnchorlessFallbackCaptureOnly === 'boolean'
+    && (candidate.calibratedAnchorlessFallbackUsedBecause === null
+      || isPhysicalOperatingAddressCaptureOnlyCalibratedAnchorlessFallbackUsedBecause(candidate.calibratedAnchorlessFallbackUsedBecause))
+    && typeof candidate.postClickUiEffectValidationRequired === 'boolean'
+    && (typeof candidate.postClickUiEffectValidationPassed === 'boolean'
+      || candidate.postClickUiEffectValidationPassed === null)
+    && isPhysicalOperatingAddressCaptureOnlyPostClickUiEffectValidationOutcome(candidate.postClickUiEffectValidationOutcome)
+    && Array.isArray(candidate.calibratedFallbackSafetyNotes)
+    && candidate.calibratedFallbackSafetyNotes.every(isPhysicalOperatingAddressCaptureOnlyCalibratedFallbackSafetyNote)
     && Boolean(candidate.calibratedFallbackGuardSummary)
     && (typeof (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsAnchorMatched === 'boolean'
       || (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).addressOptionsAnchorMatched === null)
@@ -2557,11 +2794,35 @@ export async function runPhysicalOperatingAddressCaptureOnly(
     effectiveEnv,
     PHYSICAL_ADDRESS_CAPTURE_ONLY_DISCOVERY_OPTIONS,
   );
+  const calibratedAnchorlessFallbackAudit = buildPhysicalOperatingAddressCaptureOnlyAnchorlessFallbackAudit({
+    calibratedFallbackConsidered: expansion.toggleSelectionSummary.calibratedFallbackConsidered,
+    primarySelectionCandidateCount: expansion.toggleSelectionSummary.primarySelectionCandidateCount,
+    cueBasedFallbackCandidateCount: expansion.toggleSelectionSummary.cueBasedFallbackCandidateCount,
+    calibratedFallbackCandidateCount: expansion.toggleSelectionSummary.calibratedFallbackCandidateCount,
+    eligibleRadioCandidateCount: expansion.toggleSelectionSummary.eligibleRadioCandidateCount,
+    exactThreeRadioGuardPassed: expansion.toggleSelectionSummary.exactThreeRadioGuardPassed,
+    addressOptionsAnchorMatched: expansion.toggleSelectionSummary.addressOptionsAnchorMatched,
+    candidateOrderStable: expansion.toggleSelectionSummary.candidateOrderStable,
+    conflictingCueDetected: expansion.toggleSelectionSummary.conflictingCueDetected,
+  });
+  const postClickUiEffectValidation = buildPhysicalOperatingAddressCaptureOnlyPostClickUiEffectValidation({
+    toggleSelectionMode: expansion.toggleSelectionSummary.toggleSelectionMode,
+    selectedToggleSlot: expansion.toggleSelectionSummary.selectedToggleSlot,
+    proofOfAddressUploadVisibleAfter: expansion.uiEffectSummary.proofOfAddressUploadVisibleAfter,
+    physicalOperatingAddressFieldsVisibleAfter: expansion.uiEffectSummary.physicalOperatingAddressFieldsVisibleAfter,
+  });
   const captureReportPresent = Boolean(expansion.captureReport);
-  const captureReportWritable = canWritePhysicalOperatingAddressPostToggleArtifacts(expansion.captureReport);
+  const captureReportWritable = canWritePhysicalOperatingAddressPostToggleArtifacts(expansion.captureReport)
+    && (!postClickUiEffectValidation.required || postClickUiEffectValidation.passed === true);
 
   diagnostics.push(
     `physical-address capture-only expansion returned: yes; expanded=${expansion.expanded ? 'yes' : 'no'}; capture-report=${captureReportPresent ? 'present' : 'missing'}`,
+  );
+  diagnostics.push(
+    `physical-address capture-only calibrated anchorless fallback: enabled=${calibratedAnchorlessFallbackAudit.enabled ? 'yes' : 'no'}; guard-passed=${calibratedAnchorlessFallbackAudit.guardPassed ? 'yes' : 'no'}`,
+  );
+  diagnostics.push(
+    `physical-address capture-only post-click ui validation: required=${postClickUiEffectValidation.required ? 'yes' : 'no'}; outcome=${postClickUiEffectValidation.outcome}`,
   );
   diagnostics.push(...expansion.diagnostics);
   diagnostics.push(`physical-address capture-only capture report writable: ${captureReportWritable ? 'yes' : 'no'}`);
@@ -2577,7 +2838,9 @@ export async function runPhysicalOperatingAddressCaptureOnly(
         ? expansion.expanded
           ? 'toggle expansion exercised but capture report missing'
           : 'capture report missing'
-        : 'capture report missing bounded safe content needed for artifact write'}`,
+        : postClickUiEffectValidation.required && postClickUiEffectValidation.passed === false
+          ? `post-click-ui-effect-validation-${postClickUiEffectValidation.outcome}`
+          : 'capture report missing bounded safe content needed for artifact write'}`,
     );
     diagnostics.push(...buildPhysicalOperatingAddressCaptureOnlyArtifactFreshnessDiagnostics(artifactFreshness));
 
