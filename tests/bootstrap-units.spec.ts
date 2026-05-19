@@ -5462,6 +5462,36 @@ test.describe('interactive validation safety', () => {
     }));
   });
 
+  test('guarded physical address discovery field discovery attaches bounded radio surface diagnostics when builders find safe surfaces', async ({ page }) => {
+    await page.setContent(`
+      <div class="toggle-card address-choice-group" data-group-kind="address-options">
+        <div class="radio-row address-choice" data-choice-kind="physical-operating-address">
+          <input id="tab-form-element-a1b2c3d4e5f60718293a4b5c" type="radio" name="addressOptions" aria-describedby="" />
+        </div>
+        <div class="radio-row address-choice" data-choice-kind="same-choice">
+          <input id=":r42:" type="radio" name="addressOptions" />
+        </div>
+        <div class="radio-row address-choice" data-choice-kind="business-physical-address">
+          <input id="tab-form-element-b1c2d3e4f5061728394a5b6c" type="radio" name="addressOptions" data-tabtype="radio" />
+        </div>
+      </div>
+    `);
+
+    const fields = await discoverFields(page);
+    const physical = fields.find((field) => field.elementId === 'tab-form-element-a1b2c3d4e5f60718293a4b5c');
+
+    expect(physical?.radioSurfaceDiagnostics).toEqual(expect.objectContaining({
+      buildersAttempted: true,
+      buildersSkipped: false,
+      hasInputName: true,
+      hasGroupName: true,
+      hasDomAttribute: true,
+      anyDiagnosticSurface: true,
+      surfaceEmpty: false,
+      attachmentGapDetected: false,
+    }));
+  });
+
   test('guarded physical address discovery field discovery omits raw attribute values and keeps only safe buckets', async ({ page }) => {
     await page.setContent(`
       <div class="radio-row address-choice" data-choice-kind="physical-operating-address">
@@ -5961,6 +5991,66 @@ test.describe('interactive validation safety', () => {
     candidateSignatureSourceAllCandidatesReducedShape: false,
     candidateSignatureSourceAllCandidatesSurfaceEmpty: false,
     candidateSignatureSourcePotentialPropagationGapDetected: false,
+  });
+
+  const fieldDiscoveryRadioSurfaceDebugDefaults = (overrides: Record<string, unknown> = {}) => ({
+    fieldDiscoveryRadioSurfaceSummaryPresent: true,
+    fieldDiscoveryRadioSurfaceOutcomeCategory: 'field-discovery-radio-surfaces-present',
+    fieldDiscoveryRadioSurfaceRejectedReasons: [],
+    fieldDiscoveryRadioSurfaceSummary:
+      'field discovery radio surface check found bounded diagnostic surfaces on the exact-three radio candidates',
+    fieldDiscoveryTotalFieldCount: 14,
+    fieldDiscoveryVisibleRadioInputCount: 3,
+    fieldDiscoveryVisibleEditableRadioInputCount: 3,
+    fieldDiscoveryExactThreeRadioCandidateCount: 3,
+    fieldDiscoveryRadioBuildersAttempted: true,
+    fieldDiscoveryRadioBuildersSkipped: false,
+    fieldDiscoveryRadioBuilderSkipReasons: [],
+    fieldDiscoveryRadioFieldsWithSafeFieldKeyCount: 0,
+    fieldDiscoveryRadioFieldsWithIdOrNameKeyCount: 0,
+    fieldDiscoveryRadioFieldsWithInputNameCount: 3,
+    fieldDiscoveryRadioFieldsWithGroupNameCount: 3,
+    fieldDiscoveryRadioFieldsWithResolvedLabelCount: 0,
+    fieldDiscoveryRadioFieldsWithAnyLabelBucketCount: 0,
+    fieldDiscoveryRadioFieldsWithProxyReferenceSignatureCount: 3,
+    fieldDiscoveryRadioFieldsWithDomAttributeSignatureCount: 0,
+    fieldDiscoveryRadioFieldsWithRadioGraphicSignatureCount: 0,
+    fieldDiscoveryRadioFieldsWithNonTextLayoutSignatureCount: 0,
+    fieldDiscoveryRadioFieldsWithContainerContextLabelsCount: 0,
+    fieldDiscoveryRadioFieldsWithLayoutProximityEvidenceCount: 0,
+    fieldDiscoveryRadioFieldsWithAnyDiagnosticSurfaceCount: 3,
+    fieldDiscoveryRadioFieldsSurfaceEmptyCount: 0,
+    fieldDiscoveryRadioFieldsGeneratedOnlyCount: 0,
+    fieldDiscoveryRadioFieldsUnsafeOmittedCount: 0,
+    fieldDiscoveryRadioSurfaceAttachmentGapDetected: false,
+    fieldDiscoveryRadioSurfaceFilteringGapDetected: false,
+    fieldDiscoveryRadioSurfaceUpstreamAbsentDetected: false,
+    ...overrides,
+  });
+
+  const discoveredRadioSurfaceDiagnostics = (overrides: Record<string, unknown> = {}) => ({
+    buildersAttempted: true,
+    buildersSkipped: false,
+    builderSkipReasons: [],
+    hasSafeFieldKey: false,
+    hasIdOrNameKey: false,
+    hasInputName: true,
+    hasGroupName: true,
+    hasResolvedLabel: false,
+    hasLabelBucket: false,
+    hasProxyReference: true,
+    hasDomAttribute: false,
+    hasRadioGraphic: false,
+    hasNonTextLayout: false,
+    hasContainerContext: false,
+    hasLayoutProximity: false,
+    generatedOnly: false,
+    unsafeOmitted: false,
+    genericOnly: false,
+    anyDiagnosticSurface: true,
+    surfaceEmpty: false,
+    attachmentGapDetected: false,
+    ...overrides,
   });
 
   const radioGraphicSignature = (
@@ -8379,6 +8469,191 @@ test.describe('interactive validation safety', () => {
     expect(summary.candidateSignatureSourcePotentialPropagationGapDetected).toBe(true);
   });
 
+  test('guarded physical address discovery calibrated fallback field discovery diagnostics report exact-three radios as surface-empty when upstream surfaces are absent', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      calibratedBusinessPrimaryLocationRadioField(208, {
+        groupName: null,
+        proxyReferenceSignature: null,
+        radioSurfaceDiagnostics: discoveredRadioSurfaceDiagnostics({
+          hasInputName: false,
+          hasGroupName: false,
+          hasProxyReference: false,
+          anyDiagnosticSurface: false,
+          surfaceEmpty: true,
+        }),
+      }),
+      calibratedBusinessPrimaryLocationRadioField(209, {
+        groupName: null,
+        proxyReferenceSignature: null,
+        radioSurfaceDiagnostics: discoveredRadioSurfaceDiagnostics({
+          hasInputName: false,
+          hasGroupName: false,
+          hasProxyReference: false,
+          anyDiagnosticSurface: false,
+          surfaceEmpty: true,
+        }),
+      }),
+      calibratedBusinessPrimaryLocationRadioField(210, {
+        groupName: null,
+        proxyReferenceSignature: null,
+        radioSurfaceDiagnostics: discoveredRadioSurfaceDiagnostics({
+          hasInputName: false,
+          hasGroupName: false,
+          hasProxyReference: false,
+          anyDiagnosticSurface: false,
+          surfaceEmpty: true,
+        }),
+      }),
+    ] as any);
+
+    const summary = buildPhysicalOperatingAddressToggleSelectionSummary(selection);
+
+    expect(summary.fieldDiscoveryRadioSurfaceSummaryPresent).toBe(true);
+    expect(summary.fieldDiscoveryRadioSurfaceOutcomeCategory).toBe('field-discovery-radio-all-surfaces-empty');
+    expect(summary.fieldDiscoveryRadioSurfaceRejectedReasons).toEqual(expect.arrayContaining(['all-surfaces-empty']));
+    expect(summary.fieldDiscoveryExactThreeRadioCandidateCount).toBe(3);
+    expect(summary.fieldDiscoveryRadioFieldsWithAnyDiagnosticSurfaceCount).toBe(0);
+    expect(summary.fieldDiscoveryRadioFieldsSurfaceEmptyCount).toBe(3);
+    expect(summary.fieldDiscoveryRadioSurfaceUpstreamAbsentDetected).toBe(true);
+  });
+
+  test('guarded physical address discovery selection summary preserves field discovery radio builder skip diagnostics', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      calibratedBusinessPrimaryLocationRadioField(211),
+      calibratedBusinessPrimaryLocationRadioField(212),
+      calibratedBusinessPrimaryLocationRadioField(213),
+    ] as any);
+
+    const calibratedFallback = selection.fallbackInventory?.calibratedFallback;
+    expect(calibratedFallback).toBeTruthy();
+
+    Object.assign(calibratedFallback!, fieldDiscoveryRadioSurfaceDebugDefaults({
+      fieldDiscoveryRadioSurfaceOutcomeCategory: 'field-discovery-radio-builders-skipped',
+      fieldDiscoveryRadioSurfaceRejectedReasons: ['builders-skipped'],
+      fieldDiscoveryRadioSurfaceSummary:
+        'field discovery radio surface builders were skipped before exact-three candidate summarization',
+      fieldDiscoveryRadioBuildersAttempted: false,
+      fieldDiscoveryRadioBuildersSkipped: true,
+      fieldDiscoveryRadioBuilderSkipReasons: ['dom-context-extraction-failed'],
+      fieldDiscoveryRadioFieldsWithAnyDiagnosticSurfaceCount: 0,
+      fieldDiscoveryRadioFieldsSurfaceEmptyCount: 3,
+    }));
+
+    const summary = buildPhysicalOperatingAddressToggleSelectionSummary(selection);
+
+    expect(summary.fieldDiscoveryRadioSurfaceOutcomeCategory).toBe('field-discovery-radio-builders-skipped');
+    expect(summary.fieldDiscoveryRadioSurfaceRejectedReasons).toEqual(['builders-skipped']);
+    expect(summary.fieldDiscoveryRadioBuildersAttempted).toBe(false);
+    expect(summary.fieldDiscoveryRadioBuildersSkipped).toBe(true);
+    expect(summary.fieldDiscoveryRadioBuilderSkipReasons).toEqual(['dom-context-extraction-failed']);
+  });
+
+  test('guarded physical address discovery selection summary preserves built-but-not-attached field discovery radio diagnostics', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      calibratedBusinessPrimaryLocationRadioField(214),
+      calibratedBusinessPrimaryLocationRadioField(215),
+      calibratedBusinessPrimaryLocationRadioField(216),
+    ] as any);
+
+    const calibratedFallback = selection.fallbackInventory?.calibratedFallback;
+    expect(calibratedFallback).toBeTruthy();
+
+    Object.assign(calibratedFallback!, fieldDiscoveryRadioSurfaceDebugDefaults({
+      fieldDiscoveryRadioSurfaceOutcomeCategory: 'field-discovery-radio-built-but-not-attached',
+      fieldDiscoveryRadioSurfaceRejectedReasons: ['built-but-not-attached'],
+      fieldDiscoveryRadioSurfaceSummary:
+        'field discovery radio surfaces were built but not attached to discovered fields',
+      fieldDiscoveryRadioFieldsWithAnyDiagnosticSurfaceCount: 0,
+      fieldDiscoveryRadioFieldsSurfaceEmptyCount: 3,
+      fieldDiscoveryRadioSurfaceAttachmentGapDetected: true,
+      fieldDiscoveryRadioSurfaceFilteringGapDetected: false,
+      fieldDiscoveryRadioSurfaceUpstreamAbsentDetected: false,
+    }));
+
+    const summary = buildPhysicalOperatingAddressToggleSelectionSummary(selection);
+
+    expect(summary.fieldDiscoveryRadioSurfaceOutcomeCategory).toBe('field-discovery-radio-built-but-not-attached');
+    expect(summary.fieldDiscoveryRadioSurfaceRejectedReasons).toEqual(['built-but-not-attached']);
+    expect(summary.fieldDiscoveryRadioSurfaceAttachmentGapDetected).toBe(true);
+  });
+
+  test('guarded physical address discovery selection summary preserves attached-but-filtered field discovery radio diagnostics', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      calibratedBusinessPrimaryLocationRadioField(217),
+      calibratedBusinessPrimaryLocationRadioField(218),
+      calibratedBusinessPrimaryLocationRadioField(219),
+    ] as any);
+
+    const calibratedFallback = selection.fallbackInventory?.calibratedFallback;
+    expect(calibratedFallback).toBeTruthy();
+
+    Object.assign(calibratedFallback!, fieldDiscoveryRadioSurfaceDebugDefaults({
+      fieldDiscoveryRadioSurfaceOutcomeCategory: 'field-discovery-radio-attached-but-filtered',
+      fieldDiscoveryRadioSurfaceRejectedReasons: ['attached-but-filtered'],
+      fieldDiscoveryRadioSurfaceSummary:
+        'field discovery radio surfaces were attached on discovered fields but filtered before exact-three candidate summarization',
+      fieldDiscoveryVisibleRadioInputCount: 4,
+      fieldDiscoveryVisibleEditableRadioInputCount: 4,
+      fieldDiscoveryExactThreeRadioCandidateCount: 3,
+      fieldDiscoveryRadioFieldsWithAnyDiagnosticSurfaceCount: 0,
+      fieldDiscoveryRadioFieldsSurfaceEmptyCount: 3,
+      fieldDiscoveryRadioSurfaceFilteringGapDetected: true,
+      fieldDiscoveryRadioSurfaceAttachmentGapDetected: false,
+      fieldDiscoveryRadioSurfaceUpstreamAbsentDetected: false,
+    }));
+
+    const summary = buildPhysicalOperatingAddressToggleSelectionSummary(selection);
+
+    expect(summary.fieldDiscoveryRadioSurfaceOutcomeCategory).toBe('field-discovery-radio-attached-but-filtered');
+    expect(summary.fieldDiscoveryRadioSurfaceRejectedReasons).toEqual(['attached-but-filtered']);
+    expect(summary.fieldDiscoveryRadioSurfaceFilteringGapDetected).toBe(true);
+  });
+
+  test('guarded physical address discovery selection summary preserves generated-only and unsafe-omitted field discovery radio diagnostics', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      calibratedBusinessPrimaryLocationRadioField(220),
+      calibratedBusinessPrimaryLocationRadioField(221),
+      calibratedBusinessPrimaryLocationRadioField(222),
+    ] as any);
+
+    const calibratedFallback = selection.fallbackInventory?.calibratedFallback;
+    expect(calibratedFallback).toBeTruthy();
+
+    Object.assign(calibratedFallback!, fieldDiscoveryRadioSurfaceDebugDefaults({
+      fieldDiscoveryRadioSurfaceOutcomeCategory: 'field-discovery-radio-generated-only',
+      fieldDiscoveryRadioSurfaceRejectedReasons: ['generated-only'],
+      fieldDiscoveryRadioSurfaceSummary:
+        'field discovery radio surfaces were reduced to generated-only evidence before exact-three candidate summarization',
+      fieldDiscoveryRadioFieldsWithAnyDiagnosticSurfaceCount: 0,
+      fieldDiscoveryRadioFieldsSurfaceEmptyCount: 3,
+      fieldDiscoveryRadioFieldsGeneratedOnlyCount: 3,
+      fieldDiscoveryRadioFieldsUnsafeOmittedCount: 0,
+    }));
+
+    let summary = buildPhysicalOperatingAddressToggleSelectionSummary(selection);
+
+    expect(summary.fieldDiscoveryRadioSurfaceOutcomeCategory).toBe('field-discovery-radio-generated-only');
+    expect(summary.fieldDiscoveryRadioSurfaceRejectedReasons).toEqual(['generated-only']);
+    expect(summary.fieldDiscoveryRadioFieldsGeneratedOnlyCount).toBe(3);
+
+    Object.assign(calibratedFallback!, fieldDiscoveryRadioSurfaceDebugDefaults({
+      fieldDiscoveryRadioSurfaceOutcomeCategory: 'field-discovery-radio-unsafe-omitted',
+      fieldDiscoveryRadioSurfaceRejectedReasons: ['unsafe-omitted'],
+      fieldDiscoveryRadioSurfaceSummary:
+        'field discovery radio surfaces were omitted as unsafe before exact-three candidate summarization',
+      fieldDiscoveryRadioFieldsWithAnyDiagnosticSurfaceCount: 0,
+      fieldDiscoveryRadioFieldsSurfaceEmptyCount: 3,
+      fieldDiscoveryRadioFieldsGeneratedOnlyCount: 0,
+      fieldDiscoveryRadioFieldsUnsafeOmittedCount: 3,
+    }));
+
+    summary = buildPhysicalOperatingAddressToggleSelectionSummary(selection);
+
+    expect(summary.fieldDiscoveryRadioSurfaceOutcomeCategory).toBe('field-discovery-radio-unsafe-omitted');
+    expect(summary.fieldDiscoveryRadioSurfaceRejectedReasons).toEqual(['unsafe-omitted']);
+    expect(summary.fieldDiscoveryRadioFieldsUnsafeOmittedCount).toBe(3);
+  });
+
   test('guarded physical address discovery calibrated fallback ownership input diagnostics detect ownership surfaces that did not feed harvest', () => {
     const selection = explainPhysicalOperatingAddressToggleSelection([
       calibratedBusinessPrimaryLocationRadioField(199, {
@@ -8987,6 +9262,11 @@ test.describe('interactive validation safety', () => {
     expect(selection.fallbackInventory?.calibratedFallback?.addressOptionsOwnershipAnchorOutcomeCategory).toBe('ownership-anchor-not-checked');
     expect(selection.fallbackInventory?.calibratedFallback?.addressOptionsOwnershipAnchorRejectedReasons).toEqual(['not-checked-prior-guard-failed']);
     expect(selection.fallbackInventory?.calibratedFallback?.radioGroupCommonOwnerCategory).toBe('not-checked');
+    expect(selection.fallbackInventory?.calibratedFallback?.fieldDiscoveryRadioSurfaceSummaryPresent).toBe(false);
+    expect(selection.fallbackInventory?.calibratedFallback?.fieldDiscoveryRadioSurfaceOutcomeCategory)
+      .toBe('field-discovery-radio-prior-guard-failed');
+    expect(selection.fallbackInventory?.calibratedFallback?.fieldDiscoveryRadioSurfaceRejectedReasons)
+      .toEqual(['prior-guard-failed']);
     expect(selection.fallbackInventory?.calibratedFallback?.candidateSignatureSourceSummaryPresent).toBe(false);
     expect(selection.fallbackInventory?.calibratedFallback?.candidateSignatureSourceOutcomeCategory)
       .toBe('candidate-signature-source-prior-guard-failed');
@@ -9946,6 +10226,7 @@ test.describe('interactive validation safety', () => {
       radioGroupReferenceTargetExists: true,
       radioGroupReferenceTargetVisible: true,
       radioGroupCommonOwnerCategory: 'shared-owner',
+      ...fieldDiscoveryRadioSurfaceDebugDefaults(),
       ...candidateSignatureSourceDebugDefaults(),
       ...ownershipSourceInputDebugDefaults(),
       ...ownershipSourceDebugDefaults(),
@@ -9992,6 +10273,7 @@ test.describe('interactive validation safety', () => {
     radioGroupReferenceTargetExists: true,
     radioGroupReferenceTargetVisible: true,
     radioGroupCommonOwnerCategory: 'shared-owner',
+    ...fieldDiscoveryRadioSurfaceDebugDefaults(),
     ...candidateSignatureSourceDebugDefaults(),
     ...ownershipSourceInputDebugDefaults(),
     ...ownershipSourceDebugDefaults(),
@@ -10089,6 +10371,7 @@ test.describe('interactive validation safety', () => {
       radioGroupReferenceTargetExists: true,
       radioGroupReferenceTargetVisible: true,
       radioGroupCommonOwnerCategory: 'shared-owner',
+      ...fieldDiscoveryRadioSurfaceDebugDefaults(),
       ...candidateSignatureSourceDebugDefaults(),
       ...ownershipSourceInputDebugDefaults(),
       ...ownershipSourceDebugDefaults(),
@@ -10135,6 +10418,7 @@ test.describe('interactive validation safety', () => {
     radioGroupReferenceTargetExists: true,
     radioGroupReferenceTargetVisible: true,
     radioGroupCommonOwnerCategory: 'shared-owner',
+    ...fieldDiscoveryRadioSurfaceDebugDefaults(),
     ...candidateSignatureSourceDebugDefaults(),
     ...ownershipSourceInputDebugDefaults(),
     ...ownershipSourceDebugDefaults(),
@@ -10508,6 +10792,10 @@ test.describe('interactive validation safety', () => {
     expect(receipt.fallbackReason).toBe(calibratedFallbackReason);
     expect(receipt.addressOptionsAnchorOutcomeCategory).toBe('anchor-matched-label');
     expect(receipt.addressOptionsAnchorEvidenceSummary).toBe('matched via label address-options bucket');
+    expect(receipt.fieldDiscoveryRadioSurfaceOutcomeCategory).toBe('field-discovery-radio-surfaces-present');
+    expect(receipt.fieldDiscoveryRadioFieldsWithProxyReferenceSignatureCount).toBe(3);
+    expect(receipt.calibratedFallbackGuardSummary.fieldDiscoveryRadioSurfaceOutcomeCategory)
+      .toBe('field-discovery-radio-surfaces-present');
     expect(receipt.candidateSignatureSourceOutcomeCategory)
       .toBe('candidate-signature-source-original-fields-have-surfaces');
     expect(receipt.calibratedFallbackGuardSummary.candidateSignatureSourceOutcomeCategory)
@@ -10768,6 +11056,7 @@ test.describe('interactive validation safety', () => {
     expect(serialized).not.toContain('business-physical-address-token');
     expect(serialized).not.toContain('address-like-token');
     expect(serialized).not.toContain('generated-token-pattern');
+    expect(serialized).toContain('field-discovery-radio-surfaces-present');
     expect(serialized).not.toContain('hidden.person@example.test');
     expect(serialized).not.toContain('tab-form-element');
   });
@@ -10896,6 +11185,10 @@ test.describe('interactive validation safety', () => {
     expect(receipt?.addressOptionsOwnershipAnchorOutcomeCategory).toBe('ownership-anchor-matched-shared-owner');
     expect(receipt?.calibratedFallbackGuardSummary.addressOptionsOwnershipAnchorOutcomeCategory)
       .toBe('ownership-anchor-matched-shared-owner');
+    expect(receipt?.fieldDiscoveryRadioSurfaceOutcomeCategory).toBe('field-discovery-radio-surfaces-present');
+    expect(receipt?.calibratedFallbackGuardSummary.fieldDiscoveryRadioSurfaceOutcomeCategory)
+      .toBe('field-discovery-radio-surfaces-present');
+    expect(receipt?.fieldDiscoveryRadioFieldsWithProxyReferenceSignatureCount).toBe(3);
     expect(receipt?.candidateSignatureSourceOutcomeCategory)
       .toBe('candidate-signature-source-fallback-candidates-lost-surfaces');
     expect(receipt?.calibratedFallbackGuardSummary.candidateSignatureSourceOutcomeCategory)

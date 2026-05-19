@@ -319,6 +319,34 @@ export interface RadioNonTextLayoutSignature {
   metadataSignalsTruncated: boolean;
 }
 
+export type FieldDiscoveryRadioBuilderSkipReason =
+  | 'not-radio-like'
+  | 'dom-context-extraction-failed';
+
+export interface FieldDiscoveryRadioSurfaceDiagnostics {
+  buildersAttempted: boolean;
+  buildersSkipped: boolean;
+  builderSkipReasons: FieldDiscoveryRadioBuilderSkipReason[];
+  hasSafeFieldKey: boolean;
+  hasIdOrNameKey: boolean;
+  hasInputName: boolean;
+  hasGroupName: boolean;
+  hasResolvedLabel: boolean;
+  hasLabelBucket: boolean;
+  hasProxyReference: boolean;
+  hasDomAttribute: boolean;
+  hasRadioGraphic: boolean;
+  hasNonTextLayout: boolean;
+  hasContainerContext: boolean;
+  hasLayoutProximity: boolean;
+  generatedOnly: boolean;
+  unsafeOmitted: boolean;
+  genericOnly: boolean;
+  anyDiagnosticSurface: boolean;
+  surfaceEmpty: boolean;
+  attachmentGapDetected: boolean;
+}
+
 export interface DiscoveredField {
   kind: FieldKind;
   index: number;
@@ -350,6 +378,8 @@ export interface DiscoveredField {
   proxyReferenceSignature?: RadioProxyReferenceSignature | null;
   /** Bounded same-wrapper and direct-sibling graphic inventory for radio-like controls. */
   radioGraphicSignature?: RadioGraphicSignature | null;
+  /** Bounded radio-surface discovery diagnostics used by downstream summaries. */
+  radioSurfaceDiagnostics?: FieldDiscoveryRadioSurfaceDiagnostics | null;
   rejectedLabelCandidates: RejectedLabelCandidate[];
   /** Text near the control that clearly reads as a field value, not a prompt. */
   observedValueLikeTextNearControl: string | null;
@@ -489,10 +519,13 @@ async function nearestSectionName(loc: Locator): Promise<string | null> {
   }
 }
 
-/**
- * Pull richer label candidates from the DOM in a single evaluate() call.
- */
-async function extractDomContext(loc: Locator): Promise<{
+type ExtractedFieldDiscoveryRadioSurfaceBuildDiagnostics = {
+  buildersAttempted: boolean;
+  buildersSkipped: boolean;
+  builderSkipReasons: FieldDiscoveryRadioBuilderSkipReason[];
+};
+
+type ExtractedDomContext = {
   labelledByText: string | null;
   labelForText: string | null;
   wrappingLabelText: string | null;
@@ -526,13 +559,19 @@ async function extractDomContext(loc: Locator): Promise<{
   domAttributeSignature: RadioDomAttributeSignature | null;
   proxyReferenceSignature: RadioProxyReferenceSignature | null;
   radioGraphicSignature: RadioGraphicSignature | null;
+  radioSurfaceBuildDiagnostics: ExtractedFieldDiscoveryRadioSurfaceBuildDiagnostics | null;
   pageIndex: number | null;
   ordinalOnPage: number | null;
   tabLeft: number | null;
   tabTop: number | null;
   tabWidth: number | null;
   tabHeight: number | null;
-}> {
+};
+
+/**
+ * Pull richer label candidates from the DOM in a single evaluate() call.
+ */
+async function extractDomContext(loc: Locator): Promise<ExtractedDomContext> {
   const fallback = {
     labelledByText: null,
     labelForText: null,
@@ -562,6 +601,7 @@ async function extractDomContext(loc: Locator): Promise<{
     domAttributeSignature: null,
     proxyReferenceSignature: null,
     radioGraphicSignature: null,
+    radioSurfaceBuildDiagnostics: null,
     pageIndex: null,
     ordinalOnPage: null,
     tabLeft: null,
@@ -966,12 +1006,20 @@ async function extractDomContext(loc: Locator): Promise<{
       let domAttributeSignature: RadioDomAttributeSignature | null = null;
       let proxyReferenceSignature: RadioProxyReferenceSignature | null = null;
       let radioGraphicSignature: RadioGraphicSignature | null = null;
+      let radioSurfaceBuildDiagnostics: ExtractedFieldDiscoveryRadioSurfaceBuildDiagnostics | null = null;
 
       try {
         const inputEl = el as HTMLElement;
         const ownRole = clean(el.getAttribute('role'))?.toLowerCase() ?? null;
         const ownType = clean(el.getAttribute('type'))?.toLowerCase() ?? null;
         const isRadioLike = (el.tagName.toLowerCase() === 'input' && ownType === 'radio') || ownRole === 'radio';
+        radioSurfaceBuildDiagnostics = isRadioLike
+          ? {
+              buildersAttempted: true,
+              buildersSkipped: false,
+              builderSkipReasons: [],
+            }
+          : null;
 
         type RectLike = { left: number; top: number; right: number; bottom: number; width: number; height: number };
 
@@ -2285,6 +2333,7 @@ async function extractDomContext(loc: Locator): Promise<{
         domAttributeSignature,
         proxyReferenceSignature,
         radioGraphicSignature,
+        radioSurfaceBuildDiagnostics,
         pageIndex,
         ordinalOnPage,
         tabLeft,
@@ -2302,6 +2351,144 @@ function parseIntOrNull(s: string | null): number | null {
   if (s === null) return null;
   const n = parseInt(s, 10);
   return Number.isFinite(n) ? n : null;
+}
+
+function hasSafeFieldDiscoveryText(value: string | null | undefined): boolean {
+  const normalized = (value ?? '').trim();
+  if (!normalized || normalized.length > 160) return false;
+  if (!/[A-Za-z]/.test(normalized)) return false;
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(normalized)) return false;
+  if (/^[0-9a-f]{24,}$/i.test(normalized)) return false;
+  if (/^\d+$/.test(normalized)) return false;
+  return true;
+}
+
+function collectFieldDiscoveryRadioHintBuckets(input: {
+  domAttributeSignature: RadioDomAttributeSignature | null;
+  proxyReferenceSignature: RadioProxyReferenceSignature | null;
+  radioGraphicSignature: RadioGraphicSignature | null;
+}): string[] {
+  return [
+    ...(input.domAttributeSignature?.tokenShapeBuckets ?? []),
+    ...(input.domAttributeSignature?.valueHintBuckets ?? []),
+    ...(input.proxyReferenceSignature?.tokenShapeBuckets ?? []),
+    ...(input.proxyReferenceSignature?.valueHintBuckets ?? []),
+    ...(input.radioGraphicSignature?.tokenHintBuckets ?? []),
+  ];
+}
+
+function hasNonGenericFieldDiscoveryRadioHintBucket(bucket: string): boolean {
+  return bucket === 'business-physical-address-token'
+    || bucket === 'physical-operating-address-token'
+    || bucket === 'operating-address-token'
+    || bucket === 'mailing-address-token'
+    || bucket === 'legal-address-token'
+    || bucket === 'virtual-address-token';
+}
+
+function buildFieldDiscoveryRadioSurfaceDiagnostics(input: {
+  kind: FieldKind;
+  domCtx: ExtractedDomContext;
+  idOrNameKey: string | null;
+  resolvedLabel: string | null;
+  rawCandidateLabels: LabelCandidate[];
+  containerContextLabels: LabelCandidate[];
+  layoutProximityLabels: LayoutProximityLabelCandidate[];
+  nonTextLayoutSignature: RadioNonTextLayoutSignature | null;
+  domAttributeSignature: RadioDomAttributeSignature | null;
+  proxyReferenceSignature: RadioProxyReferenceSignature | null;
+  radioGraphicSignature: RadioGraphicSignature | null;
+  rejectedLabelCandidates: RejectedLabelCandidate[];
+}): FieldDiscoveryRadioSurfaceDiagnostics | null {
+  if (input.kind !== 'radio') return null;
+
+  const buildDiagnostics = input.domCtx.radioSurfaceBuildDiagnostics ?? {
+    buildersAttempted: false,
+    buildersSkipped: true,
+    builderSkipReasons: ['dom-context-extraction-failed'] as FieldDiscoveryRadioBuilderSkipReason[],
+  };
+  const hasIdOrNameKey = Boolean(input.idOrNameKey);
+  const hasSafeFieldKey = Boolean(input.idOrNameKey && !isGenericDocusignIdKey(input.idOrNameKey));
+  const hasInputName = hasSafeFieldDiscoveryText(input.domCtx.elementName);
+  const hasGroupName = hasSafeFieldDiscoveryText(input.domCtx.groupName);
+  const hasResolvedLabel = Boolean((input.resolvedLabel ?? '').trim());
+  const hasContainerContext = input.containerContextLabels.length > 0;
+  const hasLayoutProximity = input.layoutProximityLabels.length > 0;
+  const hasLabelBucket = input.rawCandidateLabels.length > 0 || hasResolvedLabel || hasContainerContext || hasLayoutProximity;
+  const hasProxyReference = Boolean(input.proxyReferenceSignature);
+  const hasDomAttribute = Boolean(input.domAttributeSignature);
+  const hasRadioGraphic = Boolean(input.radioGraphicSignature);
+  const hasNonTextLayout = Boolean(input.nonTextLayoutSignature);
+  const anyDiagnosticSurface = hasSafeFieldKey
+    || hasIdOrNameKey
+    || hasInputName
+    || hasGroupName
+    || hasResolvedLabel
+    || hasLabelBucket
+    || hasProxyReference
+    || hasDomAttribute
+    || hasRadioGraphic
+    || hasNonTextLayout
+    || hasContainerContext
+    || hasLayoutProximity;
+  const surfaceEmpty = !anyDiagnosticSurface;
+  const hintBuckets = collectFieldDiscoveryRadioHintBuckets({
+    domAttributeSignature: input.domAttributeSignature,
+    proxyReferenceSignature: input.proxyReferenceSignature,
+    radioGraphicSignature: input.radioGraphicSignature,
+  });
+  const hasGeneratedHint = hintBuckets.some((bucket) => bucket === 'generated-token-pattern' || bucket === 'generated/generic-only-token');
+  const hasNonGenericHint = hintBuckets.some(hasNonGenericFieldDiscoveryRadioHintBucket);
+  const generatedOnly = surfaceEmpty && hasGeneratedHint && !hasNonGenericHint;
+  const genericOnly = surfaceEmpty && hintBuckets.length > 0 && !hasGeneratedHint && !hasNonGenericHint;
+  const unsafeOmitted = surfaceEmpty && (
+    input.rejectedLabelCandidates.length > 0
+    || Boolean(input.domCtx.elementId)
+    || Boolean(input.domCtx.elementName)
+    || Boolean(input.domCtx.dataQa)
+    || Boolean(input.domCtx.groupName)
+  );
+  const attachmentGapDetected = buildDiagnostics.buildersAttempted
+    && !buildDiagnostics.buildersSkipped
+    && (
+      (input.domCtx.nonTextLayoutSignature !== null && input.nonTextLayoutSignature === null)
+      || (input.domCtx.domAttributeSignature !== null && input.domAttributeSignature === null)
+      || (input.domCtx.proxyReferenceSignature !== null && input.proxyReferenceSignature === null)
+      || (input.domCtx.radioGraphicSignature !== null && input.radioGraphicSignature === null)
+      || (((input.domCtx.parentContainerTexts.length
+        + input.domCtx.grandparentContainerTexts.length
+        + input.domCtx.sectionContainerTexts.length
+        + input.domCtx.containerPrecedingTexts.length
+        + input.domCtx.containerFollowingTexts.length) > 0)
+        && !hasContainerContext)
+      || (input.domCtx.layoutProximityTexts.length > 0 && !hasLayoutProximity)
+      || (hasSafeFieldDiscoveryText(input.domCtx.elementName) && !hasInputName)
+      || (hasSafeFieldDiscoveryText(input.domCtx.groupName) && !hasGroupName)
+    );
+
+  return {
+    buildersAttempted: buildDiagnostics.buildersAttempted,
+    buildersSkipped: buildDiagnostics.buildersSkipped,
+    builderSkipReasons: buildDiagnostics.builderSkipReasons,
+    hasSafeFieldKey,
+    hasIdOrNameKey,
+    hasInputName,
+    hasGroupName,
+    hasResolvedLabel,
+    hasLabelBucket,
+    hasProxyReference,
+    hasDomAttribute,
+    hasRadioGraphic,
+    hasNonTextLayout,
+    hasContainerContext,
+    hasLayoutProximity,
+    generatedOnly,
+    unsafeOmitted,
+    genericOnly,
+    anyDiagnosticSurface,
+    surfaceEmpty,
+    attachmentGapDetected,
+  };
 }
 
 /**
@@ -2886,6 +3073,21 @@ async function describe(
         ? 'role-with-label'
         : 'role-only';
 
+  const radioSurfaceDiagnostics = buildFieldDiscoveryRadioSurfaceDiagnostics({
+    kind,
+    domCtx,
+    idOrNameKey,
+    resolvedLabel,
+    rawCandidateLabels,
+    containerContextLabels,
+    layoutProximityLabels,
+    nonTextLayoutSignature,
+    domAttributeSignature,
+    proxyReferenceSignature,
+    radioGraphicSignature,
+    rejectedLabelCandidates: labelResult.rejected,
+  });
+
   return {
     kind,
     index,
@@ -2907,6 +3109,7 @@ async function describe(
     domAttributeSignature,
     proxyReferenceSignature,
     radioGraphicSignature,
+    radioSurfaceDiagnostics,
     rejectedLabelCandidates: labelResult.rejected,
     observedValueLikeTextNearControl: domCtx.valueLikeNearText,
     idOrNameKey,

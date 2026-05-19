@@ -1,19 +1,20 @@
 {
   "status": "ready_for_review",
-  "run_id": "PHYSICALADDRESSOWNERSHIPINPUTEMPTYSOURCEONLY-20260519-RUN51",
+  "run_id": "PHYSICALADDRESSOWNERSHIPINPUTEMPTYSOURCEONLY-20260519-RUN52",
   "model_used": "GitHub Copilot (GPT-5.4)",
   "branch": "main",
   "commit": null,
-  "commit_message": "AI-HANDOFF: PHYSICALADDRESSOWNERSHIPINPUTEMPTYSOURCEONLY-20260519-RUN51 ready for ChatGPT review",
+  "commit_message": "AI-HANDOFF: PHYSICALADDRESSOWNERSHIPINPUTEMPTYSOURCEONLY-20260519-RUN52 ready for ChatGPT review",
   "push_status": "pending_at_write_time",
   "started_at": "2026-05-19T00:00:00Z",
   "completed_at": "2026-05-19T00:00:00Z",
-  "git_commit_before": "849acb67dcc64fb4ea13a9a1d752ea442ec0329c",
+  "git_commit_before": "c139d9f49be7f6c6c6db77a42094c3c3806ab817",
   "git_commit_after": null,
   "summary_file": "artifacts/ai-handoff/latest-copilot-result.md",
   "needs_chatgpt_review": true,
-  "command_run_exactly_once": "RUN51 remained source/test-only and did not run any live capture command.",
+  "command_run_exactly_once": "RUN52 remained source/test-only and did not run any live capture command.",
   "files_changed": [
+    "fixtures/field-discovery.ts",
     "fixtures/conditional-discovery.ts",
     "scripts/capture-physical-operating-address.ts",
     "tests/bootstrap-units.spec.ts",
@@ -29,33 +30,42 @@
   ],
   "tests_run": [
     "anchor evidence -> 15 passed",
-    "guarded physical address discovery -> 101 passed",
+    "guarded physical address discovery -> 107 passed",
     "physical address capture-only -> 15 passed",
     "physical address bootstrap capture receipt -> 8 passed",
-    "npm run test:units -> 373 passed"
+    "npm run test:units -> 379 passed"
   ],
   "validation_summary": {
     "source_test_only_run": true,
     "live_capture_rerun_performed": false,
-    "candidate_signature_source_diagnostics_added": true,
-    "candidate_signature_source_receipt_propagation_added": true,
-    "candidate_signature_source_gap_detection_compares_preserved_fallback_surfaces": true,
+    "field_discovery_radio_surface_diagnostics_added": true,
+    "field_discovery_radio_surface_receipt_propagation_added": true,
+    "field_discovery_radio_surface_summary_categories_added": true,
     "guarded_discovery_anchor_evidence_passed": 15,
-    "guarded_discovery_total_passed": 101,
+    "guarded_discovery_total_passed": 107,
     "capture_only_total_passed": 15,
     "bootstrap_capture_receipt_total_passed": 8,
-    "unit_suite_total_passed": 373,
+    "unit_suite_total_passed": 379,
     "unit_suite_total_failed": 0,
-    "public_exact_three_empty_case_category": "candidate-signature-source-reduced-candidate-shape",
-    "public_exact_three_requires_radio_input_type": true,
-    "receipt_propagation_likely_root_cause": false
+    "field_discovery_radio_surface_outcomes_covered": [
+      "field-discovery-radio-surfaces-present",
+      "field-discovery-radio-all-surfaces-empty",
+      "field-discovery-radio-builders-skipped",
+      "field-discovery-radio-built-but-not-attached",
+      "field-discovery-radio-attached-but-filtered",
+      "field-discovery-radio-generated-only",
+      "field-discovery-radio-unsafe-omitted",
+      "field-discovery-radio-prior-guard-failed"
+    ],
+    "matcher_behavior_changed": false,
+    "calibrated_fallback_broadened": false
   },
-  "key_outcome": "RUN51 stayed source/test-only and added candidateSignatureSource* diagnostics end to end. The code now shows GuardedToggleField and sanitized fallback inventory both preserve bounded candidate surfaces, ownershipSourceInput* still reads the original visible radio fields, and receipt propagation is no longer the likely explanation for the RUN50 live empty candidates.",
+  "key_outcome": "RUN52 stayed source/test-only and added fieldDiscoveryRadioSurface* diagnostics end to end. The code can now distinguish whether exact-three radio surfaces were present upstream, skipped, built-but-not-attached, filtered before exact-three summarization, or already surface-empty before ownershipSourceInput* runs.",
   "blockers": [
-    "RUN51 intentionally collected no new live artifacts, so the exact upstream live discovery condition still cannot be directly observed from RUN51 alone."
+    "RUN52 intentionally collected no new live artifacts, so the preserved live receipt has not yet been reclassified against the new fieldDiscoveryRadioSurface* categories."
   ],
   "uncertainty": [
-    "The preserved live receipt still indicates zero original-field ownership-input surfaces, so a future explicitly authorized inspection may still be needed to prove why upstream discovery yields empty fields in that live slice."
+    "A future explicitly authorized live rerun may still be needed if ChatGPT decides source/test-only evidence is insufficient to map the preserved live empty-surface slice to one RUN52 category."
   ],
-  "next_recommendation": "Redirect to PHYSICALADDRESSOWNERSHIPINPUTEMPTYSOURCEONLY-20260519-RUN52 for a source/test-only review of the upstream field-discovery/collection path that feeds the exact-three radio candidates, unless live capture is explicitly reauthorized."
+  "next_recommendation": "Redirect to ChatGPT review of PHYSICALADDRESSOWNERSHIPINPUTEMPTYSOURCEONLY-20260519-RUN52 to decide whether the new fieldDiscoveryRadioSurface* diagnostics are sufficient without another live run, unless a single live rerun is explicitly reauthorized."
 }

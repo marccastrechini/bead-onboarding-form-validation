@@ -1,6 +1,7 @@
 import {
   discoverFields,
   type DiscoveredField,
+  type FieldDiscoveryRadioBuilderSkipReason,
   type LayoutProximityAssociation,
   type LayoutProximityDirection,
   type LayoutProximityDistanceBucket,
@@ -29,7 +30,7 @@ export const SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS_ENV = 'SAFE_DISCOVERY_EXPAND
 
 type GuardedToggleField = Pick<
   DiscoveredField,
-  'index' | 'kind' | 'type' | 'controlCategory' | 'visible' | 'editable' | 'resolvedLabel' | 'label' | 'sectionName' | 'rawCandidateLabels' | 'containerContextLabels' | 'layoutProximityLabels' | 'nonTextLayoutSignature' | 'domAttributeSignature' | 'proxyReferenceSignature' | 'radioGraphicSignature' | 'groupName' | 'idOrNameKey' | 'inferredType'
+  'index' | 'kind' | 'type' | 'controlCategory' | 'visible' | 'editable' | 'resolvedLabel' | 'label' | 'sectionName' | 'rawCandidateLabels' | 'containerContextLabels' | 'layoutProximityLabels' | 'nonTextLayoutSignature' | 'domAttributeSignature' | 'proxyReferenceSignature' | 'radioGraphicSignature' | 'radioSurfaceDiagnostics' | 'groupName' | 'idOrNameKey' | 'inferredType'
 >;
 
 export interface GuardedPhysicalOperatingAddressDiscoveryResult {
@@ -268,6 +269,41 @@ export type PhysicalOperatingAddressOwnershipSourceInputSummary =
   | 'ownership source input check found only generic ownership/reference source buckets before harvest'
   | 'ownership source input check found safe ownership/reference source buckets before harvest';
 
+export type PhysicalOperatingAddressFieldDiscoveryRadioSurfaceOutcomeCategory =
+  | 'field-discovery-radio-surface-not-checked'
+  | 'field-discovery-radio-surfaces-present'
+  | 'field-discovery-radio-all-surfaces-empty'
+  | 'field-discovery-radio-builders-skipped'
+  | 'field-discovery-radio-built-but-not-attached'
+  | 'field-discovery-radio-attached-but-filtered'
+  | 'field-discovery-radio-generated-only'
+  | 'field-discovery-radio-unsafe-omitted'
+  | 'field-discovery-radio-prior-guard-failed';
+
+export type PhysicalOperatingAddressFieldDiscoveryRadioSurfaceRejectedReason =
+  | 'prior-guard-failed'
+  | 'no-visible-radio-fields'
+  | 'no-visible-editable-radio-fields'
+  | 'exact-three-candidates-missing'
+  | 'builders-skipped'
+  | 'built-but-not-attached'
+  | 'attached-but-filtered'
+  | 'all-surfaces-empty'
+  | 'generated-only'
+  | 'unsafe-omitted'
+  | 'another-bounded-reason';
+
+export type PhysicalOperatingAddressFieldDiscoveryRadioSurfaceSummary =
+  | 'field discovery radio surface check was not performed'
+  | 'field discovery radio surface check skipped because the exact-three-radio guard failed'
+  | 'field discovery radio surface check found bounded diagnostic surfaces on the exact-three radio candidates'
+  | 'field discovery radio surface check found the exact-three radio candidates surface-empty before ownership input diagnostics'
+  | 'field discovery radio surface builders were skipped before exact-three candidate summarization'
+  | 'field discovery radio surfaces were built but not attached to discovered fields'
+  | 'field discovery radio surfaces were attached on discovered fields but filtered before exact-three candidate summarization'
+  | 'field discovery radio surfaces were reduced to generated-only evidence before exact-three candidate summarization'
+  | 'field discovery radio surfaces were omitted as unsafe before exact-three candidate summarization';
+
 export type PhysicalOperatingAddressCandidateSignatureSourceOutcomeCategory =
   | 'candidate-signature-source-not-checked'
   | 'candidate-signature-source-all-surfaces-empty'
@@ -352,6 +388,36 @@ export interface PhysicalOperatingAddressCalibratedFallbackGuardSummary {
   radioGroupReferenceTargetExists: boolean;
   radioGroupReferenceTargetVisible: boolean;
   radioGroupCommonOwnerCategory: PhysicalOperatingAddressAddressOptionsOwnershipAnchorCommonOwnerCategory;
+  fieldDiscoveryRadioSurfaceSummaryPresent: boolean;
+  fieldDiscoveryRadioSurfaceOutcomeCategory: PhysicalOperatingAddressFieldDiscoveryRadioSurfaceOutcomeCategory;
+  fieldDiscoveryRadioSurfaceRejectedReasons: PhysicalOperatingAddressFieldDiscoveryRadioSurfaceRejectedReason[];
+  fieldDiscoveryRadioSurfaceSummary: PhysicalOperatingAddressFieldDiscoveryRadioSurfaceSummary;
+  fieldDiscoveryTotalFieldCount: number;
+  fieldDiscoveryVisibleRadioInputCount: number;
+  fieldDiscoveryVisibleEditableRadioInputCount: number;
+  fieldDiscoveryExactThreeRadioCandidateCount: number;
+  fieldDiscoveryRadioBuildersAttempted: boolean;
+  fieldDiscoveryRadioBuildersSkipped: boolean;
+  fieldDiscoveryRadioBuilderSkipReasons: FieldDiscoveryRadioBuilderSkipReason[];
+  fieldDiscoveryRadioFieldsWithSafeFieldKeyCount: number;
+  fieldDiscoveryRadioFieldsWithIdOrNameKeyCount: number;
+  fieldDiscoveryRadioFieldsWithInputNameCount: number;
+  fieldDiscoveryRadioFieldsWithGroupNameCount: number;
+  fieldDiscoveryRadioFieldsWithResolvedLabelCount: number;
+  fieldDiscoveryRadioFieldsWithAnyLabelBucketCount: number;
+  fieldDiscoveryRadioFieldsWithProxyReferenceSignatureCount: number;
+  fieldDiscoveryRadioFieldsWithDomAttributeSignatureCount: number;
+  fieldDiscoveryRadioFieldsWithRadioGraphicSignatureCount: number;
+  fieldDiscoveryRadioFieldsWithNonTextLayoutSignatureCount: number;
+  fieldDiscoveryRadioFieldsWithContainerContextLabelsCount: number;
+  fieldDiscoveryRadioFieldsWithLayoutProximityEvidenceCount: number;
+  fieldDiscoveryRadioFieldsWithAnyDiagnosticSurfaceCount: number;
+  fieldDiscoveryRadioFieldsSurfaceEmptyCount: number;
+  fieldDiscoveryRadioFieldsGeneratedOnlyCount: number;
+  fieldDiscoveryRadioFieldsUnsafeOmittedCount: number;
+  fieldDiscoveryRadioSurfaceAttachmentGapDetected: boolean;
+  fieldDiscoveryRadioSurfaceFilteringGapDetected: boolean;
+  fieldDiscoveryRadioSurfaceUpstreamAbsentDetected: boolean;
   candidateSignatureSourceSummaryPresent: boolean;
   candidateSignatureSourceOutcomeCategory: PhysicalOperatingAddressCandidateSignatureSourceOutcomeCategory;
   candidateSignatureSourceRejectedReasons: PhysicalOperatingAddressCandidateSignatureSourceRejectedReason[];
@@ -469,6 +535,36 @@ export interface PhysicalOperatingAddressToggleSelectionSummary {
   radioGroupReferenceTargetExists: boolean;
   radioGroupReferenceTargetVisible: boolean;
   radioGroupCommonOwnerCategory: PhysicalOperatingAddressAddressOptionsOwnershipAnchorCommonOwnerCategory;
+  fieldDiscoveryRadioSurfaceSummaryPresent: boolean;
+  fieldDiscoveryRadioSurfaceOutcomeCategory: PhysicalOperatingAddressFieldDiscoveryRadioSurfaceOutcomeCategory;
+  fieldDiscoveryRadioSurfaceRejectedReasons: PhysicalOperatingAddressFieldDiscoveryRadioSurfaceRejectedReason[];
+  fieldDiscoveryRadioSurfaceSummary: PhysicalOperatingAddressFieldDiscoveryRadioSurfaceSummary;
+  fieldDiscoveryTotalFieldCount: number;
+  fieldDiscoveryVisibleRadioInputCount: number;
+  fieldDiscoveryVisibleEditableRadioInputCount: number;
+  fieldDiscoveryExactThreeRadioCandidateCount: number;
+  fieldDiscoveryRadioBuildersAttempted: boolean;
+  fieldDiscoveryRadioBuildersSkipped: boolean;
+  fieldDiscoveryRadioBuilderSkipReasons: FieldDiscoveryRadioBuilderSkipReason[];
+  fieldDiscoveryRadioFieldsWithSafeFieldKeyCount: number;
+  fieldDiscoveryRadioFieldsWithIdOrNameKeyCount: number;
+  fieldDiscoveryRadioFieldsWithInputNameCount: number;
+  fieldDiscoveryRadioFieldsWithGroupNameCount: number;
+  fieldDiscoveryRadioFieldsWithResolvedLabelCount: number;
+  fieldDiscoveryRadioFieldsWithAnyLabelBucketCount: number;
+  fieldDiscoveryRadioFieldsWithProxyReferenceSignatureCount: number;
+  fieldDiscoveryRadioFieldsWithDomAttributeSignatureCount: number;
+  fieldDiscoveryRadioFieldsWithRadioGraphicSignatureCount: number;
+  fieldDiscoveryRadioFieldsWithNonTextLayoutSignatureCount: number;
+  fieldDiscoveryRadioFieldsWithContainerContextLabelsCount: number;
+  fieldDiscoveryRadioFieldsWithLayoutProximityEvidenceCount: number;
+  fieldDiscoveryRadioFieldsWithAnyDiagnosticSurfaceCount: number;
+  fieldDiscoveryRadioFieldsSurfaceEmptyCount: number;
+  fieldDiscoveryRadioFieldsGeneratedOnlyCount: number;
+  fieldDiscoveryRadioFieldsUnsafeOmittedCount: number;
+  fieldDiscoveryRadioSurfaceAttachmentGapDetected: boolean;
+  fieldDiscoveryRadioSurfaceFilteringGapDetected: boolean;
+  fieldDiscoveryRadioSurfaceUpstreamAbsentDetected: boolean;
   candidateSignatureSourceSummaryPresent: boolean;
   candidateSignatureSourceOutcomeCategory: PhysicalOperatingAddressCandidateSignatureSourceOutcomeCategory;
   candidateSignatureSourceRejectedReasons: PhysicalOperatingAddressCandidateSignatureSourceRejectedReason[];
@@ -847,6 +943,39 @@ type PhysicalOperatingAddressCandidateSignatureSourceDiagnostics = {
   candidateSignatureSourcePotentialPropagationGapDetected: boolean;
 };
 
+type PhysicalOperatingAddressFieldDiscoveryRadioSurfaceDiagnostics = {
+  fieldDiscoveryRadioSurfaceSummaryPresent: boolean;
+  fieldDiscoveryRadioSurfaceOutcomeCategory: PhysicalOperatingAddressFieldDiscoveryRadioSurfaceOutcomeCategory;
+  fieldDiscoveryRadioSurfaceRejectedReasons: PhysicalOperatingAddressFieldDiscoveryRadioSurfaceRejectedReason[];
+  fieldDiscoveryRadioSurfaceSummary: PhysicalOperatingAddressFieldDiscoveryRadioSurfaceSummary;
+  fieldDiscoveryTotalFieldCount: number;
+  fieldDiscoveryVisibleRadioInputCount: number;
+  fieldDiscoveryVisibleEditableRadioInputCount: number;
+  fieldDiscoveryExactThreeRadioCandidateCount: number;
+  fieldDiscoveryRadioBuildersAttempted: boolean;
+  fieldDiscoveryRadioBuildersSkipped: boolean;
+  fieldDiscoveryRadioBuilderSkipReasons: FieldDiscoveryRadioBuilderSkipReason[];
+  fieldDiscoveryRadioFieldsWithSafeFieldKeyCount: number;
+  fieldDiscoveryRadioFieldsWithIdOrNameKeyCount: number;
+  fieldDiscoveryRadioFieldsWithInputNameCount: number;
+  fieldDiscoveryRadioFieldsWithGroupNameCount: number;
+  fieldDiscoveryRadioFieldsWithResolvedLabelCount: number;
+  fieldDiscoveryRadioFieldsWithAnyLabelBucketCount: number;
+  fieldDiscoveryRadioFieldsWithProxyReferenceSignatureCount: number;
+  fieldDiscoveryRadioFieldsWithDomAttributeSignatureCount: number;
+  fieldDiscoveryRadioFieldsWithRadioGraphicSignatureCount: number;
+  fieldDiscoveryRadioFieldsWithNonTextLayoutSignatureCount: number;
+  fieldDiscoveryRadioFieldsWithContainerContextLabelsCount: number;
+  fieldDiscoveryRadioFieldsWithLayoutProximityEvidenceCount: number;
+  fieldDiscoveryRadioFieldsWithAnyDiagnosticSurfaceCount: number;
+  fieldDiscoveryRadioFieldsSurfaceEmptyCount: number;
+  fieldDiscoveryRadioFieldsGeneratedOnlyCount: number;
+  fieldDiscoveryRadioFieldsUnsafeOmittedCount: number;
+  fieldDiscoveryRadioSurfaceAttachmentGapDetected: boolean;
+  fieldDiscoveryRadioSurfaceFilteringGapDetected: boolean;
+  fieldDiscoveryRadioSurfaceUpstreamAbsentDetected: boolean;
+};
+
 type PhysicalOperatingAddressToggleFallbackCueEntry = {
   slot: number;
   fieldIndex: number | null;
@@ -899,6 +1028,36 @@ type PhysicalOperatingAddressToggleCalibratedFallbackDiagnostics = {
   radioGroupReferenceTargetExists: boolean;
   radioGroupReferenceTargetVisible: boolean;
   radioGroupCommonOwnerCategory: PhysicalOperatingAddressAddressOptionsOwnershipAnchorCommonOwnerCategory;
+  fieldDiscoveryRadioSurfaceSummaryPresent: boolean;
+  fieldDiscoveryRadioSurfaceOutcomeCategory: PhysicalOperatingAddressFieldDiscoveryRadioSurfaceOutcomeCategory;
+  fieldDiscoveryRadioSurfaceRejectedReasons: PhysicalOperatingAddressFieldDiscoveryRadioSurfaceRejectedReason[];
+  fieldDiscoveryRadioSurfaceSummary: PhysicalOperatingAddressFieldDiscoveryRadioSurfaceSummary;
+  fieldDiscoveryTotalFieldCount: number;
+  fieldDiscoveryVisibleRadioInputCount: number;
+  fieldDiscoveryVisibleEditableRadioInputCount: number;
+  fieldDiscoveryExactThreeRadioCandidateCount: number;
+  fieldDiscoveryRadioBuildersAttempted: boolean;
+  fieldDiscoveryRadioBuildersSkipped: boolean;
+  fieldDiscoveryRadioBuilderSkipReasons: FieldDiscoveryRadioBuilderSkipReason[];
+  fieldDiscoveryRadioFieldsWithSafeFieldKeyCount: number;
+  fieldDiscoveryRadioFieldsWithIdOrNameKeyCount: number;
+  fieldDiscoveryRadioFieldsWithInputNameCount: number;
+  fieldDiscoveryRadioFieldsWithGroupNameCount: number;
+  fieldDiscoveryRadioFieldsWithResolvedLabelCount: number;
+  fieldDiscoveryRadioFieldsWithAnyLabelBucketCount: number;
+  fieldDiscoveryRadioFieldsWithProxyReferenceSignatureCount: number;
+  fieldDiscoveryRadioFieldsWithDomAttributeSignatureCount: number;
+  fieldDiscoveryRadioFieldsWithRadioGraphicSignatureCount: number;
+  fieldDiscoveryRadioFieldsWithNonTextLayoutSignatureCount: number;
+  fieldDiscoveryRadioFieldsWithContainerContextLabelsCount: number;
+  fieldDiscoveryRadioFieldsWithLayoutProximityEvidenceCount: number;
+  fieldDiscoveryRadioFieldsWithAnyDiagnosticSurfaceCount: number;
+  fieldDiscoveryRadioFieldsSurfaceEmptyCount: number;
+  fieldDiscoveryRadioFieldsGeneratedOnlyCount: number;
+  fieldDiscoveryRadioFieldsUnsafeOmittedCount: number;
+  fieldDiscoveryRadioSurfaceAttachmentGapDetected: boolean;
+  fieldDiscoveryRadioSurfaceFilteringGapDetected: boolean;
+  fieldDiscoveryRadioSurfaceUpstreamAbsentDetected: boolean;
   candidateSignatureSourceSummaryPresent: boolean;
   candidateSignatureSourceOutcomeCategory: PhysicalOperatingAddressCandidateSignatureSourceOutcomeCategory;
   candidateSignatureSourceRejectedReasons: PhysicalOperatingAddressCandidateSignatureSourceRejectedReason[];
@@ -1649,6 +1808,296 @@ function hasAnyOwnershipSourceInputReferenceLikeAttributePresence(field: Guarded
   );
 }
 
+function isVisibleRadioInputField(field: GuardedToggleField): boolean {
+  return field.kind === 'radio'
+    && field.visible
+    && (field.type ?? '').toLowerCase() === 'radio';
+}
+
+function isVisibleEditableRadioInputField(field: GuardedToggleField): boolean {
+  return isVisibleRadioInputField(field) && field.editable;
+}
+
+function resolveFieldDiscoveryRadioSurfaceDiagnostics(field: GuardedToggleField) {
+  if (field.radioSurfaceDiagnostics) return field.radioSurfaceDiagnostics;
+
+  const hasIdOrNameKey = Boolean(normalizeText(field.idOrNameKey));
+  const hasGroupName = Boolean(normalizeText(field.groupName));
+  const hasResolvedLabel = Boolean(normalizeText(field.resolvedLabel));
+  const hasContainerContext = (field.containerContextLabels?.length ?? 0) > 0;
+  const hasLayoutProximity = (field.layoutProximityLabels?.length ?? 0) > 0;
+  const hasLabelBucket = (field.rawCandidateLabels?.length ?? 0) > 0
+    || hasContainerContext
+    || hasLayoutProximity
+    || hasResolvedLabel;
+  const hasProxyReference = Boolean(field.proxyReferenceSignature);
+  const hasDomAttribute = Boolean(field.domAttributeSignature);
+  const hasRadioGraphic = Boolean(field.radioGraphicSignature);
+  const hasNonTextLayout = Boolean(field.nonTextLayoutSignature);
+  const anyDiagnosticSurface = hasIdOrNameKey
+    || hasGroupName
+    || hasResolvedLabel
+    || hasLabelBucket
+    || hasProxyReference
+    || hasDomAttribute
+    || hasRadioGraphic
+    || hasNonTextLayout
+    || hasContainerContext
+    || hasLayoutProximity;
+
+  return {
+    buildersAttempted: isVisibleRadioInputField(field),
+    buildersSkipped: field.kind === 'radio' && !isVisibleRadioInputField(field),
+    builderSkipReasons: field.kind === 'radio' && !isVisibleRadioInputField(field)
+      ? ['not-radio-like']
+      : [],
+    hasSafeFieldKey: hasIdOrNameKey,
+    hasIdOrNameKey,
+    hasInputName: hasGroupName,
+    hasGroupName,
+    hasResolvedLabel,
+    hasLabelBucket,
+    hasProxyReference,
+    hasDomAttribute,
+    hasRadioGraphic,
+    hasNonTextLayout,
+    hasContainerContext,
+    hasLayoutProximity,
+    generatedOnly: false,
+    unsafeOmitted: false,
+    genericOnly: false,
+    anyDiagnosticSurface,
+    surfaceEmpty: !anyDiagnosticSurface,
+    attachmentGapDetected: false,
+  };
+}
+
+function buildFieldDiscoveryRadioSurfaceSummary(
+  category: PhysicalOperatingAddressFieldDiscoveryRadioSurfaceOutcomeCategory,
+): PhysicalOperatingAddressFieldDiscoveryRadioSurfaceSummary {
+  switch (category) {
+    case 'field-discovery-radio-surfaces-present':
+      return 'field discovery radio surface check found bounded diagnostic surfaces on the exact-three radio candidates';
+    case 'field-discovery-radio-all-surfaces-empty':
+      return 'field discovery radio surface check found the exact-three radio candidates surface-empty before ownership input diagnostics';
+    case 'field-discovery-radio-builders-skipped':
+      return 'field discovery radio surface builders were skipped before exact-three candidate summarization';
+    case 'field-discovery-radio-built-but-not-attached':
+      return 'field discovery radio surfaces were built but not attached to discovered fields';
+    case 'field-discovery-radio-attached-but-filtered':
+      return 'field discovery radio surfaces were attached on discovered fields but filtered before exact-three candidate summarization';
+    case 'field-discovery-radio-generated-only':
+      return 'field discovery radio surfaces were reduced to generated-only evidence before exact-three candidate summarization';
+    case 'field-discovery-radio-unsafe-omitted':
+      return 'field discovery radio surfaces were omitted as unsafe before exact-three candidate summarization';
+    case 'field-discovery-radio-prior-guard-failed':
+      return 'field discovery radio surface check skipped because the exact-three-radio guard failed';
+    case 'field-discovery-radio-surface-not-checked':
+    default:
+      return 'field discovery radio surface check was not performed';
+  }
+}
+
+function buildPhysicalOperatingAddressFieldDiscoveryRadioSurfaceDiagnostics(input: {
+  fields: GuardedToggleField[];
+  fallbackInventory: PhysicalOperatingAddressToggleFallbackInventory;
+  exactThreeRadioGuardPassed: boolean;
+}): PhysicalOperatingAddressFieldDiscoveryRadioSurfaceDiagnostics {
+  const visibleRadioInputFields = input.fields.filter(isVisibleRadioInputField);
+  const visibleEditableRadioInputFields = input.fields.filter(isVisibleEditableRadioInputField);
+  const exactThreeRadioCandidateFields = input.fallbackInventory.entries
+    .map((entry) => visibleEditableRadioInputFields.find((field) => field.index === entry.fieldIndex) ?? null)
+    .filter((field): field is GuardedToggleField => Boolean(field));
+  const exactThreeRadioCandidateDiagnostics = exactThreeRadioCandidateFields.map(
+    resolveFieldDiscoveryRadioSurfaceDiagnostics,
+  );
+  const visibleEditableRadioDiagnostics = visibleEditableRadioInputFields.map(
+    resolveFieldDiscoveryRadioSurfaceDiagnostics,
+  );
+
+  const fieldDiscoveryTotalFieldCount = input.fields.length;
+  const fieldDiscoveryVisibleRadioInputCount = visibleRadioInputFields.length;
+  const fieldDiscoveryVisibleEditableRadioInputCount = visibleEditableRadioInputFields.length;
+  const fieldDiscoveryExactThreeRadioCandidateCount = exactThreeRadioCandidateFields.length;
+  const fieldDiscoveryRadioBuildersAttempted = exactThreeRadioCandidateDiagnostics.length > 0
+    && exactThreeRadioCandidateDiagnostics.every((diagnostic) => diagnostic.buildersAttempted);
+  const fieldDiscoveryRadioBuildersSkipped = exactThreeRadioCandidateDiagnostics.some(
+    (diagnostic) => diagnostic.buildersSkipped,
+  );
+  const fieldDiscoveryRadioBuilderSkipReasons = Array.from(new Set(
+    exactThreeRadioCandidateDiagnostics.flatMap((diagnostic) => diagnostic.builderSkipReasons),
+  ));
+  const fieldDiscoveryRadioFieldsWithSafeFieldKeyCount = exactThreeRadioCandidateDiagnostics.filter(
+    (diagnostic) => diagnostic.hasSafeFieldKey,
+  ).length;
+  const fieldDiscoveryRadioFieldsWithIdOrNameKeyCount = exactThreeRadioCandidateDiagnostics.filter(
+    (diagnostic) => diagnostic.hasIdOrNameKey,
+  ).length;
+  const fieldDiscoveryRadioFieldsWithInputNameCount = exactThreeRadioCandidateDiagnostics.filter(
+    (diagnostic) => diagnostic.hasInputName,
+  ).length;
+  const fieldDiscoveryRadioFieldsWithGroupNameCount = exactThreeRadioCandidateDiagnostics.filter(
+    (diagnostic) => diagnostic.hasGroupName,
+  ).length;
+  const fieldDiscoveryRadioFieldsWithResolvedLabelCount = exactThreeRadioCandidateDiagnostics.filter(
+    (diagnostic) => diagnostic.hasResolvedLabel,
+  ).length;
+  const fieldDiscoveryRadioFieldsWithAnyLabelBucketCount = exactThreeRadioCandidateDiagnostics.filter(
+    (diagnostic) => diagnostic.hasLabelBucket,
+  ).length;
+  const fieldDiscoveryRadioFieldsWithProxyReferenceSignatureCount = exactThreeRadioCandidateDiagnostics.filter(
+    (diagnostic) => diagnostic.hasProxyReference,
+  ).length;
+  const fieldDiscoveryRadioFieldsWithDomAttributeSignatureCount = exactThreeRadioCandidateDiagnostics.filter(
+    (diagnostic) => diagnostic.hasDomAttribute,
+  ).length;
+  const fieldDiscoveryRadioFieldsWithRadioGraphicSignatureCount = exactThreeRadioCandidateDiagnostics.filter(
+    (diagnostic) => diagnostic.hasRadioGraphic,
+  ).length;
+  const fieldDiscoveryRadioFieldsWithNonTextLayoutSignatureCount = exactThreeRadioCandidateDiagnostics.filter(
+    (diagnostic) => diagnostic.hasNonTextLayout,
+  ).length;
+  const fieldDiscoveryRadioFieldsWithContainerContextLabelsCount = exactThreeRadioCandidateDiagnostics.filter(
+    (diagnostic) => diagnostic.hasContainerContext,
+  ).length;
+  const fieldDiscoveryRadioFieldsWithLayoutProximityEvidenceCount = exactThreeRadioCandidateDiagnostics.filter(
+    (diagnostic) => diagnostic.hasLayoutProximity,
+  ).length;
+  const fieldDiscoveryRadioFieldsWithAnyDiagnosticSurfaceCount = exactThreeRadioCandidateDiagnostics.filter(
+    (diagnostic) => diagnostic.anyDiagnosticSurface,
+  ).length;
+  const fieldDiscoveryRadioFieldsSurfaceEmptyCount = exactThreeRadioCandidateDiagnostics.filter(
+    (diagnostic) => diagnostic.surfaceEmpty,
+  ).length;
+  const fieldDiscoveryRadioFieldsGeneratedOnlyCount = exactThreeRadioCandidateDiagnostics.filter(
+    (diagnostic) => diagnostic.generatedOnly,
+  ).length;
+  const fieldDiscoveryRadioFieldsUnsafeOmittedCount = exactThreeRadioCandidateDiagnostics.filter(
+    (diagnostic) => diagnostic.unsafeOmitted,
+  ).length;
+  const fieldDiscoveryRadioSurfaceAttachmentGapDetected = exactThreeRadioCandidateDiagnostics.some(
+    (diagnostic) => diagnostic.attachmentGapDetected,
+  );
+  const fieldDiscoveryRadioSurfaceFilteringGapDetected = visibleEditableRadioDiagnostics.some(
+    (diagnostic) => diagnostic.anyDiagnosticSurface,
+  ) && exactThreeRadioCandidateDiagnostics.length > 0
+    && exactThreeRadioCandidateDiagnostics.every((diagnostic) => !diagnostic.anyDiagnosticSurface)
+    && visibleEditableRadioDiagnostics.length > exactThreeRadioCandidateDiagnostics.length;
+  const fieldDiscoveryRadioSurfaceUpstreamAbsentDetected = exactThreeRadioCandidateDiagnostics.length > 0
+    && fieldDiscoveryRadioBuildersAttempted
+    && !fieldDiscoveryRadioBuildersSkipped
+    && !fieldDiscoveryRadioSurfaceAttachmentGapDetected
+    && !fieldDiscoveryRadioSurfaceFilteringGapDetected
+    && fieldDiscoveryRadioFieldsWithAnyDiagnosticSurfaceCount === 0;
+  const fieldDiscoveryRadioSurfaceSummaryPresent = input.exactThreeRadioGuardPassed
+    && fieldDiscoveryExactThreeRadioCandidateCount > 0;
+
+  let fieldDiscoveryRadioSurfaceOutcomeCategory: PhysicalOperatingAddressFieldDiscoveryRadioSurfaceOutcomeCategory =
+    'field-discovery-radio-prior-guard-failed';
+  if (!input.exactThreeRadioGuardPassed) {
+    fieldDiscoveryRadioSurfaceOutcomeCategory = 'field-discovery-radio-prior-guard-failed';
+  } else if (!fieldDiscoveryRadioSurfaceSummaryPresent) {
+    fieldDiscoveryRadioSurfaceOutcomeCategory = 'field-discovery-radio-surface-not-checked';
+  } else if (fieldDiscoveryRadioSurfaceAttachmentGapDetected) {
+    fieldDiscoveryRadioSurfaceOutcomeCategory = 'field-discovery-radio-built-but-not-attached';
+  } else if (fieldDiscoveryRadioSurfaceFilteringGapDetected) {
+    fieldDiscoveryRadioSurfaceOutcomeCategory = 'field-discovery-radio-attached-but-filtered';
+  } else if (fieldDiscoveryRadioBuildersSkipped) {
+    fieldDiscoveryRadioSurfaceOutcomeCategory = 'field-discovery-radio-builders-skipped';
+  } else if (
+    fieldDiscoveryRadioFieldsGeneratedOnlyCount > 0
+    && fieldDiscoveryRadioFieldsGeneratedOnlyCount === fieldDiscoveryExactThreeRadioCandidateCount
+  ) {
+    fieldDiscoveryRadioSurfaceOutcomeCategory = 'field-discovery-radio-generated-only';
+  } else if (
+    fieldDiscoveryRadioFieldsUnsafeOmittedCount > 0
+    && fieldDiscoveryRadioFieldsUnsafeOmittedCount === fieldDiscoveryExactThreeRadioCandidateCount
+  ) {
+    fieldDiscoveryRadioSurfaceOutcomeCategory = 'field-discovery-radio-unsafe-omitted';
+  } else if (fieldDiscoveryRadioFieldsWithAnyDiagnosticSurfaceCount > 0) {
+    fieldDiscoveryRadioSurfaceOutcomeCategory = 'field-discovery-radio-surfaces-present';
+  } else {
+    fieldDiscoveryRadioSurfaceOutcomeCategory = 'field-discovery-radio-all-surfaces-empty';
+  }
+
+  const fieldDiscoveryRadioSurfaceRejectedReasons: PhysicalOperatingAddressFieldDiscoveryRadioSurfaceRejectedReason[] = [];
+  if (!input.exactThreeRadioGuardPassed) {
+    fieldDiscoveryRadioSurfaceRejectedReasons.push('prior-guard-failed');
+  } else {
+    if (fieldDiscoveryVisibleRadioInputCount === 0) {
+      fieldDiscoveryRadioSurfaceRejectedReasons.push('no-visible-radio-fields');
+    }
+    if (fieldDiscoveryVisibleEditableRadioInputCount === 0) {
+      fieldDiscoveryRadioSurfaceRejectedReasons.push('no-visible-editable-radio-fields');
+    }
+    if (fieldDiscoveryExactThreeRadioCandidateCount === 0) {
+      fieldDiscoveryRadioSurfaceRejectedReasons.push('exact-three-candidates-missing');
+    }
+
+    switch (fieldDiscoveryRadioSurfaceOutcomeCategory) {
+      case 'field-discovery-radio-builders-skipped':
+        fieldDiscoveryRadioSurfaceRejectedReasons.push('builders-skipped');
+        break;
+      case 'field-discovery-radio-built-but-not-attached':
+        fieldDiscoveryRadioSurfaceRejectedReasons.push('built-but-not-attached');
+        break;
+      case 'field-discovery-radio-attached-but-filtered':
+        fieldDiscoveryRadioSurfaceRejectedReasons.push('attached-but-filtered');
+        break;
+      case 'field-discovery-radio-generated-only':
+        fieldDiscoveryRadioSurfaceRejectedReasons.push('generated-only');
+        break;
+      case 'field-discovery-radio-unsafe-omitted':
+        fieldDiscoveryRadioSurfaceRejectedReasons.push('unsafe-omitted');
+        break;
+      case 'field-discovery-radio-all-surfaces-empty':
+        fieldDiscoveryRadioSurfaceRejectedReasons.push('all-surfaces-empty');
+        break;
+      case 'field-discovery-radio-surface-not-checked':
+        if (fieldDiscoveryRadioSurfaceRejectedReasons.length === 0) {
+          fieldDiscoveryRadioSurfaceRejectedReasons.push('another-bounded-reason');
+        }
+        break;
+      default:
+        break;
+    }
+  }
+
+  return {
+    fieldDiscoveryRadioSurfaceSummaryPresent,
+    fieldDiscoveryRadioSurfaceOutcomeCategory,
+    fieldDiscoveryRadioSurfaceRejectedReasons,
+    fieldDiscoveryRadioSurfaceSummary:
+      buildFieldDiscoveryRadioSurfaceSummary(fieldDiscoveryRadioSurfaceOutcomeCategory),
+    fieldDiscoveryTotalFieldCount,
+    fieldDiscoveryVisibleRadioInputCount,
+    fieldDiscoveryVisibleEditableRadioInputCount,
+    fieldDiscoveryExactThreeRadioCandidateCount,
+    fieldDiscoveryRadioBuildersAttempted,
+    fieldDiscoveryRadioBuildersSkipped,
+    fieldDiscoveryRadioBuilderSkipReasons,
+    fieldDiscoveryRadioFieldsWithSafeFieldKeyCount,
+    fieldDiscoveryRadioFieldsWithIdOrNameKeyCount,
+    fieldDiscoveryRadioFieldsWithInputNameCount,
+    fieldDiscoveryRadioFieldsWithGroupNameCount,
+    fieldDiscoveryRadioFieldsWithResolvedLabelCount,
+    fieldDiscoveryRadioFieldsWithAnyLabelBucketCount,
+    fieldDiscoveryRadioFieldsWithProxyReferenceSignatureCount,
+    fieldDiscoveryRadioFieldsWithDomAttributeSignatureCount,
+    fieldDiscoveryRadioFieldsWithRadioGraphicSignatureCount,
+    fieldDiscoveryRadioFieldsWithNonTextLayoutSignatureCount,
+    fieldDiscoveryRadioFieldsWithContainerContextLabelsCount,
+    fieldDiscoveryRadioFieldsWithLayoutProximityEvidenceCount,
+    fieldDiscoveryRadioFieldsWithAnyDiagnosticSurfaceCount,
+    fieldDiscoveryRadioFieldsSurfaceEmptyCount,
+    fieldDiscoveryRadioFieldsGeneratedOnlyCount,
+    fieldDiscoveryRadioFieldsUnsafeOmittedCount,
+    fieldDiscoveryRadioSurfaceAttachmentGapDetected,
+    fieldDiscoveryRadioSurfaceFilteringGapDetected,
+    fieldDiscoveryRadioSurfaceUpstreamAbsentDetected,
+  };
+}
+
 function hasAnyCandidateSignatureSourceLabelBucket(
   entry: PhysicalOperatingAddressToggleFallbackInventoryEntry,
 ): boolean {
@@ -2072,6 +2521,36 @@ function buildDefaultPhysicalOperatingAddressCalibratedFallbackGuardSummary(): P
     radioGroupReferenceTargetExists: false,
     radioGroupReferenceTargetVisible: false,
     radioGroupCommonOwnerCategory: 'not-checked',
+    fieldDiscoveryRadioSurfaceSummaryPresent: false,
+    fieldDiscoveryRadioSurfaceOutcomeCategory: 'field-discovery-radio-prior-guard-failed',
+    fieldDiscoveryRadioSurfaceRejectedReasons: ['prior-guard-failed'],
+    fieldDiscoveryRadioSurfaceSummary: 'field discovery radio surface check skipped because the exact-three-radio guard failed',
+    fieldDiscoveryTotalFieldCount: 0,
+    fieldDiscoveryVisibleRadioInputCount: 0,
+    fieldDiscoveryVisibleEditableRadioInputCount: 0,
+    fieldDiscoveryExactThreeRadioCandidateCount: 0,
+    fieldDiscoveryRadioBuildersAttempted: false,
+    fieldDiscoveryRadioBuildersSkipped: false,
+    fieldDiscoveryRadioBuilderSkipReasons: [],
+    fieldDiscoveryRadioFieldsWithSafeFieldKeyCount: 0,
+    fieldDiscoveryRadioFieldsWithIdOrNameKeyCount: 0,
+    fieldDiscoveryRadioFieldsWithInputNameCount: 0,
+    fieldDiscoveryRadioFieldsWithGroupNameCount: 0,
+    fieldDiscoveryRadioFieldsWithResolvedLabelCount: 0,
+    fieldDiscoveryRadioFieldsWithAnyLabelBucketCount: 0,
+    fieldDiscoveryRadioFieldsWithProxyReferenceSignatureCount: 0,
+    fieldDiscoveryRadioFieldsWithDomAttributeSignatureCount: 0,
+    fieldDiscoveryRadioFieldsWithRadioGraphicSignatureCount: 0,
+    fieldDiscoveryRadioFieldsWithNonTextLayoutSignatureCount: 0,
+    fieldDiscoveryRadioFieldsWithContainerContextLabelsCount: 0,
+    fieldDiscoveryRadioFieldsWithLayoutProximityEvidenceCount: 0,
+    fieldDiscoveryRadioFieldsWithAnyDiagnosticSurfaceCount: 0,
+    fieldDiscoveryRadioFieldsSurfaceEmptyCount: 0,
+    fieldDiscoveryRadioFieldsGeneratedOnlyCount: 0,
+    fieldDiscoveryRadioFieldsUnsafeOmittedCount: 0,
+    fieldDiscoveryRadioSurfaceAttachmentGapDetected: false,
+    fieldDiscoveryRadioSurfaceFilteringGapDetected: false,
+    fieldDiscoveryRadioSurfaceUpstreamAbsentDetected: false,
     candidateSignatureSourceSummaryPresent: false,
     candidateSignatureSourceOutcomeCategory: 'candidate-signature-source-prior-guard-failed',
     candidateSignatureSourceRejectedReasons: ['prior-guard-failed'],
@@ -3056,6 +3535,11 @@ function buildCalibratedPhysicalOperatingAddressFallbackDiagnostics(
     fields,
     exactThreeRadioGuardPassed,
   });
+  const fieldDiscoveryRadioSurfaceDiagnostics = buildPhysicalOperatingAddressFieldDiscoveryRadioSurfaceDiagnostics({
+    fields,
+    fallbackInventory,
+    exactThreeRadioGuardPassed,
+  });
   const candidateSignatureSourceDiagnostics = buildPhysicalOperatingAddressCandidateSignatureSourceDiagnostics({
     fields,
     fallbackInventory,
@@ -3125,6 +3609,66 @@ function buildCalibratedPhysicalOperatingAddressFallbackDiagnostics(
     radioGroupReferenceTargetExists: ownershipAnchorEvidence.radioGroupReferenceTargetExists,
     radioGroupReferenceTargetVisible: ownershipAnchorEvidence.radioGroupReferenceTargetVisible,
     radioGroupCommonOwnerCategory: ownershipAnchorEvidence.radioGroupCommonOwnerCategory,
+    fieldDiscoveryRadioSurfaceSummaryPresent:
+      fieldDiscoveryRadioSurfaceDiagnostics.fieldDiscoveryRadioSurfaceSummaryPresent,
+    fieldDiscoveryRadioSurfaceOutcomeCategory:
+      fieldDiscoveryRadioSurfaceDiagnostics.fieldDiscoveryRadioSurfaceOutcomeCategory,
+    fieldDiscoveryRadioSurfaceRejectedReasons:
+      fieldDiscoveryRadioSurfaceDiagnostics.fieldDiscoveryRadioSurfaceRejectedReasons,
+    fieldDiscoveryRadioSurfaceSummary:
+      fieldDiscoveryRadioSurfaceDiagnostics.fieldDiscoveryRadioSurfaceSummary,
+    fieldDiscoveryTotalFieldCount:
+      fieldDiscoveryRadioSurfaceDiagnostics.fieldDiscoveryTotalFieldCount,
+    fieldDiscoveryVisibleRadioInputCount:
+      fieldDiscoveryRadioSurfaceDiagnostics.fieldDiscoveryVisibleRadioInputCount,
+    fieldDiscoveryVisibleEditableRadioInputCount:
+      fieldDiscoveryRadioSurfaceDiagnostics.fieldDiscoveryVisibleEditableRadioInputCount,
+    fieldDiscoveryExactThreeRadioCandidateCount:
+      fieldDiscoveryRadioSurfaceDiagnostics.fieldDiscoveryExactThreeRadioCandidateCount,
+    fieldDiscoveryRadioBuildersAttempted:
+      fieldDiscoveryRadioSurfaceDiagnostics.fieldDiscoveryRadioBuildersAttempted,
+    fieldDiscoveryRadioBuildersSkipped:
+      fieldDiscoveryRadioSurfaceDiagnostics.fieldDiscoveryRadioBuildersSkipped,
+    fieldDiscoveryRadioBuilderSkipReasons:
+      fieldDiscoveryRadioSurfaceDiagnostics.fieldDiscoveryRadioBuilderSkipReasons,
+    fieldDiscoveryRadioFieldsWithSafeFieldKeyCount:
+      fieldDiscoveryRadioSurfaceDiagnostics.fieldDiscoveryRadioFieldsWithSafeFieldKeyCount,
+    fieldDiscoveryRadioFieldsWithIdOrNameKeyCount:
+      fieldDiscoveryRadioSurfaceDiagnostics.fieldDiscoveryRadioFieldsWithIdOrNameKeyCount,
+    fieldDiscoveryRadioFieldsWithInputNameCount:
+      fieldDiscoveryRadioSurfaceDiagnostics.fieldDiscoveryRadioFieldsWithInputNameCount,
+    fieldDiscoveryRadioFieldsWithGroupNameCount:
+      fieldDiscoveryRadioSurfaceDiagnostics.fieldDiscoveryRadioFieldsWithGroupNameCount,
+    fieldDiscoveryRadioFieldsWithResolvedLabelCount:
+      fieldDiscoveryRadioSurfaceDiagnostics.fieldDiscoveryRadioFieldsWithResolvedLabelCount,
+    fieldDiscoveryRadioFieldsWithAnyLabelBucketCount:
+      fieldDiscoveryRadioSurfaceDiagnostics.fieldDiscoveryRadioFieldsWithAnyLabelBucketCount,
+    fieldDiscoveryRadioFieldsWithProxyReferenceSignatureCount:
+      fieldDiscoveryRadioSurfaceDiagnostics.fieldDiscoveryRadioFieldsWithProxyReferenceSignatureCount,
+    fieldDiscoveryRadioFieldsWithDomAttributeSignatureCount:
+      fieldDiscoveryRadioSurfaceDiagnostics.fieldDiscoveryRadioFieldsWithDomAttributeSignatureCount,
+    fieldDiscoveryRadioFieldsWithRadioGraphicSignatureCount:
+      fieldDiscoveryRadioSurfaceDiagnostics.fieldDiscoveryRadioFieldsWithRadioGraphicSignatureCount,
+    fieldDiscoveryRadioFieldsWithNonTextLayoutSignatureCount:
+      fieldDiscoveryRadioSurfaceDiagnostics.fieldDiscoveryRadioFieldsWithNonTextLayoutSignatureCount,
+    fieldDiscoveryRadioFieldsWithContainerContextLabelsCount:
+      fieldDiscoveryRadioSurfaceDiagnostics.fieldDiscoveryRadioFieldsWithContainerContextLabelsCount,
+    fieldDiscoveryRadioFieldsWithLayoutProximityEvidenceCount:
+      fieldDiscoveryRadioSurfaceDiagnostics.fieldDiscoveryRadioFieldsWithLayoutProximityEvidenceCount,
+    fieldDiscoveryRadioFieldsWithAnyDiagnosticSurfaceCount:
+      fieldDiscoveryRadioSurfaceDiagnostics.fieldDiscoveryRadioFieldsWithAnyDiagnosticSurfaceCount,
+    fieldDiscoveryRadioFieldsSurfaceEmptyCount:
+      fieldDiscoveryRadioSurfaceDiagnostics.fieldDiscoveryRadioFieldsSurfaceEmptyCount,
+    fieldDiscoveryRadioFieldsGeneratedOnlyCount:
+      fieldDiscoveryRadioSurfaceDiagnostics.fieldDiscoveryRadioFieldsGeneratedOnlyCount,
+    fieldDiscoveryRadioFieldsUnsafeOmittedCount:
+      fieldDiscoveryRadioSurfaceDiagnostics.fieldDiscoveryRadioFieldsUnsafeOmittedCount,
+    fieldDiscoveryRadioSurfaceAttachmentGapDetected:
+      fieldDiscoveryRadioSurfaceDiagnostics.fieldDiscoveryRadioSurfaceAttachmentGapDetected,
+    fieldDiscoveryRadioSurfaceFilteringGapDetected:
+      fieldDiscoveryRadioSurfaceDiagnostics.fieldDiscoveryRadioSurfaceFilteringGapDetected,
+    fieldDiscoveryRadioSurfaceUpstreamAbsentDetected:
+      fieldDiscoveryRadioSurfaceDiagnostics.fieldDiscoveryRadioSurfaceUpstreamAbsentDetected,
     candidateSignatureSourceSummaryPresent: candidateSignatureSourceDiagnostics.candidateSignatureSourceSummaryPresent,
     candidateSignatureSourceOutcomeCategory: candidateSignatureSourceDiagnostics.candidateSignatureSourceOutcomeCategory,
     candidateSignatureSourceRejectedReasons: candidateSignatureSourceDiagnostics.candidateSignatureSourceRejectedReasons,
@@ -3307,6 +3851,57 @@ export function buildPhysicalOperatingAddressToggleSelectionSummary<T extends Gu
       radioGroupReferenceTargetExists: calibratedFallback.radioGroupReferenceTargetExists,
       radioGroupReferenceTargetVisible: calibratedFallback.radioGroupReferenceTargetVisible,
       radioGroupCommonOwnerCategory: calibratedFallback.radioGroupCommonOwnerCategory,
+      fieldDiscoveryRadioSurfaceSummaryPresent: calibratedFallback.fieldDiscoveryRadioSurfaceSummaryPresent,
+      fieldDiscoveryRadioSurfaceOutcomeCategory: calibratedFallback.fieldDiscoveryRadioSurfaceOutcomeCategory,
+      fieldDiscoveryRadioSurfaceRejectedReasons: calibratedFallback.fieldDiscoveryRadioSurfaceRejectedReasons,
+      fieldDiscoveryRadioSurfaceSummary: calibratedFallback.fieldDiscoveryRadioSurfaceSummary,
+      fieldDiscoveryTotalFieldCount: calibratedFallback.fieldDiscoveryTotalFieldCount,
+      fieldDiscoveryVisibleRadioInputCount: calibratedFallback.fieldDiscoveryVisibleRadioInputCount,
+      fieldDiscoveryVisibleEditableRadioInputCount:
+        calibratedFallback.fieldDiscoveryVisibleEditableRadioInputCount,
+      fieldDiscoveryExactThreeRadioCandidateCount:
+        calibratedFallback.fieldDiscoveryExactThreeRadioCandidateCount,
+      fieldDiscoveryRadioBuildersAttempted: calibratedFallback.fieldDiscoveryRadioBuildersAttempted,
+      fieldDiscoveryRadioBuildersSkipped: calibratedFallback.fieldDiscoveryRadioBuildersSkipped,
+      fieldDiscoveryRadioBuilderSkipReasons: calibratedFallback.fieldDiscoveryRadioBuilderSkipReasons,
+      fieldDiscoveryRadioFieldsWithSafeFieldKeyCount:
+        calibratedFallback.fieldDiscoveryRadioFieldsWithSafeFieldKeyCount,
+      fieldDiscoveryRadioFieldsWithIdOrNameKeyCount:
+        calibratedFallback.fieldDiscoveryRadioFieldsWithIdOrNameKeyCount,
+      fieldDiscoveryRadioFieldsWithInputNameCount:
+        calibratedFallback.fieldDiscoveryRadioFieldsWithInputNameCount,
+      fieldDiscoveryRadioFieldsWithGroupNameCount:
+        calibratedFallback.fieldDiscoveryRadioFieldsWithGroupNameCount,
+      fieldDiscoveryRadioFieldsWithResolvedLabelCount:
+        calibratedFallback.fieldDiscoveryRadioFieldsWithResolvedLabelCount,
+      fieldDiscoveryRadioFieldsWithAnyLabelBucketCount:
+        calibratedFallback.fieldDiscoveryRadioFieldsWithAnyLabelBucketCount,
+      fieldDiscoveryRadioFieldsWithProxyReferenceSignatureCount:
+        calibratedFallback.fieldDiscoveryRadioFieldsWithProxyReferenceSignatureCount,
+      fieldDiscoveryRadioFieldsWithDomAttributeSignatureCount:
+        calibratedFallback.fieldDiscoveryRadioFieldsWithDomAttributeSignatureCount,
+      fieldDiscoveryRadioFieldsWithRadioGraphicSignatureCount:
+        calibratedFallback.fieldDiscoveryRadioFieldsWithRadioGraphicSignatureCount,
+      fieldDiscoveryRadioFieldsWithNonTextLayoutSignatureCount:
+        calibratedFallback.fieldDiscoveryRadioFieldsWithNonTextLayoutSignatureCount,
+      fieldDiscoveryRadioFieldsWithContainerContextLabelsCount:
+        calibratedFallback.fieldDiscoveryRadioFieldsWithContainerContextLabelsCount,
+      fieldDiscoveryRadioFieldsWithLayoutProximityEvidenceCount:
+        calibratedFallback.fieldDiscoveryRadioFieldsWithLayoutProximityEvidenceCount,
+      fieldDiscoveryRadioFieldsWithAnyDiagnosticSurfaceCount:
+        calibratedFallback.fieldDiscoveryRadioFieldsWithAnyDiagnosticSurfaceCount,
+      fieldDiscoveryRadioFieldsSurfaceEmptyCount:
+        calibratedFallback.fieldDiscoveryRadioFieldsSurfaceEmptyCount,
+      fieldDiscoveryRadioFieldsGeneratedOnlyCount:
+        calibratedFallback.fieldDiscoveryRadioFieldsGeneratedOnlyCount,
+      fieldDiscoveryRadioFieldsUnsafeOmittedCount:
+        calibratedFallback.fieldDiscoveryRadioFieldsUnsafeOmittedCount,
+      fieldDiscoveryRadioSurfaceAttachmentGapDetected:
+        calibratedFallback.fieldDiscoveryRadioSurfaceAttachmentGapDetected,
+      fieldDiscoveryRadioSurfaceFilteringGapDetected:
+        calibratedFallback.fieldDiscoveryRadioSurfaceFilteringGapDetected,
+      fieldDiscoveryRadioSurfaceUpstreamAbsentDetected:
+        calibratedFallback.fieldDiscoveryRadioSurfaceUpstreamAbsentDetected,
       candidateSignatureSourceSummaryPresent: calibratedFallback.candidateSignatureSourceSummaryPresent,
       candidateSignatureSourceOutcomeCategory: calibratedFallback.candidateSignatureSourceOutcomeCategory,
       candidateSignatureSourceRejectedReasons: calibratedFallback.candidateSignatureSourceRejectedReasons,
@@ -3496,6 +4091,65 @@ export function buildPhysicalOperatingAddressToggleSelectionSummary<T extends Gu
     radioGroupReferenceTargetExists: calibratedFallbackGuardSummary.radioGroupReferenceTargetExists,
     radioGroupReferenceTargetVisible: calibratedFallbackGuardSummary.radioGroupReferenceTargetVisible,
     radioGroupCommonOwnerCategory: calibratedFallbackGuardSummary.radioGroupCommonOwnerCategory,
+    fieldDiscoveryRadioSurfaceSummaryPresent:
+      calibratedFallbackGuardSummary.fieldDiscoveryRadioSurfaceSummaryPresent,
+    fieldDiscoveryRadioSurfaceOutcomeCategory:
+      calibratedFallbackGuardSummary.fieldDiscoveryRadioSurfaceOutcomeCategory,
+    fieldDiscoveryRadioSurfaceRejectedReasons:
+      calibratedFallbackGuardSummary.fieldDiscoveryRadioSurfaceRejectedReasons,
+    fieldDiscoveryRadioSurfaceSummary:
+      calibratedFallbackGuardSummary.fieldDiscoveryRadioSurfaceSummary,
+    fieldDiscoveryTotalFieldCount: calibratedFallbackGuardSummary.fieldDiscoveryTotalFieldCount,
+    fieldDiscoveryVisibleRadioInputCount:
+      calibratedFallbackGuardSummary.fieldDiscoveryVisibleRadioInputCount,
+    fieldDiscoveryVisibleEditableRadioInputCount:
+      calibratedFallbackGuardSummary.fieldDiscoveryVisibleEditableRadioInputCount,
+    fieldDiscoveryExactThreeRadioCandidateCount:
+      calibratedFallbackGuardSummary.fieldDiscoveryExactThreeRadioCandidateCount,
+    fieldDiscoveryRadioBuildersAttempted:
+      calibratedFallbackGuardSummary.fieldDiscoveryRadioBuildersAttempted,
+    fieldDiscoveryRadioBuildersSkipped:
+      calibratedFallbackGuardSummary.fieldDiscoveryRadioBuildersSkipped,
+    fieldDiscoveryRadioBuilderSkipReasons:
+      calibratedFallbackGuardSummary.fieldDiscoveryRadioBuilderSkipReasons,
+    fieldDiscoveryRadioFieldsWithSafeFieldKeyCount:
+      calibratedFallbackGuardSummary.fieldDiscoveryRadioFieldsWithSafeFieldKeyCount,
+    fieldDiscoveryRadioFieldsWithIdOrNameKeyCount:
+      calibratedFallbackGuardSummary.fieldDiscoveryRadioFieldsWithIdOrNameKeyCount,
+    fieldDiscoveryRadioFieldsWithInputNameCount:
+      calibratedFallbackGuardSummary.fieldDiscoveryRadioFieldsWithInputNameCount,
+    fieldDiscoveryRadioFieldsWithGroupNameCount:
+      calibratedFallbackGuardSummary.fieldDiscoveryRadioFieldsWithGroupNameCount,
+    fieldDiscoveryRadioFieldsWithResolvedLabelCount:
+      calibratedFallbackGuardSummary.fieldDiscoveryRadioFieldsWithResolvedLabelCount,
+    fieldDiscoveryRadioFieldsWithAnyLabelBucketCount:
+      calibratedFallbackGuardSummary.fieldDiscoveryRadioFieldsWithAnyLabelBucketCount,
+    fieldDiscoveryRadioFieldsWithProxyReferenceSignatureCount:
+      calibratedFallbackGuardSummary.fieldDiscoveryRadioFieldsWithProxyReferenceSignatureCount,
+    fieldDiscoveryRadioFieldsWithDomAttributeSignatureCount:
+      calibratedFallbackGuardSummary.fieldDiscoveryRadioFieldsWithDomAttributeSignatureCount,
+    fieldDiscoveryRadioFieldsWithRadioGraphicSignatureCount:
+      calibratedFallbackGuardSummary.fieldDiscoveryRadioFieldsWithRadioGraphicSignatureCount,
+    fieldDiscoveryRadioFieldsWithNonTextLayoutSignatureCount:
+      calibratedFallbackGuardSummary.fieldDiscoveryRadioFieldsWithNonTextLayoutSignatureCount,
+    fieldDiscoveryRadioFieldsWithContainerContextLabelsCount:
+      calibratedFallbackGuardSummary.fieldDiscoveryRadioFieldsWithContainerContextLabelsCount,
+    fieldDiscoveryRadioFieldsWithLayoutProximityEvidenceCount:
+      calibratedFallbackGuardSummary.fieldDiscoveryRadioFieldsWithLayoutProximityEvidenceCount,
+    fieldDiscoveryRadioFieldsWithAnyDiagnosticSurfaceCount:
+      calibratedFallbackGuardSummary.fieldDiscoveryRadioFieldsWithAnyDiagnosticSurfaceCount,
+    fieldDiscoveryRadioFieldsSurfaceEmptyCount:
+      calibratedFallbackGuardSummary.fieldDiscoveryRadioFieldsSurfaceEmptyCount,
+    fieldDiscoveryRadioFieldsGeneratedOnlyCount:
+      calibratedFallbackGuardSummary.fieldDiscoveryRadioFieldsGeneratedOnlyCount,
+    fieldDiscoveryRadioFieldsUnsafeOmittedCount:
+      calibratedFallbackGuardSummary.fieldDiscoveryRadioFieldsUnsafeOmittedCount,
+    fieldDiscoveryRadioSurfaceAttachmentGapDetected:
+      calibratedFallbackGuardSummary.fieldDiscoveryRadioSurfaceAttachmentGapDetected,
+    fieldDiscoveryRadioSurfaceFilteringGapDetected:
+      calibratedFallbackGuardSummary.fieldDiscoveryRadioSurfaceFilteringGapDetected,
+    fieldDiscoveryRadioSurfaceUpstreamAbsentDetected:
+      calibratedFallbackGuardSummary.fieldDiscoveryRadioSurfaceUpstreamAbsentDetected,
     candidateSignatureSourceSummaryPresent: calibratedFallbackGuardSummary.candidateSignatureSourceSummaryPresent,
     candidateSignatureSourceOutcomeCategory: calibratedFallbackGuardSummary.candidateSignatureSourceOutcomeCategory,
     candidateSignatureSourceRejectedReasons: calibratedFallbackGuardSummary.candidateSignatureSourceRejectedReasons,
