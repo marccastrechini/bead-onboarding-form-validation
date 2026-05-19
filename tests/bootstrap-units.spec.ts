@@ -5892,6 +5892,27 @@ test.describe('interactive validation safety', () => {
     ...overrides,
   });
 
+  const ownershipSourceDebugDefaults = () => ({
+    ownershipSourceHarvestAttempted: true,
+    ownershipSourceHarvestOutcomeCategory: 'ownership-source-safe-tokens-present',
+    ownershipSourceHarvestRejectedReasons: [],
+    ownershipSourceHarvestSummary: 'ownership source harvest found safe ownership/reference token buckets',
+    ariaLabelledbyAttributePresentCount: 0,
+    ariaDescribedbyAttributePresentCount: 0,
+    sharedNamePresentCount: 0,
+    sharedOwnerPresentCount: 3,
+    docusignOwnerSignalPresentCount: 0,
+    ownershipReferenceTargetLookupAttempted: true,
+    ownershipReferenceTargetExistsCount: 3,
+    ownershipReferenceTargetVisibleCount: 3,
+    ownershipReferenceTargetSafeTokenCount: 1,
+    ownershipEvidenceFilteredAsGeneratedOnlyCount: 0,
+    ownershipEvidenceFilteredAsGenericOnlyCount: 0,
+    ownershipEvidenceFilteredByRedactionCount: 0,
+    ownershipEvidenceSourcesEmpty: false,
+    ownershipEvidenceSourcesPresentButNoSafeTokens: false,
+  });
+
   const radioGraphicSignature = (
     overrides: Record<string, unknown> = {},
   ) => ({
@@ -7778,6 +7799,11 @@ test.describe('interactive validation safety', () => {
     const serialized = JSON.stringify(summary);
 
     expect(summary.addressOptionsOwnershipAnchorOutcomeCategory).toBe('ownership-anchor-matched-aria-labelledby');
+    expect(summary.ownershipSourceHarvestOutcomeCategory).toBe('ownership-source-safe-tokens-present');
+    expect(summary.ariaLabelledbyAttributePresentCount).toBe(3);
+    expect(summary.ownershipReferenceTargetExistsCount).toBe(3);
+    expect(summary.ownershipReferenceTargetVisibleCount).toBe(3);
+    expect(summary.ownershipReferenceTargetSafeTokenCount).toBeGreaterThan(0);
     expect(summary.radioGroupAriaLabelledbyBucketsPresent).toEqual(expect.arrayContaining(['physical-operating-address']));
     expect(summary.addressOptionsOwnershipAnchorSafeTokensObserved).toEqual(
       expect.arrayContaining(['physical-operating-address', 'generated-reference-only']),
@@ -7829,6 +7855,10 @@ test.describe('interactive validation safety', () => {
     const serialized = JSON.stringify(summary);
 
     expect(summary.addressOptionsOwnershipAnchorOutcomeCategory).toBe('ownership-anchor-matched-aria-describedby');
+    expect(summary.ownershipSourceHarvestOutcomeCategory).toBe('ownership-source-safe-tokens-present');
+    expect(summary.ariaDescribedbyAttributePresentCount).toBe(3);
+    expect(summary.ownershipReferenceTargetExistsCount).toBe(3);
+    expect(summary.ownershipReferenceTargetSafeTokenCount).toBeGreaterThan(0);
     expect(summary.radioGroupAriaDescribedbyBucketsPresent).toEqual(expect.arrayContaining(['registered-legal-address']));
     expect(summary.addressOptionsOwnershipAnchorSafeTokensObserved).toEqual(expect.arrayContaining(['registered-legal-address']));
     expect(serialized).not.toContain('legal-address-token');
@@ -7845,6 +7875,9 @@ test.describe('interactive validation safety', () => {
     const serialized = JSON.stringify(summary);
 
     expect(summary.addressOptionsOwnershipAnchorOutcomeCategory).toBe('ownership-anchor-matched-shared-name');
+    expect(summary.ownershipSourceHarvestOutcomeCategory).toBe('ownership-source-safe-tokens-present');
+    expect(summary.sharedNamePresentCount).toBe(3);
+    expect(summary.ownershipReferenceTargetLookupAttempted).toBe(false);
     expect(summary.radioGroupSharedNameBucketsPresent).toEqual(expect.arrayContaining(['business-primary-location']));
     expect(summary.radioGroupCommonOwnerCategory).toBe('shared-name');
     expect(serialized).not.toContain('Business Primary Location');
@@ -7893,6 +7926,9 @@ test.describe('interactive validation safety', () => {
     const summary = buildPhysicalOperatingAddressToggleSelectionSummary(selection);
 
     expect(summary.addressOptionsOwnershipAnchorOutcomeCategory).toBe('ownership-anchor-matched-shared-owner');
+    expect(summary.ownershipSourceHarvestOutcomeCategory).toBe('ownership-source-safe-tokens-present');
+    expect(summary.sharedOwnerPresentCount).toBe(3);
+    expect(summary.ownershipReferenceTargetExistsCount).toBe(3);
     expect(summary.radioGroupSharedOwnerBucketsPresent).toEqual(expect.arrayContaining(['physical-operating-address']));
     expect(summary.radioGroupCommonOwnerCategory).toBe('shared-owner');
   });
@@ -7959,12 +7995,15 @@ test.describe('interactive validation safety', () => {
     const serialized = JSON.stringify(summary);
 
     expect(summary.addressOptionsOwnershipAnchorOutcomeCategory).toBe('ownership-anchor-matched-docusign-owner');
+    expect(summary.ownershipSourceHarvestOutcomeCategory).toBe('ownership-source-safe-tokens-present');
+    expect(summary.docusignOwnerSignalPresentCount).toBe(3);
+    expect(summary.ownershipReferenceTargetExistsCount).toBe(3);
     expect(summary.radioGroupDocusignOwnerBucketsPresent).toEqual(expect.arrayContaining(['physical-operating-address']));
     expect(summary.radioGroupCommonOwnerCategory).toBe('docusign-owner');
     expect(serialized).not.toContain('generated-token-pattern');
   });
 
-  test('guarded physical address discovery calibrated fallback anchor evidence reports empty safe sources when exact three radios have no anchor evidence', () => {
+  test('guarded physical address discovery calibrated fallback ownership source diagnostics report empty sources and stay fail closed when exact three radios have no anchor evidence', () => {
     const selection = explainPhysicalOperatingAddressToggleSelection([
       calibratedBusinessPrimaryLocationRadioField(153, { groupName: null }),
       calibratedBusinessPrimaryLocationRadioField(154, { groupName: null }),
@@ -7982,6 +8021,24 @@ test.describe('interactive validation safety', () => {
     expect(summary.addressOptionsOwnershipAnchorRejectedReasons).toEqual(
       expect.arrayContaining(['ownership-anchor-missing', 'safe-evidence-empty']),
     );
+    expect(summary.ownershipSourceHarvestAttempted).toBe(true);
+    expect(summary.ownershipSourceHarvestOutcomeCategory).toBe('ownership-source-empty');
+    expect(summary.ownershipSourceHarvestRejectedReasons).toEqual(['sources-empty']);
+    expect(summary.ownershipSourceHarvestSummary).toBe('ownership source harvest found no ownership/reference sources');
+    expect(summary.ariaLabelledbyAttributePresentCount).toBe(0);
+    expect(summary.ariaDescribedbyAttributePresentCount).toBe(0);
+    expect(summary.sharedNamePresentCount).toBe(0);
+    expect(summary.sharedOwnerPresentCount).toBe(0);
+    expect(summary.docusignOwnerSignalPresentCount).toBe(0);
+    expect(summary.ownershipReferenceTargetLookupAttempted).toBe(false);
+    expect(summary.ownershipReferenceTargetExistsCount).toBe(0);
+    expect(summary.ownershipReferenceTargetVisibleCount).toBe(0);
+    expect(summary.ownershipReferenceTargetSafeTokenCount).toBe(0);
+    expect(summary.ownershipEvidenceFilteredAsGeneratedOnlyCount).toBe(0);
+    expect(summary.ownershipEvidenceFilteredAsGenericOnlyCount).toBe(0);
+    expect(summary.ownershipEvidenceFilteredByRedactionCount).toBe(0);
+    expect(summary.ownershipEvidenceSourcesEmpty).toBe(true);
+    expect(summary.ownershipEvidenceSourcesPresentButNoSafeTokens).toBe(false);
     expect(summary.addressOptionsOwnershipAnchorSafeTokensObserved).toEqual([]);
     expect(summary.radioGroupReferenceTargetExists).toBe(false);
     expect(summary.radioGroupReferenceTargetVisible).toBe(false);
@@ -8087,7 +8144,7 @@ test.describe('interactive validation safety', () => {
     expect(summary.toggleSelectionOutcomeCategory).toBe('calibrated-rejected-anchor-missing');
   });
 
-  test('guarded physical address discovery calibrated fallback ownership anchor evidence reports only generated reference buckets and still fails closed', () => {
+  test('guarded physical address discovery calibrated fallback ownership source diagnostics report generated-only references and still fail closed', () => {
     const selection = explainPhysicalOperatingAddressToggleSelection([
       calibratedBusinessPrimaryLocationRadioField(177, {
         groupName: null,
@@ -8125,12 +8182,21 @@ test.describe('interactive validation safety', () => {
     const serialized = JSON.stringify(summary);
 
     expect(summary.addressOptionsOwnershipAnchorOutcomeCategory).toBe('ownership-anchor-missing-only-generated-reference');
+    expect(summary.ownershipSourceHarvestOutcomeCategory).toBe('ownership-source-generated-only');
+    expect(summary.ownershipSourceHarvestRejectedReasons).toEqual(['generated-only']);
+    expect(summary.ownershipSourceHarvestSummary).toBe('ownership source harvest found only generated ownership/reference evidence');
+    expect(summary.ariaLabelledbyAttributePresentCount).toBe(3);
+    expect(summary.ownershipReferenceTargetLookupAttempted).toBe(true);
+    expect(summary.ownershipReferenceTargetExistsCount).toBe(0);
+    expect(summary.ownershipReferenceTargetSafeTokenCount).toBe(0);
+    expect(summary.ownershipEvidenceFilteredAsGeneratedOnlyCount).toBeGreaterThan(0);
+    expect(summary.ownershipEvidenceSourcesPresentButNoSafeTokens).toBe(true);
     expect(summary.addressOptionsOwnershipAnchorSafeTokensObserved).toEqual(expect.arrayContaining(['generated-reference-only']));
     expect(summary.toggleSelectionOutcomeCategory).toBe('calibrated-rejected-anchor-missing');
     expect(serialized).not.toContain('generated-token-pattern');
   });
 
-  test('guarded physical address discovery calibrated fallback ownership anchor evidence reports only generic buckets and still fails closed', () => {
+  test('guarded physical address discovery calibrated fallback ownership source diagnostics report generic-only evidence and still fail closed', () => {
     const selection = explainPhysicalOperatingAddressToggleSelection([
       calibratedBusinessPrimaryLocationRadioField(180, {
         groupName: 'Radio Group',
@@ -8173,11 +8239,187 @@ test.describe('interactive validation safety', () => {
     const summary = buildPhysicalOperatingAddressToggleSelectionSummary(selection);
 
     expect(summary.addressOptionsOwnershipAnchorOutcomeCategory).toBe('ownership-anchor-missing-only-generic-evidence');
+    expect(summary.ownershipSourceHarvestOutcomeCategory).toBe('ownership-source-generic-only');
+    expect(summary.ownershipSourceHarvestRejectedReasons).toEqual(['generic-only']);
+    expect(summary.sharedNamePresentCount).toBe(3);
+    expect(summary.sharedOwnerPresentCount).toBe(3);
+    expect(summary.ownershipReferenceTargetLookupAttempted).toBe(true);
+    expect(summary.ownershipReferenceTargetExistsCount).toBe(3);
+    expect(summary.ownershipReferenceTargetSafeTokenCount).toBe(0);
+    expect(summary.ownershipEvidenceFilteredAsGenericOnlyCount).toBeGreaterThan(0);
+    expect(summary.ownershipEvidenceSourcesPresentButNoSafeTokens).toBe(true);
     expect(summary.addressOptionsOwnershipAnchorSafeTokensObserved).toEqual(
       expect.arrayContaining(['address-options', 'radio-group', 'generic-only']),
     );
     expect(summary.radioGroupCommonOwnerCategory).toBe('generic-only');
     expect(summary.toggleSelectionOutcomeCategory).toBe('calibrated-rejected-anchor-missing');
+  });
+
+  test('guarded physical address discovery calibrated fallback ownership source diagnostics report attributes present but missing targets without leaking raw references', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      calibratedBusinessPrimaryLocationRadioField(183, {
+        groupName: null,
+        proxyReferenceSignature: proxyReferenceSignature({
+          hasAriaLabelledByReference: true,
+          ariaLabelledByTargetExists: false,
+          ariaLabelledByTargetVisible: false,
+          hasAriaDescribedByReference: true,
+          ariaDescribedByTargetExists: false,
+          ariaDescribedByTargetVisible: false,
+          hasForIdReference: false,
+          hasDataReference: false,
+          valueHintBuckets: [],
+          valueHintCount: 0,
+        }),
+      }),
+      calibratedBusinessPrimaryLocationRadioField(184, {
+        groupName: null,
+        proxyReferenceSignature: proxyReferenceSignature({
+          hasAriaLabelledByReference: true,
+          ariaLabelledByTargetExists: false,
+          ariaLabelledByTargetVisible: false,
+          hasAriaDescribedByReference: true,
+          ariaDescribedByTargetExists: false,
+          ariaDescribedByTargetVisible: false,
+          hasForIdReference: false,
+          hasDataReference: false,
+          valueHintBuckets: [],
+          valueHintCount: 0,
+        }),
+      }),
+      calibratedBusinessPrimaryLocationRadioField(185, {
+        groupName: null,
+        proxyReferenceSignature: proxyReferenceSignature({
+          hasAriaLabelledByReference: true,
+          ariaLabelledByTargetExists: false,
+          ariaLabelledByTargetVisible: false,
+          hasAriaDescribedByReference: true,
+          ariaDescribedByTargetExists: false,
+          ariaDescribedByTargetVisible: false,
+          hasForIdReference: false,
+          hasDataReference: false,
+          valueHintBuckets: [],
+          valueHintCount: 0,
+        }),
+      }),
+    ] as any);
+
+    const summary = buildPhysicalOperatingAddressToggleSelectionSummary(selection);
+    const serialized = JSON.stringify(summary);
+
+    expect(summary.ownershipSourceHarvestAttempted).toBe(true);
+    expect(summary.ownershipSourceHarvestOutcomeCategory).toBe('ownership-source-attributes-present-no-targets');
+    expect(summary.ownershipSourceHarvestRejectedReasons).toEqual(['reference-targets-missing']);
+    expect(summary.ariaLabelledbyAttributePresentCount).toBe(3);
+    expect(summary.ariaDescribedbyAttributePresentCount).toBe(3);
+    expect(summary.ownershipReferenceTargetLookupAttempted).toBe(true);
+    expect(summary.ownershipReferenceTargetExistsCount).toBe(0);
+    expect(summary.ownershipReferenceTargetVisibleCount).toBe(0);
+    expect(summary.radioGroupReferenceTargetExists).toBe(false);
+    expect(summary.radioGroupReferenceTargetVisible).toBe(false);
+    expect(summary.toggleSelectionOutcomeCategory).toBe('calibrated-rejected-anchor-missing');
+    expect(serialized).not.toContain('aria-labelledby');
+    expect(serialized).not.toContain('aria-describedby');
+  });
+
+  test('guarded physical address discovery calibrated fallback ownership source diagnostics report reference targets with no safe tokens', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      calibratedBusinessPrimaryLocationRadioField(186, {
+        groupName: null,
+        proxyReferenceSignature: proxyReferenceSignature({
+          hasAriaLabelledByReference: true,
+          ariaLabelledByTargetExists: true,
+          ariaLabelledByTargetVisible: true,
+          valueHintBuckets: ['address-like-token'],
+          valueHintCount: 1,
+        }),
+      }),
+      calibratedBusinessPrimaryLocationRadioField(187, {
+        groupName: null,
+        proxyReferenceSignature: proxyReferenceSignature({
+          hasAriaLabelledByReference: true,
+          ariaLabelledByTargetExists: true,
+          ariaLabelledByTargetVisible: true,
+          valueHintBuckets: ['address-like-token'],
+          valueHintCount: 1,
+        }),
+      }),
+      calibratedBusinessPrimaryLocationRadioField(188, {
+        groupName: null,
+        proxyReferenceSignature: proxyReferenceSignature({
+          hasAriaLabelledByReference: true,
+          ariaLabelledByTargetExists: true,
+          ariaLabelledByTargetVisible: true,
+          valueHintBuckets: ['address-like-token'],
+          valueHintCount: 1,
+        }),
+      }),
+    ] as any);
+
+    const summary = buildPhysicalOperatingAddressToggleSelectionSummary(selection);
+
+    expect(summary.ownershipSourceHarvestOutcomeCategory).toBe('ownership-source-targets-present-no-safe-tokens');
+    expect(summary.ownershipSourceHarvestRejectedReasons).toEqual(['reference-targets-present-no-safe-tokens']);
+    expect(summary.ownershipReferenceTargetLookupAttempted).toBe(true);
+    expect(summary.ownershipReferenceTargetExistsCount).toBe(3);
+    expect(summary.ownershipReferenceTargetVisibleCount).toBe(3);
+    expect(summary.ownershipReferenceTargetSafeTokenCount).toBe(0);
+    expect(summary.addressOptionsOwnershipAnchorSafeTokensObserved).toEqual(expect.arrayContaining(['address-options']));
+    expect(summary.toggleSelectionOutcomeCategory).toBe('calibrated-rejected-anchor-missing');
+  });
+
+  test('guarded physical address discovery calibrated fallback ownership source diagnostics report filtered ownership evidence without leaking raw values', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      calibratedBusinessPrimaryLocationRadioField(189, {
+        groupName: null,
+        proxyReferenceSignature: proxyReferenceSignature({
+          hasAriaLabelledByReference: true,
+          ariaLabelledByTargetExists: true,
+          ariaLabelledByTargetVisible: true,
+          tokenShapeBuckets: ['generated-token-pattern'],
+          tokenShapeCount: 1,
+          valueHintBuckets: [],
+          valueHintCount: 0,
+        }),
+      }),
+      calibratedBusinessPrimaryLocationRadioField(190, {
+        groupName: null,
+        proxyReferenceSignature: proxyReferenceSignature({
+          hasAriaLabelledByReference: true,
+          ariaLabelledByTargetExists: true,
+          ariaLabelledByTargetVisible: true,
+          tokenShapeBuckets: ['generated-token-pattern'],
+          tokenShapeCount: 1,
+          valueHintBuckets: [],
+          valueHintCount: 0,
+        }),
+      }),
+      calibratedBusinessPrimaryLocationRadioField(191, {
+        groupName: null,
+        proxyReferenceSignature: proxyReferenceSignature({
+          hasAriaLabelledByReference: true,
+          ariaLabelledByTargetExists: true,
+          ariaLabelledByTargetVisible: true,
+          tokenShapeBuckets: ['generated-token-pattern'],
+          tokenShapeCount: 1,
+          valueHintBuckets: [],
+          valueHintCount: 0,
+        }),
+      }),
+    ] as any);
+
+    const summary = buildPhysicalOperatingAddressToggleSelectionSummary(selection);
+    const serialized = JSON.stringify(summary);
+
+    expect(summary.ownershipSourceHarvestOutcomeCategory).toBe('ownership-source-filtered-by-redaction');
+    expect(summary.ownershipSourceHarvestRejectedReasons).toEqual(['filtered-by-redaction']);
+    expect(summary.ownershipEvidenceFilteredByRedactionCount).toBeGreaterThan(0);
+    expect(summary.ownershipReferenceTargetExistsCount).toBe(3);
+    expect(summary.ownershipReferenceTargetSafeTokenCount).toBe(0);
+    expect(summary.addressOptionsOwnershipAnchorSafeTokensObserved).toEqual([]);
+    expect(summary.toggleSelectionOutcomeCategory).toBe('calibrated-rejected-anchor-missing');
+    expect(serialized).not.toContain('tab-form-element');
+    expect(serialized).not.toContain('SECRET');
   });
 
   test('guarded physical address discovery calibrated fallback fails closed when fewer than three unlabeled candidates are present', () => {
@@ -8202,6 +8444,11 @@ test.describe('interactive validation safety', () => {
     expect(selection.fallbackInventory?.calibratedFallback?.addressOptionsOwnershipAnchorOutcomeCategory).toBe('ownership-anchor-not-checked');
     expect(selection.fallbackInventory?.calibratedFallback?.addressOptionsOwnershipAnchorRejectedReasons).toEqual(['not-checked-prior-guard-failed']);
     expect(selection.fallbackInventory?.calibratedFallback?.radioGroupCommonOwnerCategory).toBe('not-checked');
+    expect(selection.fallbackInventory?.calibratedFallback?.ownershipSourceHarvestAttempted).toBe(false);
+    expect(selection.fallbackInventory?.calibratedFallback?.ownershipSourceHarvestOutcomeCategory)
+      .toBe('ownership-source-prior-guard-failed');
+    expect(selection.fallbackInventory?.calibratedFallback?.ownershipSourceHarvestRejectedReasons)
+      .toEqual(['prior-guard-failed']);
   });
 
   test('guarded physical address discovery calibrated fallback fails closed when more than three unlabeled candidates are present', () => {
@@ -9138,6 +9385,7 @@ test.describe('interactive validation safety', () => {
       radioGroupReferenceTargetExists: true,
       radioGroupReferenceTargetVisible: true,
       radioGroupCommonOwnerCategory: 'shared-owner',
+      ...ownershipSourceDebugDefaults(),
       exactThreeRadioGuardPassed: true,
       candidateOrderStable: true,
       conflictingCueDetected: false,
@@ -9180,6 +9428,7 @@ test.describe('interactive validation safety', () => {
     radioGroupReferenceTargetExists: true,
     radioGroupReferenceTargetVisible: true,
     radioGroupCommonOwnerCategory: 'shared-owner',
+    ...ownershipSourceDebugDefaults(),
     candidateOrderStable: true,
     conflictingCueDetected: false,
     ...overrides,
@@ -9265,6 +9514,7 @@ test.describe('interactive validation safety', () => {
       radioGroupReferenceTargetExists: true,
       radioGroupReferenceTargetVisible: true,
       radioGroupCommonOwnerCategory: 'shared-owner',
+      ...ownershipSourceDebugDefaults(),
       exactThreeRadioGuardPassed: true,
       candidateOrderStable: true,
       conflictingCueDetected: false,
@@ -9307,6 +9557,7 @@ test.describe('interactive validation safety', () => {
     radioGroupReferenceTargetExists: true,
     radioGroupReferenceTargetVisible: true,
     radioGroupCommonOwnerCategory: 'shared-owner',
+    ...ownershipSourceDebugDefaults(),
     candidateOrderStable: true,
     conflictingCueDetected: false,
     selectionMode: 'calibrated-fallback',
@@ -9930,6 +10181,8 @@ test.describe('interactive validation safety', () => {
     expect(serialized).not.toContain('P.O. Box');
     expect(serialized).not.toContain('physical-operating-address-token');
     expect(serialized).not.toContain('generated-token-pattern');
+    expect(serialized).not.toContain('hidden.person@example.test');
+    expect(serialized).not.toContain('tab-form-element');
   });
 
   test('physical address capture-only runner source reuses guarded capture path and avoids validation sweep logic', () => {
@@ -10043,6 +10296,11 @@ test.describe('interactive validation safety', () => {
     expect(receipt?.addressOptionsOwnershipAnchorOutcomeCategory).toBe('ownership-anchor-matched-shared-owner');
     expect(receipt?.calibratedFallbackGuardSummary.addressOptionsOwnershipAnchorOutcomeCategory)
       .toBe('ownership-anchor-matched-shared-owner');
+    expect(receipt?.ownershipSourceHarvestOutcomeCategory).toBe('ownership-source-safe-tokens-present');
+    expect(receipt?.calibratedFallbackGuardSummary.ownershipSourceHarvestOutcomeCategory)
+      .toBe('ownership-source-safe-tokens-present');
+    expect(receipt?.ownershipReferenceTargetExistsCount).toBe(3);
+    expect(receipt?.ownershipReferenceTargetVisibleCount).toBe(3);
     expect(receipt?.radioGroupSharedOwnerBucketsPresent).toEqual(expect.arrayContaining(['physical-operating-address']));
     expect(receipt?.radioGroupReferenceTargetExists).toBe(true);
     expect(receipt?.radioGroupReferenceTargetVisible).toBe(true);
@@ -10114,6 +10372,9 @@ test.describe('interactive validation safety', () => {
     expect(receipt?.addressOptionsOwnershipAnchorOutcomeCategory).toBe('ownership-anchor-matched-shared-owner');
     expect(receipt?.calibratedFallbackGuardSummary.addressOptionsOwnershipAnchorOutcomeCategory)
       .toBe('ownership-anchor-matched-shared-owner');
+    expect(receipt?.ownershipSourceHarvestOutcomeCategory).toBe('ownership-source-safe-tokens-present');
+    expect(receipt?.calibratedFallbackGuardSummary.ownershipSourceHarvestOutcomeCategory)
+      .toBe('ownership-source-safe-tokens-present');
     expect(receipt?.radioGroupSharedOwnerBucketsPresent).toEqual(expect.arrayContaining(['physical-operating-address']));
     expect(receipt?.uiEffectOutcomeCategory).toBe('proof-address-visible-physical-fields-visible');
   });

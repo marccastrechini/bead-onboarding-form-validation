@@ -205,6 +205,38 @@ export type PhysicalOperatingAddressAddressOptionsOwnershipAnchorSourceChecked =
   | 'shared-owner'
   | 'docusign-owner';
 
+export type PhysicalOperatingAddressOwnershipSourceHarvestOutcomeCategory =
+  | 'ownership-source-not-attempted'
+  | 'ownership-source-empty'
+  | 'ownership-source-attributes-present-no-targets'
+  | 'ownership-source-targets-present-no-safe-tokens'
+  | 'ownership-source-generated-only'
+  | 'ownership-source-generic-only'
+  | 'ownership-source-filtered-by-redaction'
+  | 'ownership-source-safe-tokens-present'
+  | 'ownership-source-prior-guard-failed';
+
+export type PhysicalOperatingAddressOwnershipSourceHarvestRejectedReason =
+  | 'not-attempted'
+  | 'prior-guard-failed'
+  | 'sources-empty'
+  | 'reference-targets-missing'
+  | 'reference-targets-present-no-safe-tokens'
+  | 'generated-only'
+  | 'generic-only'
+  | 'filtered-by-redaction';
+
+export type PhysicalOperatingAddressOwnershipSourceHarvestSummary =
+  | 'ownership source harvest was not attempted'
+  | 'ownership source harvest skipped because the exact-three-radio guard failed'
+  | 'ownership source harvest found no ownership/reference sources'
+  | 'ownership source harvest found ownership/reference attributes but no targets'
+  | 'ownership source harvest found reference targets but no safe token buckets'
+  | 'ownership source harvest found only generated ownership/reference evidence'
+  | 'ownership source harvest found only generic ownership/reference evidence'
+  | 'ownership source harvest found source evidence but safety guards filtered it before bucketing'
+  | 'ownership source harvest found safe ownership/reference token buckets';
+
 export type PhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket =
   | 'business-primary-location'
   | 'registered-legal-address'
@@ -261,6 +293,24 @@ export interface PhysicalOperatingAddressCalibratedFallbackGuardSummary {
   radioGroupReferenceTargetExists: boolean;
   radioGroupReferenceTargetVisible: boolean;
   radioGroupCommonOwnerCategory: PhysicalOperatingAddressAddressOptionsOwnershipAnchorCommonOwnerCategory;
+  ownershipSourceHarvestAttempted: boolean;
+  ownershipSourceHarvestOutcomeCategory: PhysicalOperatingAddressOwnershipSourceHarvestOutcomeCategory;
+  ownershipSourceHarvestRejectedReasons: PhysicalOperatingAddressOwnershipSourceHarvestRejectedReason[];
+  ownershipSourceHarvestSummary: PhysicalOperatingAddressOwnershipSourceHarvestSummary;
+  ariaLabelledbyAttributePresentCount: number;
+  ariaDescribedbyAttributePresentCount: number;
+  sharedNamePresentCount: number;
+  sharedOwnerPresentCount: number;
+  docusignOwnerSignalPresentCount: number;
+  ownershipReferenceTargetLookupAttempted: boolean;
+  ownershipReferenceTargetExistsCount: number;
+  ownershipReferenceTargetVisibleCount: number;
+  ownershipReferenceTargetSafeTokenCount: number;
+  ownershipEvidenceFilteredAsGeneratedOnlyCount: number;
+  ownershipEvidenceFilteredAsGenericOnlyCount: number;
+  ownershipEvidenceFilteredByRedactionCount: number;
+  ownershipEvidenceSourcesEmpty: boolean;
+  ownershipEvidenceSourcesPresentButNoSafeTokens: boolean;
   exactThreeRadioGuardPassed: boolean;
   candidateOrderStable: boolean;
   conflictingCueDetected: boolean;
@@ -317,6 +367,24 @@ export interface PhysicalOperatingAddressToggleSelectionSummary {
   radioGroupReferenceTargetExists: boolean;
   radioGroupReferenceTargetVisible: boolean;
   radioGroupCommonOwnerCategory: PhysicalOperatingAddressAddressOptionsOwnershipAnchorCommonOwnerCategory;
+  ownershipSourceHarvestAttempted: boolean;
+  ownershipSourceHarvestOutcomeCategory: PhysicalOperatingAddressOwnershipSourceHarvestOutcomeCategory;
+  ownershipSourceHarvestRejectedReasons: PhysicalOperatingAddressOwnershipSourceHarvestRejectedReason[];
+  ownershipSourceHarvestSummary: PhysicalOperatingAddressOwnershipSourceHarvestSummary;
+  ariaLabelledbyAttributePresentCount: number;
+  ariaDescribedbyAttributePresentCount: number;
+  sharedNamePresentCount: number;
+  sharedOwnerPresentCount: number;
+  docusignOwnerSignalPresentCount: number;
+  ownershipReferenceTargetLookupAttempted: boolean;
+  ownershipReferenceTargetExistsCount: number;
+  ownershipReferenceTargetVisibleCount: number;
+  ownershipReferenceTargetSafeTokenCount: number;
+  ownershipEvidenceFilteredAsGeneratedOnlyCount: number;
+  ownershipEvidenceFilteredAsGenericOnlyCount: number;
+  ownershipEvidenceFilteredByRedactionCount: number;
+  ownershipEvidenceSourcesEmpty: boolean;
+  ownershipEvidenceSourcesPresentButNoSafeTokens: boolean;
   candidateOrderStable: boolean;
   conflictingCueDetected: boolean;
 }
@@ -660,6 +728,24 @@ type PhysicalOperatingAddressToggleCalibratedFallbackDiagnostics = {
   radioGroupReferenceTargetExists: boolean;
   radioGroupReferenceTargetVisible: boolean;
   radioGroupCommonOwnerCategory: PhysicalOperatingAddressAddressOptionsOwnershipAnchorCommonOwnerCategory;
+  ownershipSourceHarvestAttempted: boolean;
+  ownershipSourceHarvestOutcomeCategory: PhysicalOperatingAddressOwnershipSourceHarvestOutcomeCategory;
+  ownershipSourceHarvestRejectedReasons: PhysicalOperatingAddressOwnershipSourceHarvestRejectedReason[];
+  ownershipSourceHarvestSummary: PhysicalOperatingAddressOwnershipSourceHarvestSummary;
+  ariaLabelledbyAttributePresentCount: number;
+  ariaDescribedbyAttributePresentCount: number;
+  sharedNamePresentCount: number;
+  sharedOwnerPresentCount: number;
+  docusignOwnerSignalPresentCount: number;
+  ownershipReferenceTargetLookupAttempted: boolean;
+  ownershipReferenceTargetExistsCount: number;
+  ownershipReferenceTargetVisibleCount: number;
+  ownershipReferenceTargetSafeTokenCount: number;
+  ownershipEvidenceFilteredAsGeneratedOnlyCount: number;
+  ownershipEvidenceFilteredAsGenericOnlyCount: number;
+  ownershipEvidenceFilteredByRedactionCount: number;
+  ownershipEvidenceSourcesEmpty: boolean;
+  ownershipEvidenceSourcesPresentButNoSafeTokens: boolean;
   addressOptionsClusterGuardPassed: boolean;
   candidateOrderStable: boolean;
   exactThreeRadioGuardPassed: boolean;
@@ -1219,6 +1305,109 @@ function intersectAddressOptionsOwnershipAnchorTokenBuckets(
   return sortUniqueAddressOptionsOwnershipAnchorTokenBuckets([...sharedBuckets]);
 }
 
+function isNonSafeOnlyAddressOptionsOwnershipAnchorTokenBucket(
+  bucket: PhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket,
+): boolean {
+  return bucket === 'address-options'
+    || bucket === 'radio-group'
+    || bucket === 'question-prompt'
+    || bucket === 'generated-reference-only'
+    || bucket === 'generic-only';
+}
+
+function countOwnershipSafeReferenceTokenBuckets(
+  buckets: PhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket[],
+): number {
+  return buckets.filter(isNonGenericAddressOptionsOwnershipAnchorTokenBucket).length;
+}
+
+function hasAnyOwnershipReferenceTargetExists(field: GuardedToggleField): boolean {
+  const signature = field.proxyReferenceSignature;
+  return Boolean(signature && (
+    signature.forReferenceTargetExists
+    || signature.ariaLabelledByTargetExists
+    || signature.ariaDescribedByTargetExists
+    || signature.ariaControlsTargetExists
+    || signature.dataReferenceTargetExists
+    || signature.docuSignReferenceTargetExists
+  ));
+}
+
+function hasAnyOwnershipReferenceTargetVisible(field: GuardedToggleField): boolean {
+  const signature = field.proxyReferenceSignature;
+  return Boolean(signature && (
+    signature.forReferenceTargetVisible
+    || signature.ariaLabelledByTargetVisible
+    || signature.ariaDescribedByTargetVisible
+    || signature.ariaControlsTargetVisible
+    || signature.dataReferenceTargetVisible
+    || signature.docuSignReferenceTargetVisible
+  ));
+}
+
+function hasAnyOwnershipReferenceLookupSignal(field: GuardedToggleField): boolean {
+  const signature = field.proxyReferenceSignature;
+  return Boolean(signature && (
+    signature.hasForIdReference
+    || signature.hasAriaLabelledByReference
+    || signature.hasAriaDescribedByReference
+    || signature.hasAriaControlsReference
+    || signature.hasDataReference
+    || signature.hasDocuSignReference
+  ));
+}
+
+function hasOwnershipSourceFilteredByRedactionSignal(
+  field: GuardedToggleField,
+  source: PhysicalOperatingAddressAddressOptionsOwnershipAnchorSourceChecked,
+): boolean {
+  if (source === 'shared-name') {
+    return Boolean(normalizeText(field.groupName));
+  }
+
+  if (source === 'shared-owner' || source === 'docusign-owner') {
+    const signature = field.proxyReferenceSignature;
+    const attributeSignature = field.domAttributeSignature;
+    return Boolean(
+      (signature?.tokenShapeCount ?? 0) > 0
+      || (signature?.valueHintCount ?? 0) > 0
+      || (attributeSignature?.tokenShapeCount ?? 0) > 0
+      || (attributeSignature?.valueHintCount ?? 0) > 0,
+    );
+  }
+
+  const signature = field.proxyReferenceSignature;
+  return Boolean(signature && (
+    signature.tokenShapeCount > 0 || signature.valueHintCount > 0
+  ));
+}
+
+function buildOwnershipSourceHarvestSummary(
+  category: PhysicalOperatingAddressOwnershipSourceHarvestOutcomeCategory,
+): PhysicalOperatingAddressOwnershipSourceHarvestSummary {
+  switch (category) {
+    case 'ownership-source-not-attempted':
+      return 'ownership source harvest was not attempted';
+    case 'ownership-source-empty':
+      return 'ownership source harvest found no ownership/reference sources';
+    case 'ownership-source-attributes-present-no-targets':
+      return 'ownership source harvest found ownership/reference attributes but no targets';
+    case 'ownership-source-targets-present-no-safe-tokens':
+      return 'ownership source harvest found reference targets but no safe token buckets';
+    case 'ownership-source-generated-only':
+      return 'ownership source harvest found only generated ownership/reference evidence';
+    case 'ownership-source-generic-only':
+      return 'ownership source harvest found only generic ownership/reference evidence';
+    case 'ownership-source-filtered-by-redaction':
+      return 'ownership source harvest found source evidence but safety guards filtered it before bucketing';
+    case 'ownership-source-safe-tokens-present':
+      return 'ownership source harvest found safe ownership/reference token buckets';
+    case 'ownership-source-prior-guard-failed':
+    default:
+      return 'ownership source harvest skipped because the exact-three-radio guard failed';
+  }
+}
+
 function buildAddressOptionsAnchorEvidenceSummary(
   category: PhysicalOperatingAddressAddressOptionsAnchorOutcomeCategory,
 ): PhysicalOperatingAddressAddressOptionsAnchorEvidenceSummary {
@@ -1334,6 +1523,24 @@ function buildDefaultPhysicalOperatingAddressCalibratedFallbackGuardSummary(): P
     radioGroupReferenceTargetExists: false,
     radioGroupReferenceTargetVisible: false,
     radioGroupCommonOwnerCategory: 'not-checked',
+    ownershipSourceHarvestAttempted: false,
+    ownershipSourceHarvestOutcomeCategory: 'ownership-source-prior-guard-failed',
+    ownershipSourceHarvestRejectedReasons: ['prior-guard-failed'],
+    ownershipSourceHarvestSummary: 'ownership source harvest skipped because the exact-three-radio guard failed',
+    ariaLabelledbyAttributePresentCount: 0,
+    ariaDescribedbyAttributePresentCount: 0,
+    sharedNamePresentCount: 0,
+    sharedOwnerPresentCount: 0,
+    docusignOwnerSignalPresentCount: 0,
+    ownershipReferenceTargetLookupAttempted: false,
+    ownershipReferenceTargetExistsCount: 0,
+    ownershipReferenceTargetVisibleCount: 0,
+    ownershipReferenceTargetSafeTokenCount: 0,
+    ownershipEvidenceFilteredAsGeneratedOnlyCount: 0,
+    ownershipEvidenceFilteredAsGenericOnlyCount: 0,
+    ownershipEvidenceFilteredByRedactionCount: 0,
+    ownershipEvidenceSourcesEmpty: true,
+    ownershipEvidenceSourcesPresentButNoSafeTokens: false,
     exactThreeRadioGuardPassed: false,
     candidateOrderStable: false,
     conflictingCueDetected: false,
@@ -1513,12 +1720,39 @@ function buildPhysicalOperatingAddressAddressOptionsOwnershipAnchorEvidence(inpu
   | 'radioGroupReferenceTargetExists'
   | 'radioGroupReferenceTargetVisible'
   | 'radioGroupCommonOwnerCategory'
+  | 'ownershipSourceHarvestAttempted'
+  | 'ownershipSourceHarvestOutcomeCategory'
+  | 'ownershipSourceHarvestRejectedReasons'
+  | 'ownershipSourceHarvestSummary'
+  | 'ariaLabelledbyAttributePresentCount'
+  | 'ariaDescribedbyAttributePresentCount'
+  | 'sharedNamePresentCount'
+  | 'sharedOwnerPresentCount'
+  | 'docusignOwnerSignalPresentCount'
+  | 'ownershipReferenceTargetLookupAttempted'
+  | 'ownershipReferenceTargetExistsCount'
+  | 'ownershipReferenceTargetVisibleCount'
+  | 'ownershipReferenceTargetSafeTokenCount'
+  | 'ownershipEvidenceFilteredAsGeneratedOnlyCount'
+  | 'ownershipEvidenceFilteredAsGenericOnlyCount'
+  | 'ownershipEvidenceFilteredByRedactionCount'
+  | 'ownershipEvidenceSourcesEmpty'
+  | 'ownershipEvidenceSourcesPresentButNoSafeTokens'
 > {
   const visibleRadioLikeFields = input.fields
     .map((field) => ({ field, analysis: buildPhysicalOperatingAddressToggleFallbackAnalysis(field) }))
     .filter(({ analysis }) => analysis.visibleRadioLike)
     .map(({ field }) => field);
   const sharedNameValue = resolveSharedNormalizedTextValue(visibleRadioLikeFields.map((field) => field.groupName));
+  const ariaLabelledbyAttributePresentCount = visibleRadioLikeFields.filter((field) => {
+    const signature = field.proxyReferenceSignature;
+    return Boolean(signature && signature.hasAriaLabelledByReference);
+  }).length;
+  const ariaDescribedbyAttributePresentCount = visibleRadioLikeFields.filter((field) => {
+    const signature = field.proxyReferenceSignature;
+    return Boolean(signature && signature.hasAriaDescribedByReference);
+  }).length;
+  const sharedNamePresentCount = visibleRadioLikeFields.filter((field) => Boolean(normalizeText(field.groupName))).length;
   const ariaLabelledbyHintValues = visibleRadioLikeFields.flatMap((field) => {
     const signature = field.proxyReferenceSignature;
     return signature?.hasAriaLabelledByReference ? signature.valueHintBuckets : [];
@@ -1537,10 +1771,20 @@ function buildPhysicalOperatingAddressAddressOptionsOwnershipAnchorEvidence(inpu
       || signature.hasAriaDescribedByReference
     ));
   });
+  const sharedOwnerPresentCount = sharedOwnerSourceFields.length;
   const sharedOwnerHintBuckets = sharedOwnerSourceFields.map((field) => collectAddressOptionsOwnershipAnchorHintBuckets([
     ...(field.domAttributeSignature?.valueHintBuckets ?? []),
     ...(field.proxyReferenceSignature?.valueHintBuckets ?? []),
   ]));
+  const docusignOwnerSourceFields = visibleRadioLikeFields.filter((field) => {
+    const signature = field.proxyReferenceSignature;
+    return Boolean(
+      signature?.hasDocuSignReference
+      || signature?.hasProxyDocuSignMetadataAttributes
+      || field.domAttributeSignature?.hasDocuSignMetadataAttributes,
+    );
+  });
+  const docusignOwnerSignalPresentCount = docusignOwnerSourceFields.length;
   const docusignOwnerHintValues = visibleRadioLikeFields.flatMap((field) => {
     const signature = field.proxyReferenceSignature;
     const hasDocusignOwnerSource = Boolean(
@@ -1572,6 +1816,9 @@ function buildPhysicalOperatingAddressAddressOptionsOwnershipAnchorEvidence(inpu
   const radioGroupDocusignOwnerBucketsPresent = collectAddressOptionsOwnershipAnchorHintBuckets(
     docusignOwnerHintValues,
   );
+  const ownershipReferenceTargetLookupAttempted = visibleRadioLikeFields.some(hasAnyOwnershipReferenceLookupSignal);
+  const ownershipReferenceTargetExistsCount = visibleRadioLikeFields.filter(hasAnyOwnershipReferenceTargetExists).length;
+  const ownershipReferenceTargetVisibleCount = visibleRadioLikeFields.filter(hasAnyOwnershipReferenceTargetVisible).length;
   const safeTokensObserved = sortUniqueAddressOptionsOwnershipAnchorTokenBuckets([
     ...radioGroupAriaLabelledbyBucketsPresent,
     ...radioGroupAriaDescribedbyBucketsPresent,
@@ -1579,6 +1826,12 @@ function buildPhysicalOperatingAddressAddressOptionsOwnershipAnchorEvidence(inpu
     ...radioGroupSharedOwnerBucketsPresent,
     ...radioGroupDocusignOwnerBucketsPresent,
   ]);
+  const ownershipReferenceTargetSafeTokenCount = sortUniqueAddressOptionsOwnershipAnchorTokenBuckets([
+    ...radioGroupAriaLabelledbyBucketsPresent,
+    ...radioGroupAriaDescribedbyBucketsPresent,
+    ...radioGroupSharedOwnerBucketsPresent,
+    ...radioGroupDocusignOwnerBucketsPresent,
+  ]).filter(isNonGenericAddressOptionsOwnershipAnchorTokenBucket).length;
   const radioGroupReferenceTargetExists = visibleRadioLikeFields.some((field) => {
     const signature = field.proxyReferenceSignature;
     return Boolean(signature && (
@@ -1616,29 +1869,19 @@ function buildPhysicalOperatingAddressAddressOptionsOwnershipAnchorEvidence(inpu
   const docusignOwnerMatched = radioGroupDocusignOwnerBucketsPresent.some(
     isNonGenericAddressOptionsOwnershipAnchorTokenBucket,
   );
-  const ariaLabelledbySourceHasContent = visibleRadioLikeFields.some((field) => {
-    const signature = field.proxyReferenceSignature;
-    return Boolean(signature && signature.hasAriaLabelledByReference);
-  });
-  const ariaDescribedbySourceHasContent = visibleRadioLikeFields.some((field) => {
-    const signature = field.proxyReferenceSignature;
-    return Boolean(signature && signature.hasAriaDescribedByReference);
-  });
-  const sharedNameSourceHasContent = visibleRadioLikeFields.some((field) => Boolean(normalizeText(field.groupName)));
-  const sharedOwnerSourceHasContent = sharedOwnerSourceFields.length > 0;
-  const docusignOwnerSourceHasContent = visibleRadioLikeFields.some((field) => {
-    const signature = field.proxyReferenceSignature;
-    return Boolean(
-      signature?.hasDocuSignReference
-      || signature?.hasProxyDocuSignMetadataAttributes
-      || field.domAttributeSignature?.hasDocuSignMetadataAttributes,
-    );
-  });
+  const ariaLabelledbySourceHasContent = ariaLabelledbyAttributePresentCount > 0;
+  const ariaDescribedbySourceHasContent = ariaDescribedbyAttributePresentCount > 0;
+  const sharedNameSourceHasContent = sharedNamePresentCount > 0;
+  const sharedOwnerSourceHasContent = sharedOwnerPresentCount > 0;
+  const docusignOwnerSourceHasContent = docusignOwnerSignalPresentCount > 0;
   const anySourceHasContent = ariaLabelledbySourceHasContent
     || ariaDescribedbySourceHasContent
     || sharedNameSourceHasContent
     || sharedOwnerSourceHasContent
     || docusignOwnerSourceHasContent;
+  const safeOwnershipTokenCount = countOwnershipSafeReferenceTokenBuckets(safeTokensObserved);
+  const ownershipEvidenceSourcesEmpty = !anySourceHasContent;
+  const ownershipEvidenceSourcesPresentButNoSafeTokens = anySourceHasContent && safeOwnershipTokenCount === 0;
   const onlyGeneratedReferenceEvidence = safeTokensObserved.includes('generated-reference-only')
     && safeTokensObserved.every((bucket) => bucket === 'generated-reference-only'
       || bucket === 'address-options'
@@ -1648,6 +1891,82 @@ function buildPhysicalOperatingAddressAddressOptionsOwnershipAnchorEvidence(inpu
   const onlyGenericEvidence = safeTokensObserved.length > 0
     && safeTokensObserved.every((bucket) => !isNonGenericAddressOptionsOwnershipAnchorTokenBucket(bucket)
       && bucket !== 'generated-reference-only');
+  const ownershipEvidenceFilteredAsGeneratedOnlyCount = [
+    { presentCount: ariaLabelledbyAttributePresentCount, buckets: radioGroupAriaLabelledbyBucketsPresent },
+    { presentCount: ariaDescribedbyAttributePresentCount, buckets: radioGroupAriaDescribedbyBucketsPresent },
+    { presentCount: sharedNamePresentCount, buckets: radioGroupSharedNameBucketsPresent },
+    { presentCount: sharedOwnerPresentCount, buckets: radioGroupSharedOwnerBucketsPresent },
+    { presentCount: docusignOwnerSignalPresentCount, buckets: radioGroupDocusignOwnerBucketsPresent },
+  ].filter(({ presentCount, buckets }) => presentCount > 0
+    && buckets.includes('generated-reference-only')
+    && buckets.every(isNonSafeOnlyAddressOptionsOwnershipAnchorTokenBucket))
+    .length;
+  const ownershipEvidenceFilteredAsGenericOnlyCount = [
+    { presentCount: ariaLabelledbyAttributePresentCount, buckets: radioGroupAriaLabelledbyBucketsPresent },
+    { presentCount: ariaDescribedbyAttributePresentCount, buckets: radioGroupAriaDescribedbyBucketsPresent },
+    { presentCount: sharedNamePresentCount, buckets: radioGroupSharedNameBucketsPresent },
+    { presentCount: sharedOwnerPresentCount, buckets: radioGroupSharedOwnerBucketsPresent },
+    { presentCount: docusignOwnerSignalPresentCount, buckets: radioGroupDocusignOwnerBucketsPresent },
+  ].filter(({ presentCount, buckets }) => presentCount > 0
+    && buckets.length > 0
+    && !buckets.includes('generated-reference-only')
+    && buckets.every((bucket) => !isNonGenericAddressOptionsOwnershipAnchorTokenBucket(bucket)))
+    .length;
+  const ownershipEvidenceFilteredByRedactionCount = [
+    {
+      presentCount: ariaLabelledbyAttributePresentCount,
+      buckets: radioGroupAriaLabelledbyBucketsPresent,
+      fieldPredicate: (field: GuardedToggleField) => Boolean(
+        field.proxyReferenceSignature?.hasAriaLabelledByReference
+          && field.proxyReferenceSignature?.ariaLabelledByTargetExists
+          && hasOwnershipSourceFilteredByRedactionSignal(field, 'aria-labelledby'),
+      ),
+    },
+    {
+      presentCount: ariaDescribedbyAttributePresentCount,
+      buckets: radioGroupAriaDescribedbyBucketsPresent,
+      fieldPredicate: (field: GuardedToggleField) => Boolean(
+        field.proxyReferenceSignature?.hasAriaDescribedByReference
+          && field.proxyReferenceSignature?.ariaDescribedByTargetExists
+          && hasOwnershipSourceFilteredByRedactionSignal(field, 'aria-describedby'),
+      ),
+    },
+    {
+      presentCount: sharedNamePresentCount,
+      buckets: radioGroupSharedNameBucketsPresent,
+      fieldPredicate: (field: GuardedToggleField) => hasOwnershipSourceFilteredByRedactionSignal(field, 'shared-name'),
+    },
+    {
+      presentCount: sharedOwnerPresentCount,
+      buckets: radioGroupSharedOwnerBucketsPresent,
+      fieldPredicate: (field: GuardedToggleField) => Boolean(
+        field.proxyReferenceSignature
+        && (
+          field.proxyReferenceSignature.forReferenceTargetExists
+          || field.proxyReferenceSignature.ariaLabelledByTargetExists
+          || field.proxyReferenceSignature.ariaDescribedByTargetExists
+          || field.proxyReferenceSignature.ariaControlsTargetExists
+          || field.proxyReferenceSignature.dataReferenceTargetExists
+        )
+        && hasOwnershipSourceFilteredByRedactionSignal(field, 'shared-owner'),
+      ),
+    },
+    {
+      presentCount: docusignOwnerSignalPresentCount,
+      buckets: radioGroupDocusignOwnerBucketsPresent,
+      fieldPredicate: (field: GuardedToggleField) => Boolean(
+        (
+          field.proxyReferenceSignature?.docuSignReferenceTargetExists
+          || field.proxyReferenceSignature?.hasProxyDocuSignMetadataAttributes
+          || field.domAttributeSignature?.hasDocuSignMetadataAttributes
+        )
+        && hasOwnershipSourceFilteredByRedactionSignal(field, 'docusign-owner'),
+      ),
+    },
+  ].filter(({ presentCount, buckets, fieldPredicate }) => presentCount > 0
+    && buckets.length === 0
+    && visibleRadioLikeFields.some(fieldPredicate))
+    .length;
 
   let addressOptionsOwnershipAnchorOutcomeCategory: PhysicalOperatingAddressAddressOptionsOwnershipAnchorOutcomeCategory =
     'ownership-anchor-missing-no-safe-evidence';
@@ -1713,6 +2032,61 @@ function buildPhysicalOperatingAddressAddressOptionsOwnershipAnchorEvidence(inpu
     radioGroupCommonOwnerCategory = 'generic-only';
   }
 
+  const ownershipSourceHarvestAttempted = input.exactThreeRadioGuardPassed && visibleRadioLikeFields.length > 0;
+  let ownershipSourceHarvestOutcomeCategory: PhysicalOperatingAddressOwnershipSourceHarvestOutcomeCategory =
+    'ownership-source-prior-guard-failed';
+  if (!input.exactThreeRadioGuardPassed) {
+    ownershipSourceHarvestOutcomeCategory = 'ownership-source-prior-guard-failed';
+  } else if (!ownershipSourceHarvestAttempted) {
+    ownershipSourceHarvestOutcomeCategory = 'ownership-source-not-attempted';
+  } else if (safeOwnershipTokenCount > 0 || sharedNameMatched) {
+    ownershipSourceHarvestOutcomeCategory = 'ownership-source-safe-tokens-present';
+  } else if (ownershipEvidenceSourcesEmpty) {
+    ownershipSourceHarvestOutcomeCategory = 'ownership-source-empty';
+  } else if (onlyGeneratedReferenceEvidence) {
+    ownershipSourceHarvestOutcomeCategory = 'ownership-source-generated-only';
+  } else if (onlyGenericEvidence) {
+    ownershipSourceHarvestOutcomeCategory = 'ownership-source-generic-only';
+  } else if (ownershipReferenceTargetLookupAttempted && ownershipReferenceTargetExistsCount === 0) {
+    ownershipSourceHarvestOutcomeCategory = 'ownership-source-attributes-present-no-targets';
+  } else if (ownershipEvidenceFilteredByRedactionCount > 0) {
+    ownershipSourceHarvestOutcomeCategory = 'ownership-source-filtered-by-redaction';
+  } else if (ownershipReferenceTargetExistsCount > 0) {
+    ownershipSourceHarvestOutcomeCategory = 'ownership-source-targets-present-no-safe-tokens';
+  } else {
+    ownershipSourceHarvestOutcomeCategory = 'ownership-source-filtered-by-redaction';
+  }
+  const ownershipSourceHarvestRejectedReasons: PhysicalOperatingAddressOwnershipSourceHarvestRejectedReason[] = [];
+  switch (ownershipSourceHarvestOutcomeCategory) {
+    case 'ownership-source-not-attempted':
+      ownershipSourceHarvestRejectedReasons.push('not-attempted');
+      break;
+    case 'ownership-source-prior-guard-failed':
+      ownershipSourceHarvestRejectedReasons.push('prior-guard-failed');
+      break;
+    case 'ownership-source-empty':
+      ownershipSourceHarvestRejectedReasons.push('sources-empty');
+      break;
+    case 'ownership-source-attributes-present-no-targets':
+      ownershipSourceHarvestRejectedReasons.push('reference-targets-missing');
+      break;
+    case 'ownership-source-targets-present-no-safe-tokens':
+      ownershipSourceHarvestRejectedReasons.push('reference-targets-present-no-safe-tokens');
+      break;
+    case 'ownership-source-generated-only':
+      ownershipSourceHarvestRejectedReasons.push('generated-only');
+      break;
+    case 'ownership-source-generic-only':
+      ownershipSourceHarvestRejectedReasons.push('generic-only');
+      break;
+    case 'ownership-source-filtered-by-redaction':
+      ownershipSourceHarvestRejectedReasons.push('filtered-by-redaction');
+      break;
+    case 'ownership-source-safe-tokens-present':
+    default:
+      break;
+  }
+
   return {
     addressOptionsOwnershipAnchorOutcomeCategory,
     addressOptionsOwnershipAnchorRejectedReasons,
@@ -1728,6 +2102,24 @@ function buildPhysicalOperatingAddressAddressOptionsOwnershipAnchorEvidence(inpu
     radioGroupReferenceTargetExists,
     radioGroupReferenceTargetVisible,
     radioGroupCommonOwnerCategory,
+    ownershipSourceHarvestAttempted,
+    ownershipSourceHarvestOutcomeCategory,
+    ownershipSourceHarvestRejectedReasons,
+    ownershipSourceHarvestSummary: buildOwnershipSourceHarvestSummary(ownershipSourceHarvestOutcomeCategory),
+    ariaLabelledbyAttributePresentCount,
+    ariaDescribedbyAttributePresentCount,
+    sharedNamePresentCount,
+    sharedOwnerPresentCount,
+    docusignOwnerSignalPresentCount,
+    ownershipReferenceTargetLookupAttempted,
+    ownershipReferenceTargetExistsCount,
+    ownershipReferenceTargetVisibleCount,
+    ownershipReferenceTargetSafeTokenCount,
+    ownershipEvidenceFilteredAsGeneratedOnlyCount,
+    ownershipEvidenceFilteredAsGenericOnlyCount,
+    ownershipEvidenceFilteredByRedactionCount,
+    ownershipEvidenceSourcesEmpty,
+    ownershipEvidenceSourcesPresentButNoSafeTokens,
   };
 }
 
@@ -1968,6 +2360,28 @@ function buildCalibratedPhysicalOperatingAddressFallbackDiagnostics(
     radioGroupReferenceTargetExists: ownershipAnchorEvidence.radioGroupReferenceTargetExists,
     radioGroupReferenceTargetVisible: ownershipAnchorEvidence.radioGroupReferenceTargetVisible,
     radioGroupCommonOwnerCategory: ownershipAnchorEvidence.radioGroupCommonOwnerCategory,
+    ownershipSourceHarvestAttempted: ownershipAnchorEvidence.ownershipSourceHarvestAttempted,
+    ownershipSourceHarvestOutcomeCategory: ownershipAnchorEvidence.ownershipSourceHarvestOutcomeCategory,
+    ownershipSourceHarvestRejectedReasons: ownershipAnchorEvidence.ownershipSourceHarvestRejectedReasons,
+    ownershipSourceHarvestSummary: ownershipAnchorEvidence.ownershipSourceHarvestSummary,
+    ariaLabelledbyAttributePresentCount: ownershipAnchorEvidence.ariaLabelledbyAttributePresentCount,
+    ariaDescribedbyAttributePresentCount: ownershipAnchorEvidence.ariaDescribedbyAttributePresentCount,
+    sharedNamePresentCount: ownershipAnchorEvidence.sharedNamePresentCount,
+    sharedOwnerPresentCount: ownershipAnchorEvidence.sharedOwnerPresentCount,
+    docusignOwnerSignalPresentCount: ownershipAnchorEvidence.docusignOwnerSignalPresentCount,
+    ownershipReferenceTargetLookupAttempted: ownershipAnchorEvidence.ownershipReferenceTargetLookupAttempted,
+    ownershipReferenceTargetExistsCount: ownershipAnchorEvidence.ownershipReferenceTargetExistsCount,
+    ownershipReferenceTargetVisibleCount: ownershipAnchorEvidence.ownershipReferenceTargetVisibleCount,
+    ownershipReferenceTargetSafeTokenCount: ownershipAnchorEvidence.ownershipReferenceTargetSafeTokenCount,
+    ownershipEvidenceFilteredAsGeneratedOnlyCount:
+      ownershipAnchorEvidence.ownershipEvidenceFilteredAsGeneratedOnlyCount,
+    ownershipEvidenceFilteredAsGenericOnlyCount:
+      ownershipAnchorEvidence.ownershipEvidenceFilteredAsGenericOnlyCount,
+    ownershipEvidenceFilteredByRedactionCount:
+      ownershipAnchorEvidence.ownershipEvidenceFilteredByRedactionCount,
+    ownershipEvidenceSourcesEmpty: ownershipAnchorEvidence.ownershipEvidenceSourcesEmpty,
+    ownershipEvidenceSourcesPresentButNoSafeTokens:
+      ownershipAnchorEvidence.ownershipEvidenceSourcesPresentButNoSafeTokens,
     addressOptionsClusterGuardPassed,
     candidateOrderStable,
     exactThreeRadioGuardPassed,
@@ -2054,6 +2468,25 @@ export function buildPhysicalOperatingAddressToggleSelectionSummary<T extends Gu
       radioGroupReferenceTargetExists: calibratedFallback.radioGroupReferenceTargetExists,
       radioGroupReferenceTargetVisible: calibratedFallback.radioGroupReferenceTargetVisible,
       radioGroupCommonOwnerCategory: calibratedFallback.radioGroupCommonOwnerCategory,
+      ownershipSourceHarvestAttempted: calibratedFallback.ownershipSourceHarvestAttempted,
+      ownershipSourceHarvestOutcomeCategory: calibratedFallback.ownershipSourceHarvestOutcomeCategory,
+      ownershipSourceHarvestRejectedReasons: calibratedFallback.ownershipSourceHarvestRejectedReasons,
+      ownershipSourceHarvestSummary: calibratedFallback.ownershipSourceHarvestSummary,
+      ariaLabelledbyAttributePresentCount: calibratedFallback.ariaLabelledbyAttributePresentCount,
+      ariaDescribedbyAttributePresentCount: calibratedFallback.ariaDescribedbyAttributePresentCount,
+      sharedNamePresentCount: calibratedFallback.sharedNamePresentCount,
+      sharedOwnerPresentCount: calibratedFallback.sharedOwnerPresentCount,
+      docusignOwnerSignalPresentCount: calibratedFallback.docusignOwnerSignalPresentCount,
+      ownershipReferenceTargetLookupAttempted: calibratedFallback.ownershipReferenceTargetLookupAttempted,
+      ownershipReferenceTargetExistsCount: calibratedFallback.ownershipReferenceTargetExistsCount,
+      ownershipReferenceTargetVisibleCount: calibratedFallback.ownershipReferenceTargetVisibleCount,
+      ownershipReferenceTargetSafeTokenCount: calibratedFallback.ownershipReferenceTargetSafeTokenCount,
+      ownershipEvidenceFilteredAsGeneratedOnlyCount: calibratedFallback.ownershipEvidenceFilteredAsGeneratedOnlyCount,
+      ownershipEvidenceFilteredAsGenericOnlyCount: calibratedFallback.ownershipEvidenceFilteredAsGenericOnlyCount,
+      ownershipEvidenceFilteredByRedactionCount: calibratedFallback.ownershipEvidenceFilteredByRedactionCount,
+      ownershipEvidenceSourcesEmpty: calibratedFallback.ownershipEvidenceSourcesEmpty,
+      ownershipEvidenceSourcesPresentButNoSafeTokens:
+        calibratedFallback.ownershipEvidenceSourcesPresentButNoSafeTokens,
       exactThreeRadioGuardPassed: calibratedFallback.exactThreeRadioGuardPassed,
       candidateOrderStable: calibratedFallback.candidateOrderStable,
       conflictingCueDetected: calibratedFallback.conflictingCueDetected,
@@ -2150,6 +2583,28 @@ export function buildPhysicalOperatingAddressToggleSelectionSummary<T extends Gu
     radioGroupReferenceTargetExists: calibratedFallbackGuardSummary.radioGroupReferenceTargetExists,
     radioGroupReferenceTargetVisible: calibratedFallbackGuardSummary.radioGroupReferenceTargetVisible,
     radioGroupCommonOwnerCategory: calibratedFallbackGuardSummary.radioGroupCommonOwnerCategory,
+    ownershipSourceHarvestAttempted: calibratedFallbackGuardSummary.ownershipSourceHarvestAttempted,
+    ownershipSourceHarvestOutcomeCategory: calibratedFallbackGuardSummary.ownershipSourceHarvestOutcomeCategory,
+    ownershipSourceHarvestRejectedReasons: calibratedFallbackGuardSummary.ownershipSourceHarvestRejectedReasons,
+    ownershipSourceHarvestSummary: calibratedFallbackGuardSummary.ownershipSourceHarvestSummary,
+    ariaLabelledbyAttributePresentCount: calibratedFallbackGuardSummary.ariaLabelledbyAttributePresentCount,
+    ariaDescribedbyAttributePresentCount: calibratedFallbackGuardSummary.ariaDescribedbyAttributePresentCount,
+    sharedNamePresentCount: calibratedFallbackGuardSummary.sharedNamePresentCount,
+    sharedOwnerPresentCount: calibratedFallbackGuardSummary.sharedOwnerPresentCount,
+    docusignOwnerSignalPresentCount: calibratedFallbackGuardSummary.docusignOwnerSignalPresentCount,
+    ownershipReferenceTargetLookupAttempted: calibratedFallbackGuardSummary.ownershipReferenceTargetLookupAttempted,
+    ownershipReferenceTargetExistsCount: calibratedFallbackGuardSummary.ownershipReferenceTargetExistsCount,
+    ownershipReferenceTargetVisibleCount: calibratedFallbackGuardSummary.ownershipReferenceTargetVisibleCount,
+    ownershipReferenceTargetSafeTokenCount: calibratedFallbackGuardSummary.ownershipReferenceTargetSafeTokenCount,
+    ownershipEvidenceFilteredAsGeneratedOnlyCount:
+      calibratedFallbackGuardSummary.ownershipEvidenceFilteredAsGeneratedOnlyCount,
+    ownershipEvidenceFilteredAsGenericOnlyCount:
+      calibratedFallbackGuardSummary.ownershipEvidenceFilteredAsGenericOnlyCount,
+    ownershipEvidenceFilteredByRedactionCount:
+      calibratedFallbackGuardSummary.ownershipEvidenceFilteredByRedactionCount,
+    ownershipEvidenceSourcesEmpty: calibratedFallbackGuardSummary.ownershipEvidenceSourcesEmpty,
+    ownershipEvidenceSourcesPresentButNoSafeTokens:
+      calibratedFallbackGuardSummary.ownershipEvidenceSourcesPresentButNoSafeTokens,
     candidateOrderStable: calibratedFallbackGuardSummary.candidateOrderStable,
     conflictingCueDetected: calibratedFallbackGuardSummary.conflictingCueDetected,
   };

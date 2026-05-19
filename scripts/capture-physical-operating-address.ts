@@ -21,6 +21,9 @@ import {
   type PhysicalOperatingAddressAddressOptionsOwnershipAnchorRejectedReason,
   type PhysicalOperatingAddressAddressOptionsOwnershipAnchorSourceChecked,
   type PhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket,
+  type PhysicalOperatingAddressOwnershipSourceHarvestOutcomeCategory,
+  type PhysicalOperatingAddressOwnershipSourceHarvestRejectedReason,
+  type PhysicalOperatingAddressOwnershipSourceHarvestSummary,
   type PhysicalOperatingAddressCalibratedFallbackGuardSummary,
   type PhysicalOperatingAddressCalibratedFallbackRejectedReason,
   type PhysicalOperatingAddressExpansionSkippedReason,
@@ -139,6 +142,24 @@ export interface PhysicalOperatingAddressCaptureOnlyCalibratedFallbackGuardSumma
   radioGroupReferenceTargetExists: boolean | null;
   radioGroupReferenceTargetVisible: boolean | null;
   radioGroupCommonOwnerCategory: PhysicalOperatingAddressAddressOptionsOwnershipAnchorCommonOwnerCategory | null;
+  ownershipSourceHarvestAttempted: boolean | null;
+  ownershipSourceHarvestOutcomeCategory: PhysicalOperatingAddressOwnershipSourceHarvestOutcomeCategory | null;
+  ownershipSourceHarvestRejectedReasons: PhysicalOperatingAddressOwnershipSourceHarvestRejectedReason[];
+  ownershipSourceHarvestSummary: PhysicalOperatingAddressOwnershipSourceHarvestSummary | null;
+  ariaLabelledbyAttributePresentCount: number | null;
+  ariaDescribedbyAttributePresentCount: number | null;
+  sharedNamePresentCount: number | null;
+  sharedOwnerPresentCount: number | null;
+  docusignOwnerSignalPresentCount: number | null;
+  ownershipReferenceTargetLookupAttempted: boolean | null;
+  ownershipReferenceTargetExistsCount: number | null;
+  ownershipReferenceTargetVisibleCount: number | null;
+  ownershipReferenceTargetSafeTokenCount: number | null;
+  ownershipEvidenceFilteredAsGeneratedOnlyCount: number | null;
+  ownershipEvidenceFilteredAsGenericOnlyCount: number | null;
+  ownershipEvidenceFilteredByRedactionCount: number | null;
+  ownershipEvidenceSourcesEmpty: boolean | null;
+  ownershipEvidenceSourcesPresentButNoSafeTokens: boolean | null;
   exactThreeRadioGuardPassed: boolean | null;
   candidateOrderStable: boolean | null;
   conflictingCueDetected: boolean | null;
@@ -211,6 +232,24 @@ export interface PhysicalOperatingAddressCaptureOnlyReceipt {
   radioGroupReferenceTargetExists: boolean | null;
   radioGroupReferenceTargetVisible: boolean | null;
   radioGroupCommonOwnerCategory: PhysicalOperatingAddressAddressOptionsOwnershipAnchorCommonOwnerCategory | null;
+  ownershipSourceHarvestAttempted: boolean | null;
+  ownershipSourceHarvestOutcomeCategory: PhysicalOperatingAddressOwnershipSourceHarvestOutcomeCategory | null;
+  ownershipSourceHarvestRejectedReasons: PhysicalOperatingAddressOwnershipSourceHarvestRejectedReason[];
+  ownershipSourceHarvestSummary: PhysicalOperatingAddressOwnershipSourceHarvestSummary | null;
+  ariaLabelledbyAttributePresentCount: number | null;
+  ariaDescribedbyAttributePresentCount: number | null;
+  sharedNamePresentCount: number | null;
+  sharedOwnerPresentCount: number | null;
+  docusignOwnerSignalPresentCount: number | null;
+  ownershipReferenceTargetLookupAttempted: boolean | null;
+  ownershipReferenceTargetExistsCount: number | null;
+  ownershipReferenceTargetVisibleCount: number | null;
+  ownershipReferenceTargetSafeTokenCount: number | null;
+  ownershipEvidenceFilteredAsGeneratedOnlyCount: number | null;
+  ownershipEvidenceFilteredAsGenericOnlyCount: number | null;
+  ownershipEvidenceFilteredByRedactionCount: number | null;
+  ownershipEvidenceSourcesEmpty: boolean | null;
+  ownershipEvidenceSourcesPresentButNoSafeTokens: boolean | null;
   candidateOrderStable: boolean | null;
   conflictingCueDetected: boolean | null;
   selectionMode: PhysicalOperatingAddressCaptureOnlySelectionMode;
@@ -385,6 +424,24 @@ function buildPhysicalOperatingAddressCaptureOnlyFallbackGuardSummary(): Physica
     radioGroupReferenceTargetExists: null,
     radioGroupReferenceTargetVisible: null,
     radioGroupCommonOwnerCategory: null,
+    ownershipSourceHarvestAttempted: null,
+    ownershipSourceHarvestOutcomeCategory: null,
+    ownershipSourceHarvestRejectedReasons: [],
+    ownershipSourceHarvestSummary: null,
+    ariaLabelledbyAttributePresentCount: null,
+    ariaDescribedbyAttributePresentCount: null,
+    sharedNamePresentCount: null,
+    sharedOwnerPresentCount: null,
+    docusignOwnerSignalPresentCount: null,
+    ownershipReferenceTargetLookupAttempted: null,
+    ownershipReferenceTargetExistsCount: null,
+    ownershipReferenceTargetVisibleCount: null,
+    ownershipReferenceTargetSafeTokenCount: null,
+    ownershipEvidenceFilteredAsGeneratedOnlyCount: null,
+    ownershipEvidenceFilteredAsGenericOnlyCount: null,
+    ownershipEvidenceFilteredByRedactionCount: null,
+    ownershipEvidenceSourcesEmpty: null,
+    ownershipEvidenceSourcesPresentButNoSafeTokens: null,
     exactThreeRadioGuardPassed: null,
     candidateOrderStable: null,
     conflictingCueDetected: null,
@@ -485,6 +542,24 @@ function buildFallbackPhysicalOperatingAddressCaptureOnlyResultFields(input: {
     radioGroupReferenceTargetExists: false,
     radioGroupReferenceTargetVisible: false,
     radioGroupCommonOwnerCategory: null,
+    ownershipSourceHarvestAttempted: null,
+    ownershipSourceHarvestOutcomeCategory: null,
+    ownershipSourceHarvestRejectedReasons: [],
+    ownershipSourceHarvestSummary: null,
+    ariaLabelledbyAttributePresentCount: null,
+    ariaDescribedbyAttributePresentCount: null,
+    sharedNamePresentCount: null,
+    sharedOwnerPresentCount: null,
+    docusignOwnerSignalPresentCount: null,
+    ownershipReferenceTargetLookupAttempted: null,
+    ownershipReferenceTargetExistsCount: null,
+    ownershipReferenceTargetVisibleCount: null,
+    ownershipReferenceTargetSafeTokenCount: null,
+    ownershipEvidenceFilteredAsGeneratedOnlyCount: null,
+    ownershipEvidenceFilteredAsGenericOnlyCount: null,
+    ownershipEvidenceFilteredByRedactionCount: null,
+    ownershipEvidenceSourcesEmpty: null,
+    ownershipEvidenceSourcesPresentButNoSafeTokens: null,
     candidateOrderStable: false,
     conflictingCueDetected: false,
     proofOfAddressUploadVisibleBefore: false,
@@ -773,6 +848,47 @@ function isPhysicalOperatingAddressAddressOptionsOwnershipAnchorCommonOwnerCateg
     || value === 'not-checked';
 }
 
+function isPhysicalOperatingAddressOwnershipSourceHarvestOutcomeCategory(
+  value: unknown,
+): value is PhysicalOperatingAddressOwnershipSourceHarvestOutcomeCategory {
+  return value === 'ownership-source-not-attempted'
+    || value === 'ownership-source-empty'
+    || value === 'ownership-source-attributes-present-no-targets'
+    || value === 'ownership-source-targets-present-no-safe-tokens'
+    || value === 'ownership-source-generated-only'
+    || value === 'ownership-source-generic-only'
+    || value === 'ownership-source-filtered-by-redaction'
+    || value === 'ownership-source-safe-tokens-present'
+    || value === 'ownership-source-prior-guard-failed';
+}
+
+function isPhysicalOperatingAddressOwnershipSourceHarvestRejectedReason(
+  value: unknown,
+): value is PhysicalOperatingAddressOwnershipSourceHarvestRejectedReason {
+  return value === 'not-attempted'
+    || value === 'prior-guard-failed'
+    || value === 'sources-empty'
+    || value === 'reference-targets-missing'
+    || value === 'reference-targets-present-no-safe-tokens'
+    || value === 'generated-only'
+    || value === 'generic-only'
+    || value === 'filtered-by-redaction';
+}
+
+function isPhysicalOperatingAddressOwnershipSourceHarvestSummary(
+  value: unknown,
+): value is PhysicalOperatingAddressOwnershipSourceHarvestSummary {
+  return value === 'ownership source harvest was not attempted'
+    || value === 'ownership source harvest skipped because the exact-three-radio guard failed'
+    || value === 'ownership source harvest found no ownership/reference sources'
+    || value === 'ownership source harvest found ownership/reference attributes but no targets'
+    || value === 'ownership source harvest found reference targets but no safe token buckets'
+    || value === 'ownership source harvest found only generated ownership/reference evidence'
+    || value === 'ownership source harvest found only generic ownership/reference evidence'
+    || value === 'ownership source harvest found source evidence but safety guards filtered it before bucketing'
+    || value === 'ownership source harvest found safe ownership/reference token buckets';
+}
+
 function isPhysicalOperatingAddressUiEffectOutcomeCategory(
   value: unknown,
 ): value is PhysicalOperatingAddressUiEffectOutcomeCategory {
@@ -886,6 +1002,42 @@ export function buildPhysicalOperatingAddressCaptureOnlyReceipt(input: {
         result.calibratedFallbackGuardSummary.radioGroupReferenceTargetVisible,
       radioGroupCommonOwnerCategory:
         result.calibratedFallbackGuardSummary.radioGroupCommonOwnerCategory,
+      ownershipSourceHarvestAttempted:
+        result.calibratedFallbackGuardSummary.ownershipSourceHarvestAttempted,
+      ownershipSourceHarvestOutcomeCategory:
+        result.calibratedFallbackGuardSummary.ownershipSourceHarvestOutcomeCategory,
+      ownershipSourceHarvestRejectedReasons:
+        result.calibratedFallbackGuardSummary.ownershipSourceHarvestRejectedReasons,
+      ownershipSourceHarvestSummary:
+        result.calibratedFallbackGuardSummary.ownershipSourceHarvestSummary,
+      ariaLabelledbyAttributePresentCount:
+        result.calibratedFallbackGuardSummary.ariaLabelledbyAttributePresentCount,
+      ariaDescribedbyAttributePresentCount:
+        result.calibratedFallbackGuardSummary.ariaDescribedbyAttributePresentCount,
+      sharedNamePresentCount:
+        result.calibratedFallbackGuardSummary.sharedNamePresentCount,
+      sharedOwnerPresentCount:
+        result.calibratedFallbackGuardSummary.sharedOwnerPresentCount,
+      docusignOwnerSignalPresentCount:
+        result.calibratedFallbackGuardSummary.docusignOwnerSignalPresentCount,
+      ownershipReferenceTargetLookupAttempted:
+        result.calibratedFallbackGuardSummary.ownershipReferenceTargetLookupAttempted,
+      ownershipReferenceTargetExistsCount:
+        result.calibratedFallbackGuardSummary.ownershipReferenceTargetExistsCount,
+      ownershipReferenceTargetVisibleCount:
+        result.calibratedFallbackGuardSummary.ownershipReferenceTargetVisibleCount,
+      ownershipReferenceTargetSafeTokenCount:
+        result.calibratedFallbackGuardSummary.ownershipReferenceTargetSafeTokenCount,
+      ownershipEvidenceFilteredAsGeneratedOnlyCount:
+        result.calibratedFallbackGuardSummary.ownershipEvidenceFilteredAsGeneratedOnlyCount,
+      ownershipEvidenceFilteredAsGenericOnlyCount:
+        result.calibratedFallbackGuardSummary.ownershipEvidenceFilteredAsGenericOnlyCount,
+      ownershipEvidenceFilteredByRedactionCount:
+        result.calibratedFallbackGuardSummary.ownershipEvidenceFilteredByRedactionCount,
+      ownershipEvidenceSourcesEmpty:
+        result.calibratedFallbackGuardSummary.ownershipEvidenceSourcesEmpty,
+      ownershipEvidenceSourcesPresentButNoSafeTokens:
+        result.calibratedFallbackGuardSummary.ownershipEvidenceSourcesPresentButNoSafeTokens,
       exactThreeRadioGuardPassed: result.calibratedFallbackGuardSummary.exactThreeRadioGuardPassed,
       candidateOrderStable: result.calibratedFallbackGuardSummary.candidateOrderStable,
       conflictingCueDetected: result.calibratedFallbackGuardSummary.conflictingCueDetected,
@@ -928,6 +1080,24 @@ export function buildPhysicalOperatingAddressCaptureOnlyReceipt(input: {
     radioGroupReferenceTargetExists: result.radioGroupReferenceTargetExists,
     radioGroupReferenceTargetVisible: result.radioGroupReferenceTargetVisible,
     radioGroupCommonOwnerCategory: result.radioGroupCommonOwnerCategory,
+    ownershipSourceHarvestAttempted: result.ownershipSourceHarvestAttempted,
+    ownershipSourceHarvestOutcomeCategory: result.ownershipSourceHarvestOutcomeCategory,
+    ownershipSourceHarvestRejectedReasons: result.ownershipSourceHarvestRejectedReasons,
+    ownershipSourceHarvestSummary: result.ownershipSourceHarvestSummary,
+    ariaLabelledbyAttributePresentCount: result.ariaLabelledbyAttributePresentCount,
+    ariaDescribedbyAttributePresentCount: result.ariaDescribedbyAttributePresentCount,
+    sharedNamePresentCount: result.sharedNamePresentCount,
+    sharedOwnerPresentCount: result.sharedOwnerPresentCount,
+    docusignOwnerSignalPresentCount: result.docusignOwnerSignalPresentCount,
+    ownershipReferenceTargetLookupAttempted: result.ownershipReferenceTargetLookupAttempted,
+    ownershipReferenceTargetExistsCount: result.ownershipReferenceTargetExistsCount,
+    ownershipReferenceTargetVisibleCount: result.ownershipReferenceTargetVisibleCount,
+    ownershipReferenceTargetSafeTokenCount: result.ownershipReferenceTargetSafeTokenCount,
+    ownershipEvidenceFilteredAsGeneratedOnlyCount: result.ownershipEvidenceFilteredAsGeneratedOnlyCount,
+    ownershipEvidenceFilteredAsGenericOnlyCount: result.ownershipEvidenceFilteredAsGenericOnlyCount,
+    ownershipEvidenceFilteredByRedactionCount: result.ownershipEvidenceFilteredByRedactionCount,
+    ownershipEvidenceSourcesEmpty: result.ownershipEvidenceSourcesEmpty,
+    ownershipEvidenceSourcesPresentButNoSafeTokens: result.ownershipEvidenceSourcesPresentButNoSafeTokens,
     candidateOrderStable: input.result?.candidateOrderStable ?? null,
     conflictingCueDetected: input.result?.conflictingCueDetected ?? null,
     selectionMode: result.toggleSelectionMode,
@@ -1100,6 +1270,47 @@ export function isPhysicalOperatingAddressCaptureOnlyReceipt(
       || isPhysicalOperatingAddressAddressOptionsOwnershipAnchorCommonOwnerCategory(
         (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).radioGroupCommonOwnerCategory,
       ))
+    && (typeof (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ownershipSourceHarvestAttempted === 'boolean'
+      || (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ownershipSourceHarvestAttempted === null)
+    && ((((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ownershipSourceHarvestOutcomeCategory) === null)
+      || isPhysicalOperatingAddressOwnershipSourceHarvestOutcomeCategory(
+        (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ownershipSourceHarvestOutcomeCategory,
+      ))
+    && Array.isArray((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ownershipSourceHarvestRejectedReasons)
+    && ((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ownershipSourceHarvestRejectedReasons as unknown[])
+      .every(isPhysicalOperatingAddressOwnershipSourceHarvestRejectedReason)
+    && ((((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ownershipSourceHarvestSummary) === null)
+      || isPhysicalOperatingAddressOwnershipSourceHarvestSummary(
+        (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ownershipSourceHarvestSummary,
+      ))
+    && (typeof (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ariaLabelledbyAttributePresentCount === 'number'
+      || (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ariaLabelledbyAttributePresentCount === null)
+    && (typeof (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ariaDescribedbyAttributePresentCount === 'number'
+      || (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ariaDescribedbyAttributePresentCount === null)
+    && (typeof (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).sharedNamePresentCount === 'number'
+      || (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).sharedNamePresentCount === null)
+    && (typeof (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).sharedOwnerPresentCount === 'number'
+      || (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).sharedOwnerPresentCount === null)
+    && (typeof (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).docusignOwnerSignalPresentCount === 'number'
+      || (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).docusignOwnerSignalPresentCount === null)
+    && (typeof (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ownershipReferenceTargetLookupAttempted === 'boolean'
+      || (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ownershipReferenceTargetLookupAttempted === null)
+    && (typeof (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ownershipReferenceTargetExistsCount === 'number'
+      || (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ownershipReferenceTargetExistsCount === null)
+    && (typeof (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ownershipReferenceTargetVisibleCount === 'number'
+      || (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ownershipReferenceTargetVisibleCount === null)
+    && (typeof (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ownershipReferenceTargetSafeTokenCount === 'number'
+      || (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ownershipReferenceTargetSafeTokenCount === null)
+    && (typeof (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ownershipEvidenceFilteredAsGeneratedOnlyCount === 'number'
+      || (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ownershipEvidenceFilteredAsGeneratedOnlyCount === null)
+    && (typeof (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ownershipEvidenceFilteredAsGenericOnlyCount === 'number'
+      || (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ownershipEvidenceFilteredAsGenericOnlyCount === null)
+    && (typeof (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ownershipEvidenceFilteredByRedactionCount === 'number'
+      || (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ownershipEvidenceFilteredByRedactionCount === null)
+    && (typeof (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ownershipEvidenceSourcesEmpty === 'boolean'
+      || (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ownershipEvidenceSourcesEmpty === null)
+    && (typeof (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ownershipEvidenceSourcesPresentButNoSafeTokens === 'boolean'
+      || (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ownershipEvidenceSourcesPresentButNoSafeTokens === null)
     && (typeof candidate.primarySelectionCandidateCount === 'number' || candidate.primarySelectionCandidateCount === null)
     && (typeof candidate.cueBasedFallbackCandidateCount === 'number' || candidate.cueBasedFallbackCandidateCount === null)
     && (typeof candidate.calibratedFallbackCandidateCount === 'number' || candidate.calibratedFallbackCandidateCount === null)
@@ -1167,6 +1378,27 @@ export function isPhysicalOperatingAddressCaptureOnlyReceipt(
     && (typeof candidate.radioGroupReferenceTargetVisible === 'boolean' || candidate.radioGroupReferenceTargetVisible === null)
     && (candidate.radioGroupCommonOwnerCategory === null
       || isPhysicalOperatingAddressAddressOptionsOwnershipAnchorCommonOwnerCategory(candidate.radioGroupCommonOwnerCategory))
+    && (typeof candidate.ownershipSourceHarvestAttempted === 'boolean' || candidate.ownershipSourceHarvestAttempted === null)
+    && (candidate.ownershipSourceHarvestOutcomeCategory === null
+      || isPhysicalOperatingAddressOwnershipSourceHarvestOutcomeCategory(candidate.ownershipSourceHarvestOutcomeCategory))
+    && Array.isArray(candidate.ownershipSourceHarvestRejectedReasons)
+    && candidate.ownershipSourceHarvestRejectedReasons.every(isPhysicalOperatingAddressOwnershipSourceHarvestRejectedReason)
+    && (candidate.ownershipSourceHarvestSummary === null
+      || isPhysicalOperatingAddressOwnershipSourceHarvestSummary(candidate.ownershipSourceHarvestSummary))
+    && (typeof candidate.ariaLabelledbyAttributePresentCount === 'number' || candidate.ariaLabelledbyAttributePresentCount === null)
+    && (typeof candidate.ariaDescribedbyAttributePresentCount === 'number' || candidate.ariaDescribedbyAttributePresentCount === null)
+    && (typeof candidate.sharedNamePresentCount === 'number' || candidate.sharedNamePresentCount === null)
+    && (typeof candidate.sharedOwnerPresentCount === 'number' || candidate.sharedOwnerPresentCount === null)
+    && (typeof candidate.docusignOwnerSignalPresentCount === 'number' || candidate.docusignOwnerSignalPresentCount === null)
+    && (typeof candidate.ownershipReferenceTargetLookupAttempted === 'boolean' || candidate.ownershipReferenceTargetLookupAttempted === null)
+    && (typeof candidate.ownershipReferenceTargetExistsCount === 'number' || candidate.ownershipReferenceTargetExistsCount === null)
+    && (typeof candidate.ownershipReferenceTargetVisibleCount === 'number' || candidate.ownershipReferenceTargetVisibleCount === null)
+    && (typeof candidate.ownershipReferenceTargetSafeTokenCount === 'number' || candidate.ownershipReferenceTargetSafeTokenCount === null)
+    && (typeof candidate.ownershipEvidenceFilteredAsGeneratedOnlyCount === 'number' || candidate.ownershipEvidenceFilteredAsGeneratedOnlyCount === null)
+    && (typeof candidate.ownershipEvidenceFilteredAsGenericOnlyCount === 'number' || candidate.ownershipEvidenceFilteredAsGenericOnlyCount === null)
+    && (typeof candidate.ownershipEvidenceFilteredByRedactionCount === 'number' || candidate.ownershipEvidenceFilteredByRedactionCount === null)
+    && (typeof candidate.ownershipEvidenceSourcesEmpty === 'boolean' || candidate.ownershipEvidenceSourcesEmpty === null)
+    && (typeof candidate.ownershipEvidenceSourcesPresentButNoSafeTokens === 'boolean' || candidate.ownershipEvidenceSourcesPresentButNoSafeTokens === null)
     && (typeof candidate.candidateOrderStable === 'boolean' || candidate.candidateOrderStable === null)
     && (typeof candidate.conflictingCueDetected === 'boolean' || candidate.conflictingCueDetected === null)
     && isPhysicalOperatingAddressCaptureOnlySelectionMode(candidate.selectionMode)
@@ -1481,6 +1713,38 @@ export async function runPhysicalOperatingAddressCaptureOnly(
       radioGroupReferenceTargetExists: expansion.toggleSelectionSummary.radioGroupReferenceTargetExists,
       radioGroupReferenceTargetVisible: expansion.toggleSelectionSummary.radioGroupReferenceTargetVisible,
       radioGroupCommonOwnerCategory: expansion.toggleSelectionSummary.radioGroupCommonOwnerCategory,
+      ownershipSourceHarvestAttempted: expansion.toggleSelectionSummary.ownershipSourceHarvestAttempted,
+      ownershipSourceHarvestOutcomeCategory:
+        expansion.toggleSelectionSummary.ownershipSourceHarvestOutcomeCategory,
+      ownershipSourceHarvestRejectedReasons:
+        expansion.toggleSelectionSummary.ownershipSourceHarvestRejectedReasons,
+      ownershipSourceHarvestSummary: expansion.toggleSelectionSummary.ownershipSourceHarvestSummary,
+      ariaLabelledbyAttributePresentCount:
+        expansion.toggleSelectionSummary.ariaLabelledbyAttributePresentCount,
+      ariaDescribedbyAttributePresentCount:
+        expansion.toggleSelectionSummary.ariaDescribedbyAttributePresentCount,
+      sharedNamePresentCount: expansion.toggleSelectionSummary.sharedNamePresentCount,
+      sharedOwnerPresentCount: expansion.toggleSelectionSummary.sharedOwnerPresentCount,
+      docusignOwnerSignalPresentCount:
+        expansion.toggleSelectionSummary.docusignOwnerSignalPresentCount,
+      ownershipReferenceTargetLookupAttempted:
+        expansion.toggleSelectionSummary.ownershipReferenceTargetLookupAttempted,
+      ownershipReferenceTargetExistsCount:
+        expansion.toggleSelectionSummary.ownershipReferenceTargetExistsCount,
+      ownershipReferenceTargetVisibleCount:
+        expansion.toggleSelectionSummary.ownershipReferenceTargetVisibleCount,
+      ownershipReferenceTargetSafeTokenCount:
+        expansion.toggleSelectionSummary.ownershipReferenceTargetSafeTokenCount,
+      ownershipEvidenceFilteredAsGeneratedOnlyCount:
+        expansion.toggleSelectionSummary.ownershipEvidenceFilteredAsGeneratedOnlyCount,
+      ownershipEvidenceFilteredAsGenericOnlyCount:
+        expansion.toggleSelectionSummary.ownershipEvidenceFilteredAsGenericOnlyCount,
+      ownershipEvidenceFilteredByRedactionCount:
+        expansion.toggleSelectionSummary.ownershipEvidenceFilteredByRedactionCount,
+      ownershipEvidenceSourcesEmpty:
+        expansion.toggleSelectionSummary.ownershipEvidenceSourcesEmpty,
+      ownershipEvidenceSourcesPresentButNoSafeTokens:
+        expansion.toggleSelectionSummary.ownershipEvidenceSourcesPresentButNoSafeTokens,
       candidateOrderStable: expansion.toggleSelectionSummary.candidateOrderStable,
       conflictingCueDetected: expansion.toggleSelectionSummary.conflictingCueDetected,
       proofOfAddressUploadVisibleBefore: expansion.uiEffectSummary.proofOfAddressUploadVisibleBefore,
@@ -1587,6 +1851,38 @@ export async function runPhysicalOperatingAddressCaptureOnly(
       radioGroupReferenceTargetExists: expansion.toggleSelectionSummary.radioGroupReferenceTargetExists,
       radioGroupReferenceTargetVisible: expansion.toggleSelectionSummary.radioGroupReferenceTargetVisible,
       radioGroupCommonOwnerCategory: expansion.toggleSelectionSummary.radioGroupCommonOwnerCategory,
+      ownershipSourceHarvestAttempted: expansion.toggleSelectionSummary.ownershipSourceHarvestAttempted,
+      ownershipSourceHarvestOutcomeCategory:
+        expansion.toggleSelectionSummary.ownershipSourceHarvestOutcomeCategory,
+      ownershipSourceHarvestRejectedReasons:
+        expansion.toggleSelectionSummary.ownershipSourceHarvestRejectedReasons,
+      ownershipSourceHarvestSummary: expansion.toggleSelectionSummary.ownershipSourceHarvestSummary,
+      ariaLabelledbyAttributePresentCount:
+        expansion.toggleSelectionSummary.ariaLabelledbyAttributePresentCount,
+      ariaDescribedbyAttributePresentCount:
+        expansion.toggleSelectionSummary.ariaDescribedbyAttributePresentCount,
+      sharedNamePresentCount: expansion.toggleSelectionSummary.sharedNamePresentCount,
+      sharedOwnerPresentCount: expansion.toggleSelectionSummary.sharedOwnerPresentCount,
+      docusignOwnerSignalPresentCount:
+        expansion.toggleSelectionSummary.docusignOwnerSignalPresentCount,
+      ownershipReferenceTargetLookupAttempted:
+        expansion.toggleSelectionSummary.ownershipReferenceTargetLookupAttempted,
+      ownershipReferenceTargetExistsCount:
+        expansion.toggleSelectionSummary.ownershipReferenceTargetExistsCount,
+      ownershipReferenceTargetVisibleCount:
+        expansion.toggleSelectionSummary.ownershipReferenceTargetVisibleCount,
+      ownershipReferenceTargetSafeTokenCount:
+        expansion.toggleSelectionSummary.ownershipReferenceTargetSafeTokenCount,
+      ownershipEvidenceFilteredAsGeneratedOnlyCount:
+        expansion.toggleSelectionSummary.ownershipEvidenceFilteredAsGeneratedOnlyCount,
+      ownershipEvidenceFilteredAsGenericOnlyCount:
+        expansion.toggleSelectionSummary.ownershipEvidenceFilteredAsGenericOnlyCount,
+      ownershipEvidenceFilteredByRedactionCount:
+        expansion.toggleSelectionSummary.ownershipEvidenceFilteredByRedactionCount,
+      ownershipEvidenceSourcesEmpty:
+        expansion.toggleSelectionSummary.ownershipEvidenceSourcesEmpty,
+      ownershipEvidenceSourcesPresentButNoSafeTokens:
+        expansion.toggleSelectionSummary.ownershipEvidenceSourcesPresentButNoSafeTokens,
       candidateOrderStable: expansion.toggleSelectionSummary.candidateOrderStable,
       conflictingCueDetected: expansion.toggleSelectionSummary.conflictingCueDetected,
       proofOfAddressUploadVisibleBefore: expansion.uiEffectSummary.proofOfAddressUploadVisibleBefore,
@@ -1756,6 +2052,30 @@ export async function runPhysicalOperatingAddressCaptureOnly(
     radioGroupReferenceTargetExists: expansion.toggleSelectionSummary.radioGroupReferenceTargetExists,
     radioGroupReferenceTargetVisible: expansion.toggleSelectionSummary.radioGroupReferenceTargetVisible,
     radioGroupCommonOwnerCategory: expansion.toggleSelectionSummary.radioGroupCommonOwnerCategory,
+    ownershipSourceHarvestAttempted: expansion.toggleSelectionSummary.ownershipSourceHarvestAttempted,
+    ownershipSourceHarvestOutcomeCategory: expansion.toggleSelectionSummary.ownershipSourceHarvestOutcomeCategory,
+    ownershipSourceHarvestRejectedReasons: expansion.toggleSelectionSummary.ownershipSourceHarvestRejectedReasons,
+    ownershipSourceHarvestSummary: expansion.toggleSelectionSummary.ownershipSourceHarvestSummary,
+    ariaLabelledbyAttributePresentCount: expansion.toggleSelectionSummary.ariaLabelledbyAttributePresentCount,
+    ariaDescribedbyAttributePresentCount: expansion.toggleSelectionSummary.ariaDescribedbyAttributePresentCount,
+    sharedNamePresentCount: expansion.toggleSelectionSummary.sharedNamePresentCount,
+    sharedOwnerPresentCount: expansion.toggleSelectionSummary.sharedOwnerPresentCount,
+    docusignOwnerSignalPresentCount: expansion.toggleSelectionSummary.docusignOwnerSignalPresentCount,
+    ownershipReferenceTargetLookupAttempted:
+      expansion.toggleSelectionSummary.ownershipReferenceTargetLookupAttempted,
+    ownershipReferenceTargetExistsCount: expansion.toggleSelectionSummary.ownershipReferenceTargetExistsCount,
+    ownershipReferenceTargetVisibleCount: expansion.toggleSelectionSummary.ownershipReferenceTargetVisibleCount,
+    ownershipReferenceTargetSafeTokenCount:
+      expansion.toggleSelectionSummary.ownershipReferenceTargetSafeTokenCount,
+    ownershipEvidenceFilteredAsGeneratedOnlyCount:
+      expansion.toggleSelectionSummary.ownershipEvidenceFilteredAsGeneratedOnlyCount,
+    ownershipEvidenceFilteredAsGenericOnlyCount:
+      expansion.toggleSelectionSummary.ownershipEvidenceFilteredAsGenericOnlyCount,
+    ownershipEvidenceFilteredByRedactionCount:
+      expansion.toggleSelectionSummary.ownershipEvidenceFilteredByRedactionCount,
+    ownershipEvidenceSourcesEmpty: expansion.toggleSelectionSummary.ownershipEvidenceSourcesEmpty,
+    ownershipEvidenceSourcesPresentButNoSafeTokens:
+      expansion.toggleSelectionSummary.ownershipEvidenceSourcesPresentButNoSafeTokens,
     candidateOrderStable: expansion.toggleSelectionSummary.candidateOrderStable,
     conflictingCueDetected: expansion.toggleSelectionSummary.conflictingCueDetected,
     proofOfAddressUploadVisibleBefore: expansion.uiEffectSummary.proofOfAddressUploadVisibleBefore,
