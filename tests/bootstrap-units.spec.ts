@@ -5913,6 +5913,29 @@ test.describe('interactive validation safety', () => {
     ownershipEvidenceSourcesPresentButNoSafeTokens: false,
   });
 
+  const ownershipSourceInputDebugDefaults = () => ({
+    ownershipSourceInputSummaryPresent: true,
+    ownershipSourceInputOutcomeCategory: 'ownership-input-safe-source-present',
+    ownershipSourceInputRejectedReasons: [],
+    ownershipSourceInputSummary: 'ownership source input check found safe ownership/reference source buckets before harvest',
+    ownershipSourceCandidateCount: 3,
+    ownershipSourceCandidatesWithAnySignatureCount: 3,
+    ownershipSourceCandidatesWithProxySignatureCount: 3,
+    ownershipSourceCandidatesWithDomAttributeSignatureCount: 0,
+    ownershipSourceCandidatesWithRadioGraphicSignatureCount: 0,
+    ownershipSourceCandidatesWithLayoutSignatureCount: 0,
+    ownershipSourceCandidatesWithFieldKeyCount: 0,
+    ownershipSourceCandidatesWithInputNameCount: 0,
+    ownershipSourceCandidatesWithAriaAttributePresenceCount: 0,
+    ownershipSourceCandidatesWithDataAttributePresenceCount: 3,
+    ownershipSourceCandidatesWithDocusignAttributePresenceCount: 0,
+    ownershipSourceCandidatesWithReferenceLikeAttributePresenceCount: 3,
+    ownershipSourceCandidatesWithSafeOwnershipTokenBucketCount: 3,
+    ownershipSourceInputAllCandidatesEmpty: false,
+    ownershipSourceInputAnyCandidateHadUsableSource: true,
+    ownershipSourceInputHarvestGapDetected: false,
+  });
+
   const radioGraphicSignature = (
     overrides: Record<string, unknown> = {},
   ) => ({
@@ -7995,6 +8018,9 @@ test.describe('interactive validation safety', () => {
     const serialized = JSON.stringify(summary);
 
     expect(summary.addressOptionsOwnershipAnchorOutcomeCategory).toBe('ownership-anchor-matched-docusign-owner');
+    expect(summary.ownershipSourceInputSummaryPresent).toBe(true);
+    expect(summary.ownershipSourceInputOutcomeCategory).toBe('ownership-input-safe-source-present');
+    expect(summary.ownershipSourceCandidatesWithSafeOwnershipTokenBucketCount).toBeGreaterThan(0);
     expect(summary.ownershipSourceHarvestOutcomeCategory).toBe('ownership-source-safe-tokens-present');
     expect(summary.docusignOwnerSignalPresentCount).toBe(3);
     expect(summary.ownershipReferenceTargetExistsCount).toBe(3);
@@ -8022,6 +8048,14 @@ test.describe('interactive validation safety', () => {
       expect.arrayContaining(['ownership-anchor-missing', 'safe-evidence-empty']),
     );
     expect(summary.ownershipSourceHarvestAttempted).toBe(true);
+    expect(summary.ownershipSourceInputSummaryPresent).toBe(true);
+    expect(summary.ownershipSourceInputOutcomeCategory).toBe('ownership-input-all-candidates-empty');
+    expect(summary.ownershipSourceInputRejectedReasons).toEqual(expect.arrayContaining(['all-candidates-empty', 'no-signatures-present']));
+    expect(summary.ownershipSourceCandidateCount).toBe(3);
+    expect(summary.ownershipSourceCandidatesWithAnySignatureCount).toBe(0);
+    expect(summary.ownershipSourceInputAllCandidatesEmpty).toBe(true);
+    expect(summary.ownershipSourceInputAnyCandidateHadUsableSource).toBe(false);
+    expect(summary.ownershipSourceInputHarvestGapDetected).toBe(false);
     expect(summary.ownershipSourceHarvestOutcomeCategory).toBe('ownership-source-empty');
     expect(summary.ownershipSourceHarvestRejectedReasons).toEqual(['sources-empty']);
     expect(summary.ownershipSourceHarvestSummary).toBe('ownership source harvest found no ownership/reference sources');
@@ -8042,6 +8076,280 @@ test.describe('interactive validation safety', () => {
     expect(summary.addressOptionsOwnershipAnchorSafeTokensObserved).toEqual([]);
     expect(summary.radioGroupReferenceTargetExists).toBe(false);
     expect(summary.radioGroupReferenceTargetVisible).toBe(false);
+    expect(summary.toggleSelectionOutcomeCategory).toBe('calibrated-rejected-anchor-missing');
+  });
+
+  test('guarded physical address discovery calibrated fallback ownership input diagnostics distinguish present signatures from absent ownership surfaces', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      calibratedBusinessPrimaryLocationRadioField(196, {
+        groupName: null,
+        domAttributeSignature: attributeSignature({
+          hasAriaLabel: false,
+          hasAriaLabelledBy: false,
+          hasAriaDescribedBy: false,
+          hasDataAttributes: false,
+          hasDocuSignMetadataAttributes: false,
+          valueHintBuckets: [],
+          valueHintCount: 0,
+        }),
+        proxyReferenceSignature: proxyReferenceSignature({
+          hasProxyAriaLabel: false,
+          hasProxyAriaLabelledBy: false,
+          hasProxyAriaDescribedBy: false,
+          hasProxyAriaControls: false,
+          hasProxyForAttribute: false,
+          hasProxyDataAttributes: false,
+          hasProxyDocuSignMetadataAttributes: false,
+          hasForIdReference: false,
+          forReferenceTargetExists: false,
+          forReferenceTargetVisible: false,
+          hasAriaLabelledByReference: false,
+          ariaLabelledByTargetExists: false,
+          ariaLabelledByTargetVisible: false,
+          hasAriaDescribedByReference: false,
+          ariaDescribedByTargetExists: false,
+          ariaDescribedByTargetVisible: false,
+          hasAriaControlsReference: false,
+          ariaControlsTargetExists: false,
+          ariaControlsTargetVisible: false,
+          hasDataReference: false,
+          dataReferenceTargetExists: false,
+          dataReferenceTargetVisible: false,
+          hasDocuSignReference: false,
+          docuSignReferenceTargetExists: false,
+          docuSignReferenceTargetVisible: false,
+          valueHintBuckets: [],
+          valueHintCount: 0,
+        }),
+      }),
+      calibratedBusinessPrimaryLocationRadioField(197, {
+        groupName: null,
+        domAttributeSignature: attributeSignature({
+          hasAriaLabel: false,
+          hasAriaLabelledBy: false,
+          hasAriaDescribedBy: false,
+          hasDataAttributes: false,
+          hasDocuSignMetadataAttributes: false,
+          valueHintBuckets: [],
+          valueHintCount: 0,
+        }),
+        proxyReferenceSignature: proxyReferenceSignature({
+          hasProxyAriaLabel: false,
+          hasProxyAriaLabelledBy: false,
+          hasProxyAriaDescribedBy: false,
+          hasProxyAriaControls: false,
+          hasProxyForAttribute: false,
+          hasProxyDataAttributes: false,
+          hasProxyDocuSignMetadataAttributes: false,
+          hasForIdReference: false,
+          forReferenceTargetExists: false,
+          forReferenceTargetVisible: false,
+          hasAriaLabelledByReference: false,
+          ariaLabelledByTargetExists: false,
+          ariaLabelledByTargetVisible: false,
+          hasAriaDescribedByReference: false,
+          ariaDescribedByTargetExists: false,
+          ariaDescribedByTargetVisible: false,
+          hasAriaControlsReference: false,
+          ariaControlsTargetExists: false,
+          ariaControlsTargetVisible: false,
+          hasDataReference: false,
+          dataReferenceTargetExists: false,
+          dataReferenceTargetVisible: false,
+          hasDocuSignReference: false,
+          docuSignReferenceTargetExists: false,
+          docuSignReferenceTargetVisible: false,
+          valueHintBuckets: [],
+          valueHintCount: 0,
+        }),
+      }),
+      calibratedBusinessPrimaryLocationRadioField(198, {
+        groupName: null,
+        domAttributeSignature: attributeSignature({
+          hasAriaLabel: false,
+          hasAriaLabelledBy: false,
+          hasAriaDescribedBy: false,
+          hasDataAttributes: false,
+          hasDocuSignMetadataAttributes: false,
+          valueHintBuckets: [],
+          valueHintCount: 0,
+        }),
+        proxyReferenceSignature: proxyReferenceSignature({
+          hasProxyAriaLabel: false,
+          hasProxyAriaLabelledBy: false,
+          hasProxyAriaDescribedBy: false,
+          hasProxyAriaControls: false,
+          hasProxyForAttribute: false,
+          hasProxyDataAttributes: false,
+          hasProxyDocuSignMetadataAttributes: false,
+          hasForIdReference: false,
+          forReferenceTargetExists: false,
+          forReferenceTargetVisible: false,
+          hasAriaLabelledByReference: false,
+          ariaLabelledByTargetExists: false,
+          ariaLabelledByTargetVisible: false,
+          hasAriaDescribedByReference: false,
+          ariaDescribedByTargetExists: false,
+          ariaDescribedByTargetVisible: false,
+          hasAriaControlsReference: false,
+          ariaControlsTargetExists: false,
+          ariaControlsTargetVisible: false,
+          hasDataReference: false,
+          dataReferenceTargetExists: false,
+          dataReferenceTargetVisible: false,
+          hasDocuSignReference: false,
+          docuSignReferenceTargetExists: false,
+          docuSignReferenceTargetVisible: false,
+          valueHintBuckets: [],
+          valueHintCount: 0,
+        }),
+      }),
+    ] as any);
+
+    const summary = buildPhysicalOperatingAddressToggleSelectionSummary(selection);
+
+    expect(summary.ownershipSourceCandidatesWithAnySignatureCount).toBe(3);
+    expect(summary.ownershipSourceCandidatesWithProxySignatureCount).toBe(3);
+    expect(summary.ownershipSourceCandidatesWithDomAttributeSignatureCount).toBe(3);
+    expect(summary.ownershipSourceCandidatesWithAriaAttributePresenceCount).toBe(0);
+    expect(summary.ownershipSourceCandidatesWithDataAttributePresenceCount).toBe(0);
+    expect(summary.ownershipSourceCandidatesWithReferenceLikeAttributePresenceCount).toBe(0);
+    expect(summary.ownershipSourceInputOutcomeCategory).toBe('ownership-input-signatures-present-no-ownership-surfaces');
+    expect(summary.ownershipSourceInputAllCandidatesEmpty).toBe(false);
+    expect(summary.ownershipSourceInputAnyCandidateHadUsableSource).toBe(false);
+    expect(summary.ownershipSourceHarvestOutcomeCategory).toBe('ownership-source-empty');
+    expect(summary.toggleSelectionOutcomeCategory).toBe('calibrated-rejected-anchor-missing');
+  });
+
+  test('guarded physical address discovery calibrated fallback ownership input diagnostics detect ownership surfaces that did not feed harvest', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      calibratedBusinessPrimaryLocationRadioField(199, {
+        groupName: null,
+        domAttributeSignature: attributeSignature({
+          hasAriaLabelledBy: true,
+          hasAriaDescribedBy: false,
+          hasDataAttributes: true,
+          hasDocuSignMetadataAttributes: false,
+          valueHintBuckets: [],
+          valueHintCount: 0,
+        }),
+        proxyReferenceSignature: proxyReferenceSignature({
+          hasProxyAriaLabelledBy: true,
+          hasProxyAriaDescribedBy: false,
+          hasProxyAriaControls: false,
+          hasProxyForAttribute: true,
+          hasProxyDataAttributes: true,
+          hasProxyDocuSignMetadataAttributes: false,
+          hasForIdReference: false,
+          forReferenceTargetExists: false,
+          forReferenceTargetVisible: false,
+          hasAriaLabelledByReference: false,
+          ariaLabelledByTargetExists: false,
+          ariaLabelledByTargetVisible: false,
+          hasAriaDescribedByReference: false,
+          ariaDescribedByTargetExists: false,
+          ariaDescribedByTargetVisible: false,
+          hasAriaControlsReference: false,
+          ariaControlsTargetExists: false,
+          ariaControlsTargetVisible: false,
+          hasDataReference: false,
+          dataReferenceTargetExists: false,
+          dataReferenceTargetVisible: false,
+          hasDocuSignReference: false,
+          docuSignReferenceTargetExists: false,
+          docuSignReferenceTargetVisible: false,
+          valueHintBuckets: [],
+          valueHintCount: 0,
+        }),
+      }),
+      calibratedBusinessPrimaryLocationRadioField(200, {
+        groupName: null,
+        domAttributeSignature: attributeSignature({
+          hasAriaLabelledBy: true,
+          hasAriaDescribedBy: false,
+          hasDataAttributes: true,
+          hasDocuSignMetadataAttributes: false,
+          valueHintBuckets: [],
+          valueHintCount: 0,
+        }),
+        proxyReferenceSignature: proxyReferenceSignature({
+          hasProxyAriaLabelledBy: true,
+          hasProxyAriaDescribedBy: false,
+          hasProxyAriaControls: false,
+          hasProxyForAttribute: true,
+          hasProxyDataAttributes: true,
+          hasProxyDocuSignMetadataAttributes: false,
+          hasForIdReference: false,
+          forReferenceTargetExists: false,
+          forReferenceTargetVisible: false,
+          hasAriaLabelledByReference: false,
+          ariaLabelledByTargetExists: false,
+          ariaLabelledByTargetVisible: false,
+          hasAriaDescribedByReference: false,
+          ariaDescribedByTargetExists: false,
+          ariaDescribedByTargetVisible: false,
+          hasAriaControlsReference: false,
+          ariaControlsTargetExists: false,
+          ariaControlsTargetVisible: false,
+          hasDataReference: false,
+          dataReferenceTargetExists: false,
+          dataReferenceTargetVisible: false,
+          hasDocuSignReference: false,
+          docuSignReferenceTargetExists: false,
+          docuSignReferenceTargetVisible: false,
+          valueHintBuckets: [],
+          valueHintCount: 0,
+        }),
+      }),
+      calibratedBusinessPrimaryLocationRadioField(201, {
+        groupName: null,
+        domAttributeSignature: attributeSignature({
+          hasAriaLabelledBy: true,
+          hasAriaDescribedBy: false,
+          hasDataAttributes: true,
+          hasDocuSignMetadataAttributes: false,
+          valueHintBuckets: [],
+          valueHintCount: 0,
+        }),
+        proxyReferenceSignature: proxyReferenceSignature({
+          hasProxyAriaLabelledBy: true,
+          hasProxyAriaDescribedBy: false,
+          hasProxyAriaControls: false,
+          hasProxyForAttribute: true,
+          hasProxyDataAttributes: true,
+          hasProxyDocuSignMetadataAttributes: false,
+          hasForIdReference: false,
+          forReferenceTargetExists: false,
+          forReferenceTargetVisible: false,
+          hasAriaLabelledByReference: false,
+          ariaLabelledByTargetExists: false,
+          ariaLabelledByTargetVisible: false,
+          hasAriaDescribedByReference: false,
+          ariaDescribedByTargetExists: false,
+          ariaDescribedByTargetVisible: false,
+          hasAriaControlsReference: false,
+          ariaControlsTargetExists: false,
+          ariaControlsTargetVisible: false,
+          hasDataReference: false,
+          dataReferenceTargetExists: false,
+          dataReferenceTargetVisible: false,
+          hasDocuSignReference: false,
+          docuSignReferenceTargetExists: false,
+          docuSignReferenceTargetVisible: false,
+          valueHintBuckets: [],
+          valueHintCount: 0,
+        }),
+      }),
+    ] as any);
+
+    const summary = buildPhysicalOperatingAddressToggleSelectionSummary(selection);
+
+    expect(summary.ownershipSourceInputHarvestGapDetected).toBe(true);
+    expect(summary.ownershipSourceCandidatesWithAriaAttributePresenceCount).toBe(3);
+    expect(summary.ownershipSourceCandidatesWithDataAttributePresenceCount).toBe(3);
+    expect(summary.ownershipSourceCandidatesWithReferenceLikeAttributePresenceCount).toBe(3);
+    expect(summary.ownershipSourceInputOutcomeCategory).toBe('ownership-input-ownership-surfaces-present-not-harvested');
+    expect(summary.ownershipSourceHarvestOutcomeCategory).toBe('ownership-source-empty');
     expect(summary.toggleSelectionOutcomeCategory).toBe('calibrated-rejected-anchor-missing');
   });
 
@@ -8149,9 +8457,18 @@ test.describe('interactive validation safety', () => {
       calibratedBusinessPrimaryLocationRadioField(177, {
         groupName: null,
         proxyReferenceSignature: proxyReferenceSignature({
+          hasForIdReference: false,
+          forReferenceTargetExists: false,
+          forReferenceTargetVisible: false,
           hasAriaLabelledByReference: true,
           ariaLabelledByTargetExists: false,
           ariaLabelledByTargetVisible: false,
+          hasAriaDescribedByReference: false,
+          ariaDescribedByTargetExists: false,
+          ariaDescribedByTargetVisible: false,
+          hasDataReference: false,
+          dataReferenceTargetExists: false,
+          dataReferenceTargetVisible: false,
           valueHintBuckets: ['generated-token-pattern'],
           valueHintCount: 1,
         }),
@@ -8159,9 +8476,18 @@ test.describe('interactive validation safety', () => {
       calibratedBusinessPrimaryLocationRadioField(178, {
         groupName: null,
         proxyReferenceSignature: proxyReferenceSignature({
+          hasForIdReference: false,
+          forReferenceTargetExists: false,
+          forReferenceTargetVisible: false,
           hasAriaLabelledByReference: true,
           ariaLabelledByTargetExists: false,
           ariaLabelledByTargetVisible: false,
+          hasAriaDescribedByReference: false,
+          ariaDescribedByTargetExists: false,
+          ariaDescribedByTargetVisible: false,
+          hasDataReference: false,
+          dataReferenceTargetExists: false,
+          dataReferenceTargetVisible: false,
           valueHintBuckets: ['generated-token-pattern'],
           valueHintCount: 1,
         }),
@@ -8169,9 +8495,18 @@ test.describe('interactive validation safety', () => {
       calibratedBusinessPrimaryLocationRadioField(179, {
         groupName: null,
         proxyReferenceSignature: proxyReferenceSignature({
+          hasForIdReference: false,
+          forReferenceTargetExists: false,
+          forReferenceTargetVisible: false,
           hasAriaLabelledByReference: true,
           ariaLabelledByTargetExists: false,
           ariaLabelledByTargetVisible: false,
+          hasAriaDescribedByReference: false,
+          ariaDescribedByTargetExists: false,
+          ariaDescribedByTargetVisible: false,
+          hasDataReference: false,
+          dataReferenceTargetExists: false,
+          dataReferenceTargetVisible: false,
           valueHintBuckets: ['generated-token-pattern'],
           valueHintCount: 1,
         }),
@@ -8182,6 +8517,8 @@ test.describe('interactive validation safety', () => {
     const serialized = JSON.stringify(summary);
 
     expect(summary.addressOptionsOwnershipAnchorOutcomeCategory).toBe('ownership-anchor-missing-only-generated-reference');
+    expect(summary.ownershipSourceInputOutcomeCategory).toBe('ownership-input-generated-only');
+    expect(summary.ownershipSourceCandidatesWithSafeOwnershipTokenBucketCount).toBe(0);
     expect(summary.ownershipSourceHarvestOutcomeCategory).toBe('ownership-source-generated-only');
     expect(summary.ownershipSourceHarvestRejectedReasons).toEqual(['generated-only']);
     expect(summary.ownershipSourceHarvestSummary).toBe('ownership source harvest found only generated ownership/reference evidence');
@@ -8239,6 +8576,8 @@ test.describe('interactive validation safety', () => {
     const summary = buildPhysicalOperatingAddressToggleSelectionSummary(selection);
 
     expect(summary.addressOptionsOwnershipAnchorOutcomeCategory).toBe('ownership-anchor-missing-only-generic-evidence');
+    expect(summary.ownershipSourceInputOutcomeCategory).toBe('ownership-input-generic-only');
+    expect(summary.ownershipSourceCandidatesWithSafeOwnershipTokenBucketCount).toBe(0);
     expect(summary.ownershipSourceHarvestOutcomeCategory).toBe('ownership-source-generic-only');
     expect(summary.ownershipSourceHarvestRejectedReasons).toEqual(['generic-only']);
     expect(summary.sharedNamePresentCount).toBe(3);
@@ -8267,7 +8606,11 @@ test.describe('interactive validation safety', () => {
           ariaDescribedByTargetExists: false,
           ariaDescribedByTargetVisible: false,
           hasForIdReference: false,
+          forReferenceTargetExists: false,
+          forReferenceTargetVisible: false,
           hasDataReference: false,
+          dataReferenceTargetExists: false,
+          dataReferenceTargetVisible: false,
           valueHintBuckets: [],
           valueHintCount: 0,
         }),
@@ -8282,7 +8625,11 @@ test.describe('interactive validation safety', () => {
           ariaDescribedByTargetExists: false,
           ariaDescribedByTargetVisible: false,
           hasForIdReference: false,
+          forReferenceTargetExists: false,
+          forReferenceTargetVisible: false,
           hasDataReference: false,
+          dataReferenceTargetExists: false,
+          dataReferenceTargetVisible: false,
           valueHintBuckets: [],
           valueHintCount: 0,
         }),
@@ -8297,7 +8644,11 @@ test.describe('interactive validation safety', () => {
           ariaDescribedByTargetExists: false,
           ariaDescribedByTargetVisible: false,
           hasForIdReference: false,
+          forReferenceTargetExists: false,
+          forReferenceTargetVisible: false,
           hasDataReference: false,
+          dataReferenceTargetExists: false,
+          dataReferenceTargetVisible: false,
           valueHintBuckets: [],
           valueHintCount: 0,
         }),
@@ -8318,8 +8669,8 @@ test.describe('interactive validation safety', () => {
     expect(summary.radioGroupReferenceTargetExists).toBe(false);
     expect(summary.radioGroupReferenceTargetVisible).toBe(false);
     expect(summary.toggleSelectionOutcomeCategory).toBe('calibrated-rejected-anchor-missing');
-    expect(serialized).not.toContain('aria-labelledby');
-    expect(serialized).not.toContain('aria-describedby');
+    expect(serialized).not.toContain('physical-operating-address-token');
+    expect(serialized).not.toContain('tab-form-element');
   });
 
   test('guarded physical address discovery calibrated fallback ownership source diagnostics report reference targets with no safe tokens', () => {
@@ -8327,31 +8678,64 @@ test.describe('interactive validation safety', () => {
       calibratedBusinessPrimaryLocationRadioField(186, {
         groupName: null,
         proxyReferenceSignature: proxyReferenceSignature({
+          hasForIdReference: false,
+          forReferenceTargetExists: false,
+          forReferenceTargetVisible: false,
           hasAriaLabelledByReference: true,
           ariaLabelledByTargetExists: true,
           ariaLabelledByTargetVisible: true,
-          valueHintBuckets: ['address-like-token'],
-          valueHintCount: 1,
+          hasAriaDescribedByReference: false,
+          ariaDescribedByTargetExists: false,
+          ariaDescribedByTargetVisible: false,
+          hasDataReference: false,
+          dataReferenceTargetExists: false,
+          dataReferenceTargetVisible: false,
+          tokenShapeBuckets: [],
+          tokenShapeCount: 0,
+          valueHintBuckets: [],
+          valueHintCount: 0,
         }),
       }),
       calibratedBusinessPrimaryLocationRadioField(187, {
         groupName: null,
         proxyReferenceSignature: proxyReferenceSignature({
+          hasForIdReference: false,
+          forReferenceTargetExists: false,
+          forReferenceTargetVisible: false,
           hasAriaLabelledByReference: true,
           ariaLabelledByTargetExists: true,
           ariaLabelledByTargetVisible: true,
-          valueHintBuckets: ['address-like-token'],
-          valueHintCount: 1,
+          hasAriaDescribedByReference: false,
+          ariaDescribedByTargetExists: false,
+          ariaDescribedByTargetVisible: false,
+          hasDataReference: false,
+          dataReferenceTargetExists: false,
+          dataReferenceTargetVisible: false,
+          tokenShapeBuckets: [],
+          tokenShapeCount: 0,
+          valueHintBuckets: [],
+          valueHintCount: 0,
         }),
       }),
       calibratedBusinessPrimaryLocationRadioField(188, {
         groupName: null,
         proxyReferenceSignature: proxyReferenceSignature({
+          hasForIdReference: false,
+          forReferenceTargetExists: false,
+          forReferenceTargetVisible: false,
           hasAriaLabelledByReference: true,
           ariaLabelledByTargetExists: true,
           ariaLabelledByTargetVisible: true,
-          valueHintBuckets: ['address-like-token'],
-          valueHintCount: 1,
+          hasAriaDescribedByReference: false,
+          ariaDescribedByTargetExists: false,
+          ariaDescribedByTargetVisible: false,
+          hasDataReference: false,
+          dataReferenceTargetExists: false,
+          dataReferenceTargetVisible: false,
+          tokenShapeBuckets: [],
+          tokenShapeCount: 0,
+          valueHintBuckets: [],
+          valueHintCount: 0,
         }),
       }),
     ] as any);
@@ -8364,7 +8748,8 @@ test.describe('interactive validation safety', () => {
     expect(summary.ownershipReferenceTargetExistsCount).toBe(3);
     expect(summary.ownershipReferenceTargetVisibleCount).toBe(3);
     expect(summary.ownershipReferenceTargetSafeTokenCount).toBe(0);
-    expect(summary.addressOptionsOwnershipAnchorSafeTokensObserved).toEqual(expect.arrayContaining(['address-options']));
+    expect(summary.addressOptionsOwnershipAnchorSafeTokensObserved).toEqual([]);
+    expect(summary.ownershipEvidenceSourcesPresentButNoSafeTokens).toBe(true);
     expect(summary.toggleSelectionOutcomeCategory).toBe('calibrated-rejected-anchor-missing');
   });
 
@@ -8444,6 +8829,11 @@ test.describe('interactive validation safety', () => {
     expect(selection.fallbackInventory?.calibratedFallback?.addressOptionsOwnershipAnchorOutcomeCategory).toBe('ownership-anchor-not-checked');
     expect(selection.fallbackInventory?.calibratedFallback?.addressOptionsOwnershipAnchorRejectedReasons).toEqual(['not-checked-prior-guard-failed']);
     expect(selection.fallbackInventory?.calibratedFallback?.radioGroupCommonOwnerCategory).toBe('not-checked');
+    expect(selection.fallbackInventory?.calibratedFallback?.ownershipSourceInputSummaryPresent).toBe(false);
+    expect(selection.fallbackInventory?.calibratedFallback?.ownershipSourceInputOutcomeCategory)
+      .toBe('ownership-input-prior-guard-failed');
+    expect(selection.fallbackInventory?.calibratedFallback?.ownershipSourceInputRejectedReasons)
+      .toEqual(['prior-guard-failed']);
     expect(selection.fallbackInventory?.calibratedFallback?.ownershipSourceHarvestAttempted).toBe(false);
     expect(selection.fallbackInventory?.calibratedFallback?.ownershipSourceHarvestOutcomeCategory)
       .toBe('ownership-source-prior-guard-failed');
@@ -9385,6 +9775,7 @@ test.describe('interactive validation safety', () => {
       radioGroupReferenceTargetExists: true,
       radioGroupReferenceTargetVisible: true,
       radioGroupCommonOwnerCategory: 'shared-owner',
+      ...ownershipSourceInputDebugDefaults(),
       ...ownershipSourceDebugDefaults(),
       exactThreeRadioGuardPassed: true,
       candidateOrderStable: true,
@@ -9428,6 +9819,7 @@ test.describe('interactive validation safety', () => {
     radioGroupReferenceTargetExists: true,
     radioGroupReferenceTargetVisible: true,
     radioGroupCommonOwnerCategory: 'shared-owner',
+    ...ownershipSourceInputDebugDefaults(),
     ...ownershipSourceDebugDefaults(),
     candidateOrderStable: true,
     conflictingCueDetected: false,
@@ -9514,6 +9906,7 @@ test.describe('interactive validation safety', () => {
       radioGroupReferenceTargetExists: true,
       radioGroupReferenceTargetVisible: true,
       radioGroupCommonOwnerCategory: 'shared-owner',
+      ...ownershipSourceInputDebugDefaults(),
       ...ownershipSourceDebugDefaults(),
       exactThreeRadioGuardPassed: true,
       candidateOrderStable: true,
@@ -9557,6 +9950,7 @@ test.describe('interactive validation safety', () => {
     radioGroupReferenceTargetExists: true,
     radioGroupReferenceTargetVisible: true,
     radioGroupCommonOwnerCategory: 'shared-owner',
+    ...ownershipSourceInputDebugDefaults(),
     ...ownershipSourceDebugDefaults(),
     candidateOrderStable: true,
     conflictingCueDetected: false,
@@ -10180,6 +10574,8 @@ test.describe('interactive validation safety', () => {
     expect(serialized).not.toContain('Proof of Address');
     expect(serialized).not.toContain('P.O. Box');
     expect(serialized).not.toContain('physical-operating-address-token');
+    expect(serialized).not.toContain('business-physical-address-token');
+    expect(serialized).not.toContain('address-like-token');
     expect(serialized).not.toContain('generated-token-pattern');
     expect(serialized).not.toContain('hidden.person@example.test');
     expect(serialized).not.toContain('tab-form-element');
@@ -10296,6 +10692,12 @@ test.describe('interactive validation safety', () => {
     expect(receipt?.addressOptionsOwnershipAnchorOutcomeCategory).toBe('ownership-anchor-matched-shared-owner');
     expect(receipt?.calibratedFallbackGuardSummary.addressOptionsOwnershipAnchorOutcomeCategory)
       .toBe('ownership-anchor-matched-shared-owner');
+    expect(receipt?.ownershipSourceInputOutcomeCategory).toBe('ownership-input-safe-source-present');
+    expect(receipt?.calibratedFallbackGuardSummary.ownershipSourceInputOutcomeCategory)
+      .toBe('ownership-input-safe-source-present');
+    expect(receipt?.ownershipSourceCandidatesWithSafeOwnershipTokenBucketCount).toBe(3);
+    expect(receipt?.calibratedFallbackGuardSummary.ownershipSourceCandidatesWithSafeOwnershipTokenBucketCount)
+      .toBe(3);
     expect(receipt?.ownershipSourceHarvestOutcomeCategory).toBe('ownership-source-safe-tokens-present');
     expect(receipt?.calibratedFallbackGuardSummary.ownershipSourceHarvestOutcomeCategory)
       .toBe('ownership-source-safe-tokens-present');
@@ -10372,6 +10774,9 @@ test.describe('interactive validation safety', () => {
     expect(receipt?.addressOptionsOwnershipAnchorOutcomeCategory).toBe('ownership-anchor-matched-shared-owner');
     expect(receipt?.calibratedFallbackGuardSummary.addressOptionsOwnershipAnchorOutcomeCategory)
       .toBe('ownership-anchor-matched-shared-owner');
+    expect(receipt?.ownershipSourceInputOutcomeCategory).toBe('ownership-input-safe-source-present');
+    expect(receipt?.calibratedFallbackGuardSummary.ownershipSourceInputOutcomeCategory)
+      .toBe('ownership-input-safe-source-present');
     expect(receipt?.ownershipSourceHarvestOutcomeCategory).toBe('ownership-source-safe-tokens-present');
     expect(receipt?.calibratedFallbackGuardSummary.ownershipSourceHarvestOutcomeCategory)
       .toBe('ownership-source-safe-tokens-present');
