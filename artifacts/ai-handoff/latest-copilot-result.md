@@ -1,127 +1,106 @@
 ## ChatGPT Review Summary
-- What changed: RUN55 executed exactly one authorized live `npm run bootstrap:capture:physical-address`, inspected the fresh bounded receipt and artifact timestamps, confirmed the run failed closed before the signer surface was reached, and updated only the AI handoff files. No source/test files changed.
-- Whether exactly one live capture was run: yes. One live `bootstrap:capture:physical-address` run was executed and not retried.
-- Whether the receipt file was produced and preserved: yes. `artifacts/latest-physical-operating-address-capture-receipt.json` exists, its LastWriteTimeUtc was `2026-05-19 19:20:52`, and the bootstrap flow preserved a valid bounded receipt rather than leaving the run with a missing or malformed receipt.
-- `childExitCode` and `bootstrapExitCode`: `childExitCode=1`, `bootstrapExitCode=1`.
-- `calibratedAnchorlessFallbackEnabled`: `false`.
-- `calibratedAnchorlessFallbackGuardPassed`: `false`.
-- `calibratedAnchorlessFallbackTargetSlot`: `null`.
-- `calibratedAnchorlessFallbackReason`: `null`.
-- `selectedToggleSlot`: `null`.
-- `selectionMode`: `null`.
-- `toggleSelectionOutcomeCategory`: `null`.
-- `postClickUiEffectValidationRequired`: `false`.
-- `postClickUiEffectValidationPassed`: `null`.
-- `postClickUiEffectValidationOutcome`: `not-required`.
-- `proofOfAddressUploadVisibleAfter`: `null`.
-- `physicalOperatingAddressFieldsVisibleAfter`: `null`.
-- `expansionAttempted / expansionExpanded`: `null` / `false`.
-- `captureReportPresent / captureReportWritable`: `false` / `false`.
-- `writerCalled / writerCompleted`: `false` / `false`.
-- `artifactsFresh / artifactsRemainStale`: `false` / `true`.
-- Whether `reports:refresh` and `findings:open` were run or skipped: both skipped because the run never reached fresh post-toggle artifacts.
-- Whether fresh artifacts were produced: no. The post-toggle structure/dom files remained the stale May 1 bundle (`generatedAt=2026-05-01T16:41:27.153Z`, LastWriteTimeUtc `2026-05-01 16:41:44`).
-- Classification for each `business_mailing_*` concept:
-  - `business_mailing_address_line_1=still capture-blocked`
-  - `business_mailing_city=still capture-blocked`
-  - `business_mailing_state=still capture-blocked`
-  - `business_mailing_postal_code=still capture-blocked`
+- What changed: RUN56 stayed source/test-only and added bounded pre-signer/bootstrap failure classification into the Physical Operating Address capture receipt path. The bootstrap wrapper now classifies resend, Gmail, link-extraction, child-launch, and missing/malformed child-receipt failures into bounded receipt fields, while the child runner classifies missing-signer-url and `openSigner` pre-signer failures before `signerSurfaceReached`.
+- Whether bounded pre-signer failure classification was added: yes.
+- Which receipt fields were added: `preSignerFailureSummaryPresent`, `preSignerFailureCategory`, `preSignerFailureStage`, `preSignerFailureReason`, `preSignerFailureSummary`, `bootstrapResendAttempted`, `bootstrapResendSucceeded`, `gmailPollAttempted`, `gmailInviteFound`, `gmailSigningLinkExtracted`, `childRunnerLaunched`, `childRunnerReceivedSignerUrl`, `childRunnerStartedCapture`, `openSignerAttempted`, `openSignerExternalWarningHandled`, `openSignerReachedSignerSurface`, `signerSurfaceWaitAttempted`, `signerSurfaceWaitTimedOut`, `preSignerFailureBeforeChildLaunch`, `preSignerFailureInChildRunner`, and `preSignerFailureReceiptPreserved`.
+- Whether bootstrap preserves child pre-signer categories: yes. When a bounded child receipt exists, bootstrap now preserves the child category/stage/reason/summary and overlays only the bootstrap resend/Gmail/link-launch facts plus `preSignerFailureReceiptPreserved=true` when the child receipt itself carried the pre-signer failure.
+- Whether fallback bootstrap receipt creation remains bounded: yes. Bootstrap now writes a bounded fallback receipt for resend failure, Gmail timeout/no-invite classification, link-extraction failure, child-runner launch failure, and missing/malformed child-receipt preservation failure instead of throwing out without a preserved receipt.
+- Whether calibrated slot-2 behavior was left unchanged: yes. No matcher behavior changed, no calibrated fallback was broadened, and no slot-selection logic changed.
+- What guardrails were preserved: no live capture ran; no `bootstrap:interactive`; no `interactive:watchdog`; no full signer discovery; no destructive validation; no uploads; no `.env` mutation; no raw signer URLs, raw Gmail content, raw links, tokens, raw stdout/stderr dumps, raw DOM/HTML, or screenshots in receipts.
 - Tests/commands run and pass/fail:
-  - `npm run bootstrap:capture:physical-address` -> executed exactly once; preserved receipt reported `childExitCode=1`, `bootstrapExitCode=1`, `signerSurfaceReached=false`
-  - `npm run reports:refresh` -> skipped because `artifactsFresh=false`
-  - `npm run findings:open` -> skipped because `artifactsFresh=false`
-- Remaining blocker / uncertainty: RUN55 did not reach the signer surface, so the RUN54 anchorless slot-2 path was not exercised live and none of the calibrated exact-three fields advanced beyond their default fail-closed state.
-- Whether screenshot was ignored or not needed: no screenshot was needed; prior screenshot context was ignored.
+  - `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "pre-signer"` -> 11 passed
+  - `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "physical address capture-only"` -> 22 passed
+  - `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "physical address bootstrap capture receipt"` -> 7 passed
+  - `npm run test:units` -> 394 passed
+- Remaining blocker / uncertainty: the new pre-signer fields are source/test validated only. A future authorized live capture is still required to observe which bounded category the current real `signerSurfaceReached=false` failure lands in.
+- Whether another live capture is recommended next, and only if so, the exact next run ID: yes. `PHYSICALADDRESSCALIBRATEDPIVOT-20260519-RUN57`.
 - Whether to continue, stop, or redirect: redirect.
-- The next best Copilot prompt: for `PHYSICALADDRESSCALIBRATEDPIVOT-20260519-RUN56`, stay source/test-only and add a bounded pre-signer bootstrap/capture failure classification into the preserved receipt so a future authorized live run can distinguish resend/Gmail/link-extraction/openSigner failure before `signerSurfaceReached`, without broadening the calibrated slot-2 matcher or spending another live run first.
+- The next best Copilot prompt: for `PHYSICALADDRESSCALIBRATEDPIVOT-20260519-RUN57`, execute exactly one authorized live `npm run bootstrap:capture:physical-address`, do not retry it, inspect the new `preSignerFailure*`, resend/Gmail/link, child-launch, and `openSigner*` receipt fields, and refresh/open downstream reports only if fresh post-toggle artifacts were actually produced.
 
 # Copilot Handoff Result
 
-CHAT ID: PHYSICALADDRESSCALIBRATEDPIVOT-20260519-RUN55
+CHAT ID: PHYSICALADDRESSCALIBRATEDPIVOT-20260519-RUN56
 
 ## Status
 Ready for ChatGPT review
 
 ## Objective
-Execute exactly one authorized live `npm run bootstrap:capture:physical-address` run to validate the new capture-only anchorless slot-2 calibrated fallback on the live signer surface, inspect the bounded receipt, and refresh reports/findings only if fresh post-toggle artifacts were actually produced.
+Stay source/test-only and add bounded pre-signer/bootstrap failure classification into the preserved Physical Operating Address capture receipt so a future authorized live run can distinguish why `signerSurfaceReached=false` without changing any matcher behavior.
 
 ## What Changed
-- Executed exactly one live `npm run bootstrap:capture:physical-address` run and did not retry it.
-- Inspected `artifacts/latest-physical-operating-address-capture-receipt.json` plus bounded freshness metadata for the post-toggle structure/dom files.
-- Confirmed the run failed closed before the signer surface was reached, so the RUN54 anchorless slot-2 path was not exercised live.
-- Confirmed post-toggle artifacts remained the stale May 1 bundle, so `reports:refresh` and `findings:open` were skipped.
-- Updated only `artifacts/ai-handoff/latest-copilot-result.md` and `artifacts/ai-handoff/status.json`.
+- Added bounded pre-signer failure fields and type guards to `scripts/capture-physical-operating-address.ts`.
+- Added bounded child-side classification for missing signer URL and `openSigner`-phase failures before the signer surface is reached.
+- Added bootstrap-side classification for resend failure, Gmail polling failure, link-extraction failure, child-runner launch failure, and missing/malformed child-receipt preservation failure.
+- Bootstrap now catches bootstrap-stage exceptions, preserves a bounded fallback receipt, and merges bootstrap resend/Gmail facts into preserved child receipts without overwriting a more precise child pre-signer category.
+- Left calibrated exact-three / slot-2 behavior unchanged.
+- Added focused pre-signer receipt coverage in `tests/bootstrap-units.spec.ts`.
+- Updated the AI handoff files.
 
 ## Files Changed
+- `scripts/capture-physical-operating-address.ts`
+- `scripts/bootstrap-capture-physical-operating-address.ts`
+- `tests/bootstrap-units.spec.ts`
 - `artifacts/ai-handoff/latest-copilot-result.md`
 - `artifacts/ai-handoff/status.json`
 
-## Receipt Preservation
-- Receipt file exists: yes.
-- Receipt generated during RUN55: yes. `latest-physical-operating-address-capture-receipt.json` had LastWriteTimeUtc `2026-05-19 19:20:52` during the RUN55 inspection window.
-- Bootstrap preserved the bounded child receipt: yes.
+## Receipt Fields Added
+- `preSignerFailureSummaryPresent`
+- `preSignerFailureCategory`
+- `preSignerFailureStage`
+- `preSignerFailureReason`
+- `preSignerFailureSummary`
+- `bootstrapResendAttempted`
+- `bootstrapResendSucceeded`
+- `gmailPollAttempted`
+- `gmailInviteFound`
+- `gmailSigningLinkExtracted`
+- `childRunnerLaunched`
+- `childRunnerReceivedSignerUrl`
+- `childRunnerStartedCapture`
+- `openSignerAttempted`
+- `openSignerExternalWarningHandled`
+- `openSignerReachedSignerSurface`
+- `signerSurfaceWaitAttempted`
+- `signerSurfaceWaitTimedOut`
+- `preSignerFailureBeforeChildLaunch`
+- `preSignerFailureInChildRunner`
+- `preSignerFailureReceiptPreserved`
 
-## Receipt Snapshot
-- `childExitCode=1`
-- `bootstrapExitCode=1`
-- `signerSurfaceReached=false`
-- `initialFieldCount=null`
-- `exactThreeRadioGuardPassed=null`
-- `eligibleRadioCandidateCount=null`
-- `calibratedFallbackCandidateCount=null`
-- `candidateOrderStable=null`
-- `conflictingCueDetected=null`
-- `calibratedAnchorlessFallbackEnabled=false`
-- `calibratedAnchorlessFallbackReason=null`
-- `calibratedAnchorlessFallbackGuardPassed=false`
-- `calibratedAnchorlessFallbackTargetSlot=null`
-- `calibratedAnchorlessFallbackCaptureOnly=false`
-- `calibratedAnchorlessFallbackUsedBecause=null`
-- `calibratedFallbackSafetyNotes=[capture-only-path, finalization-controls-forbidden]`
-- `selectionMode=null`
-- `selectedToggleSlot=null`
-- `selectedToggleReason=null`
-- `fallbackReason=null`
-- `toggleSelectionOutcomeCategory=null`
-- `postClickUiEffectValidationRequired=false`
-- `postClickUiEffectValidationPassed=null`
-- `postClickUiEffectValidationOutcome=not-required`
-- `proofOfAddressUploadVisibleAfter=null`
-- `physicalOperatingAddressFieldsVisibleAfter=null`
-- `uiEffectOutcomeCategory=null`
-- `expansionAttempted=null`
-- `expansionSkippedReason=null`
-- `expansionReturned=false`
-- `expansionExpanded=false`
-- `captureReportPresent=false`
-- `captureReportWritable=false`
-- `writerCalled=false`
-- `writerCompleted=false`
-- `artifactsFresh=false`
-- `artifactsRemainStale=true`
-- `reportsRefreshSkipped=true`
-- `findingsOpenSkipped=true`
-- `blockedReasonCategory=another bounded reason`
+## Bounded Categories Added
+- `no-pre-signer-failure`
+- `resend-failed`
+- `gmail-poll-timeout`
+- `gmail-invite-not-found`
+- `gmail-link-extraction-failed`
+- `child-runner-not-launched`
+- `child-runner-missing-signer-url`
+- `child-runner-exited-before-open-signer`
+- `open-signer-navigation-failed`
+- `external-warning-handling-failed`
+- `signer-surface-timeout`
+- `signer-surface-not-reached`
+- `malformed-child-receipt`
+- `missing-child-receipt`
+- `another-bounded-pre-signer-failure`
 
-## Interpretation
-- The calibrated anchorless slot-2 guard did not fail on an exact-three radio decision; it never ran because the live capture failed before `signerSurfaceReached`.
-- Bounded reason: `blockedReasonCategory=another bounded reason`, with `signerSurfaceReached=false`, `initialFieldCount=null`, no toggle selection, no UI-effect validation, and no expansion attempt recorded.
-- Because `selectedToggleSlot` never became `2`, the run stays fail-closed for all `business_mailing_*` concepts.
+## Bootstrap Preservation Behavior
+- If the child receipt exists and already contains a more precise child pre-signer category, bootstrap preserves that child category/stage/reason/summary.
+- Bootstrap still overlays bounded resend, Gmail, and link-extraction facts onto the final receipt.
+- `preSignerFailureReceiptPreserved=true` is now set when bootstrap preserved a child-side pre-signer failure receipt.
+- If no valid child receipt exists, bootstrap creates a bounded fallback receipt rather than leaving the run without a preserved receipt.
 
-## Artifact Freshness
-- Fresh artifacts produced: no.
-- `artifacts/latest-physical-operating-address-post-toggle-structure.json` remained stale with `generatedAt=2026-05-01T16:41:27.153Z` and LastWriteTimeUtc `2026-05-01 16:41:44`.
-- `artifacts/latest-physical-operating-address-post-toggle-dom.html` remained stale with LastWriteTimeUtc `2026-05-01 16:41:44`.
-- Because `artifactsFresh=false` and `artifactsRemainStale=true`, `reports:refresh` was not run and `findings:open` was not run.
+## Child-Side Classification Behavior
+- Missing `DOCUSIGN_SIGNING_URL` now records `preSignerFailureCategory=child-runner-missing-signer-url`.
+- `openSigner`-phase failures are bounded into `external-warning-handling-failed`, `signer-surface-timeout`, `open-signer-navigation-failed`, or `signer-surface-not-reached` based on safe error text only.
+- If the signer surface is reached, the receipt records `preSignerFailureCategory=no-pre-signer-failure` even when later non-pre-signer failures still block the run.
 
-## business_mailing Classification
-- `business_mailing_address_line_1`: still capture-blocked
-- `business_mailing_city`: still capture-blocked
-- `business_mailing_state`: still capture-blocked
-- `business_mailing_postal_code`: still capture-blocked
+## Matcher Scope
+- Calibrated slot-2 behavior was left unchanged.
+- No matcher behavior changed.
+- No calibrated fallback was broadened.
+- No live command behavior changed beyond bounded receipt instrumentation and preserving a bounded fallback receipt on bootstrap-stage exceptions.
 
 ## Guardrails Preserved
-- Exactly one live capture command was run.
+- No live capture command ran in RUN56.
 - `bootstrap:interactive` was not run.
 - `interactive:watchdog` was not run.
 - Full signer discovery was not run.
@@ -129,33 +108,35 @@ Execute exactly one authorized live `npm run bootstrap:capture:physical-address`
 - `.env` was not mutated.
 - No uploads were performed.
 - No finalization controls were invoked.
-- No raw signer URL, raw field value, raw DOM/HTML dump, screenshot payload, raw IDs/classes/aria/name/DocuSign metadata, email, token, or unbounded output was emitted.
-- Screenshot handling was not needed for this task and prior screenshot context was ignored.
+- No raw signer URL, Gmail message id, raw email text, raw link, token, credential, raw stdout/stderr dump, raw DOM/HTML, or screenshot content was written into the new receipt fields.
+- Screenshot handling was not needed for this task.
 
 ## Tests / Commands Run
-- `npm run bootstrap:capture:physical-address` -> executed exactly once; preserved receipt reported `childExitCode=1`, `bootstrapExitCode=1`, `signerSurfaceReached=false`
-- `npm run reports:refresh` -> skipped because `artifactsFresh=false`
-- `npm run findings:open` -> skipped because `artifactsFresh=false`
+- `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "pre-signer"` -> 11 passed
+- `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "physical address capture-only"` -> 22 passed
+- `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "physical address bootstrap capture receipt"` -> 7 passed
+- `npm run test:units` -> 394 passed
 
 ## Result
-- Forward progress: partial.
-- RUN55 confirmed the new RUN54 anchorless slot-2 behavior did not get a live chance to run because the capture failed before the signer surface and before any exact-three-radio evaluation.
+- Forward progress: yes.
+- RUN56 closed the bounded-classification gap from RUN55. The next authorized live capture can now identify whether `signerSurfaceReached=false` came from resend, Gmail polling, link extraction, child launch, missing signer URL, `openSigner` navigation, external warning handling, signer-surface timeout, or child-receipt preservation failure.
 
 ## Remaining Blocker / Uncertainty
-- RUN55 does not explain which bounded pre-signer stage failed inside the bootstrap/capture path.
-- The live receipt is valid but does not yet distinguish resend/Gmail/link extraction/openSigner failure from later capture logic.
+- The new pre-signer categories are validated only in source/test mode so far.
+- A future authorized live run is still required to confirm which bounded pre-signer category the current real-world failure takes.
+- `gmail-invite-not-found` remains classifier-driven for non-timeout Gmail failures and was not exercised by the default Gmail client path during unit tests.
 
 ## Recommendation
 Redirect.
 
-The smallest next move is a source/test-only RUN56 that adds a bounded pre-signer failure category into the preserved receipt so future authorized live runs can identify why `signerSurfaceReached=false` without spending another live command first.
+The next smallest move is a single authorized live RUN57 capture-only validation so the preserved receipt can reveal the actual bounded pre-signer stage on the live signer path without changing scope again.
 
 ## Recommended Next Copilot Prompt
-For `PHYSICALADDRESSCALIBRATEDPIVOT-20260519-RUN56`, stay source/test-only and extend the bootstrap/capture receipt path so pre-signer failures record a bounded category and summary when `capture:physical-address` exits before `signerSurfaceReached`, allowing a future live run to distinguish resend, Gmail polling, link extraction, signer-open, or another bounded pre-signer failure without broadening the calibrated slot-2 matcher.
+For `PHYSICALADDRESSCALIBRATEDPIVOT-20260519-RUN57`, execute exactly one authorized live `npm run bootstrap:capture:physical-address`, do not retry it, inspect `artifacts/latest-physical-operating-address-capture-receipt.json` for `preSignerFailureCategory`, `preSignerFailureStage`, `preSignerFailureSummary`, resend/Gmail/link fields, child-launch fields, `openSigner*` fields, and `preSignerFailureReceiptPreserved`, and only inspect downstream artifacts or run report refresh/findings open if fresh post-toggle artifacts were actually produced.
 
 ## Branch / Commit Status
 - Branch: `main`
-- Current HEAD before the RUN55 handoff commit: `27548f1c9b92c6628c0b4ea756cde228bcb7ac51`
-- RUN55 handoff commit: pending at write time
+- Current HEAD before the RUN56 handoff commit: `6c6b204d03a76112da7fc2e0d6bb26d4bbe3a143`
+- RUN56 handoff commit: pending at write time
 
-CHAT ID: PHYSICALADDRESSCALIBRATEDPIVOT-20260519-RUN55
+CHAT ID: PHYSICALADDRESSCALIBRATEDPIVOT-20260519-RUN56

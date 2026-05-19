@@ -38,10 +38,12 @@ import {
 } from '../fixtures/physical-address-post-toggle-capture';
 import {
   assertPhysicalOperatingAddressCaptureOnlyGuards,
+  buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput,
   buildPhysicalOperatingAddressCaptureOnlyArtifactFreshnessDiagnostics,
   buildPhysicalOperatingAddressCaptureOnlyReceipt,
   buildPhysicalOperatingAddressCaptureOnlyReceiptPath,
   buildPhysicalOperatingAddressCaptureOnlyEnv,
+  classifyPhysicalOperatingAddressCaptureOnlyOpenSignerFailure,
   comparePhysicalOperatingAddressCaptureOnlyArtifactFreshness,
   formatPhysicalOperatingAddressCaptureOnlyReceiptSentinel,
   PHYSICAL_ADDRESS_CAPTURE_ONLY_ARTIFACT_FILENAMES,
@@ -67,6 +69,7 @@ import {
   PHYSICAL_ADDRESS_BOOTSTRAP_CAPTURE_COMMAND,
   PHYSICAL_ADDRESS_BOOTSTRAP_CAPTURE_SCRIPT_PATH,
   runPhysicalOperatingAddressBootstrapCapture,
+  type PhysicalOperatingAddressBootstrapCaptureDependencies,
 } from '../scripts/bootstrap-capture-physical-operating-address';
 import { ReportBuilder } from '../fixtures/validation-report';
 import type { FieldRecord, ValidationReport } from '../fixtures/validation-report';
@@ -10407,6 +10410,27 @@ test.describe('interactive validation safety', () => {
     bootstrapExitCode: null,
     signerSurfaceReached: true,
     initialFieldCount: 14,
+    preSignerFailureSummaryPresent: false,
+    preSignerFailureCategory: 'no-pre-signer-failure',
+    preSignerFailureStage: 'none',
+    preSignerFailureReason: null,
+    preSignerFailureSummary: null,
+    bootstrapResendAttempted: true,
+    bootstrapResendSucceeded: true,
+    gmailPollAttempted: true,
+    gmailInviteFound: true,
+    gmailSigningLinkExtracted: true,
+    childRunnerLaunched: true,
+    childRunnerReceivedSignerUrl: true,
+    childRunnerStartedCapture: true,
+    openSignerAttempted: true,
+    openSignerExternalWarningHandled: null,
+    openSignerReachedSignerSurface: true,
+    signerSurfaceWaitAttempted: true,
+    signerSurfaceWaitTimedOut: false,
+    preSignerFailureBeforeChildLaunch: false,
+    preSignerFailureInChildRunner: false,
+    preSignerFailureReceiptPreserved: false,
     toggleSelectionOutcomeCategory: 'calibrated-selected',
     toggleSelectionStage: 'calibrated-fallback',
     toggleSelectionMode: 'calibrated-fallback',
@@ -10598,8 +10622,9 @@ test.describe('interactive validation safety', () => {
 
   const createPhysicalAddressBootstrapCaptureDependencies = (
     outDir: string,
-    spawnImpl: ReturnType<typeof createPhysicalAddressBootstrapCaptureSpawn>,
+    spawnImpl: NonNullable<PhysicalOperatingAddressBootstrapCaptureDependencies['spawnImpl']>,
     logs: string[],
+    overrides: Partial<PhysicalOperatingAddressBootstrapCaptureDependencies> = {},
   ) => ({
     artifactsDir: outDir,
     spawnImpl,
@@ -10640,6 +10665,7 @@ test.describe('interactive validation safety', () => {
     }),
     log: (line: string) => logs.push(line),
     env: { DESTRUCTIVE_VALIDATION: '1' } as NodeJS.ProcessEnv,
+    ...overrides,
   });
 
   test('physical address capture-only runner reports missing captureReport and does not treat stale artifacts as fresh', async () => {
@@ -11526,7 +11552,220 @@ test.describe('interactive validation safety', () => {
     expect(receipt?.uiEffectOutcomeCategory).toBe('proof-address-visible-physical-fields-visible');
   });
 
-  test('physical address bootstrap capture receipt writes a bounded fallback receipt when the child exits before receipt', async () => {
+  test('physical address bootstrap capture pre-signer preserves the child category when it is more precise', async () => {
+    const outDir = createPhysicalAddressCaptureOnlyTempDir();
+    const logs: string[] = [];
+    const childReceipt = buildPhysicalOperatingAddressCaptureOnlyReceipt({
+      result: null,
+      childExitCode: 1,
+      blockedReasonCategory: 'another bounded reason',
+      preSignerFailure: buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput('signer-surface-timeout'),
+    });
+
+    const result = await runPhysicalOperatingAddressBootstrapCapture(
+      createPhysicalAddressBootstrapCaptureDependencies(
+        outDir,
+        createPhysicalAddressBootstrapCaptureSpawn({
+          exitCode: 1,
+          stdoutLines: [formatPhysicalOperatingAddressCaptureOnlyReceiptSentinel(childReceipt)],
+        }),
+        logs,
+      ),
+    );
+
+    const receipt = readPhysicalOperatingAddressCaptureOnlyReceipt(
+      buildPhysicalOperatingAddressCaptureOnlyReceiptPath(outDir),
+    );
+
+    expect(result.code).toBe(1);
+    expect(receipt?.preSignerFailureCategory).toBe('signer-surface-timeout');
+    expect(receipt?.preSignerFailureStage).toBe('child-signer-surface-wait');
+    expect(receipt?.bootstrapResendAttempted).toBe(true);
+    expect(receipt?.gmailPollAttempted).toBe(true);
+    expect(receipt?.gmailSigningLinkExtracted).toBe(true);
+    expect(receipt?.preSignerFailureReceiptPreserved).toBe(true);
+  });
+
+  test('physical address bootstrap capture pre-signer classifies resend failure boundedly', async () => {
+    const outDir = createPhysicalAddressCaptureOnlyTempDir();
+    const logs: string[] = [];
+
+    const result = await runPhysicalOperatingAddressBootstrapCapture(
+      createPhysicalAddressBootstrapCaptureDependencies(
+        outDir,
+        createPhysicalAddressBootstrapCaptureSpawn({ exitCode: 0 }),
+        logs,
+        {
+          triggerResend: async () => {
+            throw new Error(
+              'resend failed near https://demo.docusign.net/Signing/EmailStart.aspx?t=SECRET hidden.person@example.test token secret-token-value <html>unsafe</html> screenshot.png',
+            );
+          },
+        },
+      ),
+    );
+
+    const receiptPath = buildPhysicalOperatingAddressCaptureOnlyReceiptPath(outDir);
+    const receipt = readPhysicalOperatingAddressCaptureOnlyReceipt(receiptPath);
+    const serialized = fs.readFileSync(receiptPath, 'utf8');
+
+    expect(result.code).toBe(1);
+    expect(receipt?.preSignerFailureCategory).toBe('resend-failed');
+    expect(receipt?.preSignerFailureStage).toBe('bootstrap-resend');
+    expect(receipt?.bootstrapResendAttempted).toBe(true);
+    expect(receipt?.bootstrapResendSucceeded).toBe(false);
+    expect(receipt?.childRunnerLaunched).toBe(false);
+    expect(serialized).not.toContain('https://demo.docusign.net/Signing/EmailStart.aspx?t=SECRET');
+    expect(serialized).not.toContain('hidden.person@example.test');
+    expect(serialized).not.toContain('secret-token-value');
+    expect(serialized).not.toContain('<html>unsafe</html>');
+    expect(serialized).not.toContain('screenshot.png');
+    expect(logs.join('\n')).not.toContain('https://demo.docusign.net/Signing/EmailStart.aspx?t=SECRET');
+  });
+
+  test('physical address bootstrap capture pre-signer classifies Gmail poll timeout boundedly', async () => {
+    const outDir = createPhysicalAddressCaptureOnlyTempDir();
+    const logs: string[] = [];
+
+    const result = await runPhysicalOperatingAddressBootstrapCapture(
+      createPhysicalAddressBootstrapCaptureDependencies(
+        outDir,
+        createPhysicalAddressBootstrapCaptureSpawn({ exitCode: 0 }),
+        logs,
+        {
+          pollForSigningEmail: async () => {
+            throw new Error('Gmail polling timed out after 1000ms.');
+          },
+        },
+      ),
+    );
+
+    const receipt = readPhysicalOperatingAddressCaptureOnlyReceipt(
+      buildPhysicalOperatingAddressCaptureOnlyReceiptPath(outDir),
+    );
+
+    expect(result.code).toBe(2);
+    expect(receipt?.preSignerFailureCategory).toBe('gmail-poll-timeout');
+    expect(receipt?.gmailPollAttempted).toBe(true);
+    expect(receipt?.gmailInviteFound).toBe(false);
+  });
+
+  test('physical address bootstrap capture pre-signer classifies invite-found link extraction failure boundedly', async () => {
+    const outDir = createPhysicalAddressCaptureOnlyTempDir();
+    const logs: string[] = [];
+
+    const result = await runPhysicalOperatingAddressBootstrapCapture(
+      createPhysicalAddressBootstrapCaptureDependencies(
+        outDir,
+        createPhysicalAddressBootstrapCaptureSpawn({ exitCode: 0 }),
+        logs,
+        {
+          extractSigningUrl: async () => null,
+        },
+      ),
+    );
+
+    const receipt = readPhysicalOperatingAddressCaptureOnlyReceipt(
+      buildPhysicalOperatingAddressCaptureOnlyReceiptPath(outDir),
+    );
+
+    expect(result.code).toBe(3);
+    expect(receipt?.preSignerFailureCategory).toBe('gmail-link-extraction-failed');
+    expect(receipt?.gmailInviteFound).toBe(true);
+    expect(receipt?.gmailSigningLinkExtracted).toBe(false);
+  });
+
+  test('physical address bootstrap capture pre-signer classifies child runner not launched boundedly', async () => {
+    const outDir = createPhysicalAddressCaptureOnlyTempDir();
+    const logs: string[] = [];
+    const throwingSpawn: NonNullable<PhysicalOperatingAddressBootstrapCaptureDependencies['spawnImpl']> = () => {
+      throw new Error('spawn failed');
+    };
+
+    const result = await runPhysicalOperatingAddressBootstrapCapture(
+      createPhysicalAddressBootstrapCaptureDependencies(outDir, throwingSpawn, logs),
+    );
+
+    const receipt = readPhysicalOperatingAddressCaptureOnlyReceipt(
+      buildPhysicalOperatingAddressCaptureOnlyReceiptPath(outDir),
+    );
+
+    expect(result.code).toBe(1);
+    expect(receipt?.preSignerFailureCategory).toBe('child-runner-not-launched');
+    expect(receipt?.childRunnerLaunched).toBe(false);
+    expect(receipt?.childRunnerStartedCapture).toBe(false);
+  });
+
+  test('physical address capture-only pre-signer classifies missing signer URL boundedly', () => {
+    const receipt = buildPhysicalOperatingAddressCaptureOnlyReceipt({
+      result: null,
+      childExitCode: 2,
+      blockedReasonCategory: 'another bounded reason',
+      preSignerFailure: buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput('child-runner-missing-signer-url'),
+    });
+
+    expect(receipt.signerSurfaceReached).toBe(false);
+    expect(receipt.preSignerFailureCategory).toBe('child-runner-missing-signer-url');
+    expect(receipt.childRunnerReceivedSignerUrl).toBe(false);
+    expect(receipt.openSignerAttempted).toBe(false);
+  });
+
+  test('physical address capture-only pre-signer classifies signer-surface timeout boundedly', () => {
+    const receipt = buildPhysicalOperatingAddressCaptureOnlyReceipt({
+      result: null,
+      childExitCode: 1,
+      blockedReasonCategory: 'another bounded reason',
+      preSignerFailure: classifyPhysicalOperatingAddressCaptureOnlyOpenSignerFailure(
+        'Signer form did not become ready after disclosure during after-start-click.',
+      ),
+    });
+
+    expect(receipt.preSignerFailureCategory).toBe('signer-surface-timeout');
+    expect(receipt.openSignerAttempted).toBe(true);
+    expect(receipt.openSignerReachedSignerSurface).toBe(false);
+    expect(receipt.signerSurfaceWaitTimedOut).toBe(true);
+  });
+
+  test('physical address capture-only pre-signer classifies external warning handling failure boundedly', () => {
+    const receipt = buildPhysicalOperatingAddressCaptureOnlyReceipt({
+      result: null,
+      childExitCode: 1,
+      blockedReasonCategory: 'another bounded reason',
+      preSignerFailure: classifyPhysicalOperatingAddressCaptureOnlyOpenSignerFailure(
+        'Destination host did not match the expected Bead test host',
+      ),
+    });
+
+    expect(receipt.preSignerFailureCategory).toBe('external-warning-handling-failed');
+    expect(receipt.openSignerExternalWarningHandled).toBe(false);
+    expect(receipt.openSignerReachedSignerSurface).toBe(false);
+  });
+
+  test('physical address bootstrap capture pre-signer classifies malformed child receipt boundedly', async () => {
+    const outDir = createPhysicalAddressCaptureOnlyTempDir();
+    const logs: string[] = [];
+
+    const result = await runPhysicalOperatingAddressBootstrapCapture(
+      createPhysicalAddressBootstrapCaptureDependencies(
+        outDir,
+        createPhysicalAddressBootstrapCaptureSpawn({
+          exitCode: 1,
+          stdoutLines: ['PHYSICAL_ADDRESS_CAPTURE_RECEIPT_JSON: {not-valid-json}'],
+        }),
+        logs,
+      ),
+    );
+
+    const receipt = readPhysicalOperatingAddressCaptureOnlyReceipt(
+      buildPhysicalOperatingAddressCaptureOnlyReceiptPath(outDir),
+    );
+
+    expect(result.code).toBe(1);
+    expect(receipt?.preSignerFailureCategory).toBe('malformed-child-receipt');
+    expect(receipt?.preSignerFailureReceiptPreserved).toBe(false);
+  });
+
+  test('physical address bootstrap capture pre-signer writes a bounded fallback receipt when the child exits before receipt', async () => {
     const outDir = createPhysicalAddressCaptureOnlyTempDir();
     const logs: string[] = [];
     const result = await runPhysicalOperatingAddressBootstrapCapture(
@@ -11549,9 +11788,21 @@ test.describe('interactive validation safety', () => {
     expect(receipt?.bootstrapExitCode).toBe(1);
     expect(receipt?.artifactsFresh).toBe(false);
     expect(receipt?.blockedReasonCategory).toBe('another bounded reason');
+    expect(receipt?.preSignerFailureCategory).toBe('missing-child-receipt');
+    expect(receipt?.preSignerFailureStage).toBe('bootstrap-receipt-preservation');
+    expect(receipt?.preSignerFailureReceiptPreserved).toBe(false);
     expect(serialized).not.toContain('https://demo.docusign.net/Signing/EmailStart.aspx?t=SECRET');
     expect(serialized).not.toContain('SECRET');
     expect(logs.join('\n')).not.toContain('https://demo.docusign.net/Signing/EmailStart.aspx?t=SECRET');
+  });
+
+  test('physical address capture-only pre-signer records no pre-signer failure after signer surface is reached', () => {
+    const receipt = createPhysicalAddressBootstrapCaptureReceipt();
+
+    expect(receipt.signerSurfaceReached).toBe(true);
+    expect(receipt.preSignerFailureCategory).toBe('no-pre-signer-failure');
+    expect(receipt.preSignerFailureStage).toBe('none');
+    expect(receipt.preSignerFailureSummaryPresent).toBe(false);
   });
 
   test('physical address bootstrap capture receipt blocks inconsistent child success when artifacts remain stale', async () => {

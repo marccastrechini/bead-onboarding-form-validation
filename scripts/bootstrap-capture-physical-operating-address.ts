@@ -12,19 +12,23 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
+  DEFAULT_BOOTSTRAP_EMAIL_RUNNER_DEPENDENCIES,
   formatSafeError,
   runBootstrapEmailScripts,
   type BootstrapEmailRunnerDependencies,
   type ExitReason,
 } from '../lib/bootstrap-email-runner';
 import {
+  buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput,
   buildPhysicalOperatingAddressCaptureOnlyReceipt,
   buildPhysicalOperatingAddressCaptureOnlyReceiptPath,
   formatPhysicalOperatingAddressCaptureOnlyReceiptSentinel,
+  mergePhysicalOperatingAddressCaptureOnlyPreSignerFailureFields,
   parsePhysicalOperatingAddressCaptureOnlyReceiptSentinel,
   PHYSICAL_ADDRESS_CAPTURE_ONLY_COMMAND,
   readPhysicalOperatingAddressCaptureOnlyReceipt,
   writePhysicalOperatingAddressCaptureOnlyReceipt,
+  type PhysicalOperatingAddressCaptureOnlyPreSignerFailureInput,
   type PhysicalOperatingAddressCaptureOnlyReceipt,
 } from './capture-physical-operating-address';
 
@@ -59,6 +63,7 @@ type PhysicalOperatingAddressBootstrapCaptureState = {
   childExitCode: number | null;
   childReceipt: PhysicalOperatingAddressCaptureOnlyReceipt | null;
   receiptParseFailure: PhysicalOperatingAddressBootstrapCaptureReceiptParseFailure | null;
+  preSignerFailure: PhysicalOperatingAddressCaptureOnlyPreSignerFailureInput;
 };
 
 export type PhysicalOperatingAddressBootstrapCaptureDependencies = Partial<Omit<BootstrapEmailRunnerDependencies, 'runNpmScript'>> & {
@@ -95,6 +100,83 @@ export function parsePhysicalOperatingAddressBootstrapCaptureReceiptLines(lines:
   return { receipt, failureReason: null };
 }
 
+function classifyPhysicalOperatingAddressBootstrapGmailFailure(
+  error: unknown,
+): PhysicalOperatingAddressCaptureOnlyPreSignerFailureInput {
+  const safe = formatSafeError(error).toLowerCase();
+  if (safe.includes('timed out')) {
+    return buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput('gmail-poll-timeout');
+  }
+  if (safe.includes('invite') && safe.includes('not found')) {
+    return buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput('gmail-invite-not-found');
+  }
+  return buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput('another-bounded-pre-signer-failure', {
+    preSignerFailureStage: 'bootstrap-gmail-poll',
+    preSignerFailureReason: 'gmail polling failed before a usable invite was selected',
+    preSignerFailureSummary: 'bootstrap resend succeeded but Gmail polling failed before a usable invite could be classified',
+    bootstrapResendAttempted: true,
+    bootstrapResendSucceeded: true,
+    gmailPollAttempted: true,
+    gmailInviteFound: false,
+    preSignerFailureBeforeChildLaunch: true,
+  });
+}
+
+function buildPhysicalOperatingAddressBootstrapPreSignerFailure(
+  state: PhysicalOperatingAddressBootstrapCaptureState,
+): PhysicalOperatingAddressCaptureOnlyPreSignerFailureInput {
+  if (state.childReceipt) {
+    return {
+      bootstrapResendAttempted: state.preSignerFailure.bootstrapResendAttempted,
+      bootstrapResendSucceeded: state.preSignerFailure.bootstrapResendSucceeded,
+      gmailPollAttempted: state.preSignerFailure.gmailPollAttempted,
+      gmailInviteFound: state.preSignerFailure.gmailInviteFound,
+      gmailSigningLinkExtracted: state.preSignerFailure.gmailSigningLinkExtracted,
+      childRunnerLaunched: state.preSignerFailure.childRunnerLaunched,
+      preSignerFailureReceiptPreserved:
+        !state.childReceipt.signerSurfaceReached
+        && state.childReceipt.preSignerFailureCategory !== 'no-pre-signer-failure',
+    };
+  }
+
+  if (state.preSignerFailure.preSignerFailureCategory) {
+    return {
+      ...state.preSignerFailure,
+      preSignerFailureReceiptPreserved: false,
+    };
+  }
+
+  switch (state.receiptParseFailure) {
+    case 'malformed-receipt-line':
+    case 'multiple-receipt-lines':
+    case 'invalid-receipt-file':
+      return buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput('malformed-child-receipt', {
+        ...state.preSignerFailure,
+        childRunnerLaunched: state.preSignerFailure.childRunnerLaunched ?? true,
+        childRunnerReceivedSignerUrl: state.preSignerFailure.childRunnerReceivedSignerUrl ?? true,
+        childRunnerStartedCapture: state.preSignerFailure.childRunnerStartedCapture ?? true,
+        preSignerFailureReceiptPreserved: false,
+      });
+    case 'missing-receipt':
+      return buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput('missing-child-receipt', {
+        ...state.preSignerFailure,
+        childRunnerLaunched: state.preSignerFailure.childRunnerLaunched ?? true,
+        childRunnerReceivedSignerUrl: state.preSignerFailure.childRunnerReceivedSignerUrl ?? true,
+        childRunnerStartedCapture: state.preSignerFailure.childRunnerStartedCapture ?? true,
+        preSignerFailureReceiptPreserved: false,
+      });
+    default:
+      return buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput('another-bounded-pre-signer-failure', {
+        ...state.preSignerFailure,
+        preSignerFailureStage: 'bootstrap-receipt-preservation',
+        preSignerFailureReason: 'bootstrap could not determine why signer surface was not reached',
+        preSignerFailureSummary:
+          'capture stopped before signer surface readiness and bootstrap could not preserve a more precise bounded receipt',
+        preSignerFailureReceiptPreserved: false,
+      });
+  }
+}
+
 function createPhysicalOperatingAddressBootstrapCaptureRunner(
   state: PhysicalOperatingAddressBootstrapCaptureState,
   options: {
@@ -122,11 +204,30 @@ function createPhysicalOperatingAddressBootstrapCaptureRunner(
     const isWin = process.platform === 'win32';
     const command = isWin ? (process.env.ComSpec || 'cmd.exe') : 'npm';
     const args = isWin ? ['/d', '/s', '/c', 'npm', 'run', script] : ['run', script];
-    const child = spawnImpl(command, args, {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env,
-      shell: false,
-    });
+    let child: ChildProcess;
+    try {
+      child = spawnImpl(command, args, {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env,
+        shell: false,
+      });
+      state.preSignerFailure = {
+        ...state.preSignerFailure,
+        childRunnerLaunched: true,
+        childRunnerStartedCapture: true,
+      };
+    } catch {
+      state.childExitCode = 1;
+      state.childReceipt = null;
+      state.receiptParseFailure = 'missing-receipt';
+      state.preSignerFailure = {
+        ...state.preSignerFailure,
+        ...buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput('child-runner-not-launched'),
+        childRunnerLaunched: false,
+        childRunnerStartedCapture: false,
+      };
+      return 1;
+    }
 
     state.childCommand = `npm run ${script}`;
 
@@ -187,6 +288,12 @@ function createPhysicalOperatingAddressBootstrapCaptureRunner(
         state.childExitCode = 1;
         state.childReceipt = null;
         state.receiptParseFailure = 'missing-receipt';
+        state.preSignerFailure = {
+          ...state.preSignerFailure,
+          ...buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput('child-runner-not-launched'),
+          childRunnerLaunched: false,
+          childRunnerStartedCapture: false,
+        };
         resolve(1);
       });
     });
@@ -202,14 +309,21 @@ export function finalizePhysicalOperatingAddressBootstrapCaptureResult(input: {
   receipt: PhysicalOperatingAddressCaptureOnlyReceipt;
 } {
   const childExitCode = input.state.childExitCode ?? input.bootstrapResult.code;
+  const bootstrapPreSignerFailure = buildPhysicalOperatingAddressBootstrapPreSignerFailure(input.state);
   let receipt = input.state.childReceipt
-    ?? buildPhysicalOperatingAddressCaptureOnlyReceipt({
+    ? mergePhysicalOperatingAddressCaptureOnlyPreSignerFailureFields(
+      input.state.childReceipt,
+      bootstrapPreSignerFailure,
+      { preserveExistingFailureDetail: true },
+    )
+    : buildPhysicalOperatingAddressCaptureOnlyReceipt({
       result: null,
       childExitCode: childExitCode === 0 ? 3 : childExitCode,
       bootstrapExitCode: input.bootstrapResult.code,
       artifactsDir: input.artifactsDir,
       blockedReasonCategory: 'another bounded reason',
       childCommand: input.state.childCommand,
+      preSignerFailure: bootstrapPreSignerFailure,
     });
 
   let bootstrapExitCode = input.bootstrapResult.code;
@@ -251,30 +365,101 @@ export async function runPhysicalOperatingAddressBootstrapCapture(
   dependencies: PhysicalOperatingAddressBootstrapCaptureDependencies = {},
 ): Promise<ExitReason> {
   const artifactsDir = dependencies.artifactsDir ?? ARTIFACTS_DIR;
+  const resolvedDependencies = {
+    ...DEFAULT_BOOTSTRAP_EMAIL_RUNNER_DEPENDENCIES,
+    ...dependencies,
+  };
   const state: PhysicalOperatingAddressBootstrapCaptureState = {
     childCommand: `npm run ${PHYSICAL_ADDRESS_CAPTURE_ONLY_COMMAND}`,
     childExitCode: null,
     childReceipt: null,
     receiptParseFailure: null,
+    preSignerFailure: {},
   };
-  const log = dependencies.log ?? ((line: string) => {
+  const log = resolvedDependencies.log ?? ((line: string) => {
     // eslint-disable-next-line no-console
     console.log(line);
   });
 
-  const bootstrapResult = await runBootstrapEmailScripts({
-    label: PHYSICAL_ADDRESS_BOOTSTRAP_CAPTURE_COMMAND,
-    scripts: PHYSICAL_ADDRESS_BOOTSTRAP_CAPTURE_CHILD_SCRIPTS,
-    dependencies: {
-      ...dependencies,
-      log,
-      runNpmScript: createPhysicalOperatingAddressBootstrapCaptureRunner(state, {
-        artifactsDir,
-        spawnImpl: dependencies.spawnImpl,
-        emitChildLine: dependencies.emitChildLine,
-      }),
-    },
-  });
+  let bootstrapResult: ExitReason;
+  try {
+    bootstrapResult = await runBootstrapEmailScripts({
+      label: PHYSICAL_ADDRESS_BOOTSTRAP_CAPTURE_COMMAND,
+      scripts: PHYSICAL_ADDRESS_BOOTSTRAP_CAPTURE_CHILD_SCRIPTS,
+      dependencies: {
+        ...resolvedDependencies,
+        log,
+        triggerResend: async (config) => {
+          state.preSignerFailure = {
+            ...state.preSignerFailure,
+            bootstrapResendAttempted: true,
+          };
+          try {
+            const resend = await resolvedDependencies.triggerResend(config);
+            state.preSignerFailure = {
+              ...state.preSignerFailure,
+              bootstrapResendAttempted: true,
+              bootstrapResendSucceeded: true,
+            };
+            return resend;
+          } catch (error) {
+            state.preSignerFailure = {
+              ...state.preSignerFailure,
+              ...buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput('resend-failed'),
+            };
+            throw error;
+          }
+        },
+        pollForSigningEmail: async (config, afterEpochSec) => {
+          state.preSignerFailure = {
+            ...state.preSignerFailure,
+            gmailPollAttempted: true,
+          };
+          try {
+            const message = await resolvedDependencies.pollForSigningEmail(config, afterEpochSec);
+            state.preSignerFailure = {
+              ...state.preSignerFailure,
+              gmailPollAttempted: true,
+              gmailInviteFound: true,
+            };
+            return message;
+          } catch (error) {
+            state.preSignerFailure = {
+              ...state.preSignerFailure,
+              ...classifyPhysicalOperatingAddressBootstrapGmailFailure(error),
+            };
+            throw error;
+          }
+        },
+        extractSigningUrl: async (body) => {
+          const extracted = await resolvedDependencies.extractSigningUrl(body);
+          if (!extracted) {
+            state.preSignerFailure = {
+              ...state.preSignerFailure,
+              ...buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput('gmail-link-extraction-failed'),
+            };
+            return null;
+          }
+          state.preSignerFailure = {
+            ...state.preSignerFailure,
+            gmailSigningLinkExtracted: true,
+            childRunnerReceivedSignerUrl: true,
+          };
+          return extracted;
+        },
+        runNpmScript: createPhysicalOperatingAddressBootstrapCaptureRunner(state, {
+          artifactsDir,
+          spawnImpl: resolvedDependencies.spawnImpl,
+          emitChildLine: resolvedDependencies.emitChildLine,
+        }),
+      },
+    });
+  } catch (error) {
+    bootstrapResult = {
+      code: 1,
+      reason: `BLOCKED: ${formatSafeError(error)}`,
+    };
+  }
 
   const finalized = finalizePhysicalOperatingAddressBootstrapCaptureResult({
     bootstrapResult,

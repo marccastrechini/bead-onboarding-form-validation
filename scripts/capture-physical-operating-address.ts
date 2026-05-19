@@ -147,6 +147,63 @@ export type PhysicalOperatingAddressCaptureOnlyBlockedReasonCategory =
   | 'another bounded reason'
   | null;
 
+export type PhysicalOperatingAddressCaptureOnlyPreSignerFailureCategory =
+  | 'no-pre-signer-failure'
+  | 'resend-failed'
+  | 'gmail-poll-timeout'
+  | 'gmail-invite-not-found'
+  | 'gmail-link-extraction-failed'
+  | 'child-runner-not-launched'
+  | 'child-runner-missing-signer-url'
+  | 'child-runner-exited-before-open-signer'
+  | 'open-signer-navigation-failed'
+  | 'external-warning-handling-failed'
+  | 'signer-surface-timeout'
+  | 'signer-surface-not-reached'
+  | 'malformed-child-receipt'
+  | 'missing-child-receipt'
+  | 'another-bounded-pre-signer-failure';
+
+export type PhysicalOperatingAddressCaptureOnlyPreSignerFailureStage =
+  | 'none'
+  | 'bootstrap-resend'
+  | 'bootstrap-gmail-poll'
+  | 'bootstrap-link-extraction'
+  | 'bootstrap-child-launch'
+  | 'bootstrap-receipt-preservation'
+  | 'child-pre-open-signer'
+  | 'child-open-signer'
+  | 'child-signer-surface-wait'
+  | 'child-signer-surface'
+  | 'another-bounded-pre-signer-stage';
+
+export interface PhysicalOperatingAddressCaptureOnlyPreSignerFailureFields {
+  preSignerFailureSummaryPresent: boolean;
+  preSignerFailureCategory: PhysicalOperatingAddressCaptureOnlyPreSignerFailureCategory;
+  preSignerFailureStage: PhysicalOperatingAddressCaptureOnlyPreSignerFailureStage;
+  preSignerFailureReason: string | null;
+  preSignerFailureSummary: string | null;
+  bootstrapResendAttempted: boolean;
+  bootstrapResendSucceeded: boolean | null;
+  gmailPollAttempted: boolean;
+  gmailInviteFound: boolean | null;
+  gmailSigningLinkExtracted: boolean | null;
+  childRunnerLaunched: boolean;
+  childRunnerReceivedSignerUrl: boolean | null;
+  childRunnerStartedCapture: boolean;
+  openSignerAttempted: boolean;
+  openSignerExternalWarningHandled: boolean | null;
+  openSignerReachedSignerSurface: boolean;
+  signerSurfaceWaitAttempted: boolean;
+  signerSurfaceWaitTimedOut: boolean | null;
+  preSignerFailureBeforeChildLaunch: boolean;
+  preSignerFailureInChildRunner: boolean;
+  preSignerFailureReceiptPreserved: boolean;
+}
+
+export type PhysicalOperatingAddressCaptureOnlyPreSignerFailureInput =
+  Partial<Omit<PhysicalOperatingAddressCaptureOnlyPreSignerFailureFields, 'preSignerFailureSummaryPresent'>>;
+
 export interface PhysicalOperatingAddressCaptureOnlyCalibratedFallbackGuardSummary {
   addressOptionsAnchorMatched: boolean | null;
   addressOptionsAnchorOutcomeCategory: PhysicalOperatingAddressAddressOptionsAnchorOutcomeCategory | null;
@@ -287,7 +344,7 @@ export interface PhysicalOperatingAddressCaptureOnlyTargetFileFreshnessSummary {
   stale: boolean;
 }
 
-export interface PhysicalOperatingAddressCaptureOnlyReceipt {
+export interface PhysicalOperatingAddressCaptureOnlyReceipt extends PhysicalOperatingAddressCaptureOnlyPreSignerFailureFields {
   runKind: typeof PHYSICAL_ADDRESS_CAPTURE_ONLY_RUN_KIND;
   childCommand: string;
   childExitCode: number | null;
@@ -969,6 +1026,490 @@ function buildPhysicalOperatingAddressCaptureOnlyTargetFileFreshnessSummary(
       stale: !domFresh,
     },
   ];
+}
+
+function coalesceDefined<T>(...values: Array<T | undefined>): T | undefined {
+  for (const value of values) {
+    if (value !== undefined) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureDetail(
+  category: PhysicalOperatingAddressCaptureOnlyPreSignerFailureCategory,
+): {
+  stage: PhysicalOperatingAddressCaptureOnlyPreSignerFailureStage;
+  reason: string | null;
+  summary: string | null;
+} {
+  switch (category) {
+    case 'no-pre-signer-failure':
+      return {
+        stage: 'none',
+        reason: null,
+        summary: null,
+      };
+    case 'resend-failed':
+      return {
+        stage: 'bootstrap-resend',
+        reason: 'bootstrap resend failed',
+        summary: 'bootstrap resend failed before Gmail polling or child launch began',
+      };
+    case 'gmail-poll-timeout':
+      return {
+        stage: 'bootstrap-gmail-poll',
+        reason: 'gmail polling timed out before a usable DocuSign invite was selected',
+        summary: 'bootstrap resend succeeded but Gmail polling timed out before a usable DocuSign invite was found',
+      };
+    case 'gmail-invite-not-found':
+      return {
+        stage: 'bootstrap-gmail-poll',
+        reason: 'no usable Gmail invite was selected after bootstrap resend',
+        summary: 'bootstrap resend succeeded but no usable Gmail invite was found for bounded link extraction',
+      };
+    case 'gmail-link-extraction-failed':
+      return {
+        stage: 'bootstrap-link-extraction',
+        reason: 'Gmail invite was found but no DocuSign signing link was extracted',
+        summary: 'bootstrap found an invite email but bounded signing-link extraction produced no signer URL',
+      };
+    case 'child-runner-not-launched':
+      return {
+        stage: 'bootstrap-child-launch',
+        reason: 'bootstrap could not launch the capture child runner',
+        summary: 'bootstrap finished resend and Gmail/link extraction but the capture child runner was not launched',
+      };
+    case 'child-runner-missing-signer-url':
+      return {
+        stage: 'child-pre-open-signer',
+        reason: 'capture child runner started without a signer URL',
+        summary: 'the child runner started but DOCUSIGN_SIGNING_URL was unavailable before openSigner',
+      };
+    case 'child-runner-exited-before-open-signer':
+      return {
+        stage: 'child-pre-open-signer',
+        reason: 'the child runner exited before openSigner was attempted',
+        summary: 'the child runner started but exited before the signer surface could be opened',
+      };
+    case 'open-signer-navigation-failed':
+      return {
+        stage: 'child-open-signer',
+        reason: 'openSigner failed before the signer surface was reached',
+        summary: 'the child runner received a signer URL but openSigner navigation failed before signer readiness',
+      };
+    case 'external-warning-handling-failed':
+      return {
+        stage: 'child-open-signer',
+        reason: 'openSigner failed while handling the bounded external-site warning',
+        summary: 'the child runner reached the safe-redirect warning but could not complete the bounded external warning flow',
+      };
+    case 'signer-surface-timeout':
+      return {
+        stage: 'child-signer-surface-wait',
+        reason: 'the signer surface did not become ready before timeout',
+        summary: 'openSigner timed out while waiting for a usable signer surface',
+      };
+    case 'signer-surface-not-reached':
+      return {
+        stage: 'child-signer-surface',
+        reason: 'the signer surface was not reached before capture aborted',
+        summary: 'the child runner attempted openSigner but never reached a usable signer surface',
+      };
+    case 'malformed-child-receipt':
+      return {
+        stage: 'bootstrap-receipt-preservation',
+        reason: 'bootstrap observed a malformed child receipt',
+        summary: 'the child runner exited but bootstrap could not preserve a valid bounded child receipt',
+      };
+    case 'missing-child-receipt':
+      return {
+        stage: 'bootstrap-receipt-preservation',
+        reason: 'bootstrap did not observe a child receipt',
+        summary: 'the child runner exited without a bounded receipt for bootstrap to preserve',
+      };
+    case 'another-bounded-pre-signer-failure':
+      return {
+        stage: 'another-bounded-pre-signer-stage',
+        reason: 'another bounded pre-signer failure blocked capture',
+        summary: 'capture stopped before signer surface readiness for another bounded pre-signer reason',
+      };
+  }
+}
+
+export function buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput(
+  category: PhysicalOperatingAddressCaptureOnlyPreSignerFailureCategory,
+  overrides: PhysicalOperatingAddressCaptureOnlyPreSignerFailureInput = {},
+): PhysicalOperatingAddressCaptureOnlyPreSignerFailureInput {
+  const detail = buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureDetail(category);
+  const base: PhysicalOperatingAddressCaptureOnlyPreSignerFailureInput = {
+    preSignerFailureCategory: category,
+    preSignerFailureStage: detail.stage,
+    preSignerFailureReason: detail.reason,
+    preSignerFailureSummary: detail.summary,
+    bootstrapResendAttempted: false,
+    bootstrapResendSucceeded: null,
+    gmailPollAttempted: false,
+    gmailInviteFound: null,
+    gmailSigningLinkExtracted: null,
+    childRunnerLaunched: false,
+    childRunnerReceivedSignerUrl: null,
+    childRunnerStartedCapture: false,
+    openSignerAttempted: false,
+    openSignerExternalWarningHandled: null,
+    openSignerReachedSignerSurface: false,
+    signerSurfaceWaitAttempted: false,
+    signerSurfaceWaitTimedOut: null,
+    preSignerFailureBeforeChildLaunch: false,
+    preSignerFailureInChildRunner: false,
+    preSignerFailureReceiptPreserved: false,
+  };
+
+  switch (category) {
+    case 'no-pre-signer-failure':
+      Object.assign(base, {
+        childRunnerLaunched: true,
+        childRunnerReceivedSignerUrl: true,
+        childRunnerStartedCapture: true,
+        openSignerAttempted: true,
+        openSignerReachedSignerSurface: true,
+        signerSurfaceWaitAttempted: true,
+        signerSurfaceWaitTimedOut: false,
+      });
+      break;
+    case 'resend-failed':
+      Object.assign(base, {
+        bootstrapResendAttempted: true,
+        bootstrapResendSucceeded: false,
+        preSignerFailureBeforeChildLaunch: true,
+      });
+      break;
+    case 'gmail-poll-timeout':
+    case 'gmail-invite-not-found':
+      Object.assign(base, {
+        bootstrapResendAttempted: true,
+        bootstrapResendSucceeded: true,
+        gmailPollAttempted: true,
+        gmailInviteFound: false,
+        preSignerFailureBeforeChildLaunch: true,
+      });
+      break;
+    case 'gmail-link-extraction-failed':
+      Object.assign(base, {
+        bootstrapResendAttempted: true,
+        bootstrapResendSucceeded: true,
+        gmailPollAttempted: true,
+        gmailInviteFound: true,
+        gmailSigningLinkExtracted: false,
+        preSignerFailureBeforeChildLaunch: true,
+      });
+      break;
+    case 'child-runner-not-launched':
+      Object.assign(base, {
+        bootstrapResendAttempted: true,
+        bootstrapResendSucceeded: true,
+        gmailPollAttempted: true,
+        gmailInviteFound: true,
+        gmailSigningLinkExtracted: true,
+        childRunnerLaunched: false,
+        childRunnerReceivedSignerUrl: true,
+        childRunnerStartedCapture: false,
+        preSignerFailureBeforeChildLaunch: true,
+      });
+      break;
+    case 'child-runner-missing-signer-url':
+      Object.assign(base, {
+        childRunnerLaunched: true,
+        childRunnerReceivedSignerUrl: false,
+        childRunnerStartedCapture: true,
+        preSignerFailureInChildRunner: true,
+      });
+      break;
+    case 'child-runner-exited-before-open-signer':
+      Object.assign(base, {
+        childRunnerLaunched: true,
+        childRunnerReceivedSignerUrl: true,
+        childRunnerStartedCapture: true,
+        preSignerFailureInChildRunner: true,
+      });
+      break;
+    case 'open-signer-navigation-failed':
+      Object.assign(base, {
+        childRunnerLaunched: true,
+        childRunnerReceivedSignerUrl: true,
+        childRunnerStartedCapture: true,
+        openSignerAttempted: true,
+        openSignerReachedSignerSurface: false,
+        signerSurfaceWaitAttempted: true,
+        signerSurfaceWaitTimedOut: false,
+        preSignerFailureInChildRunner: true,
+      });
+      break;
+    case 'external-warning-handling-failed':
+      Object.assign(base, {
+        childRunnerLaunched: true,
+        childRunnerReceivedSignerUrl: true,
+        childRunnerStartedCapture: true,
+        openSignerAttempted: true,
+        openSignerExternalWarningHandled: false,
+        openSignerReachedSignerSurface: false,
+        signerSurfaceWaitAttempted: true,
+        signerSurfaceWaitTimedOut: false,
+        preSignerFailureInChildRunner: true,
+      });
+      break;
+    case 'signer-surface-timeout':
+      Object.assign(base, {
+        childRunnerLaunched: true,
+        childRunnerReceivedSignerUrl: true,
+        childRunnerStartedCapture: true,
+        openSignerAttempted: true,
+        openSignerReachedSignerSurface: false,
+        signerSurfaceWaitAttempted: true,
+        signerSurfaceWaitTimedOut: true,
+        preSignerFailureInChildRunner: true,
+      });
+      break;
+    case 'signer-surface-not-reached':
+      Object.assign(base, {
+        childRunnerLaunched: true,
+        childRunnerReceivedSignerUrl: true,
+        childRunnerStartedCapture: true,
+        openSignerAttempted: true,
+        openSignerReachedSignerSurface: false,
+        signerSurfaceWaitAttempted: true,
+        signerSurfaceWaitTimedOut: false,
+        preSignerFailureInChildRunner: true,
+      });
+      break;
+    case 'malformed-child-receipt':
+    case 'missing-child-receipt':
+      Object.assign(base, {
+        bootstrapResendAttempted: true,
+        bootstrapResendSucceeded: true,
+        gmailPollAttempted: true,
+        gmailInviteFound: true,
+        gmailSigningLinkExtracted: true,
+        childRunnerLaunched: true,
+        childRunnerReceivedSignerUrl: true,
+        childRunnerStartedCapture: true,
+      });
+      break;
+    case 'another-bounded-pre-signer-failure':
+      break;
+  }
+
+  return {
+    ...base,
+    ...overrides,
+    preSignerFailureCategory: overrides.preSignerFailureCategory ?? category,
+    preSignerFailureStage: overrides.preSignerFailureStage ?? detail.stage,
+    preSignerFailureReason: overrides.preSignerFailureReason ?? detail.reason,
+    preSignerFailureSummary: overrides.preSignerFailureSummary ?? detail.summary,
+  };
+}
+
+function pickPhysicalOperatingAddressCaptureOnlyPreSignerFailureFields(
+  receipt: PhysicalOperatingAddressCaptureOnlyReceipt,
+): PhysicalOperatingAddressCaptureOnlyPreSignerFailureFields {
+  return {
+    preSignerFailureSummaryPresent: receipt.preSignerFailureSummaryPresent,
+    preSignerFailureCategory: receipt.preSignerFailureCategory,
+    preSignerFailureStage: receipt.preSignerFailureStage,
+    preSignerFailureReason: receipt.preSignerFailureReason,
+    preSignerFailureSummary: receipt.preSignerFailureSummary,
+    bootstrapResendAttempted: receipt.bootstrapResendAttempted,
+    bootstrapResendSucceeded: receipt.bootstrapResendSucceeded,
+    gmailPollAttempted: receipt.gmailPollAttempted,
+    gmailInviteFound: receipt.gmailInviteFound,
+    gmailSigningLinkExtracted: receipt.gmailSigningLinkExtracted,
+    childRunnerLaunched: receipt.childRunnerLaunched,
+    childRunnerReceivedSignerUrl: receipt.childRunnerReceivedSignerUrl,
+    childRunnerStartedCapture: receipt.childRunnerStartedCapture,
+    openSignerAttempted: receipt.openSignerAttempted,
+    openSignerExternalWarningHandled: receipt.openSignerExternalWarningHandled,
+    openSignerReachedSignerSurface: receipt.openSignerReachedSignerSurface,
+    signerSurfaceWaitAttempted: receipt.signerSurfaceWaitAttempted,
+    signerSurfaceWaitTimedOut: receipt.signerSurfaceWaitTimedOut,
+    preSignerFailureBeforeChildLaunch: receipt.preSignerFailureBeforeChildLaunch,
+    preSignerFailureInChildRunner: receipt.preSignerFailureInChildRunner,
+    preSignerFailureReceiptPreserved: receipt.preSignerFailureReceiptPreserved,
+  };
+}
+
+function buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureFields(input: {
+  signerSurfaceReached: boolean;
+  preSignerFailure?: PhysicalOperatingAddressCaptureOnlyPreSignerFailureInput;
+  existing?: PhysicalOperatingAddressCaptureOnlyPreSignerFailureFields;
+  preserveExistingFailureDetail?: boolean;
+}): PhysicalOperatingAddressCaptureOnlyPreSignerFailureFields {
+  const fallbackCategory = input.signerSurfaceReached
+    ? 'no-pre-signer-failure'
+    : 'another-bounded-pre-signer-failure';
+  const preferredExisting = input.preserveExistingFailureDetail ? input.existing : undefined;
+  const category = preferredExisting?.preSignerFailureCategory
+    ?? input.preSignerFailure?.preSignerFailureCategory
+    ?? input.existing?.preSignerFailureCategory
+    ?? fallbackCategory;
+  const defaults = buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput(category);
+  const stage = category === 'no-pre-signer-failure'
+    ? 'none'
+    : preferredExisting?.preSignerFailureStage
+      ?? input.preSignerFailure?.preSignerFailureStage
+      ?? input.existing?.preSignerFailureStage
+      ?? defaults.preSignerFailureStage
+      ?? 'another-bounded-pre-signer-stage';
+  const reason = category === 'no-pre-signer-failure'
+    ? null
+    : preferredExisting?.preSignerFailureReason
+      ?? input.preSignerFailure?.preSignerFailureReason
+      ?? input.existing?.preSignerFailureReason
+      ?? defaults.preSignerFailureReason
+      ?? null;
+  const summary = category === 'no-pre-signer-failure'
+    ? null
+    : preferredExisting?.preSignerFailureSummary
+      ?? input.preSignerFailure?.preSignerFailureSummary
+      ?? input.existing?.preSignerFailureSummary
+      ?? defaults.preSignerFailureSummary
+      ?? null;
+
+  return {
+    preSignerFailureSummaryPresent: category !== 'no-pre-signer-failure' && Boolean(summary),
+    preSignerFailureCategory: category,
+    preSignerFailureStage: stage,
+    preSignerFailureReason: reason,
+    preSignerFailureSummary: summary,
+    bootstrapResendAttempted: coalesceDefined(
+      input.preSignerFailure?.bootstrapResendAttempted,
+      input.existing?.bootstrapResendAttempted,
+      defaults.bootstrapResendAttempted,
+    ) ?? false,
+    bootstrapResendSucceeded: coalesceDefined(
+      input.preSignerFailure?.bootstrapResendSucceeded,
+      input.existing?.bootstrapResendSucceeded,
+      defaults.bootstrapResendSucceeded,
+    ) ?? null,
+    gmailPollAttempted: coalesceDefined(
+      input.preSignerFailure?.gmailPollAttempted,
+      input.existing?.gmailPollAttempted,
+      defaults.gmailPollAttempted,
+    ) ?? false,
+    gmailInviteFound: coalesceDefined(
+      input.preSignerFailure?.gmailInviteFound,
+      input.existing?.gmailInviteFound,
+      defaults.gmailInviteFound,
+    ) ?? null,
+    gmailSigningLinkExtracted: coalesceDefined(
+      input.preSignerFailure?.gmailSigningLinkExtracted,
+      input.existing?.gmailSigningLinkExtracted,
+      defaults.gmailSigningLinkExtracted,
+    ) ?? null,
+    childRunnerLaunched: coalesceDefined(
+      input.preSignerFailure?.childRunnerLaunched,
+      input.existing?.childRunnerLaunched,
+      defaults.childRunnerLaunched,
+    ) ?? false,
+    childRunnerReceivedSignerUrl: coalesceDefined(
+      input.preSignerFailure?.childRunnerReceivedSignerUrl,
+      input.existing?.childRunnerReceivedSignerUrl,
+      defaults.childRunnerReceivedSignerUrl,
+    ) ?? null,
+    childRunnerStartedCapture: coalesceDefined(
+      input.preSignerFailure?.childRunnerStartedCapture,
+      input.existing?.childRunnerStartedCapture,
+      defaults.childRunnerStartedCapture,
+    ) ?? false,
+    openSignerAttempted: coalesceDefined(
+      input.preSignerFailure?.openSignerAttempted,
+      input.existing?.openSignerAttempted,
+      defaults.openSignerAttempted,
+    ) ?? false,
+    openSignerExternalWarningHandled: coalesceDefined(
+      input.preSignerFailure?.openSignerExternalWarningHandled,
+      input.existing?.openSignerExternalWarningHandled,
+      defaults.openSignerExternalWarningHandled,
+    ) ?? null,
+    openSignerReachedSignerSurface: coalesceDefined(
+      input.preSignerFailure?.openSignerReachedSignerSurface,
+      input.existing?.openSignerReachedSignerSurface,
+      defaults.openSignerReachedSignerSurface,
+    ) ?? false,
+    signerSurfaceWaitAttempted: coalesceDefined(
+      input.preSignerFailure?.signerSurfaceWaitAttempted,
+      input.existing?.signerSurfaceWaitAttempted,
+      defaults.signerSurfaceWaitAttempted,
+    ) ?? false,
+    signerSurfaceWaitTimedOut: coalesceDefined(
+      input.preSignerFailure?.signerSurfaceWaitTimedOut,
+      input.existing?.signerSurfaceWaitTimedOut,
+      defaults.signerSurfaceWaitTimedOut,
+    ) ?? null,
+    preSignerFailureBeforeChildLaunch: coalesceDefined(
+      input.preSignerFailure?.preSignerFailureBeforeChildLaunch,
+      input.existing?.preSignerFailureBeforeChildLaunch,
+      defaults.preSignerFailureBeforeChildLaunch,
+    ) ?? false,
+    preSignerFailureInChildRunner: coalesceDefined(
+      input.preSignerFailure?.preSignerFailureInChildRunner,
+      input.existing?.preSignerFailureInChildRunner,
+      defaults.preSignerFailureInChildRunner,
+    ) ?? false,
+    preSignerFailureReceiptPreserved: coalesceDefined(
+      input.preSignerFailure?.preSignerFailureReceiptPreserved,
+      input.existing?.preSignerFailureReceiptPreserved,
+      defaults.preSignerFailureReceiptPreserved,
+    ) ?? false,
+  };
+}
+
+export function mergePhysicalOperatingAddressCaptureOnlyPreSignerFailureFields(
+  receipt: PhysicalOperatingAddressCaptureOnlyReceipt,
+  preSignerFailure: PhysicalOperatingAddressCaptureOnlyPreSignerFailureInput,
+  options: {
+    preserveExistingFailureDetail?: boolean;
+  } = {},
+): PhysicalOperatingAddressCaptureOnlyReceipt {
+  return {
+    ...receipt,
+    ...buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureFields({
+      signerSurfaceReached: receipt.signerSurfaceReached,
+      preSignerFailure,
+      existing: pickPhysicalOperatingAddressCaptureOnlyPreSignerFailureFields(receipt),
+      preserveExistingFailureDetail: options.preserveExistingFailureDetail ?? false,
+    }),
+  };
+}
+
+export function classifyPhysicalOperatingAddressCaptureOnlyOpenSignerFailure(
+  safeMessage: string,
+): PhysicalOperatingAddressCaptureOnlyPreSignerFailureInput {
+  const normalized = normalizeDiagnosticText(safeMessage).toLowerCase();
+  if (
+    normalized.includes('external-site')
+    || normalized.includes('warning-page')
+    || normalized.includes('expected bead test host')
+    || normalized.includes('proceed control target')
+  ) {
+    return buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput('external-warning-handling-failed');
+  }
+  if (
+    normalized.includes('timed out')
+    || normalized.includes('timeout')
+    || normalized.includes('did not become ready')
+  ) {
+    return buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput('signer-surface-timeout');
+  }
+  if (
+    normalized.includes('navigation')
+    || normalized.includes('load state')
+    || normalized.includes('goto')
+    || normalized.includes('net::')
+  ) {
+    return buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput('open-signer-navigation-failed');
+  }
+  return buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput('signer-surface-not-reached');
 }
 
 function buildFallbackPhysicalOperatingAddressCaptureOnlyResultFields(input: {
@@ -1871,6 +2412,42 @@ function isPhysicalOperatingAddressExpansionSkippedReason(
   return value === null || value === 'no-selected-toggle';
 }
 
+function isPhysicalOperatingAddressCaptureOnlyPreSignerFailureCategory(
+  value: unknown,
+): value is PhysicalOperatingAddressCaptureOnlyPreSignerFailureCategory {
+  return value === 'no-pre-signer-failure'
+    || value === 'resend-failed'
+    || value === 'gmail-poll-timeout'
+    || value === 'gmail-invite-not-found'
+    || value === 'gmail-link-extraction-failed'
+    || value === 'child-runner-not-launched'
+    || value === 'child-runner-missing-signer-url'
+    || value === 'child-runner-exited-before-open-signer'
+    || value === 'open-signer-navigation-failed'
+    || value === 'external-warning-handling-failed'
+    || value === 'signer-surface-timeout'
+    || value === 'signer-surface-not-reached'
+    || value === 'malformed-child-receipt'
+    || value === 'missing-child-receipt'
+    || value === 'another-bounded-pre-signer-failure';
+}
+
+function isPhysicalOperatingAddressCaptureOnlyPreSignerFailureStage(
+  value: unknown,
+): value is PhysicalOperatingAddressCaptureOnlyPreSignerFailureStage {
+  return value === 'none'
+    || value === 'bootstrap-resend'
+    || value === 'bootstrap-gmail-poll'
+    || value === 'bootstrap-link-extraction'
+    || value === 'bootstrap-child-launch'
+    || value === 'bootstrap-receipt-preservation'
+    || value === 'child-pre-open-signer'
+    || value === 'child-open-signer'
+    || value === 'child-signer-surface-wait'
+    || value === 'child-signer-surface'
+    || value === 'another-bounded-pre-signer-stage';
+}
+
 export function buildPhysicalOperatingAddressCaptureOnlyReceiptPath(artifactsDir = ARTIFACTS_DIR): string {
   return path.join(artifactsDir, PHYSICAL_ADDRESS_CAPTURE_ONLY_RECEIPT_FILE_NAME);
 }
@@ -1882,6 +2459,8 @@ export function buildPhysicalOperatingAddressCaptureOnlyReceipt(input: {
   artifactsDir?: string;
   blockedReasonCategory?: PhysicalOperatingAddressCaptureOnlyBlockedReasonCategory;
   childCommand?: string;
+  signerSurfaceReached?: boolean;
+  preSignerFailure?: PhysicalOperatingAddressCaptureOnlyPreSignerFailureInput;
 }): PhysicalOperatingAddressCaptureOnlyReceipt {
   const artifactsDir = input.artifactsDir ?? ARTIFACTS_DIR;
   const artifactFreshness = input.result?.artifactFreshness ?? buildPhysicalOperatingAddressCaptureOnlyFallbackFreshness(artifactsDir);
@@ -1910,14 +2489,20 @@ export function buildPhysicalOperatingAddressCaptureOnlyReceipt(input: {
     proofOfAddressUploadVisibleAfter: result.proofOfAddressUploadVisibleAfter,
     physicalOperatingAddressFieldsVisibleAfter: result.physicalOperatingAddressFieldsVisibleAfter,
   });
+  const signerSurfaceReached = input.signerSurfaceReached ?? input.result !== null;
+  const preSignerFailure = buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureFields({
+    signerSurfaceReached,
+    preSignerFailure: input.preSignerFailure,
+  });
 
   return {
     runKind: PHYSICAL_ADDRESS_CAPTURE_ONLY_RUN_KIND,
     childCommand: input.childCommand ?? `npm run ${PHYSICAL_ADDRESS_CAPTURE_ONLY_COMMAND}`,
     childExitCode: input.childExitCode ?? null,
     bootstrapExitCode: input.bootstrapExitCode ?? null,
-    signerSurfaceReached: input.result !== null,
+    signerSurfaceReached,
     initialFieldCount: input.result?.fieldsBefore ?? null,
+    ...preSignerFailure,
     toggleSelectionOutcomeCategory: input.result?.toggleSelectionOutcomeCategory ?? null,
     toggleSelectionStage: input.result?.toggleSelectionStage ?? null,
     toggleSelectionMode: input.result?.toggleSelectionMode ?? null,
@@ -2224,6 +2809,28 @@ export function isPhysicalOperatingAddressCaptureOnlyReceipt(
     && (typeof candidate.bootstrapExitCode === 'number' || candidate.bootstrapExitCode === null)
     && typeof candidate.signerSurfaceReached === 'boolean'
     && (typeof candidate.initialFieldCount === 'number' || candidate.initialFieldCount === null)
+    && typeof candidate.preSignerFailureSummaryPresent === 'boolean'
+    && isPhysicalOperatingAddressCaptureOnlyPreSignerFailureCategory(candidate.preSignerFailureCategory)
+    && isPhysicalOperatingAddressCaptureOnlyPreSignerFailureStage(candidate.preSignerFailureStage)
+    && (typeof candidate.preSignerFailureReason === 'string' || candidate.preSignerFailureReason === null)
+    && (typeof candidate.preSignerFailureSummary === 'string' || candidate.preSignerFailureSummary === null)
+    && typeof candidate.bootstrapResendAttempted === 'boolean'
+    && (typeof candidate.bootstrapResendSucceeded === 'boolean' || candidate.bootstrapResendSucceeded === null)
+    && typeof candidate.gmailPollAttempted === 'boolean'
+    && (typeof candidate.gmailInviteFound === 'boolean' || candidate.gmailInviteFound === null)
+    && (typeof candidate.gmailSigningLinkExtracted === 'boolean' || candidate.gmailSigningLinkExtracted === null)
+    && typeof candidate.childRunnerLaunched === 'boolean'
+    && (typeof candidate.childRunnerReceivedSignerUrl === 'boolean' || candidate.childRunnerReceivedSignerUrl === null)
+    && typeof candidate.childRunnerStartedCapture === 'boolean'
+    && typeof candidate.openSignerAttempted === 'boolean'
+    && (typeof candidate.openSignerExternalWarningHandled === 'boolean'
+      || candidate.openSignerExternalWarningHandled === null)
+    && typeof candidate.openSignerReachedSignerSurface === 'boolean'
+    && typeof candidate.signerSurfaceWaitAttempted === 'boolean'
+    && (typeof candidate.signerSurfaceWaitTimedOut === 'boolean' || candidate.signerSurfaceWaitTimedOut === null)
+    && typeof candidate.preSignerFailureBeforeChildLaunch === 'boolean'
+    && typeof candidate.preSignerFailureInChildRunner === 'boolean'
+    && typeof candidate.preSignerFailureReceiptPreserved === 'boolean'
     && (candidate.toggleSelectionOutcomeCategory === null || isPhysicalOperatingAddressToggleSelectionOutcomeCategory(candidate.toggleSelectionOutcomeCategory))
     && (candidate.toggleSelectionStage === null || isPhysicalOperatingAddressToggleSelectionStage(candidate.toggleSelectionStage))
     && isPhysicalOperatingAddressCaptureOnlySelectionMode(candidate.toggleSelectionMode)
@@ -3469,6 +4076,20 @@ export async function runPhysicalOperatingAddressCaptureOnly(
 
 export async function main(): Promise<ExitReason> {
   let browser: Awaited<ReturnType<typeof chromium.launch>> | null = null;
+  let signerSurfaceReached = false;
+  let preSignerFailure: PhysicalOperatingAddressCaptureOnlyPreSignerFailureInput = {
+    childRunnerLaunched: true,
+    childRunnerReceivedSignerUrl: null,
+    childRunnerStartedCapture: false,
+    openSignerAttempted: false,
+    openSignerExternalWarningHandled: null,
+    openSignerReachedSignerSurface: false,
+    signerSurfaceWaitAttempted: false,
+    signerSurfaceWaitTimedOut: null,
+    preSignerFailureBeforeChildLaunch: false,
+    preSignerFailureInChildRunner: true,
+    preSignerFailureReceiptPreserved: false,
+  };
   try {
     loadEnv();
     assertPhysicalOperatingAddressCaptureOnlyGuards(process.env);
@@ -3484,15 +4105,68 @@ export async function main(): Promise<ExitReason> {
           childExitCode: exitReason.code,
           artifactsDir: ARTIFACTS_DIR,
           blockedReasonCategory: 'another bounded reason',
+          preSignerFailure: buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput(
+            'child-runner-missing-signer-url',
+            {
+              ...preSignerFailure,
+              childRunnerReceivedSignerUrl: false,
+              childRunnerStartedCapture: true,
+            },
+          ),
         }),
         ARTIFACTS_DIR,
       );
       return exitReason;
     }
 
+    preSignerFailure = {
+      ...preSignerFailure,
+      childRunnerReceivedSignerUrl: true,
+      childRunnerStartedCapture: true,
+    };
     browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
-    const result = await runPhysicalOperatingAddressCaptureOnly(page, process.env, ARTIFACTS_DIR);
+    const instrumentedDependencies: PhysicalOperatingAddressCaptureOnlyDependencies = {
+      ...PHYSICAL_ADDRESS_CAPTURE_ONLY_DEPENDENCIES,
+      openSigner: async (currentPage) => {
+        preSignerFailure = {
+          ...preSignerFailure,
+          openSignerAttempted: true,
+          signerSurfaceWaitAttempted: true,
+        };
+        try {
+          const opened = await PHYSICAL_ADDRESS_CAPTURE_ONLY_DEPENDENCIES.openSigner(currentPage);
+          signerSurfaceReached = true;
+          preSignerFailure = {
+            ...preSignerFailure,
+            openSignerReachedSignerSurface: true,
+            signerSurfaceWaitTimedOut: false,
+            openSignerExternalWarningHandled:
+              opened.diagnostics.some((diagnostic) => diagnostic.includes('safe-redirect external-site warning clicked'))
+                ? true
+                : preSignerFailure.openSignerExternalWarningHandled,
+          };
+          return opened;
+        } catch (error) {
+          const safeMessage = (error instanceof Error ? error.message : String(error))
+            .replace(/https?:\/\/\S+/g, (url) => redactUrl(url));
+          preSignerFailure = {
+            ...preSignerFailure,
+            ...classifyPhysicalOperatingAddressCaptureOnlyOpenSignerFailure(safeMessage),
+            childRunnerLaunched: true,
+            childRunnerReceivedSignerUrl: preSignerFailure.childRunnerReceivedSignerUrl ?? true,
+            childRunnerStartedCapture: true,
+          };
+          throw error;
+        }
+      },
+    };
+    const result = await runPhysicalOperatingAddressCaptureOnly(
+      page,
+      process.env,
+      ARTIFACTS_DIR,
+      instrumentedDependencies,
+    );
 
     for (const diagnostic of result.diagnostics) {
       // eslint-disable-next-line no-console
@@ -3511,6 +4185,19 @@ export async function main(): Promise<ExitReason> {
         result,
         childExitCode: exitReason.code,
         artifactsDir: ARTIFACTS_DIR,
+        signerSurfaceReached,
+        preSignerFailure: buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput(
+          'no-pre-signer-failure',
+          {
+            ...preSignerFailure,
+            childRunnerReceivedSignerUrl: preSignerFailure.childRunnerReceivedSignerUrl ?? true,
+            childRunnerStartedCapture: true,
+            openSignerAttempted: preSignerFailure.openSignerAttempted || signerSurfaceReached,
+            openSignerReachedSignerSurface: true,
+            signerSurfaceWaitAttempted: true,
+            signerSurfaceWaitTimedOut: false,
+          },
+        ),
       }),
       ARTIFACTS_DIR,
     );
@@ -3533,6 +4220,34 @@ export async function main(): Promise<ExitReason> {
       code: 1,
       reason: 'BLOCKED: capture:physical-address failed before sanitized freshness receipt could be confirmed.',
     };
+    const failurePreSigner = signerSurfaceReached
+      ? buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput('no-pre-signer-failure', {
+        ...preSignerFailure,
+        childRunnerReceivedSignerUrl: preSignerFailure.childRunnerReceivedSignerUrl ?? true,
+        childRunnerStartedCapture: true,
+        openSignerAttempted: true,
+        openSignerReachedSignerSurface: true,
+        signerSurfaceWaitAttempted: true,
+        signerSurfaceWaitTimedOut: false,
+      })
+      : preSignerFailure.childRunnerReceivedSignerUrl === false
+        ? buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput('child-runner-missing-signer-url', {
+          ...preSignerFailure,
+          childRunnerStartedCapture: true,
+        })
+        : preSignerFailure.openSignerAttempted
+          ? {
+            ...preSignerFailure,
+            ...classifyPhysicalOperatingAddressCaptureOnlyOpenSignerFailure(safe),
+            childRunnerLaunched: true,
+            childRunnerReceivedSignerUrl: preSignerFailure.childRunnerReceivedSignerUrl ?? true,
+            childRunnerStartedCapture: true,
+          }
+          : buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput('child-runner-exited-before-open-signer', {
+            ...preSignerFailure,
+            childRunnerReceivedSignerUrl: preSignerFailure.childRunnerReceivedSignerUrl ?? true,
+            childRunnerStartedCapture: true,
+          });
 
     emitPhysicalOperatingAddressCaptureOnlyReceipt(
       buildPhysicalOperatingAddressCaptureOnlyReceipt({
@@ -3540,6 +4255,8 @@ export async function main(): Promise<ExitReason> {
         childExitCode: exitReason.code,
         artifactsDir: ARTIFACTS_DIR,
         blockedReasonCategory: 'another bounded reason',
+        signerSurfaceReached,
+        preSignerFailure: failurePreSigner,
       }),
       ARTIFACTS_DIR,
     );
