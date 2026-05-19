@@ -1,121 +1,127 @@
 ## ChatGPT Review Summary
-- What changed: RUN47 stayed source/test-only and added a bounded ownership-source debug summary on top of the existing ownership-anchor receipt fields so future preserved receipts can distinguish empty sources, missing targets, generated-only/generic-only evidence, target-without-safe-token cases, and filtered-by-safety/redaction cases without changing matcher behavior.
-- Whether ownership-source diagnostics were added: yes. New diagnostics-only receipt fields were added for `ownershipSourceHarvestAttempted`, `ownershipSourceHarvestOutcomeCategory`, `ownershipSourceHarvestRejectedReasons`, `ownershipSourceHarvestSummary`, `ariaLabelledbyAttributePresentCount`, `ariaDescribedbyAttributePresentCount`, `sharedNamePresentCount`, `sharedOwnerPresentCount`, `docusignOwnerSignalPresentCount`, `ownershipReferenceTargetLookupAttempted`, `ownershipReferenceTargetExistsCount`, `ownershipReferenceTargetVisibleCount`, `ownershipReferenceTargetSafeTokenCount`, `ownershipEvidenceFilteredAsGeneratedOnlyCount`, `ownershipEvidenceFilteredAsGenericOnlyCount`, `ownershipEvidenceFilteredByRedactionCount`, `ownershipEvidenceSourcesEmpty`, and `ownershipEvidenceSourcesPresentButNoSafeTokens`.
-- Whether matcher behavior stayed diagnostics-only: yes. RUN47 did not broaden matcher behavior or allow calibrated fallback based on the new summary.
-- Which new receipt fields were added: `ownershipSourceHarvestAttempted`, `ownershipSourceHarvestOutcomeCategory`, `ownershipSourceHarvestRejectedReasons`, `ownershipSourceHarvestSummary`, `ariaLabelledbyAttributePresentCount`, `ariaDescribedbyAttributePresentCount`, `sharedNamePresentCount`, `sharedOwnerPresentCount`, `docusignOwnerSignalPresentCount`, `ownershipReferenceTargetLookupAttempted`, `ownershipReferenceTargetExistsCount`, `ownershipReferenceTargetVisibleCount`, `ownershipReferenceTargetSafeTokenCount`, `ownershipEvidenceFilteredAsGeneratedOnlyCount`, `ownershipEvidenceFilteredAsGenericOnlyCount`, `ownershipEvidenceFilteredByRedactionCount`, `ownershipEvidenceSourcesEmpty`, and `ownershipEvidenceSourcesPresentButNoSafeTokens`.
-- Whether bootstrap preserves the new receipt fields: yes. Focused bootstrap receipt tests now preserve the new ownership-source diagnostics from child receipt to final bootstrap receipt.
-- Whether redaction was verified: yes. Focused ownership and receipt tests verify the new fields remain bucketed/count-based and do not emit raw signer URLs, field values, HTML/DOM, screenshots, IDs, class strings, aria reference values, name/owner values, emails, or tokens.
-- What guardrails were preserved: no live capture command was run; `npm run bootstrap:capture:physical-address` was not run; `npm run capture:physical-address` was not run; `bootstrap:interactive` was not run; `interactive:watchdog` was not run; full signer discovery was not run; `DESTRUCTIVE_VALIDATION` was not enabled; `.env` was not mutated; no uploads or screenshots were used at runtime or committed.
-- Whether the result moved us forward: yes. RUN47 closes the next source/test diagnostic gap after RUN46 by making future preserved receipts say whether ownership/reference harvest was skipped, empty, missing targets, filtered to generated/generic-only buckets, filtered by safety/redaction, or present but still lacking safe tokens.
-- Tests/commands run and pass/fail: `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "anchor evidence"` -> 15 passed; `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "guarded physical address discovery"` -> 6 passed; `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "physical address capture-only"` -> 15 passed; `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "physical address bootstrap capture receipt"` -> 8 passed; `npm run test:units` -> failed with 3 unrelated interactive-concept tests (`address batch concepts are recognized by INTERACTIVE_CONCEPTS`, `select/dropdown concepts are recognized by INTERACTIVE_CONCEPTS`, and `Batch 1 concepts build the expected interactive matrix`). Editor diagnostics on touched files were clean.
-- Whether a new focused grep was added: no. No new focused grep command was added for ownership-source diagnostics.
-- Remaining blocker / uncertainty: RUN47 proves the new ownership-source seam in source/tests only. It still does not show which ownership-source category will surface on the live exact-three-radio signer layout.
-- Whether screenshot was ignored or used only as visual guidance: no screenshot was required for RUN47 and none was used beyond prior thread context.
-- Whether another live capture is recommended next, and only if so, the exact next run ID: yes. The next explicitly recommended live run is `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260519-RUN48`.
+- What changed: RUN48 was a live receipt-inspection-only run. It executed the one authorized `npm run bootstrap:capture:physical-address` command exactly once, inspected the fresh final receipt, and updated only the AI handoff files.
+- Whether the authorized live command ran exactly once: yes. The command was executed once and was not retried.
+- What live category surfaced: the preserved receipt classified the exact-three-radio Business Primary Location block as `ownership-source-empty`.
+- Key live receipt result: `ownershipSourceHarvestAttempted=true`, `ownershipSourceHarvestRejectedReasons=["sources-empty"]`, `ownershipSourceHarvestSummary="ownership source harvest found no ownership/reference sources"`, all ownership-source presence counters were `0`, `ownershipReferenceTargetLookupAttempted=false`, and `ownershipEvidenceSourcesEmpty=true`.
+- Whether the radio trio still matched the guarded slice: yes. `signerSurfaceReached=true`, `initialFieldCount=126`, `exactThreeRadioGuardPassed=true`, `eligibleRadioCandidateCount=3`, `calibratedFallbackCandidateCount=3`, `candidateOrderStable=true`, and `conflictingCueDetected=false`.
+- Whether selection or expansion occurred: no. Anchor, group-anchor, and ownership-anchor outcomes all remained missing-safe-evidence-empty; `toggleSelectionOutcomeCategory="calibrated-rejected-anchor-missing"`, `selectedToggleSlot=null`, `expansionAttempted=false`, `expansionSkippedReason="no-selected-toggle"`, and the proof-of-address upload plus physical operating address fields both remained hidden.
+- Whether post-toggle artifacts refreshed: no. The receipt was regenerated during RUN48, but the post-toggle structure and DOM files remained the stale May 1 artifacts; `artifactsFresh=false`, `artifactsRemainStale=true`, `reportsRefreshSkipped=true`, and `findingsOpenSkipped=true`.
+- Whether bootstrap preserved the new RUN47 fields: yes. The fresh final receipt contained the new ownership-source fields added in RUN47.
+- Guardrails preserved: no retry; no interactive bootstrap/watchdog; no destructive validation; no uploads; no finalization controls; no reports refresh/findings open because artifacts were stale; no raw signer URLs, raw field values, raw HTML/DOM, raw IDs, raw class strings, raw aria reference values, or raw name/owner values were emitted.
+- Whether the result moved us forward: yes. RUN48 proves the live exact-three-radio layout is not failing because references were present but filtered or targetless; it is failing earlier because no bounded ownership/reference sources were present at all.
+- Tests/commands run and pass/fail: baseline git/artifact metadata inspection ran; `npm run bootstrap:capture:physical-address` ran exactly once with wrapper process exit `0` while the fresh receipt recorded `childExitCode=3` and `bootstrapExitCode=3`; post-run receipt/artifact inspection confirmed a fresh receipt and stale May 1 post-toggle artifacts. No unit tests were rerun in RUN48.
+- Remaining blocker / uncertainty: it is still unknown why the live eligible three-radio block exposes zero `aria-labelledby`, `aria-describedby`, shared-name, shared-owner, or DocuSign-owner signals to the bounded source harvest.
+- Whether another live capture is recommended next, and only if so, the exact next run ID: no. The next recommended step is source/test-only.
 - Whether to continue, stop, or redirect: redirect.
-- The next best Copilot prompt: execute exactly one authorized live `npm run bootstrap:capture:physical-address` run for `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260519-RUN48`, inspect the preserved receipt for the new RUN47 ownership-source diagnostics, and report whether the live exact-three-radio layout shows empty sources, missing targets, generated-only/generic-only evidence, filtered-by-redaction evidence, or targets present without safe token buckets before considering any later matcher decision.
+- The next best Copilot prompt: for `PHYSICALADDRESSOWNERSHIPSOURCEEMPTYSOURCEONLY-20260519-RUN49`, stay source/test-only and trace why the live exact-three-radio candidate signatures expose no ownership/reference sources, adding only bounded diagnostics around proxy-signature generation and harvest inputs without broadening matcher behavior.
 
 # Copilot Handoff Result
 
-CHAT ID: PHYSICALADDRESSOWNERSHIPANCHORSOURCEONLY-20260519-RUN47
+CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260519-RUN48
 
 ## Status
 Ready for ChatGPT review
 
 ## Objective
-Stay source/test-only and add the smallest bounded ownership-source diagnostics needed to distinguish whether the live exact-three-radio Business Primary Location block is missing ownership/reference inputs entirely, missing targets, filtered to generated/generic-only evidence, filtered by safety/redaction, or simply lacking safe token buckets, without changing matcher behavior.
+Execute exactly one authorized live `npm run bootstrap:capture:physical-address` run to inspect the preserved receipt for the RUN47 ownership-source diagnostic fields on the live exact-three-radio Business Primary Location layout, without changing source/test behavior or retrying the live command.
 
 ## What Changed
-- Added a diagnostics-only ownership-source debug summary in `fixtures/conditional-discovery.ts` alongside the existing ownership-anchor summary.
-- Threaded the new diagnostics fields through the capture-only result shape, capture-only receipt, bootstrap receipt preservation path, fallback receipt defaults, and focused receipt validators in `scripts/capture-physical-operating-address.ts`.
-- Expanded focused tests in `tests/bootstrap-units.spec.ts` for empty-source, missing-target, targets-with-no-safe-token, generated-only, generic-only, safe-token, prior-guard-failed, bootstrap-preservation, and redaction behavior.
-- Updated the AI handoff files for RUN47.
+- Executed the authorized live bootstrap capture-only command exactly once.
+- Compared the post-run receipt, structure artifact, and DOM artifact against the pre-run baseline to determine freshness.
+- Classified the live ownership-source outcome from the fresh preserved receipt.
+- Updated the AI handoff files for RUN48.
 
 ## Files Changed
-- `fixtures/conditional-discovery.ts`
-- `scripts/capture-physical-operating-address.ts`
-- `tests/bootstrap-units.spec.ts`
 - `artifacts/ai-handoff/latest-copilot-result.md`
 - `artifacts/ai-handoff/status.json`
 
 ## Implementation Result
-- The new ownership-source diagnostics fields added in RUN47 are:
-	- `ownershipSourceHarvestAttempted`
-	- `ownershipSourceHarvestOutcomeCategory`
-	- `ownershipSourceHarvestRejectedReasons`
-	- `ownershipSourceHarvestSummary`
-	- `ariaLabelledbyAttributePresentCount`
-	- `ariaDescribedbyAttributePresentCount`
-	- `sharedNamePresentCount`
-	- `sharedOwnerPresentCount`
-	- `docusignOwnerSignalPresentCount`
-	- `ownershipReferenceTargetLookupAttempted`
-	- `ownershipReferenceTargetExistsCount`
-	- `ownershipReferenceTargetVisibleCount`
-	- `ownershipReferenceTargetSafeTokenCount`
-	- `ownershipEvidenceFilteredAsGeneratedOnlyCount`
-	- `ownershipEvidenceFilteredAsGenericOnlyCount`
-	- `ownershipEvidenceFilteredByRedactionCount`
-	- `ownershipEvidenceSourcesEmpty`
-	- `ownershipEvidenceSourcesPresentButNoSafeTokens`
-- The new bounded outcome categories added in RUN47 are:
-	- `ownership-source-not-attempted`
-	- `ownership-source-empty`
-	- `ownership-source-attributes-present-no-targets`
-	- `ownership-source-targets-present-no-safe-tokens`
-	- `ownership-source-generated-only`
-	- `ownership-source-generic-only`
-	- `ownership-source-filtered-by-redaction`
-	- `ownership-source-safe-tokens-present`
-	- `ownership-source-prior-guard-failed`
-- Safe token buckets remain bounded to the existing approved set: `business-primary-location`, `registered-legal-address`, `proof-of-address`, `physical-operating-address`, `po-box`, `virtual-agent`, `address-options`, `radio-group`, `question-prompt`, `generated-reference-only`, and `generic-only`.
-- Matcher behavior is unchanged. The new ownership-source debug summary is diagnostics-only and does not broaden calibrated fallback.
+- The one authorized live command was executed exactly once: `npm run bootstrap:capture:physical-address`.
+- The wrapper process returned exit code `0`, but the fresh preserved receipt recorded `childExitCode=3` and `bootstrapExitCode=3`.
+- The final receipt was regenerated during RUN48: its mtime advanced from `2026-05-19 12:38:53 UTC` to `2026-05-19 14:17:28 UTC`, and its SHA256 changed from `29878DFED8E64AE4768789C0AE9AA80A9ABA7EA4A668DB77C42117D5D63929A9` to `0307918B76F7F454F105A70AECD69DD190ECAA9F709B6F2D8C26680C3C87590D`.
+- The live guarded slice was still reached: `signerSurfaceReached=true`, `initialFieldCount=126`, `exactThreeRadioGuardPassed=true`, `eligibleRadioCandidateCount=3`, `calibratedFallbackCandidateCount=3`, `candidateOrderStable=true`, and `conflictingCueDetected=false`.
+- All three anchor families still failed closed with empty safe evidence:
+	- `addressOptionsAnchorOutcomeCategory="anchor-missing-safe-evidence-empty"`
+	- `addressOptionsGroupAnchorOutcomeCategory="group-anchor-missing-safe-evidence-empty"`
+	- `addressOptionsOwnershipAnchorOutcomeCategory="ownership-anchor-missing-safe-evidence-empty"`
+- The new RUN47 live ownership-source diagnostics classified the page as `ownership-source-empty`:
+	- `ownershipSourceHarvestAttempted=true`
+	- `ownershipSourceHarvestOutcomeCategory="ownership-source-empty"`
+	- `ownershipSourceHarvestRejectedReasons=["sources-empty"]`
+	- `ownershipSourceHarvestSummary="ownership source harvest found no ownership/reference sources"`
+	- `ariaLabelledbyAttributePresentCount=0`
+	- `ariaDescribedbyAttributePresentCount=0`
+	- `sharedNamePresentCount=0`
+	- `sharedOwnerPresentCount=0`
+	- `docusignOwnerSignalPresentCount=0`
+	- `ownershipReferenceTargetLookupAttempted=false`
+	- `ownershipReferenceTargetExistsCount=0`
+	- `ownershipReferenceTargetVisibleCount=0`
+	- `ownershipReferenceTargetSafeTokenCount=0`
+	- `ownershipEvidenceFilteredAsGeneratedOnlyCount=0`
+	- `ownershipEvidenceFilteredAsGenericOnlyCount=0`
+	- `ownershipEvidenceFilteredByRedactionCount=0`
+	- `ownershipEvidenceSourcesEmpty=true`
+	- `ownershipEvidenceSourcesPresentButNoSafeTokens=false`
+- No toggle was selected and no post-toggle expansion occurred:
+	- `toggleSelectionOutcomeCategory="calibrated-rejected-anchor-missing"`
+	- `selectedToggleSlot=null`
+	- `fallbackReason="calibrated-business-primary-location-physical-address-option"`
+	- `uiEffectOutcomeCategory="proof-address-hidden-physical-fields-hidden"`
+	- `proofOfAddressUploadVisibleAfter=false`
+	- `physicalOperatingAddressFieldsVisibleAfter=false`
+	- `expansionAttempted=false`
+	- `expansionSkippedReason="no-selected-toggle"`
+	- `blockedReasonCategory="expansion-skipped-no-selected-toggle"`
+- The receipt was fresh, but the post-toggle artifacts remained stale May 1 carryovers:
+	- `artifactsFresh=false`
+	- `artifactsRemainStale=true`
+	- `reportsRefreshSkipped=true`
+	- `findingsOpenSkipped=true`
+	- `latest-physical-operating-address-post-toggle-structure.json` mtime/hash were unchanged from May 1
+	- `latest-physical-operating-address-post-toggle-dom.html` mtime/hash were unchanged from May 1
 
 ## Validation
-- `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "anchor evidence"` -> 15 passed
-- `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "guarded physical address discovery"` -> 6 passed
-- `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "physical address capture-only"` -> 15 passed
-- `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "physical address bootstrap capture receipt"` -> 8 passed
-- `npm run test:units` -> failed with 3 unrelated interactive-concept tests:
-	- `bootstrap units › address batch concepts are recognized by INTERACTIVE_CONCEPTS`
-	- `bootstrap units › select/dropdown concepts are recognized by INTERACTIVE_CONCEPTS`
-	- `bootstrap units › Batch 1 concepts build the expected interactive matrix`
-- `get_errors` on `fixtures/conditional-discovery.ts`, `scripts/capture-physical-operating-address.ts`, and `tests/bootstrap-units.spec.ts` -> no errors
-- No new focused grep was added for RUN47.
+- Baseline inspection captured branch, HEAD, git status, and pre-run receipt/structure/DOM mtimes plus SHA256 values.
+- `npm run bootstrap:capture:physical-address` ran exactly once and was not retried.
+- Post-run inspection confirmed the receipt was regenerated during RUN48 and that the May 1 post-toggle artifacts were not refreshed.
+- No unit tests were rerun because RUN48 was explicitly a live receipt-inspection-only step.
 
 ## Guardrails Preserved
-- No live capture command was run in RUN47.
-- `npm run bootstrap:capture:physical-address` was not run.
-- `npm run capture:physical-address` was not run.
+- No retry of the live bootstrap capture command.
 - `bootstrap:interactive` was not run.
 - `interactive:watchdog` was not run.
 - Full signer discovery was not run.
 - `DESTRUCTIVE_VALIDATION` was not enabled.
 - `.env` was not mutated.
-- No raw signer URL was printed or committed.
-- No raw field values, raw HTML, raw DOM, screenshots, raw IDs, raw class strings, raw aria references, raw name/owner values, emails, or token values were emitted in the new diagnostics.
 - No uploads were performed.
+- No finalization controls were clicked.
+- No raw signer URL was printed or committed.
+- No raw field values, raw HTML, raw DOM, raw IDs, raw class strings, raw aria references, raw name/owner values, or arbitrary raw attribute values were emitted.
+- `npm run reports:refresh` was not run because `artifactsFresh=false`.
+- `npm run findings:open` was not run because `artifactsFresh=false`.
 
 ## Result
 - Forward progress: yes.
-- RUN47 adds the missing source/test seam after RUN46: future preserved receipts can now distinguish whether ownership/reference harvest was empty, missing targets, filtered to generated/generic-only evidence, filtered by safety/redaction, or present but still lacking safe token buckets.
-- The new seam is covered by focused ownership, capture-only, and bootstrap-preservation tests without changing selection behavior.
+- RUN48 established the live bounded category for the exact-three-radio Business Primary Location block: `ownership-source-empty`.
+- The live failure is now narrower: the pipeline is not missing safe tokens from present references; it is seeing no bounded ownership/reference sources at all.
 
 ## Remaining Blocker / Uncertainty
-- RUN47 still does not include a new live proof step, so the actual live exact-three-radio Business Primary Location layout has not yet been checked against the new ownership-source diagnostics.
-- `npm run test:units` still fails in an unrelated interactive-concept slice that was not touched by RUN47.
+- It is still unknown why the live eligible three-radio block exposes zero `aria-labelledby`, `aria-describedby`, shared-name, shared-owner, or DocuSign-owner signals to the bounded source harvest.
+- The wrapper process exited `0` while the preserved receipt recorded `childExitCode=3` and `bootstrapExitCode=3`, so the receipt remains the authoritative live-result record.
+- Because no toggle was selected, the post-toggle structure and DOM artifacts remain stale May 1 files and cannot provide fresh post-selection evidence.
 
 ## Recommendation
 Redirect.
 
-The next smallest step is one explicitly authorized live receipt-inspection run in `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260519-RUN48`.
+The next smallest step is a source/test-only investigation into why ownership/reference source harvesting is completely empty on the live exact-three-radio slice.
 
 ## Recommended Next Copilot Prompt
-For `PHYSICALADDRESSCAPTUREEMAILRUNNER-20260519-RUN48`, execute exactly one authorized live `npm run bootstrap:capture:physical-address` run, inspect the preserved receipt for `ownershipSourceHarvestAttempted`, `ownershipSourceHarvestOutcomeCategory`, `ownershipSourceHarvestRejectedReasons`, `ownershipSourceHarvestSummary`, `ariaLabelledbyAttributePresentCount`, `ariaDescribedbyAttributePresentCount`, `sharedNamePresentCount`, `sharedOwnerPresentCount`, `docusignOwnerSignalPresentCount`, `ownershipReferenceTargetLookupAttempted`, `ownershipReferenceTargetExistsCount`, `ownershipReferenceTargetVisibleCount`, `ownershipReferenceTargetSafeTokenCount`, `ownershipEvidenceFilteredAsGeneratedOnlyCount`, `ownershipEvidenceFilteredAsGenericOnlyCount`, `ownershipEvidenceFilteredByRedactionCount`, `ownershipEvidenceSourcesEmpty`, and `ownershipEvidenceSourcesPresentButNoSafeTokens`, and report which bounded ownership-source category the live exact-three-radio Business Primary Location block now falls into without broadening matcher behavior.
+For `PHYSICALADDRESSOWNERSHIPSOURCEEMPTYSOURCEONLY-20260519-RUN49`, stay source/test-only and add only the smallest bounded diagnostics needed to explain why the live exact-three-radio candidate signatures expose no `aria-labelledby`, `aria-describedby`, shared-name, shared-owner, or DocuSign-owner source signals before ownership-source harvesting runs, without broadening matcher behavior or scheduling another live capture.
 
 ## Branch / Commit Status
 - Branch: `main`
-- Current HEAD before the RUN47 handoff commit: `019be816722bf0db03692fe2e92bae1001ed499c`
-- RUN47 handoff commit: pending at write time
+- Current HEAD before the RUN48 handoff commit: `bf24130629cdfb234744a77345179108a9bbb389`
+- RUN48 handoff commit: pending at write time
 
-CHAT ID: PHYSICALADDRESSOWNERSHIPANCHORSOURCEONLY-20260519-RUN47
+CHAT ID: PHYSICALADDRESSCAPTUREEMAILRUNNER-20260519-RUN48
