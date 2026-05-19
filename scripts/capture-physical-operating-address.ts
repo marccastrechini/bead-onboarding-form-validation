@@ -204,6 +204,57 @@ export interface PhysicalOperatingAddressCaptureOnlyPreSignerFailureFields {
 export type PhysicalOperatingAddressCaptureOnlyPreSignerFailureInput =
   Partial<Omit<PhysicalOperatingAddressCaptureOnlyPreSignerFailureFields, 'preSignerFailureSummaryPresent'>>;
 
+export type PhysicalOperatingAddressCaptureOnlyPostSignerFailureCategory =
+  | 'no-post-signer-failure'
+  | 'signer-surface-reached-then-child-exited'
+  | 'field-discovery-not-attempted'
+  | 'field-discovery-start-failed'
+  | 'field-discovery-threw'
+  | 'field-discovery-timeout'
+  | 'field-discovery-returned-empty'
+  | 'field-discovery-result-malformed'
+  | 'guarded-expansion-setup-failed'
+  | 'calibrated-toggle-evaluation-not-attempted'
+  | 'calibrated-toggle-evaluation-failed'
+  | 'another-bounded-post-signer-failure';
+
+export type PhysicalOperatingAddressCaptureOnlyPostSignerFailureStage =
+  | 'none'
+  | 'child-post-signer-before-field-discovery'
+  | 'child-field-discovery'
+  | 'child-guarded-expansion-setup'
+  | 'child-calibrated-toggle-evaluation'
+  | 'another-bounded-post-signer-stage';
+
+export interface PhysicalOperatingAddressCaptureOnlyPostSignerFailureFields {
+  postSignerFailureSummaryPresent: boolean;
+  postSignerFailureCategory: PhysicalOperatingAddressCaptureOnlyPostSignerFailureCategory;
+  postSignerFailureStage: PhysicalOperatingAddressCaptureOnlyPostSignerFailureStage;
+  postSignerFailureReason: string | null;
+  postSignerFailureSummary: string | null;
+  signerSurfaceReachedBeforeFailure: boolean;
+  fieldDiscoveryAttempted: boolean;
+  fieldDiscoveryStarted: boolean;
+  fieldDiscoveryCompleted: boolean;
+  initialFieldCountAvailable: boolean;
+  fieldDiscoveryThrew: boolean;
+  fieldDiscoveryTimedOut: boolean;
+  fieldDiscoveryReturnedEmpty: boolean;
+  guardedExpansionSetupAttempted: boolean;
+  guardedExpansionSetupCompleted: boolean;
+  guardedExpansionSetupThrew: boolean;
+  calibratedToggleEvaluationAttempted: boolean;
+  calibratedToggleEvaluationStarted: boolean;
+  calibratedToggleEvaluationCompleted: boolean;
+  postSignerFailureBeforeFieldDiscovery: boolean;
+  postSignerFailureDuringFieldDiscovery: boolean;
+  postSignerFailureAfterFieldDiscoveryBeforeToggleEvaluation: boolean;
+  postSignerFailureReceiptPreserved: boolean;
+}
+
+export type PhysicalOperatingAddressCaptureOnlyPostSignerFailureInput =
+  Partial<Omit<PhysicalOperatingAddressCaptureOnlyPostSignerFailureFields, 'postSignerFailureSummaryPresent'>>;
+
 export interface PhysicalOperatingAddressCaptureOnlyCalibratedFallbackGuardSummary {
   addressOptionsAnchorMatched: boolean | null;
   addressOptionsAnchorOutcomeCategory: PhysicalOperatingAddressAddressOptionsAnchorOutcomeCategory | null;
@@ -344,7 +395,9 @@ export interface PhysicalOperatingAddressCaptureOnlyTargetFileFreshnessSummary {
   stale: boolean;
 }
 
-export interface PhysicalOperatingAddressCaptureOnlyReceipt extends PhysicalOperatingAddressCaptureOnlyPreSignerFailureFields {
+export interface PhysicalOperatingAddressCaptureOnlyReceipt
+  extends PhysicalOperatingAddressCaptureOnlyPreSignerFailureFields,
+  PhysicalOperatingAddressCaptureOnlyPostSignerFailureFields {
   runKind: typeof PHYSICAL_ADDRESS_CAPTURE_ONLY_RUN_KIND;
   childCommand: string;
   childExitCode: number | null;
@@ -1138,6 +1191,89 @@ function buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureDetail(
   }
 }
 
+function buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureDetail(
+  category: PhysicalOperatingAddressCaptureOnlyPostSignerFailureCategory,
+): {
+  stage: PhysicalOperatingAddressCaptureOnlyPostSignerFailureStage;
+  reason: string | null;
+  summary: string | null;
+} {
+  switch (category) {
+    case 'no-post-signer-failure':
+      return {
+        stage: 'none',
+        reason: null,
+        summary: null,
+      };
+    case 'signer-surface-reached-then-child-exited':
+      return {
+        stage: 'child-post-signer-before-field-discovery',
+        reason: 'the child runner exited after signer surface readiness before a more precise post-signer classification was recorded',
+        summary: 'the child runner reached the signer surface but exited before bounded field discovery or toggle evaluation could be classified more precisely',
+      };
+    case 'field-discovery-not-attempted':
+      return {
+        stage: 'child-post-signer-before-field-discovery',
+        reason: 'field discovery was not attempted after signer surface readiness',
+        summary: 'the child runner reached the signer surface but did not start bounded field discovery before exiting',
+      };
+    case 'field-discovery-start-failed':
+      return {
+        stage: 'child-field-discovery',
+        reason: 'field discovery did not start successfully after signer surface readiness',
+        summary: 'the child runner reached the signer surface but bounded field discovery did not start successfully',
+      };
+    case 'field-discovery-threw':
+      return {
+        stage: 'child-field-discovery',
+        reason: 'field discovery threw before returning initial fields',
+        summary: 'the child runner reached the signer surface but bounded field discovery threw before initial fields were available',
+      };
+    case 'field-discovery-timeout':
+      return {
+        stage: 'child-field-discovery',
+        reason: 'field discovery timed out before returning initial fields',
+        summary: 'the child runner reached the signer surface but bounded field discovery timed out before initial fields were available',
+      };
+    case 'field-discovery-returned-empty':
+      return {
+        stage: 'child-field-discovery',
+        reason: 'field discovery returned an empty field set',
+        summary: 'the child runner reached the signer surface and bounded field discovery returned zero fields before toggle evaluation could proceed',
+      };
+    case 'field-discovery-result-malformed':
+      return {
+        stage: 'child-field-discovery',
+        reason: 'field discovery returned a malformed result',
+        summary: 'the child runner reached the signer surface but bounded field discovery returned a malformed result',
+      };
+    case 'guarded-expansion-setup-failed':
+      return {
+        stage: 'child-guarded-expansion-setup',
+        reason: 'guarded expansion setup failed after field discovery completed',
+        summary: 'the child runner reached the signer surface and completed field discovery, but guarded expansion setup failed before calibrated toggle evaluation could proceed',
+      };
+    case 'calibrated-toggle-evaluation-not-attempted':
+      return {
+        stage: 'child-calibrated-toggle-evaluation',
+        reason: 'calibrated toggle evaluation was not attempted after field discovery completed',
+        summary: 'the child runner reached the signer surface and completed field discovery, but calibrated toggle evaluation did not begin',
+      };
+    case 'calibrated-toggle-evaluation-failed':
+      return {
+        stage: 'child-calibrated-toggle-evaluation',
+        reason: 'calibrated toggle evaluation failed after field discovery completed',
+        summary: 'the child runner reached the signer surface and completed field discovery, but calibrated toggle evaluation failed before a bounded selection result was produced',
+      };
+    case 'another-bounded-post-signer-failure':
+      return {
+        stage: 'another-bounded-post-signer-stage',
+        reason: 'another bounded post-signer failure blocked capture',
+        summary: 'capture stopped after signer surface readiness for another bounded post-signer reason',
+      };
+  }
+}
+
 export function buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput(
   category: PhysicalOperatingAddressCaptureOnlyPreSignerFailureCategory,
   overrides: PhysicalOperatingAddressCaptureOnlyPreSignerFailureInput = {},
@@ -1310,6 +1446,157 @@ export function buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput(
   };
 }
 
+export function buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput(
+  category: PhysicalOperatingAddressCaptureOnlyPostSignerFailureCategory,
+  overrides: PhysicalOperatingAddressCaptureOnlyPostSignerFailureInput = {},
+): PhysicalOperatingAddressCaptureOnlyPostSignerFailureInput {
+  const detail = buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureDetail(category);
+  const base: PhysicalOperatingAddressCaptureOnlyPostSignerFailureInput = {
+    postSignerFailureCategory: category,
+    postSignerFailureStage: detail.stage,
+    postSignerFailureReason: detail.reason,
+    postSignerFailureSummary: detail.summary,
+    signerSurfaceReachedBeforeFailure: false,
+    fieldDiscoveryAttempted: false,
+    fieldDiscoveryStarted: false,
+    fieldDiscoveryCompleted: false,
+    initialFieldCountAvailable: false,
+    fieldDiscoveryThrew: false,
+    fieldDiscoveryTimedOut: false,
+    fieldDiscoveryReturnedEmpty: false,
+    guardedExpansionSetupAttempted: false,
+    guardedExpansionSetupCompleted: false,
+    guardedExpansionSetupThrew: false,
+    calibratedToggleEvaluationAttempted: false,
+    calibratedToggleEvaluationStarted: false,
+    calibratedToggleEvaluationCompleted: false,
+    postSignerFailureBeforeFieldDiscovery: false,
+    postSignerFailureDuringFieldDiscovery: false,
+    postSignerFailureAfterFieldDiscoveryBeforeToggleEvaluation: false,
+    postSignerFailureReceiptPreserved: false,
+  };
+
+  switch (category) {
+    case 'no-post-signer-failure':
+      Object.assign(base, {
+        signerSurfaceReachedBeforeFailure: true,
+        fieldDiscoveryAttempted: true,
+        fieldDiscoveryStarted: true,
+        fieldDiscoveryCompleted: true,
+        initialFieldCountAvailable: true,
+        guardedExpansionSetupAttempted: true,
+        guardedExpansionSetupCompleted: true,
+        calibratedToggleEvaluationAttempted: true,
+        calibratedToggleEvaluationStarted: true,
+        calibratedToggleEvaluationCompleted: true,
+      });
+      break;
+    case 'signer-surface-reached-then-child-exited':
+    case 'field-discovery-not-attempted':
+      Object.assign(base, {
+        signerSurfaceReachedBeforeFailure: true,
+        postSignerFailureBeforeFieldDiscovery: true,
+      });
+      break;
+    case 'field-discovery-start-failed':
+      Object.assign(base, {
+        signerSurfaceReachedBeforeFailure: true,
+        fieldDiscoveryAttempted: true,
+        postSignerFailureDuringFieldDiscovery: true,
+      });
+      break;
+    case 'field-discovery-threw':
+      Object.assign(base, {
+        signerSurfaceReachedBeforeFailure: true,
+        fieldDiscoveryAttempted: true,
+        fieldDiscoveryStarted: true,
+        fieldDiscoveryThrew: true,
+        postSignerFailureDuringFieldDiscovery: true,
+      });
+      break;
+    case 'field-discovery-timeout':
+      Object.assign(base, {
+        signerSurfaceReachedBeforeFailure: true,
+        fieldDiscoveryAttempted: true,
+        fieldDiscoveryStarted: true,
+        fieldDiscoveryTimedOut: true,
+        postSignerFailureDuringFieldDiscovery: true,
+      });
+      break;
+    case 'field-discovery-returned-empty':
+      Object.assign(base, {
+        signerSurfaceReachedBeforeFailure: true,
+        fieldDiscoveryAttempted: true,
+        fieldDiscoveryStarted: true,
+        fieldDiscoveryCompleted: true,
+        initialFieldCountAvailable: true,
+        fieldDiscoveryReturnedEmpty: true,
+        postSignerFailureDuringFieldDiscovery: true,
+      });
+      break;
+    case 'field-discovery-result-malformed':
+      Object.assign(base, {
+        signerSurfaceReachedBeforeFailure: true,
+        fieldDiscoveryAttempted: true,
+        fieldDiscoveryStarted: true,
+        postSignerFailureDuringFieldDiscovery: true,
+      });
+      break;
+    case 'guarded-expansion-setup-failed':
+      Object.assign(base, {
+        signerSurfaceReachedBeforeFailure: true,
+        fieldDiscoveryAttempted: true,
+        fieldDiscoveryStarted: true,
+        fieldDiscoveryCompleted: true,
+        initialFieldCountAvailable: true,
+        guardedExpansionSetupAttempted: true,
+        guardedExpansionSetupThrew: true,
+        postSignerFailureAfterFieldDiscoveryBeforeToggleEvaluation: true,
+      });
+      break;
+    case 'calibrated-toggle-evaluation-not-attempted':
+      Object.assign(base, {
+        signerSurfaceReachedBeforeFailure: true,
+        fieldDiscoveryAttempted: true,
+        fieldDiscoveryStarted: true,
+        fieldDiscoveryCompleted: true,
+        initialFieldCountAvailable: true,
+        guardedExpansionSetupAttempted: true,
+        guardedExpansionSetupCompleted: true,
+        postSignerFailureAfterFieldDiscoveryBeforeToggleEvaluation: true,
+      });
+      break;
+    case 'calibrated-toggle-evaluation-failed':
+      Object.assign(base, {
+        signerSurfaceReachedBeforeFailure: true,
+        fieldDiscoveryAttempted: true,
+        fieldDiscoveryStarted: true,
+        fieldDiscoveryCompleted: true,
+        initialFieldCountAvailable: true,
+        guardedExpansionSetupAttempted: true,
+        guardedExpansionSetupCompleted: true,
+        calibratedToggleEvaluationAttempted: true,
+        calibratedToggleEvaluationStarted: true,
+        postSignerFailureAfterFieldDiscoveryBeforeToggleEvaluation: true,
+      });
+      break;
+    case 'another-bounded-post-signer-failure':
+      Object.assign(base, {
+        signerSurfaceReachedBeforeFailure: true,
+      });
+      break;
+  }
+
+  return {
+    ...base,
+    ...overrides,
+    postSignerFailureCategory: overrides.postSignerFailureCategory ?? category,
+    postSignerFailureStage: overrides.postSignerFailureStage ?? detail.stage,
+    postSignerFailureReason: overrides.postSignerFailureReason ?? detail.reason,
+    postSignerFailureSummary: overrides.postSignerFailureSummary ?? detail.summary,
+  };
+}
+
 function pickPhysicalOperatingAddressCaptureOnlyPreSignerFailureFields(
   receipt: PhysicalOperatingAddressCaptureOnlyReceipt,
 ): PhysicalOperatingAddressCaptureOnlyPreSignerFailureFields {
@@ -1335,6 +1622,37 @@ function pickPhysicalOperatingAddressCaptureOnlyPreSignerFailureFields(
     preSignerFailureBeforeChildLaunch: receipt.preSignerFailureBeforeChildLaunch,
     preSignerFailureInChildRunner: receipt.preSignerFailureInChildRunner,
     preSignerFailureReceiptPreserved: receipt.preSignerFailureReceiptPreserved,
+  };
+}
+
+function pickPhysicalOperatingAddressCaptureOnlyPostSignerFailureFields(
+  receipt: PhysicalOperatingAddressCaptureOnlyReceipt,
+): PhysicalOperatingAddressCaptureOnlyPostSignerFailureFields {
+  return {
+    postSignerFailureSummaryPresent: receipt.postSignerFailureSummaryPresent,
+    postSignerFailureCategory: receipt.postSignerFailureCategory,
+    postSignerFailureStage: receipt.postSignerFailureStage,
+    postSignerFailureReason: receipt.postSignerFailureReason,
+    postSignerFailureSummary: receipt.postSignerFailureSummary,
+    signerSurfaceReachedBeforeFailure: receipt.signerSurfaceReachedBeforeFailure,
+    fieldDiscoveryAttempted: receipt.fieldDiscoveryAttempted,
+    fieldDiscoveryStarted: receipt.fieldDiscoveryStarted,
+    fieldDiscoveryCompleted: receipt.fieldDiscoveryCompleted,
+    initialFieldCountAvailable: receipt.initialFieldCountAvailable,
+    fieldDiscoveryThrew: receipt.fieldDiscoveryThrew,
+    fieldDiscoveryTimedOut: receipt.fieldDiscoveryTimedOut,
+    fieldDiscoveryReturnedEmpty: receipt.fieldDiscoveryReturnedEmpty,
+    guardedExpansionSetupAttempted: receipt.guardedExpansionSetupAttempted,
+    guardedExpansionSetupCompleted: receipt.guardedExpansionSetupCompleted,
+    guardedExpansionSetupThrew: receipt.guardedExpansionSetupThrew,
+    calibratedToggleEvaluationAttempted: receipt.calibratedToggleEvaluationAttempted,
+    calibratedToggleEvaluationStarted: receipt.calibratedToggleEvaluationStarted,
+    calibratedToggleEvaluationCompleted: receipt.calibratedToggleEvaluationCompleted,
+    postSignerFailureBeforeFieldDiscovery: receipt.postSignerFailureBeforeFieldDiscovery,
+    postSignerFailureDuringFieldDiscovery: receipt.postSignerFailureDuringFieldDiscovery,
+    postSignerFailureAfterFieldDiscoveryBeforeToggleEvaluation:
+      receipt.postSignerFailureAfterFieldDiscoveryBeforeToggleEvaluation,
+    postSignerFailureReceiptPreserved: receipt.postSignerFailureReceiptPreserved,
   };
 }
 
@@ -1464,6 +1782,145 @@ function buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureFields(input: {
   };
 }
 
+function buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureFields(input: {
+  signerSurfaceReached: boolean;
+  initialFieldCountAvailable: boolean;
+  postSignerFailure?: PhysicalOperatingAddressCaptureOnlyPostSignerFailureInput;
+  existing?: PhysicalOperatingAddressCaptureOnlyPostSignerFailureFields;
+  preserveExistingFailureDetail?: boolean;
+}): PhysicalOperatingAddressCaptureOnlyPostSignerFailureFields {
+  const preferredExisting = input.preserveExistingFailureDetail ? input.existing : undefined;
+  const fallbackCategory = input.signerSurfaceReached && !input.initialFieldCountAvailable
+    ? 'signer-surface-reached-then-child-exited'
+    : 'no-post-signer-failure';
+  const category = !input.signerSurfaceReached
+    ? 'no-post-signer-failure'
+    : preferredExisting?.postSignerFailureCategory
+      ?? input.postSignerFailure?.postSignerFailureCategory
+      ?? input.existing?.postSignerFailureCategory
+      ?? fallbackCategory;
+  const defaults = buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput(category, {
+    signerSurfaceReachedBeforeFailure: input.signerSurfaceReached,
+    initialFieldCountAvailable: input.initialFieldCountAvailable,
+  });
+  const stage = category === 'no-post-signer-failure'
+    ? 'none'
+    : preferredExisting?.postSignerFailureStage
+      ?? input.postSignerFailure?.postSignerFailureStage
+      ?? input.existing?.postSignerFailureStage
+      ?? defaults.postSignerFailureStage
+      ?? 'another-bounded-post-signer-stage';
+  const reason = category === 'no-post-signer-failure'
+    ? null
+    : preferredExisting?.postSignerFailureReason
+      ?? input.postSignerFailure?.postSignerFailureReason
+      ?? input.existing?.postSignerFailureReason
+      ?? defaults.postSignerFailureReason
+      ?? null;
+  const summary = category === 'no-post-signer-failure'
+    ? null
+    : preferredExisting?.postSignerFailureSummary
+      ?? input.postSignerFailure?.postSignerFailureSummary
+      ?? input.existing?.postSignerFailureSummary
+      ?? defaults.postSignerFailureSummary
+      ?? null;
+
+  return {
+    postSignerFailureSummaryPresent: category !== 'no-post-signer-failure' && Boolean(summary),
+    postSignerFailureCategory: category,
+    postSignerFailureStage: stage,
+    postSignerFailureReason: reason,
+    postSignerFailureSummary: summary,
+    signerSurfaceReachedBeforeFailure: input.signerSurfaceReached,
+    fieldDiscoveryAttempted: coalesceDefined(
+      input.postSignerFailure?.fieldDiscoveryAttempted,
+      input.existing?.fieldDiscoveryAttempted,
+      defaults.fieldDiscoveryAttempted,
+    ) ?? false,
+    fieldDiscoveryStarted: coalesceDefined(
+      input.postSignerFailure?.fieldDiscoveryStarted,
+      input.existing?.fieldDiscoveryStarted,
+      defaults.fieldDiscoveryStarted,
+    ) ?? false,
+    fieldDiscoveryCompleted: coalesceDefined(
+      input.postSignerFailure?.fieldDiscoveryCompleted,
+      input.existing?.fieldDiscoveryCompleted,
+      defaults.fieldDiscoveryCompleted,
+    ) ?? false,
+    initialFieldCountAvailable: coalesceDefined(
+      input.postSignerFailure?.initialFieldCountAvailable,
+      input.existing?.initialFieldCountAvailable,
+      input.initialFieldCountAvailable,
+      defaults.initialFieldCountAvailable,
+    ) ?? false,
+    fieldDiscoveryThrew: coalesceDefined(
+      input.postSignerFailure?.fieldDiscoveryThrew,
+      input.existing?.fieldDiscoveryThrew,
+      defaults.fieldDiscoveryThrew,
+    ) ?? false,
+    fieldDiscoveryTimedOut: coalesceDefined(
+      input.postSignerFailure?.fieldDiscoveryTimedOut,
+      input.existing?.fieldDiscoveryTimedOut,
+      defaults.fieldDiscoveryTimedOut,
+    ) ?? false,
+    fieldDiscoveryReturnedEmpty: coalesceDefined(
+      input.postSignerFailure?.fieldDiscoveryReturnedEmpty,
+      input.existing?.fieldDiscoveryReturnedEmpty,
+      defaults.fieldDiscoveryReturnedEmpty,
+    ) ?? false,
+    guardedExpansionSetupAttempted: coalesceDefined(
+      input.postSignerFailure?.guardedExpansionSetupAttempted,
+      input.existing?.guardedExpansionSetupAttempted,
+      defaults.guardedExpansionSetupAttempted,
+    ) ?? false,
+    guardedExpansionSetupCompleted: coalesceDefined(
+      input.postSignerFailure?.guardedExpansionSetupCompleted,
+      input.existing?.guardedExpansionSetupCompleted,
+      defaults.guardedExpansionSetupCompleted,
+    ) ?? false,
+    guardedExpansionSetupThrew: coalesceDefined(
+      input.postSignerFailure?.guardedExpansionSetupThrew,
+      input.existing?.guardedExpansionSetupThrew,
+      defaults.guardedExpansionSetupThrew,
+    ) ?? false,
+    calibratedToggleEvaluationAttempted: coalesceDefined(
+      input.postSignerFailure?.calibratedToggleEvaluationAttempted,
+      input.existing?.calibratedToggleEvaluationAttempted,
+      defaults.calibratedToggleEvaluationAttempted,
+    ) ?? false,
+    calibratedToggleEvaluationStarted: coalesceDefined(
+      input.postSignerFailure?.calibratedToggleEvaluationStarted,
+      input.existing?.calibratedToggleEvaluationStarted,
+      defaults.calibratedToggleEvaluationStarted,
+    ) ?? false,
+    calibratedToggleEvaluationCompleted: coalesceDefined(
+      input.postSignerFailure?.calibratedToggleEvaluationCompleted,
+      input.existing?.calibratedToggleEvaluationCompleted,
+      defaults.calibratedToggleEvaluationCompleted,
+    ) ?? false,
+    postSignerFailureBeforeFieldDiscovery: coalesceDefined(
+      input.postSignerFailure?.postSignerFailureBeforeFieldDiscovery,
+      input.existing?.postSignerFailureBeforeFieldDiscovery,
+      defaults.postSignerFailureBeforeFieldDiscovery,
+    ) ?? false,
+    postSignerFailureDuringFieldDiscovery: coalesceDefined(
+      input.postSignerFailure?.postSignerFailureDuringFieldDiscovery,
+      input.existing?.postSignerFailureDuringFieldDiscovery,
+      defaults.postSignerFailureDuringFieldDiscovery,
+    ) ?? false,
+    postSignerFailureAfterFieldDiscoveryBeforeToggleEvaluation: coalesceDefined(
+      input.postSignerFailure?.postSignerFailureAfterFieldDiscoveryBeforeToggleEvaluation,
+      input.existing?.postSignerFailureAfterFieldDiscoveryBeforeToggleEvaluation,
+      defaults.postSignerFailureAfterFieldDiscoveryBeforeToggleEvaluation,
+    ) ?? false,
+    postSignerFailureReceiptPreserved: coalesceDefined(
+      input.postSignerFailure?.postSignerFailureReceiptPreserved,
+      input.existing?.postSignerFailureReceiptPreserved,
+      defaults.postSignerFailureReceiptPreserved,
+    ) ?? false,
+  };
+}
+
 export function mergePhysicalOperatingAddressCaptureOnlyPreSignerFailureFields(
   receipt: PhysicalOperatingAddressCaptureOnlyReceipt,
   preSignerFailure: PhysicalOperatingAddressCaptureOnlyPreSignerFailureInput,
@@ -1477,6 +1934,25 @@ export function mergePhysicalOperatingAddressCaptureOnlyPreSignerFailureFields(
       signerSurfaceReached: receipt.signerSurfaceReached,
       preSignerFailure,
       existing: pickPhysicalOperatingAddressCaptureOnlyPreSignerFailureFields(receipt),
+      preserveExistingFailureDetail: options.preserveExistingFailureDetail ?? false,
+    }),
+  };
+}
+
+export function mergePhysicalOperatingAddressCaptureOnlyPostSignerFailureFields(
+  receipt: PhysicalOperatingAddressCaptureOnlyReceipt,
+  postSignerFailure: PhysicalOperatingAddressCaptureOnlyPostSignerFailureInput,
+  options: {
+    preserveExistingFailureDetail?: boolean;
+  } = {},
+): PhysicalOperatingAddressCaptureOnlyReceipt {
+  return {
+    ...receipt,
+    ...buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureFields({
+      signerSurfaceReached: receipt.signerSurfaceReached,
+      initialFieldCountAvailable: receipt.initialFieldCount !== null,
+      postSignerFailure,
+      existing: pickPhysicalOperatingAddressCaptureOnlyPostSignerFailureFields(receipt),
       preserveExistingFailureDetail: options.preserveExistingFailureDetail ?? false,
     }),
   };
@@ -2448,6 +2924,34 @@ function isPhysicalOperatingAddressCaptureOnlyPreSignerFailureStage(
     || value === 'another-bounded-pre-signer-stage';
 }
 
+function isPhysicalOperatingAddressCaptureOnlyPostSignerFailureCategory(
+  value: unknown,
+): value is PhysicalOperatingAddressCaptureOnlyPostSignerFailureCategory {
+  return value === 'no-post-signer-failure'
+    || value === 'signer-surface-reached-then-child-exited'
+    || value === 'field-discovery-not-attempted'
+    || value === 'field-discovery-start-failed'
+    || value === 'field-discovery-threw'
+    || value === 'field-discovery-timeout'
+    || value === 'field-discovery-returned-empty'
+    || value === 'field-discovery-result-malformed'
+    || value === 'guarded-expansion-setup-failed'
+    || value === 'calibrated-toggle-evaluation-not-attempted'
+    || value === 'calibrated-toggle-evaluation-failed'
+    || value === 'another-bounded-post-signer-failure';
+}
+
+function isPhysicalOperatingAddressCaptureOnlyPostSignerFailureStage(
+  value: unknown,
+): value is PhysicalOperatingAddressCaptureOnlyPostSignerFailureStage {
+  return value === 'none'
+    || value === 'child-post-signer-before-field-discovery'
+    || value === 'child-field-discovery'
+    || value === 'child-guarded-expansion-setup'
+    || value === 'child-calibrated-toggle-evaluation'
+    || value === 'another-bounded-post-signer-stage';
+}
+
 export function buildPhysicalOperatingAddressCaptureOnlyReceiptPath(artifactsDir = ARTIFACTS_DIR): string {
   return path.join(artifactsDir, PHYSICAL_ADDRESS_CAPTURE_ONLY_RECEIPT_FILE_NAME);
 }
@@ -2461,6 +2965,7 @@ export function buildPhysicalOperatingAddressCaptureOnlyReceipt(input: {
   childCommand?: string;
   signerSurfaceReached?: boolean;
   preSignerFailure?: PhysicalOperatingAddressCaptureOnlyPreSignerFailureInput;
+  postSignerFailure?: PhysicalOperatingAddressCaptureOnlyPostSignerFailureInput;
 }): PhysicalOperatingAddressCaptureOnlyReceipt {
   const artifactsDir = input.artifactsDir ?? ARTIFACTS_DIR;
   const artifactFreshness = input.result?.artifactFreshness ?? buildPhysicalOperatingAddressCaptureOnlyFallbackFreshness(artifactsDir);
@@ -2494,6 +2999,11 @@ export function buildPhysicalOperatingAddressCaptureOnlyReceipt(input: {
     signerSurfaceReached,
     preSignerFailure: input.preSignerFailure,
   });
+  const postSignerFailure = buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureFields({
+    signerSurfaceReached,
+    initialFieldCountAvailable: input.result?.fieldsBefore !== undefined,
+    postSignerFailure: input.postSignerFailure,
+  });
 
   return {
     runKind: PHYSICAL_ADDRESS_CAPTURE_ONLY_RUN_KIND,
@@ -2503,6 +3013,7 @@ export function buildPhysicalOperatingAddressCaptureOnlyReceipt(input: {
     signerSurfaceReached,
     initialFieldCount: input.result?.fieldsBefore ?? null,
     ...preSignerFailure,
+    ...postSignerFailure,
     toggleSelectionOutcomeCategory: input.result?.toggleSelectionOutcomeCategory ?? null,
     toggleSelectionStage: input.result?.toggleSelectionStage ?? null,
     toggleSelectionMode: input.result?.toggleSelectionMode ?? null,
@@ -2831,6 +3342,29 @@ export function isPhysicalOperatingAddressCaptureOnlyReceipt(
     && typeof candidate.preSignerFailureBeforeChildLaunch === 'boolean'
     && typeof candidate.preSignerFailureInChildRunner === 'boolean'
     && typeof candidate.preSignerFailureReceiptPreserved === 'boolean'
+    && typeof candidate.postSignerFailureSummaryPresent === 'boolean'
+    && isPhysicalOperatingAddressCaptureOnlyPostSignerFailureCategory(candidate.postSignerFailureCategory)
+    && isPhysicalOperatingAddressCaptureOnlyPostSignerFailureStage(candidate.postSignerFailureStage)
+    && (typeof candidate.postSignerFailureReason === 'string' || candidate.postSignerFailureReason === null)
+    && (typeof candidate.postSignerFailureSummary === 'string' || candidate.postSignerFailureSummary === null)
+    && typeof candidate.signerSurfaceReachedBeforeFailure === 'boolean'
+    && typeof candidate.fieldDiscoveryAttempted === 'boolean'
+    && typeof candidate.fieldDiscoveryStarted === 'boolean'
+    && typeof candidate.fieldDiscoveryCompleted === 'boolean'
+    && typeof candidate.initialFieldCountAvailable === 'boolean'
+    && typeof candidate.fieldDiscoveryThrew === 'boolean'
+    && typeof candidate.fieldDiscoveryTimedOut === 'boolean'
+    && typeof candidate.fieldDiscoveryReturnedEmpty === 'boolean'
+    && typeof candidate.guardedExpansionSetupAttempted === 'boolean'
+    && typeof candidate.guardedExpansionSetupCompleted === 'boolean'
+    && typeof candidate.guardedExpansionSetupThrew === 'boolean'
+    && typeof candidate.calibratedToggleEvaluationAttempted === 'boolean'
+    && typeof candidate.calibratedToggleEvaluationStarted === 'boolean'
+    && typeof candidate.calibratedToggleEvaluationCompleted === 'boolean'
+    && typeof candidate.postSignerFailureBeforeFieldDiscovery === 'boolean'
+    && typeof candidate.postSignerFailureDuringFieldDiscovery === 'boolean'
+    && typeof candidate.postSignerFailureAfterFieldDiscoveryBeforeToggleEvaluation === 'boolean'
+    && typeof candidate.postSignerFailureReceiptPreserved === 'boolean'
     && (candidate.toggleSelectionOutcomeCategory === null || isPhysicalOperatingAddressToggleSelectionOutcomeCategory(candidate.toggleSelectionOutcomeCategory))
     && (candidate.toggleSelectionStage === null || isPhysicalOperatingAddressToggleSelectionStage(candidate.toggleSelectionStage))
     && isPhysicalOperatingAddressCaptureOnlySelectionMode(candidate.toggleSelectionMode)
@@ -4090,6 +4624,26 @@ export async function main(): Promise<ExitReason> {
     preSignerFailureInChildRunner: true,
     preSignerFailureReceiptPreserved: false,
   };
+  let postSignerFailure: PhysicalOperatingAddressCaptureOnlyPostSignerFailureInput = {
+    signerSurfaceReachedBeforeFailure: false,
+    fieldDiscoveryAttempted: false,
+    fieldDiscoveryStarted: false,
+    fieldDiscoveryCompleted: false,
+    initialFieldCountAvailable: false,
+    fieldDiscoveryThrew: false,
+    fieldDiscoveryTimedOut: false,
+    fieldDiscoveryReturnedEmpty: false,
+    guardedExpansionSetupAttempted: false,
+    guardedExpansionSetupCompleted: false,
+    guardedExpansionSetupThrew: false,
+    calibratedToggleEvaluationAttempted: false,
+    calibratedToggleEvaluationStarted: false,
+    calibratedToggleEvaluationCompleted: false,
+    postSignerFailureBeforeFieldDiscovery: false,
+    postSignerFailureDuringFieldDiscovery: false,
+    postSignerFailureAfterFieldDiscoveryBeforeToggleEvaluation: false,
+    postSignerFailureReceiptPreserved: false,
+  };
   try {
     loadEnv();
     assertPhysicalOperatingAddressCaptureOnlyGuards(process.env);
@@ -4146,6 +4700,10 @@ export async function main(): Promise<ExitReason> {
                 ? true
                 : preSignerFailure.openSignerExternalWarningHandled,
           };
+          postSignerFailure = {
+            ...postSignerFailure,
+            signerSurfaceReachedBeforeFailure: true,
+          };
           return opened;
         } catch (error) {
           const safeMessage = (error instanceof Error ? error.message : String(error))
@@ -4156,6 +4714,110 @@ export async function main(): Promise<ExitReason> {
             childRunnerLaunched: true,
             childRunnerReceivedSignerUrl: preSignerFailure.childRunnerReceivedSignerUrl ?? true,
             childRunnerStartedCapture: true,
+          };
+          throw error;
+        }
+      },
+      discoverFields: async (frame) => {
+        postSignerFailure = {
+          ...postSignerFailure,
+          signerSurfaceReachedBeforeFailure: signerSurfaceReached || postSignerFailure.signerSurfaceReachedBeforeFailure || false,
+          fieldDiscoveryAttempted: true,
+          fieldDiscoveryStarted: true,
+          postSignerFailureBeforeFieldDiscovery: false,
+          postSignerFailureDuringFieldDiscovery: true,
+        };
+
+        try {
+          const discoveredFields = await PHYSICAL_ADDRESS_CAPTURE_ONLY_DEPENDENCIES.discoverFields(frame);
+          if (!Array.isArray(discoveredFields)) {
+            postSignerFailure = {
+              ...postSignerFailure,
+              ...buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput('field-discovery-result-malformed', {
+                signerSurfaceReachedBeforeFailure: true,
+                fieldDiscoveryAttempted: true,
+                fieldDiscoveryStarted: true,
+                fieldDiscoveryCompleted: false,
+                initialFieldCountAvailable: false,
+                postSignerFailureDuringFieldDiscovery: true,
+              }),
+            };
+            throw new Error('bounded field discovery result malformed');
+          }
+
+          postSignerFailure = {
+            ...postSignerFailure,
+            fieldDiscoveryCompleted: true,
+            initialFieldCountAvailable: true,
+            fieldDiscoveryReturnedEmpty: discoveredFields.length === 0,
+            postSignerFailureDuringFieldDiscovery: false,
+          };
+          return discoveredFields;
+        } catch (error) {
+          if (postSignerFailure.postSignerFailureCategory === 'field-discovery-result-malformed') {
+            throw error;
+          }
+
+          const safeMessage = (error instanceof Error ? error.message : String(error))
+            .replace(/https?:\/\/\S+/g, (url) => redactUrl(url));
+          const normalized = normalizeDiagnosticText(safeMessage).toLowerCase();
+          const category = normalized.includes('timed out') || normalized.includes('timeout')
+            ? 'field-discovery-timeout'
+            : 'field-discovery-threw';
+          postSignerFailure = {
+            ...postSignerFailure,
+            ...buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput(category, {
+              signerSurfaceReachedBeforeFailure: true,
+              fieldDiscoveryAttempted: true,
+              fieldDiscoveryStarted: true,
+              fieldDiscoveryCompleted: false,
+              initialFieldCountAvailable: false,
+              fieldDiscoveryThrew: category === 'field-discovery-threw',
+              fieldDiscoveryTimedOut: category === 'field-discovery-timeout',
+              postSignerFailureDuringFieldDiscovery: true,
+            }),
+          };
+          throw error;
+        }
+      },
+      maybeExpandPhysicalOperatingAddressSection: async (...args) => {
+        postSignerFailure = {
+          ...postSignerFailure,
+          signerSurfaceReachedBeforeFailure: signerSurfaceReached || postSignerFailure.signerSurfaceReachedBeforeFailure || false,
+          guardedExpansionSetupAttempted: true,
+          postSignerFailureAfterFieldDiscoveryBeforeToggleEvaluation: true,
+        };
+
+        try {
+          const expansion = await PHYSICAL_ADDRESS_CAPTURE_ONLY_DEPENDENCIES.maybeExpandPhysicalOperatingAddressSection(...args);
+          postSignerFailure = {
+            ...postSignerFailure,
+            guardedExpansionSetupCompleted: true,
+            guardedExpansionSetupThrew: false,
+            calibratedToggleEvaluationAttempted: true,
+            calibratedToggleEvaluationStarted: true,
+            calibratedToggleEvaluationCompleted: true,
+            postSignerFailureAfterFieldDiscoveryBeforeToggleEvaluation: false,
+          };
+          return expansion;
+        } catch (error) {
+          postSignerFailure = {
+            ...postSignerFailure,
+            ...buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput('guarded-expansion-setup-failed', {
+              signerSurfaceReachedBeforeFailure: true,
+              fieldDiscoveryAttempted: postSignerFailure.fieldDiscoveryAttempted ?? true,
+              fieldDiscoveryStarted: postSignerFailure.fieldDiscoveryStarted ?? true,
+              fieldDiscoveryCompleted: postSignerFailure.fieldDiscoveryCompleted ?? true,
+              initialFieldCountAvailable: postSignerFailure.initialFieldCountAvailable ?? true,
+              fieldDiscoveryReturnedEmpty: postSignerFailure.fieldDiscoveryReturnedEmpty ?? false,
+              guardedExpansionSetupAttempted: true,
+              guardedExpansionSetupCompleted: false,
+              guardedExpansionSetupThrew: true,
+              calibratedToggleEvaluationAttempted: false,
+              calibratedToggleEvaluationStarted: false,
+              calibratedToggleEvaluationCompleted: false,
+              postSignerFailureAfterFieldDiscoveryBeforeToggleEvaluation: true,
+            }),
           };
           throw error;
         }
@@ -4196,6 +4858,26 @@ export async function main(): Promise<ExitReason> {
             openSignerReachedSignerSurface: true,
             signerSurfaceWaitAttempted: true,
             signerSurfaceWaitTimedOut: false,
+          },
+        ),
+        postSignerFailure: buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput(
+          'no-post-signer-failure',
+          {
+            ...postSignerFailure,
+            signerSurfaceReachedBeforeFailure: signerSurfaceReached,
+            fieldDiscoveryAttempted: true,
+            fieldDiscoveryStarted: true,
+            fieldDiscoveryCompleted: true,
+            initialFieldCountAvailable: true,
+            guardedExpansionSetupAttempted: true,
+            guardedExpansionSetupCompleted: true,
+            guardedExpansionSetupThrew: false,
+            calibratedToggleEvaluationAttempted: true,
+            calibratedToggleEvaluationStarted: true,
+            calibratedToggleEvaluationCompleted: true,
+            postSignerFailureBeforeFieldDiscovery: false,
+            postSignerFailureDuringFieldDiscovery: false,
+            postSignerFailureAfterFieldDiscoveryBeforeToggleEvaluation: false,
           },
         ),
       }),
@@ -4248,6 +4930,53 @@ export async function main(): Promise<ExitReason> {
             childRunnerReceivedSignerUrl: preSignerFailure.childRunnerReceivedSignerUrl ?? true,
             childRunnerStartedCapture: true,
           });
+    const failurePostSigner = !signerSurfaceReached
+      ? buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput('no-post-signer-failure', {
+        ...postSignerFailure,
+        signerSurfaceReachedBeforeFailure: false,
+      })
+      : postSignerFailure.postSignerFailureCategory
+        ? buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput(postSignerFailure.postSignerFailureCategory, {
+          ...postSignerFailure,
+          signerSurfaceReachedBeforeFailure: true,
+        })
+        : !postSignerFailure.fieldDiscoveryAttempted
+          ? buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput('field-discovery-not-attempted', {
+            ...postSignerFailure,
+            signerSurfaceReachedBeforeFailure: true,
+            postSignerFailureBeforeFieldDiscovery: true,
+          })
+          : postSignerFailure.fieldDiscoveryReturnedEmpty && !postSignerFailure.guardedExpansionSetupAttempted
+            ? buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput('field-discovery-returned-empty', {
+              ...postSignerFailure,
+              signerSurfaceReachedBeforeFailure: true,
+              fieldDiscoveryAttempted: true,
+              fieldDiscoveryStarted: true,
+              fieldDiscoveryCompleted: true,
+              initialFieldCountAvailable: true,
+              postSignerFailureDuringFieldDiscovery: true,
+            })
+            : postSignerFailure.guardedExpansionSetupThrew
+              ? buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput('guarded-expansion-setup-failed', {
+                ...postSignerFailure,
+                signerSurfaceReachedBeforeFailure: true,
+              })
+              : postSignerFailure.fieldDiscoveryCompleted && !postSignerFailure.guardedExpansionSetupAttempted
+                ? buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput('calibrated-toggle-evaluation-not-attempted', {
+                  ...postSignerFailure,
+                  signerSurfaceReachedBeforeFailure: true,
+                  initialFieldCountAvailable: true,
+                  postSignerFailureAfterFieldDiscoveryBeforeToggleEvaluation: true,
+                })
+                : buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput('signer-surface-reached-then-child-exited', {
+                  ...postSignerFailure,
+                  signerSurfaceReachedBeforeFailure: true,
+                  postSignerFailureBeforeFieldDiscovery: !postSignerFailure.fieldDiscoveryAttempted,
+                  postSignerFailureDuringFieldDiscovery:
+                    Boolean(postSignerFailure.fieldDiscoveryAttempted) && !Boolean(postSignerFailure.fieldDiscoveryCompleted),
+                  postSignerFailureAfterFieldDiscoveryBeforeToggleEvaluation:
+                    Boolean(postSignerFailure.fieldDiscoveryCompleted) && !Boolean(postSignerFailure.calibratedToggleEvaluationCompleted),
+                });
 
     emitPhysicalOperatingAddressCaptureOnlyReceipt(
       buildPhysicalOperatingAddressCaptureOnlyReceipt({
@@ -4257,6 +4986,7 @@ export async function main(): Promise<ExitReason> {
         blockedReasonCategory: 'another bounded reason',
         signerSurfaceReached,
         preSignerFailure: failurePreSigner,
+        postSignerFailure: failurePostSigner,
       }),
       ARTIFACTS_DIR,
     );

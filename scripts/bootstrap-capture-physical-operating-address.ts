@@ -19,15 +19,18 @@ import {
   type ExitReason,
 } from '../lib/bootstrap-email-runner';
 import {
+  buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput,
   buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput,
   buildPhysicalOperatingAddressCaptureOnlyReceipt,
   buildPhysicalOperatingAddressCaptureOnlyReceiptPath,
   formatPhysicalOperatingAddressCaptureOnlyReceiptSentinel,
+  mergePhysicalOperatingAddressCaptureOnlyPostSignerFailureFields,
   mergePhysicalOperatingAddressCaptureOnlyPreSignerFailureFields,
   parsePhysicalOperatingAddressCaptureOnlyReceiptSentinel,
   PHYSICAL_ADDRESS_CAPTURE_ONLY_COMMAND,
   readPhysicalOperatingAddressCaptureOnlyReceipt,
   writePhysicalOperatingAddressCaptureOnlyReceipt,
+  type PhysicalOperatingAddressCaptureOnlyPostSignerFailureInput,
   type PhysicalOperatingAddressCaptureOnlyPreSignerFailureInput,
   type PhysicalOperatingAddressCaptureOnlyReceipt,
 } from './capture-physical-operating-address';
@@ -177,6 +180,23 @@ function buildPhysicalOperatingAddressBootstrapPreSignerFailure(
   }
 }
 
+function buildPhysicalOperatingAddressBootstrapPostSignerFailure(
+  state: PhysicalOperatingAddressBootstrapCaptureState,
+): PhysicalOperatingAddressCaptureOnlyPostSignerFailureInput {
+  if (!state.childReceipt) {
+    return buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput('no-post-signer-failure', {
+      signerSurfaceReachedBeforeFailure: false,
+      postSignerFailureReceiptPreserved: false,
+    });
+  }
+
+  return {
+    postSignerFailureReceiptPreserved:
+      state.childReceipt.signerSurfaceReached
+      && state.childReceipt.postSignerFailureCategory !== 'no-post-signer-failure',
+  };
+}
+
 function createPhysicalOperatingAddressBootstrapCaptureRunner(
   state: PhysicalOperatingAddressBootstrapCaptureState,
   options: {
@@ -310,10 +330,15 @@ export function finalizePhysicalOperatingAddressBootstrapCaptureResult(input: {
 } {
   const childExitCode = input.state.childExitCode ?? input.bootstrapResult.code;
   const bootstrapPreSignerFailure = buildPhysicalOperatingAddressBootstrapPreSignerFailure(input.state);
+  const bootstrapPostSignerFailure = buildPhysicalOperatingAddressBootstrapPostSignerFailure(input.state);
   let receipt = input.state.childReceipt
-    ? mergePhysicalOperatingAddressCaptureOnlyPreSignerFailureFields(
-      input.state.childReceipt,
-      bootstrapPreSignerFailure,
+    ? mergePhysicalOperatingAddressCaptureOnlyPostSignerFailureFields(
+      mergePhysicalOperatingAddressCaptureOnlyPreSignerFailureFields(
+        input.state.childReceipt,
+        bootstrapPreSignerFailure,
+        { preserveExistingFailureDetail: true },
+      ),
+      bootstrapPostSignerFailure,
       { preserveExistingFailureDetail: true },
     )
     : buildPhysicalOperatingAddressCaptureOnlyReceipt({
@@ -324,6 +349,7 @@ export function finalizePhysicalOperatingAddressBootstrapCaptureResult(input: {
       blockedReasonCategory: 'another bounded reason',
       childCommand: input.state.childCommand,
       preSignerFailure: bootstrapPreSignerFailure,
+      postSignerFailure: bootstrapPostSignerFailure,
     });
 
   let bootstrapExitCode = input.bootstrapResult.code;

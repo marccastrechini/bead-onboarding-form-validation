@@ -38,6 +38,7 @@ import {
 } from '../fixtures/physical-address-post-toggle-capture';
 import {
   assertPhysicalOperatingAddressCaptureOnlyGuards,
+  buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput,
   buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput,
   buildPhysicalOperatingAddressCaptureOnlyArtifactFreshnessDiagnostics,
   buildPhysicalOperatingAddressCaptureOnlyReceipt,
@@ -10431,6 +10432,29 @@ test.describe('interactive validation safety', () => {
     preSignerFailureBeforeChildLaunch: false,
     preSignerFailureInChildRunner: false,
     preSignerFailureReceiptPreserved: false,
+    postSignerFailureSummaryPresent: false,
+    postSignerFailureCategory: 'no-post-signer-failure',
+    postSignerFailureStage: 'none',
+    postSignerFailureReason: null,
+    postSignerFailureSummary: null,
+    signerSurfaceReachedBeforeFailure: true,
+    fieldDiscoveryAttempted: true,
+    fieldDiscoveryStarted: true,
+    fieldDiscoveryCompleted: true,
+    initialFieldCountAvailable: true,
+    fieldDiscoveryThrew: false,
+    fieldDiscoveryTimedOut: false,
+    fieldDiscoveryReturnedEmpty: false,
+    guardedExpansionSetupAttempted: true,
+    guardedExpansionSetupCompleted: true,
+    guardedExpansionSetupThrew: false,
+    calibratedToggleEvaluationAttempted: true,
+    calibratedToggleEvaluationStarted: true,
+    calibratedToggleEvaluationCompleted: true,
+    postSignerFailureBeforeFieldDiscovery: false,
+    postSignerFailureDuringFieldDiscovery: false,
+    postSignerFailureAfterFieldDiscoveryBeforeToggleEvaluation: false,
+    postSignerFailureReceiptPreserved: false,
     toggleSelectionOutcomeCategory: 'calibrated-selected',
     toggleSelectionStage: 'calibrated-fallback',
     toggleSelectionMode: 'calibrated-fallback',
@@ -11803,6 +11827,179 @@ test.describe('interactive validation safety', () => {
     expect(receipt.preSignerFailureCategory).toBe('no-pre-signer-failure');
     expect(receipt.preSignerFailureStage).toBe('none');
     expect(receipt.preSignerFailureSummaryPresent).toBe(false);
+  });
+
+  test('physical address capture-only post-signer classifies field discovery not attempted boundedly', () => {
+    const receipt = buildPhysicalOperatingAddressCaptureOnlyReceipt({
+      result: null,
+      childExitCode: 1,
+      signerSurfaceReached: true,
+      blockedReasonCategory: 'another bounded reason',
+      postSignerFailure: buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput('field-discovery-not-attempted'),
+    });
+
+    expect(receipt.postSignerFailureCategory).toBe('field-discovery-not-attempted');
+    expect(receipt.postSignerFailureStage).toBe('child-post-signer-before-field-discovery');
+    expect(receipt.signerSurfaceReachedBeforeFailure).toBe(true);
+    expect(receipt.fieldDiscoveryAttempted).toBe(false);
+    expect(receipt.initialFieldCountAvailable).toBe(false);
+  });
+
+  test('physical address capture-only post-signer classifies field discovery throws boundedly', () => {
+    const receipt = buildPhysicalOperatingAddressCaptureOnlyReceipt({
+      result: null,
+      childExitCode: 1,
+      signerSurfaceReached: true,
+      blockedReasonCategory: 'another bounded reason',
+      postSignerFailure: buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput('field-discovery-threw'),
+    });
+
+    expect(receipt.postSignerFailureCategory).toBe('field-discovery-threw');
+    expect(receipt.fieldDiscoveryAttempted).toBe(true);
+    expect(receipt.fieldDiscoveryStarted).toBe(true);
+    expect(receipt.fieldDiscoveryCompleted).toBe(false);
+    expect(receipt.fieldDiscoveryThrew).toBe(true);
+    expect(receipt.fieldDiscoveryTimedOut).toBe(false);
+  });
+
+  test('physical address capture-only post-signer classifies field discovery timeout boundedly', () => {
+    const receipt = buildPhysicalOperatingAddressCaptureOnlyReceipt({
+      result: null,
+      childExitCode: 1,
+      signerSurfaceReached: true,
+      blockedReasonCategory: 'another bounded reason',
+      postSignerFailure: buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput('field-discovery-timeout'),
+    });
+
+    expect(receipt.postSignerFailureCategory).toBe('field-discovery-timeout');
+    expect(receipt.fieldDiscoveryAttempted).toBe(true);
+    expect(receipt.fieldDiscoveryStarted).toBe(true);
+    expect(receipt.fieldDiscoveryTimedOut).toBe(true);
+    expect(receipt.fieldDiscoveryThrew).toBe(false);
+  });
+
+  test('physical address capture-only post-signer classifies field discovery returned empty boundedly', () => {
+    const receipt = buildPhysicalOperatingAddressCaptureOnlyReceipt({
+      result: null,
+      childExitCode: 1,
+      signerSurfaceReached: true,
+      blockedReasonCategory: 'another bounded reason',
+      postSignerFailure: buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput('field-discovery-returned-empty'),
+    });
+
+    expect(receipt.postSignerFailureCategory).toBe('field-discovery-returned-empty');
+    expect(receipt.fieldDiscoveryCompleted).toBe(true);
+    expect(receipt.initialFieldCountAvailable).toBe(true);
+    expect(receipt.fieldDiscoveryReturnedEmpty).toBe(true);
+  });
+
+  test('physical address capture-only post-signer classifies malformed field discovery result boundedly', () => {
+    const receipt = buildPhysicalOperatingAddressCaptureOnlyReceipt({
+      result: null,
+      childExitCode: 1,
+      signerSurfaceReached: true,
+      blockedReasonCategory: 'another bounded reason',
+      postSignerFailure: buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput('field-discovery-result-malformed'),
+    });
+
+    expect(receipt.postSignerFailureCategory).toBe('field-discovery-result-malformed');
+    expect(receipt.postSignerFailureStage).toBe('child-field-discovery');
+    expect(receipt.fieldDiscoveryCompleted).toBe(false);
+    expect(receipt.initialFieldCountAvailable).toBe(false);
+  });
+
+  test('physical address capture-only post-signer classifies guarded expansion setup failure boundedly', () => {
+    const receipt = buildPhysicalOperatingAddressCaptureOnlyReceipt({
+      result: null,
+      childExitCode: 1,
+      signerSurfaceReached: true,
+      blockedReasonCategory: 'another bounded reason',
+      postSignerFailure: buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput('guarded-expansion-setup-failed'),
+    });
+
+    expect(receipt.postSignerFailureCategory).toBe('guarded-expansion-setup-failed');
+    expect(receipt.fieldDiscoveryCompleted).toBe(true);
+    expect(receipt.initialFieldCountAvailable).toBe(true);
+    expect(receipt.guardedExpansionSetupAttempted).toBe(true);
+    expect(receipt.guardedExpansionSetupThrew).toBe(true);
+  });
+
+  test('physical address capture-only post-signer classifies calibrated toggle evaluation not attempted boundedly', () => {
+    const receipt = buildPhysicalOperatingAddressCaptureOnlyReceipt({
+      result: null,
+      childExitCode: 1,
+      signerSurfaceReached: true,
+      blockedReasonCategory: 'another bounded reason',
+      postSignerFailure: buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput(
+        'calibrated-toggle-evaluation-not-attempted',
+      ),
+    });
+
+    expect(receipt.postSignerFailureCategory).toBe('calibrated-toggle-evaluation-not-attempted');
+    expect(receipt.fieldDiscoveryCompleted).toBe(true);
+    expect(receipt.initialFieldCountAvailable).toBe(true);
+    expect(receipt.guardedExpansionSetupCompleted).toBe(true);
+    expect(receipt.calibratedToggleEvaluationAttempted).toBe(false);
+  });
+
+  test('physical address capture-only post-signer records no post-signer failure after initial fields are available', () => {
+    const receipt = createPhysicalAddressBootstrapCaptureReceipt();
+
+    expect(receipt.signerSurfaceReached).toBe(true);
+    expect(receipt.initialFieldCount).toBe(14);
+    expect(receipt.postSignerFailureCategory).toBe('no-post-signer-failure');
+    expect(receipt.postSignerFailureStage).toBe('none');
+    expect(receipt.postSignerFailureSummaryPresent).toBe(false);
+  });
+
+  test('physical address bootstrap capture post-signer preserves the child category when it is more precise', async () => {
+    const outDir = createPhysicalAddressCaptureOnlyTempDir();
+    const logs: string[] = [];
+    const childReceipt = buildPhysicalOperatingAddressCaptureOnlyReceipt({
+      result: null,
+      childExitCode: 1,
+      signerSurfaceReached: true,
+      blockedReasonCategory: 'another bounded reason',
+      preSignerFailure: buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput('no-pre-signer-failure'),
+      postSignerFailure: buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput('field-discovery-threw'),
+    });
+
+    const result = await runPhysicalOperatingAddressBootstrapCapture(
+      createPhysicalAddressBootstrapCaptureDependencies(
+        outDir,
+        createPhysicalAddressBootstrapCaptureSpawn({
+          exitCode: 1,
+          stdoutLines: [formatPhysicalOperatingAddressCaptureOnlyReceiptSentinel(childReceipt)],
+        }),
+        logs,
+      ),
+    );
+
+    const receipt = readPhysicalOperatingAddressCaptureOnlyReceipt(
+      buildPhysicalOperatingAddressCaptureOnlyReceiptPath(outDir),
+    );
+
+    expect(result.code).toBe(1);
+    expect(receipt?.postSignerFailureCategory).toBe('field-discovery-threw');
+    expect(receipt?.postSignerFailureStage).toBe('child-field-discovery');
+    expect(receipt?.postSignerFailureReceiptPreserved).toBe(true);
+    expect(receipt?.preSignerFailureCategory).toBe('no-pre-signer-failure');
+  });
+
+  test('physical address capture-only post-signer receipt stays bounded and redacted', () => {
+    const receipt = buildPhysicalOperatingAddressCaptureOnlyReceipt({
+      result: null,
+      childExitCode: 1,
+      signerSurfaceReached: true,
+      blockedReasonCategory: 'another bounded reason',
+      postSignerFailure: buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput('field-discovery-threw'),
+    });
+    const serialized = JSON.stringify(receipt);
+
+    expect(serialized).not.toContain('https://demo.docusign.net/Signing/EmailStart.aspx?t=SECRET');
+    expect(serialized).not.toContain('unsafe@example.test');
+    expect(serialized).not.toContain('<html>');
+    expect(serialized).toContain('field-discovery-threw');
   });
 
   test('physical address bootstrap capture receipt blocks inconsistent child success when artifacts remain stale', async () => {
