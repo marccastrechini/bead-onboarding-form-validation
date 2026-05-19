@@ -2,9 +2,14 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { chromium, type Page } from '@playwright/test';
 import {
+  buildGuardedPhysicalOperatingAddressExpansionFailureTelemetry,
+  isGuardedPhysicalOperatingAddressExpansionError,
   maybeExpandPhysicalOperatingAddressSection,
   SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS_ENV,
   type GuardedPhysicalOperatingAddressDiscoveryOptions,
+  type GuardedPhysicalOperatingAddressExpansionFailureCategory,
+  type GuardedPhysicalOperatingAddressExpansionFailureStage,
+  type GuardedPhysicalOperatingAddressExpansionFailureTelemetry,
   type PhysicalOperatingAddressAddressOptionsAnchorEvidenceSummary,
   type PhysicalOperatingAddressAddressOptionsAnchorOutcomeCategory,
   type PhysicalOperatingAddressAddressOptionsAnchorRejectedReason,
@@ -255,6 +260,42 @@ export interface PhysicalOperatingAddressCaptureOnlyPostSignerFailureFields {
 export type PhysicalOperatingAddressCaptureOnlyPostSignerFailureInput =
   Partial<Omit<PhysicalOperatingAddressCaptureOnlyPostSignerFailureFields, 'postSignerFailureSummaryPresent'>>;
 
+export interface PhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureFields {
+  guardedExpansionFailureSummaryPresent: boolean;
+  guardedExpansionFailureCategory: GuardedPhysicalOperatingAddressExpansionFailureCategory;
+  guardedExpansionFailureStage: GuardedPhysicalOperatingAddressExpansionFailureStage;
+  guardedExpansionFailureReason: string | null;
+  guardedExpansionFailureSummary: string | null;
+  guardedExpansionInputFramePresent: boolean;
+  guardedExpansionInputFieldsPresent: boolean;
+  guardedExpansionInputFieldCount: number | null;
+  guardedExpansionInputFieldCountPreserved: boolean;
+  guardedExpansionHelperInvoked: boolean;
+  guardedExpansionHelperEntered: boolean;
+  guardedExpansionCandidateInventoryAttempted: boolean;
+  guardedExpansionCandidateInventoryBuilt: boolean;
+  guardedExpansionSelectionSummaryAttempted: boolean;
+  guardedExpansionSelectionSummaryCompleted: boolean;
+  guardedExpansionCalibratedEvaluationAttempted: boolean;
+  guardedExpansionCalibratedEvaluationCompleted: boolean;
+  guardedExpansionAnchorlessEvaluationAttempted: boolean;
+  guardedExpansionAnchorlessEvaluationCompleted: boolean;
+  guardedExpansionClickAttempted: boolean;
+  guardedExpansionClickCompleted: boolean;
+  guardedExpansionUiValidationAttempted: boolean;
+  guardedExpansionUiValidationCompleted: boolean;
+  guardedExpansionFailureBeforeCandidateInventory: boolean;
+  guardedExpansionFailureDuringCandidateInventory: boolean;
+  guardedExpansionFailureDuringSelectionSummary: boolean;
+  guardedExpansionFailureBeforeCalibratedEvaluation: boolean;
+  guardedExpansionFailureDuringCalibratedEvaluation: boolean;
+  guardedExpansionFailureDuringClick: boolean;
+  guardedExpansionFailureDuringUiValidation: boolean;
+}
+
+export type PhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureInput =
+  Partial<Omit<PhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureFields, 'guardedExpansionFailureSummaryPresent'>>;
+
 export interface PhysicalOperatingAddressCaptureOnlyCalibratedFallbackGuardSummary {
   addressOptionsAnchorMatched: boolean | null;
   addressOptionsAnchorOutcomeCategory: PhysicalOperatingAddressAddressOptionsAnchorOutcomeCategory | null;
@@ -397,7 +438,8 @@ export interface PhysicalOperatingAddressCaptureOnlyTargetFileFreshnessSummary {
 
 export interface PhysicalOperatingAddressCaptureOnlyReceipt
   extends PhysicalOperatingAddressCaptureOnlyPreSignerFailureFields,
-  PhysicalOperatingAddressCaptureOnlyPostSignerFailureFields {
+  PhysicalOperatingAddressCaptureOnlyPostSignerFailureFields,
+  PhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureFields {
   runKind: typeof PHYSICAL_ADDRESS_CAPTURE_ONLY_RUN_KIND;
   childCommand: string;
   childExitCode: number | null;
@@ -1597,6 +1639,25 @@ export function buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput(
   };
 }
 
+export function buildPhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureInput(
+  category: GuardedPhysicalOperatingAddressExpansionFailureCategory,
+  overrides: PhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureInput = {},
+): PhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureInput {
+  const defaults = buildGuardedPhysicalOperatingAddressExpansionFailureTelemetry(category);
+
+  return {
+    ...defaults,
+    ...overrides,
+    guardedExpansionFailureCategory: overrides.guardedExpansionFailureCategory ?? category,
+    guardedExpansionFailureStage:
+      overrides.guardedExpansionFailureStage ?? defaults.guardedExpansionFailureStage,
+    guardedExpansionFailureReason:
+      overrides.guardedExpansionFailureReason ?? defaults.guardedExpansionFailureReason,
+    guardedExpansionFailureSummary:
+      overrides.guardedExpansionFailureSummary ?? defaults.guardedExpansionFailureSummary,
+  };
+}
+
 function pickPhysicalOperatingAddressCaptureOnlyPreSignerFailureFields(
   receipt: PhysicalOperatingAddressCaptureOnlyReceipt,
 ): PhysicalOperatingAddressCaptureOnlyPreSignerFailureFields {
@@ -1653,6 +1714,45 @@ function pickPhysicalOperatingAddressCaptureOnlyPostSignerFailureFields(
     postSignerFailureAfterFieldDiscoveryBeforeToggleEvaluation:
       receipt.postSignerFailureAfterFieldDiscoveryBeforeToggleEvaluation,
     postSignerFailureReceiptPreserved: receipt.postSignerFailureReceiptPreserved,
+  };
+}
+
+function pickPhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureFields(
+  receipt: PhysicalOperatingAddressCaptureOnlyReceipt,
+): PhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureFields {
+  return {
+    guardedExpansionFailureSummaryPresent: receipt.guardedExpansionFailureSummaryPresent,
+    guardedExpansionFailureCategory: receipt.guardedExpansionFailureCategory,
+    guardedExpansionFailureStage: receipt.guardedExpansionFailureStage,
+    guardedExpansionFailureReason: receipt.guardedExpansionFailureReason,
+    guardedExpansionFailureSummary: receipt.guardedExpansionFailureSummary,
+    guardedExpansionInputFramePresent: receipt.guardedExpansionInputFramePresent,
+    guardedExpansionInputFieldsPresent: receipt.guardedExpansionInputFieldsPresent,
+    guardedExpansionInputFieldCount: receipt.guardedExpansionInputFieldCount,
+    guardedExpansionInputFieldCountPreserved: receipt.guardedExpansionInputFieldCountPreserved,
+    guardedExpansionHelperInvoked: receipt.guardedExpansionHelperInvoked,
+    guardedExpansionHelperEntered: receipt.guardedExpansionHelperEntered,
+    guardedExpansionCandidateInventoryAttempted: receipt.guardedExpansionCandidateInventoryAttempted,
+    guardedExpansionCandidateInventoryBuilt: receipt.guardedExpansionCandidateInventoryBuilt,
+    guardedExpansionSelectionSummaryAttempted: receipt.guardedExpansionSelectionSummaryAttempted,
+    guardedExpansionSelectionSummaryCompleted: receipt.guardedExpansionSelectionSummaryCompleted,
+    guardedExpansionCalibratedEvaluationAttempted: receipt.guardedExpansionCalibratedEvaluationAttempted,
+    guardedExpansionCalibratedEvaluationCompleted: receipt.guardedExpansionCalibratedEvaluationCompleted,
+    guardedExpansionAnchorlessEvaluationAttempted: receipt.guardedExpansionAnchorlessEvaluationAttempted,
+    guardedExpansionAnchorlessEvaluationCompleted: receipt.guardedExpansionAnchorlessEvaluationCompleted,
+    guardedExpansionClickAttempted: receipt.guardedExpansionClickAttempted,
+    guardedExpansionClickCompleted: receipt.guardedExpansionClickCompleted,
+    guardedExpansionUiValidationAttempted: receipt.guardedExpansionUiValidationAttempted,
+    guardedExpansionUiValidationCompleted: receipt.guardedExpansionUiValidationCompleted,
+    guardedExpansionFailureBeforeCandidateInventory: receipt.guardedExpansionFailureBeforeCandidateInventory,
+    guardedExpansionFailureDuringCandidateInventory: receipt.guardedExpansionFailureDuringCandidateInventory,
+    guardedExpansionFailureDuringSelectionSummary: receipt.guardedExpansionFailureDuringSelectionSummary,
+    guardedExpansionFailureBeforeCalibratedEvaluation:
+      receipt.guardedExpansionFailureBeforeCalibratedEvaluation,
+    guardedExpansionFailureDuringCalibratedEvaluation:
+      receipt.guardedExpansionFailureDuringCalibratedEvaluation,
+    guardedExpansionFailureDuringClick: receipt.guardedExpansionFailureDuringClick,
+    guardedExpansionFailureDuringUiValidation: receipt.guardedExpansionFailureDuringUiValidation,
   };
 }
 
@@ -1921,6 +2021,186 @@ function buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureFields(input: 
   };
 }
 
+function buildPhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureFields(input: {
+  signerSurfaceReached: boolean;
+  initialFieldCount: number | null;
+  guardedExpansionFailure?: PhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureInput;
+  existing?: PhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureFields;
+  preserveExistingFailureDetail?: boolean;
+}): PhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureFields {
+  const preferredExisting = input.preserveExistingFailureDetail ? input.existing : undefined;
+  const fallbackCategory: GuardedPhysicalOperatingAddressExpansionFailureCategory =
+    'no-guarded-expansion-failure';
+  const category = !input.signerSurfaceReached
+    ? 'no-guarded-expansion-failure'
+    : preferredExisting?.guardedExpansionFailureCategory
+      ?? input.guardedExpansionFailure?.guardedExpansionFailureCategory
+      ?? input.existing?.guardedExpansionFailureCategory
+      ?? fallbackCategory;
+  const defaults = buildPhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureInput(category);
+  const stage = category === 'no-guarded-expansion-failure'
+    ? 'none'
+    : preferredExisting?.guardedExpansionFailureStage
+      ?? input.guardedExpansionFailure?.guardedExpansionFailureStage
+      ?? input.existing?.guardedExpansionFailureStage
+      ?? defaults.guardedExpansionFailureStage
+      ?? 'another-bounded-guarded-expansion-stage';
+  const reason = category === 'no-guarded-expansion-failure'
+    ? null
+    : preferredExisting?.guardedExpansionFailureReason
+      ?? input.guardedExpansionFailure?.guardedExpansionFailureReason
+      ?? input.existing?.guardedExpansionFailureReason
+      ?? defaults.guardedExpansionFailureReason
+      ?? null;
+  const summary = category === 'no-guarded-expansion-failure'
+    ? null
+    : preferredExisting?.guardedExpansionFailureSummary
+      ?? input.guardedExpansionFailure?.guardedExpansionFailureSummary
+      ?? input.existing?.guardedExpansionFailureSummary
+      ?? defaults.guardedExpansionFailureSummary
+      ?? null;
+  const guardedExpansionInputFieldCount = coalesceDefined(
+    input.guardedExpansionFailure?.guardedExpansionInputFieldCount,
+    input.existing?.guardedExpansionInputFieldCount,
+    input.initialFieldCount,
+    defaults.guardedExpansionInputFieldCount,
+  ) ?? null;
+  const guardedExpansionInputFieldCountPreserved = coalesceDefined(
+    input.guardedExpansionFailure?.guardedExpansionInputFieldCountPreserved,
+    input.existing?.guardedExpansionInputFieldCountPreserved,
+    guardedExpansionInputFieldCount !== null
+      && input.initialFieldCount !== null
+      && guardedExpansionInputFieldCount === input.initialFieldCount,
+    defaults.guardedExpansionInputFieldCountPreserved,
+  ) ?? false;
+
+  return {
+    guardedExpansionFailureSummaryPresent:
+      category !== 'no-guarded-expansion-failure' && Boolean(summary),
+    guardedExpansionFailureCategory: category,
+    guardedExpansionFailureStage: stage,
+    guardedExpansionFailureReason: reason,
+    guardedExpansionFailureSummary: summary,
+    guardedExpansionInputFramePresent: coalesceDefined(
+      input.guardedExpansionFailure?.guardedExpansionInputFramePresent,
+      input.existing?.guardedExpansionInputFramePresent,
+      defaults.guardedExpansionInputFramePresent,
+    ) ?? false,
+    guardedExpansionInputFieldsPresent: coalesceDefined(
+      input.guardedExpansionFailure?.guardedExpansionInputFieldsPresent,
+      input.existing?.guardedExpansionInputFieldsPresent,
+      defaults.guardedExpansionInputFieldsPresent,
+    ) ?? false,
+    guardedExpansionInputFieldCount,
+    guardedExpansionInputFieldCountPreserved,
+    guardedExpansionHelperInvoked: coalesceDefined(
+      input.guardedExpansionFailure?.guardedExpansionHelperInvoked,
+      input.existing?.guardedExpansionHelperInvoked,
+      defaults.guardedExpansionHelperInvoked,
+    ) ?? false,
+    guardedExpansionHelperEntered: coalesceDefined(
+      input.guardedExpansionFailure?.guardedExpansionHelperEntered,
+      input.existing?.guardedExpansionHelperEntered,
+      defaults.guardedExpansionHelperEntered,
+    ) ?? false,
+    guardedExpansionCandidateInventoryAttempted: coalesceDefined(
+      input.guardedExpansionFailure?.guardedExpansionCandidateInventoryAttempted,
+      input.existing?.guardedExpansionCandidateInventoryAttempted,
+      defaults.guardedExpansionCandidateInventoryAttempted,
+    ) ?? false,
+    guardedExpansionCandidateInventoryBuilt: coalesceDefined(
+      input.guardedExpansionFailure?.guardedExpansionCandidateInventoryBuilt,
+      input.existing?.guardedExpansionCandidateInventoryBuilt,
+      defaults.guardedExpansionCandidateInventoryBuilt,
+    ) ?? false,
+    guardedExpansionSelectionSummaryAttempted: coalesceDefined(
+      input.guardedExpansionFailure?.guardedExpansionSelectionSummaryAttempted,
+      input.existing?.guardedExpansionSelectionSummaryAttempted,
+      defaults.guardedExpansionSelectionSummaryAttempted,
+    ) ?? false,
+    guardedExpansionSelectionSummaryCompleted: coalesceDefined(
+      input.guardedExpansionFailure?.guardedExpansionSelectionSummaryCompleted,
+      input.existing?.guardedExpansionSelectionSummaryCompleted,
+      defaults.guardedExpansionSelectionSummaryCompleted,
+    ) ?? false,
+    guardedExpansionCalibratedEvaluationAttempted: coalesceDefined(
+      input.guardedExpansionFailure?.guardedExpansionCalibratedEvaluationAttempted,
+      input.existing?.guardedExpansionCalibratedEvaluationAttempted,
+      defaults.guardedExpansionCalibratedEvaluationAttempted,
+    ) ?? false,
+    guardedExpansionCalibratedEvaluationCompleted: coalesceDefined(
+      input.guardedExpansionFailure?.guardedExpansionCalibratedEvaluationCompleted,
+      input.existing?.guardedExpansionCalibratedEvaluationCompleted,
+      defaults.guardedExpansionCalibratedEvaluationCompleted,
+    ) ?? false,
+    guardedExpansionAnchorlessEvaluationAttempted: coalesceDefined(
+      input.guardedExpansionFailure?.guardedExpansionAnchorlessEvaluationAttempted,
+      input.existing?.guardedExpansionAnchorlessEvaluationAttempted,
+      defaults.guardedExpansionAnchorlessEvaluationAttempted,
+    ) ?? false,
+    guardedExpansionAnchorlessEvaluationCompleted: coalesceDefined(
+      input.guardedExpansionFailure?.guardedExpansionAnchorlessEvaluationCompleted,
+      input.existing?.guardedExpansionAnchorlessEvaluationCompleted,
+      defaults.guardedExpansionAnchorlessEvaluationCompleted,
+    ) ?? false,
+    guardedExpansionClickAttempted: coalesceDefined(
+      input.guardedExpansionFailure?.guardedExpansionClickAttempted,
+      input.existing?.guardedExpansionClickAttempted,
+      defaults.guardedExpansionClickAttempted,
+    ) ?? false,
+    guardedExpansionClickCompleted: coalesceDefined(
+      input.guardedExpansionFailure?.guardedExpansionClickCompleted,
+      input.existing?.guardedExpansionClickCompleted,
+      defaults.guardedExpansionClickCompleted,
+    ) ?? false,
+    guardedExpansionUiValidationAttempted: coalesceDefined(
+      input.guardedExpansionFailure?.guardedExpansionUiValidationAttempted,
+      input.existing?.guardedExpansionUiValidationAttempted,
+      defaults.guardedExpansionUiValidationAttempted,
+    ) ?? false,
+    guardedExpansionUiValidationCompleted: coalesceDefined(
+      input.guardedExpansionFailure?.guardedExpansionUiValidationCompleted,
+      input.existing?.guardedExpansionUiValidationCompleted,
+      defaults.guardedExpansionUiValidationCompleted,
+    ) ?? false,
+    guardedExpansionFailureBeforeCandidateInventory: coalesceDefined(
+      input.guardedExpansionFailure?.guardedExpansionFailureBeforeCandidateInventory,
+      input.existing?.guardedExpansionFailureBeforeCandidateInventory,
+      defaults.guardedExpansionFailureBeforeCandidateInventory,
+    ) ?? false,
+    guardedExpansionFailureDuringCandidateInventory: coalesceDefined(
+      input.guardedExpansionFailure?.guardedExpansionFailureDuringCandidateInventory,
+      input.existing?.guardedExpansionFailureDuringCandidateInventory,
+      defaults.guardedExpansionFailureDuringCandidateInventory,
+    ) ?? false,
+    guardedExpansionFailureDuringSelectionSummary: coalesceDefined(
+      input.guardedExpansionFailure?.guardedExpansionFailureDuringSelectionSummary,
+      input.existing?.guardedExpansionFailureDuringSelectionSummary,
+      defaults.guardedExpansionFailureDuringSelectionSummary,
+    ) ?? false,
+    guardedExpansionFailureBeforeCalibratedEvaluation: coalesceDefined(
+      input.guardedExpansionFailure?.guardedExpansionFailureBeforeCalibratedEvaluation,
+      input.existing?.guardedExpansionFailureBeforeCalibratedEvaluation,
+      defaults.guardedExpansionFailureBeforeCalibratedEvaluation,
+    ) ?? false,
+    guardedExpansionFailureDuringCalibratedEvaluation: coalesceDefined(
+      input.guardedExpansionFailure?.guardedExpansionFailureDuringCalibratedEvaluation,
+      input.existing?.guardedExpansionFailureDuringCalibratedEvaluation,
+      defaults.guardedExpansionFailureDuringCalibratedEvaluation,
+    ) ?? false,
+    guardedExpansionFailureDuringClick: coalesceDefined(
+      input.guardedExpansionFailure?.guardedExpansionFailureDuringClick,
+      input.existing?.guardedExpansionFailureDuringClick,
+      defaults.guardedExpansionFailureDuringClick,
+    ) ?? false,
+    guardedExpansionFailureDuringUiValidation: coalesceDefined(
+      input.guardedExpansionFailure?.guardedExpansionFailureDuringUiValidation,
+      input.existing?.guardedExpansionFailureDuringUiValidation,
+      defaults.guardedExpansionFailureDuringUiValidation,
+    ) ?? false,
+  };
+}
+
 export function mergePhysicalOperatingAddressCaptureOnlyPreSignerFailureFields(
   receipt: PhysicalOperatingAddressCaptureOnlyReceipt,
   preSignerFailure: PhysicalOperatingAddressCaptureOnlyPreSignerFailureInput,
@@ -1956,6 +2236,142 @@ export function mergePhysicalOperatingAddressCaptureOnlyPostSignerFailureFields(
       preserveExistingFailureDetail: options.preserveExistingFailureDetail ?? false,
     }),
   };
+}
+
+export function mergePhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureFields(
+  receipt: PhysicalOperatingAddressCaptureOnlyReceipt,
+  guardedExpansionFailure: PhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureInput,
+  options: {
+    preserveExistingFailureDetail?: boolean;
+  } = {},
+): PhysicalOperatingAddressCaptureOnlyReceipt {
+  return {
+    ...receipt,
+    ...buildPhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureFields({
+      signerSurfaceReached: receipt.signerSurfaceReached,
+      initialFieldCount: receipt.initialFieldCount,
+      guardedExpansionFailure,
+      existing: pickPhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureFields(receipt),
+      preserveExistingFailureDetail: options.preserveExistingFailureDetail ?? false,
+    }),
+  };
+}
+
+function buildPhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureFromTelemetry(
+  telemetry: GuardedPhysicalOperatingAddressExpansionFailureTelemetry | null | undefined,
+  initialFieldCount: number | null,
+  overrides: PhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureInput = {},
+): PhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureInput {
+  const category = telemetry?.guardedExpansionFailureCategory ?? 'no-guarded-expansion-failure';
+  const guardedExpansionInputFieldCount = coalesceDefined(
+    overrides.guardedExpansionInputFieldCount,
+    telemetry?.guardedExpansionInputFieldCount,
+    initialFieldCount,
+  ) ?? null;
+
+  return buildPhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureInput(category, {
+    ...(telemetry ?? {}),
+    ...overrides,
+    guardedExpansionInputFieldCount,
+    guardedExpansionInputFieldCountPreserved: coalesceDefined(
+      overrides.guardedExpansionInputFieldCountPreserved,
+      telemetry?.guardedExpansionInputFieldCountPreserved,
+      guardedExpansionInputFieldCount !== null
+        && initialFieldCount !== null
+        && guardedExpansionInputFieldCount === initialFieldCount,
+    ) ?? false,
+  });
+}
+
+function classifyPhysicalOperatingAddressCaptureOnlyGuardedExpansionFailure(input: {
+  signerSurfaceReached: boolean;
+  initialFieldCount: number | null;
+  guardedExpansionFailure: PhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureInput;
+}): PhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureInput {
+  const guardedExpansionInputFieldCount = coalesceDefined(
+    input.guardedExpansionFailure.guardedExpansionInputFieldCount,
+    input.initialFieldCount,
+  ) ?? null;
+  const guardedExpansionInputFieldCountPreserved = coalesceDefined(
+    input.guardedExpansionFailure.guardedExpansionInputFieldCountPreserved,
+    guardedExpansionInputFieldCount !== null
+      && input.initialFieldCount !== null
+      && guardedExpansionInputFieldCount === input.initialFieldCount,
+  ) ?? false;
+
+  if (!input.signerSurfaceReached) {
+    return buildPhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureInput(
+      'no-guarded-expansion-failure',
+      {
+        ...input.guardedExpansionFailure,
+        guardedExpansionInputFieldCount,
+        guardedExpansionInputFieldCountPreserved,
+      },
+    );
+  }
+
+  const helperSignalsPresent = Boolean(
+    input.guardedExpansionFailure.guardedExpansionHelperInvoked
+    || input.guardedExpansionFailure.guardedExpansionHelperEntered
+    || input.guardedExpansionFailure.guardedExpansionCandidateInventoryAttempted
+    || input.guardedExpansionFailure.guardedExpansionSelectionSummaryAttempted
+    || input.guardedExpansionFailure.guardedExpansionCalibratedEvaluationAttempted
+    || input.guardedExpansionFailure.guardedExpansionClickAttempted
+    || input.guardedExpansionFailure.guardedExpansionUiValidationAttempted,
+  );
+
+  if (!helperSignalsPresent && !input.guardedExpansionFailure.guardedExpansionFailureCategory) {
+    return buildPhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureInput(
+      'no-guarded-expansion-failure',
+      {
+        ...input.guardedExpansionFailure,
+        guardedExpansionInputFieldCount,
+        guardedExpansionInputFieldCountPreserved,
+      },
+    );
+  }
+
+  const category = input.guardedExpansionFailure.guardedExpansionFailureCategory
+    ?? (input.guardedExpansionFailure.guardedExpansionHelperInvoked
+      && input.guardedExpansionFailure.guardedExpansionInputFramePresent === false
+      ? 'guarded-expansion-input-missing-frame'
+      : input.guardedExpansionFailure.guardedExpansionHelperInvoked
+        && input.guardedExpansionFailure.guardedExpansionInputFieldsPresent === false
+        ? 'guarded-expansion-input-missing-fields'
+        : input.guardedExpansionFailure.guardedExpansionHelperInvoked
+            && guardedExpansionInputFieldCount === null
+          ? 'guarded-expansion-input-field-count-missing'
+          : input.guardedExpansionFailure.guardedExpansionHelperInvoked
+              && !input.guardedExpansionFailure.guardedExpansionHelperEntered
+            ? 'guarded-expansion-helper-not-entered'
+            : input.guardedExpansionFailure.guardedExpansionHelperEntered
+                && !input.guardedExpansionFailure.guardedExpansionCandidateInventoryAttempted
+              ? 'guarded-expansion-threw-before-candidate-inventory'
+              : input.guardedExpansionFailure.guardedExpansionCandidateInventoryAttempted
+                  && !input.guardedExpansionFailure.guardedExpansionCandidateInventoryBuilt
+                ? 'guarded-expansion-candidate-inventory-failed'
+                : input.guardedExpansionFailure.guardedExpansionSelectionSummaryAttempted
+                    && !input.guardedExpansionFailure.guardedExpansionSelectionSummaryCompleted
+                  ? 'guarded-expansion-selection-summary-failed'
+                  : input.guardedExpansionFailure.guardedExpansionCalibratedEvaluationAttempted
+                      && !input.guardedExpansionFailure.guardedExpansionCalibratedEvaluationCompleted
+                    ? 'guarded-expansion-calibrated-evaluation-failed'
+                    : input.guardedExpansionFailure.guardedExpansionClickAttempted
+                        && !input.guardedExpansionFailure.guardedExpansionClickCompleted
+                      ? 'guarded-expansion-click-failed'
+                      : input.guardedExpansionFailure.guardedExpansionUiValidationAttempted
+                          && !input.guardedExpansionFailure.guardedExpansionUiValidationCompleted
+                        ? 'guarded-expansion-ui-validation-failed'
+                        : input.guardedExpansionFailure.guardedExpansionSelectionSummaryCompleted
+                            && !input.guardedExpansionFailure.guardedExpansionCalibratedEvaluationAttempted
+                          ? 'guarded-expansion-threw-before-calibrated-evaluation'
+                          : 'no-guarded-expansion-failure');
+
+  return buildPhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureInput(category, {
+    ...input.guardedExpansionFailure,
+    guardedExpansionInputFieldCount,
+    guardedExpansionInputFieldCountPreserved,
+  });
 }
 
 export function classifyPhysicalOperatingAddressCaptureOnlyOpenSignerFailure(
@@ -2952,6 +3368,39 @@ function isPhysicalOperatingAddressCaptureOnlyPostSignerFailureStage(
     || value === 'another-bounded-post-signer-stage';
 }
 
+function isGuardedPhysicalOperatingAddressExpansionFailureCategory(
+  value: unknown,
+): value is GuardedPhysicalOperatingAddressExpansionFailureCategory {
+  return value === 'no-guarded-expansion-failure'
+    || value === 'guarded-expansion-input-missing-frame'
+    || value === 'guarded-expansion-input-missing-fields'
+    || value === 'guarded-expansion-input-field-count-missing'
+    || value === 'guarded-expansion-helper-not-entered'
+    || value === 'guarded-expansion-candidate-inventory-failed'
+    || value === 'guarded-expansion-selection-summary-failed'
+    || value === 'guarded-expansion-calibrated-evaluation-not-attempted'
+    || value === 'guarded-expansion-calibrated-evaluation-failed'
+    || value === 'guarded-expansion-click-failed'
+    || value === 'guarded-expansion-ui-validation-failed'
+    || value === 'guarded-expansion-threw-before-candidate-inventory'
+    || value === 'guarded-expansion-threw-before-calibrated-evaluation'
+    || value === 'another-bounded-guarded-expansion-failure';
+}
+
+function isGuardedPhysicalOperatingAddressExpansionFailureStage(
+  value: unknown,
+): value is GuardedPhysicalOperatingAddressExpansionFailureStage {
+  return value === 'none'
+    || value === 'input-validation'
+    || value === 'helper-entry'
+    || value === 'candidate-inventory'
+    || value === 'selection-summary'
+    || value === 'calibrated-evaluation'
+    || value === 'click'
+    || value === 'ui-validation'
+    || value === 'another-bounded-guarded-expansion-stage';
+}
+
 export function buildPhysicalOperatingAddressCaptureOnlyReceiptPath(artifactsDir = ARTIFACTS_DIR): string {
   return path.join(artifactsDir, PHYSICAL_ADDRESS_CAPTURE_ONLY_RECEIPT_FILE_NAME);
 }
@@ -2964,8 +3413,10 @@ export function buildPhysicalOperatingAddressCaptureOnlyReceipt(input: {
   blockedReasonCategory?: PhysicalOperatingAddressCaptureOnlyBlockedReasonCategory;
   childCommand?: string;
   signerSurfaceReached?: boolean;
+  initialFieldCount?: number | null;
   preSignerFailure?: PhysicalOperatingAddressCaptureOnlyPreSignerFailureInput;
   postSignerFailure?: PhysicalOperatingAddressCaptureOnlyPostSignerFailureInput;
+  guardedExpansionFailure?: PhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureInput;
 }): PhysicalOperatingAddressCaptureOnlyReceipt {
   const artifactsDir = input.artifactsDir ?? ARTIFACTS_DIR;
   const artifactFreshness = input.result?.artifactFreshness ?? buildPhysicalOperatingAddressCaptureOnlyFallbackFreshness(artifactsDir);
@@ -2995,14 +3446,24 @@ export function buildPhysicalOperatingAddressCaptureOnlyReceipt(input: {
     physicalOperatingAddressFieldsVisibleAfter: result.physicalOperatingAddressFieldsVisibleAfter,
   });
   const signerSurfaceReached = input.signerSurfaceReached ?? input.result !== null;
+  const initialFieldCount = coalesceDefined(
+    input.result?.fieldsBefore,
+    input.initialFieldCount,
+    input.guardedExpansionFailure?.guardedExpansionInputFieldCount,
+  ) ?? null;
   const preSignerFailure = buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureFields({
     signerSurfaceReached,
     preSignerFailure: input.preSignerFailure,
   });
   const postSignerFailure = buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureFields({
     signerSurfaceReached,
-    initialFieldCountAvailable: input.result?.fieldsBefore !== undefined,
+    initialFieldCountAvailable: initialFieldCount !== null,
     postSignerFailure: input.postSignerFailure,
+  });
+  const guardedExpansionFailure = buildPhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureFields({
+    signerSurfaceReached,
+    initialFieldCount,
+    guardedExpansionFailure: input.guardedExpansionFailure,
   });
 
   return {
@@ -3011,9 +3472,10 @@ export function buildPhysicalOperatingAddressCaptureOnlyReceipt(input: {
     childExitCode: input.childExitCode ?? null,
     bootstrapExitCode: input.bootstrapExitCode ?? null,
     signerSurfaceReached,
-    initialFieldCount: input.result?.fieldsBefore ?? null,
+    initialFieldCount,
     ...preSignerFailure,
     ...postSignerFailure,
+    ...guardedExpansionFailure,
     toggleSelectionOutcomeCategory: input.result?.toggleSelectionOutcomeCategory ?? null,
     toggleSelectionStage: input.result?.toggleSelectionStage ?? null,
     toggleSelectionMode: input.result?.toggleSelectionMode ?? null,
@@ -3365,6 +3827,39 @@ export function isPhysicalOperatingAddressCaptureOnlyReceipt(
     && typeof candidate.postSignerFailureDuringFieldDiscovery === 'boolean'
     && typeof candidate.postSignerFailureAfterFieldDiscoveryBeforeToggleEvaluation === 'boolean'
     && typeof candidate.postSignerFailureReceiptPreserved === 'boolean'
+    && typeof candidate.guardedExpansionFailureSummaryPresent === 'boolean'
+    && isGuardedPhysicalOperatingAddressExpansionFailureCategory(candidate.guardedExpansionFailureCategory)
+    && isGuardedPhysicalOperatingAddressExpansionFailureStage(candidate.guardedExpansionFailureStage)
+    && (typeof candidate.guardedExpansionFailureReason === 'string'
+      || candidate.guardedExpansionFailureReason === null)
+    && (typeof candidate.guardedExpansionFailureSummary === 'string'
+      || candidate.guardedExpansionFailureSummary === null)
+    && typeof candidate.guardedExpansionInputFramePresent === 'boolean'
+    && typeof candidate.guardedExpansionInputFieldsPresent === 'boolean'
+    && (typeof candidate.guardedExpansionInputFieldCount === 'number'
+      || candidate.guardedExpansionInputFieldCount === null)
+    && typeof candidate.guardedExpansionInputFieldCountPreserved === 'boolean'
+    && typeof candidate.guardedExpansionHelperInvoked === 'boolean'
+    && typeof candidate.guardedExpansionHelperEntered === 'boolean'
+    && typeof candidate.guardedExpansionCandidateInventoryAttempted === 'boolean'
+    && typeof candidate.guardedExpansionCandidateInventoryBuilt === 'boolean'
+    && typeof candidate.guardedExpansionSelectionSummaryAttempted === 'boolean'
+    && typeof candidate.guardedExpansionSelectionSummaryCompleted === 'boolean'
+    && typeof candidate.guardedExpansionCalibratedEvaluationAttempted === 'boolean'
+    && typeof candidate.guardedExpansionCalibratedEvaluationCompleted === 'boolean'
+    && typeof candidate.guardedExpansionAnchorlessEvaluationAttempted === 'boolean'
+    && typeof candidate.guardedExpansionAnchorlessEvaluationCompleted === 'boolean'
+    && typeof candidate.guardedExpansionClickAttempted === 'boolean'
+    && typeof candidate.guardedExpansionClickCompleted === 'boolean'
+    && typeof candidate.guardedExpansionUiValidationAttempted === 'boolean'
+    && typeof candidate.guardedExpansionUiValidationCompleted === 'boolean'
+    && typeof candidate.guardedExpansionFailureBeforeCandidateInventory === 'boolean'
+    && typeof candidate.guardedExpansionFailureDuringCandidateInventory === 'boolean'
+    && typeof candidate.guardedExpansionFailureDuringSelectionSummary === 'boolean'
+    && typeof candidate.guardedExpansionFailureBeforeCalibratedEvaluation === 'boolean'
+    && typeof candidate.guardedExpansionFailureDuringCalibratedEvaluation === 'boolean'
+    && typeof candidate.guardedExpansionFailureDuringClick === 'boolean'
+    && typeof candidate.guardedExpansionFailureDuringUiValidation === 'boolean'
     && (candidate.toggleSelectionOutcomeCategory === null || isPhysicalOperatingAddressToggleSelectionOutcomeCategory(candidate.toggleSelectionOutcomeCategory))
     && (candidate.toggleSelectionStage === null || isPhysicalOperatingAddressToggleSelectionStage(candidate.toggleSelectionStage))
     && isPhysicalOperatingAddressCaptureOnlySelectionMode(candidate.toggleSelectionMode)
@@ -4611,6 +5106,7 @@ export async function runPhysicalOperatingAddressCaptureOnly(
 export async function main(): Promise<ExitReason> {
   let browser: Awaited<ReturnType<typeof chromium.launch>> | null = null;
   let signerSurfaceReached = false;
+  let initialFieldCount: number | null = null;
   let preSignerFailure: PhysicalOperatingAddressCaptureOnlyPreSignerFailureInput = {
     childRunnerLaunched: true,
     childRunnerReceivedSignerUrl: null,
@@ -4643,6 +5139,37 @@ export async function main(): Promise<ExitReason> {
     postSignerFailureDuringFieldDiscovery: false,
     postSignerFailureAfterFieldDiscoveryBeforeToggleEvaluation: false,
     postSignerFailureReceiptPreserved: false,
+  };
+  let guardedExpansionFailure: PhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureInput = {
+    guardedExpansionFailureCategory: 'no-guarded-expansion-failure',
+    guardedExpansionFailureStage: 'none',
+    guardedExpansionFailureReason: null,
+    guardedExpansionFailureSummary: null,
+    guardedExpansionInputFramePresent: false,
+    guardedExpansionInputFieldsPresent: false,
+    guardedExpansionInputFieldCount: null,
+    guardedExpansionInputFieldCountPreserved: false,
+    guardedExpansionHelperInvoked: false,
+    guardedExpansionHelperEntered: false,
+    guardedExpansionCandidateInventoryAttempted: false,
+    guardedExpansionCandidateInventoryBuilt: false,
+    guardedExpansionSelectionSummaryAttempted: false,
+    guardedExpansionSelectionSummaryCompleted: false,
+    guardedExpansionCalibratedEvaluationAttempted: false,
+    guardedExpansionCalibratedEvaluationCompleted: false,
+    guardedExpansionAnchorlessEvaluationAttempted: false,
+    guardedExpansionAnchorlessEvaluationCompleted: false,
+    guardedExpansionClickAttempted: false,
+    guardedExpansionClickCompleted: false,
+    guardedExpansionUiValidationAttempted: false,
+    guardedExpansionUiValidationCompleted: false,
+    guardedExpansionFailureBeforeCandidateInventory: false,
+    guardedExpansionFailureDuringCandidateInventory: false,
+    guardedExpansionFailureDuringSelectionSummary: false,
+    guardedExpansionFailureBeforeCalibratedEvaluation: false,
+    guardedExpansionFailureDuringCalibratedEvaluation: false,
+    guardedExpansionFailureDuringClick: false,
+    guardedExpansionFailureDuringUiValidation: false,
   };
   try {
     loadEnv();
@@ -4745,6 +5272,7 @@ export async function main(): Promise<ExitReason> {
             throw new Error('bounded field discovery result malformed');
           }
 
+          initialFieldCount = discoveredFields.length;
           postSignerFailure = {
             ...postSignerFailure,
             fieldDiscoveryCompleted: true,
@@ -4781,6 +5309,48 @@ export async function main(): Promise<ExitReason> {
         }
       },
       maybeExpandPhysicalOperatingAddressSection: async (...args) => {
+        const inputFramePresent = Boolean(args[0]);
+        const inputFieldsPresent = Array.isArray(args[1]);
+        const guardedExpansionInputFieldCount = inputFieldsPresent
+          ? args[1].length
+          : initialFieldCount;
+
+        guardedExpansionFailure = {
+          ...guardedExpansionFailure,
+          guardedExpansionFailureCategory: 'no-guarded-expansion-failure',
+          guardedExpansionFailureStage: 'none',
+          guardedExpansionFailureReason: null,
+          guardedExpansionFailureSummary: null,
+          guardedExpansionInputFramePresent: inputFramePresent,
+          guardedExpansionInputFieldsPresent: inputFieldsPresent,
+          guardedExpansionInputFieldCount: guardedExpansionInputFieldCount,
+          guardedExpansionInputFieldCountPreserved:
+            guardedExpansionInputFieldCount !== null
+              && initialFieldCount !== null
+              && guardedExpansionInputFieldCount === initialFieldCount,
+          guardedExpansionHelperInvoked: true,
+          guardedExpansionHelperEntered: false,
+          guardedExpansionCandidateInventoryAttempted: false,
+          guardedExpansionCandidateInventoryBuilt: false,
+          guardedExpansionSelectionSummaryAttempted: false,
+          guardedExpansionSelectionSummaryCompleted: false,
+          guardedExpansionCalibratedEvaluationAttempted: false,
+          guardedExpansionCalibratedEvaluationCompleted: false,
+          guardedExpansionAnchorlessEvaluationAttempted: false,
+          guardedExpansionAnchorlessEvaluationCompleted: false,
+          guardedExpansionClickAttempted: false,
+          guardedExpansionClickCompleted: false,
+          guardedExpansionUiValidationAttempted: false,
+          guardedExpansionUiValidationCompleted: false,
+          guardedExpansionFailureBeforeCandidateInventory: false,
+          guardedExpansionFailureDuringCandidateInventory: false,
+          guardedExpansionFailureDuringSelectionSummary: false,
+          guardedExpansionFailureBeforeCalibratedEvaluation: false,
+          guardedExpansionFailureDuringCalibratedEvaluation: false,
+          guardedExpansionFailureDuringClick: false,
+          guardedExpansionFailureDuringUiValidation: false,
+        };
+
         postSignerFailure = {
           ...postSignerFailure,
           signerSurfaceReachedBeforeFailure: signerSurfaceReached || postSignerFailure.signerSurfaceReachedBeforeFailure || false,
@@ -4790,32 +5360,83 @@ export async function main(): Promise<ExitReason> {
 
         try {
           const expansion = await PHYSICAL_ADDRESS_CAPTURE_ONLY_DEPENDENCIES.maybeExpandPhysicalOperatingAddressSection(...args);
+          guardedExpansionFailure = buildPhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureFromTelemetry(
+            expansion.guardedExpansionTelemetry,
+            initialFieldCount,
+            {
+              guardedExpansionInputFramePresent: inputFramePresent,
+              guardedExpansionInputFieldsPresent: inputFieldsPresent,
+              guardedExpansionInputFieldCount,
+              guardedExpansionHelperInvoked: true,
+            },
+          );
           postSignerFailure = {
             ...postSignerFailure,
             guardedExpansionSetupCompleted: true,
             guardedExpansionSetupThrew: false,
-            calibratedToggleEvaluationAttempted: true,
-            calibratedToggleEvaluationStarted: true,
-            calibratedToggleEvaluationCompleted: true,
+            calibratedToggleEvaluationAttempted:
+              guardedExpansionFailure.guardedExpansionCalibratedEvaluationAttempted ?? false,
+            calibratedToggleEvaluationStarted:
+              guardedExpansionFailure.guardedExpansionCalibratedEvaluationAttempted ?? false,
+            calibratedToggleEvaluationCompleted:
+              guardedExpansionFailure.guardedExpansionCalibratedEvaluationCompleted ?? false,
             postSignerFailureAfterFieldDiscoveryBeforeToggleEvaluation: false,
           };
           return expansion;
         } catch (error) {
+          guardedExpansionFailure = isGuardedPhysicalOperatingAddressExpansionError(error)
+            ? buildPhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureFromTelemetry(
+              error.telemetry,
+              initialFieldCount,
+              {
+                guardedExpansionInputFramePresent: inputFramePresent,
+                guardedExpansionInputFieldsPresent: inputFieldsPresent,
+                guardedExpansionInputFieldCount,
+                guardedExpansionHelperInvoked: true,
+              },
+            )
+            : classifyPhysicalOperatingAddressCaptureOnlyGuardedExpansionFailure({
+              signerSurfaceReached: true,
+              initialFieldCount,
+              guardedExpansionFailure: {
+                ...guardedExpansionFailure,
+                guardedExpansionInputFramePresent: inputFramePresent,
+                guardedExpansionInputFieldsPresent: inputFieldsPresent,
+                guardedExpansionInputFieldCount,
+                guardedExpansionInputFieldCountPreserved:
+                  guardedExpansionInputFieldCount !== null
+                    && initialFieldCount !== null
+                    && guardedExpansionInputFieldCount === initialFieldCount,
+                guardedExpansionHelperInvoked: true,
+              },
+            });
+
+          const guardedExpansionPostSignerCategory: PhysicalOperatingAddressCaptureOnlyPostSignerFailureCategory =
+            guardedExpansionFailure.guardedExpansionFailureCategory === 'guarded-expansion-calibrated-evaluation-failed'
+              ? 'calibrated-toggle-evaluation-failed'
+              : guardedExpansionFailure.guardedExpansionFailureCategory === 'guarded-expansion-calibrated-evaluation-not-attempted'
+                  || guardedExpansionFailure.guardedExpansionFailureCategory === 'guarded-expansion-threw-before-calibrated-evaluation'
+                ? 'calibrated-toggle-evaluation-not-attempted'
+                : 'guarded-expansion-setup-failed';
+
           postSignerFailure = {
             ...postSignerFailure,
-            ...buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput('guarded-expansion-setup-failed', {
+            ...buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput(guardedExpansionPostSignerCategory, {
               signerSurfaceReachedBeforeFailure: true,
               fieldDiscoveryAttempted: postSignerFailure.fieldDiscoveryAttempted ?? true,
               fieldDiscoveryStarted: postSignerFailure.fieldDiscoveryStarted ?? true,
               fieldDiscoveryCompleted: postSignerFailure.fieldDiscoveryCompleted ?? true,
-              initialFieldCountAvailable: postSignerFailure.initialFieldCountAvailable ?? true,
+              initialFieldCountAvailable: initialFieldCount !== null,
               fieldDiscoveryReturnedEmpty: postSignerFailure.fieldDiscoveryReturnedEmpty ?? false,
               guardedExpansionSetupAttempted: true,
               guardedExpansionSetupCompleted: false,
               guardedExpansionSetupThrew: true,
-              calibratedToggleEvaluationAttempted: false,
-              calibratedToggleEvaluationStarted: false,
-              calibratedToggleEvaluationCompleted: false,
+              calibratedToggleEvaluationAttempted:
+                guardedExpansionFailure.guardedExpansionCalibratedEvaluationAttempted ?? false,
+              calibratedToggleEvaluationStarted:
+                guardedExpansionFailure.guardedExpansionCalibratedEvaluationAttempted ?? false,
+              calibratedToggleEvaluationCompleted:
+                guardedExpansionFailure.guardedExpansionCalibratedEvaluationCompleted ?? false,
               postSignerFailureAfterFieldDiscoveryBeforeToggleEvaluation: true,
             }),
           };
@@ -4848,6 +5469,7 @@ export async function main(): Promise<ExitReason> {
         childExitCode: exitReason.code,
         artifactsDir: ARTIFACTS_DIR,
         signerSurfaceReached,
+        initialFieldCount,
         preSignerFailure: buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput(
           'no-pre-signer-failure',
           {
@@ -4880,6 +5502,11 @@ export async function main(): Promise<ExitReason> {
             postSignerFailureAfterFieldDiscoveryBeforeToggleEvaluation: false,
           },
         ),
+        guardedExpansionFailure: classifyPhysicalOperatingAddressCaptureOnlyGuardedExpansionFailure({
+          signerSurfaceReached,
+          initialFieldCount,
+          guardedExpansionFailure,
+        }),
       }),
       ARTIFACTS_DIR,
     );
@@ -4965,7 +5592,7 @@ export async function main(): Promise<ExitReason> {
                 ? buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput('calibrated-toggle-evaluation-not-attempted', {
                   ...postSignerFailure,
                   signerSurfaceReachedBeforeFailure: true,
-                  initialFieldCountAvailable: true,
+                  initialFieldCountAvailable: initialFieldCount !== null,
                   postSignerFailureAfterFieldDiscoveryBeforeToggleEvaluation: true,
                 })
                 : buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput('signer-surface-reached-then-child-exited', {
@@ -4985,8 +5612,14 @@ export async function main(): Promise<ExitReason> {
         artifactsDir: ARTIFACTS_DIR,
         blockedReasonCategory: 'another bounded reason',
         signerSurfaceReached,
+        initialFieldCount,
         preSignerFailure: failurePreSigner,
         postSignerFailure: failurePostSigner,
+        guardedExpansionFailure: classifyPhysicalOperatingAddressCaptureOnlyGuardedExpansionFailure({
+          signerSurfaceReached,
+          initialFieldCount,
+          guardedExpansionFailure,
+        }),
       }),
       ARTIFACTS_DIR,
     );

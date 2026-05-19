@@ -40,6 +40,7 @@ import {
   assertPhysicalOperatingAddressCaptureOnlyGuards,
   buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput,
   buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput,
+  buildPhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureInput,
   buildPhysicalOperatingAddressCaptureOnlyArtifactFreshnessDiagnostics,
   buildPhysicalOperatingAddressCaptureOnlyReceipt,
   buildPhysicalOperatingAddressCaptureOnlyReceiptPath,
@@ -9934,7 +9935,7 @@ test.describe('interactive validation safety', () => {
     expect(findPhysicalOperatingAddressToggle(fields)).toBeNull();
 
     const expansion = await maybeExpandPhysicalOperatingAddressSection(
-      null as any,
+      {} as any,
       fields,
       { SAFE_DISCOVERY_EXPAND_PHYSICAL_ADDRESS: '1' } as NodeJS.ProcessEnv,
     );
@@ -9951,7 +9952,7 @@ test.describe('interactive validation safety', () => {
 
   test('guarded physical address discovery fails closed with sanitized inventory when no operating candidate matches', async () => {
     const expansion = await maybeExpandPhysicalOperatingAddressSection(
-      null as any,
+      {} as any,
       [
         {
           index: 11,
@@ -10394,6 +10395,52 @@ test.describe('interactive validation safety', () => {
     ...overrides,
   });
 
+  const mockGuardedExpansionFailure = (
+    overrides: Record<string, unknown> = {},
+    category:
+      | 'no-guarded-expansion-failure'
+      | 'guarded-expansion-input-missing-frame'
+      | 'guarded-expansion-input-missing-fields'
+      | 'guarded-expansion-input-field-count-missing'
+      | 'guarded-expansion-helper-not-entered'
+      | 'guarded-expansion-candidate-inventory-failed'
+      | 'guarded-expansion-selection-summary-failed'
+      | 'guarded-expansion-calibrated-evaluation-not-attempted'
+      | 'guarded-expansion-calibrated-evaluation-failed'
+      | 'guarded-expansion-click-failed'
+      | 'guarded-expansion-ui-validation-failed'
+      | 'guarded-expansion-threw-before-candidate-inventory'
+      | 'guarded-expansion-threw-before-calibrated-evaluation'
+      | 'another-bounded-guarded-expansion-failure' = 'no-guarded-expansion-failure',
+  ) => buildPhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureInput(category, {
+    guardedExpansionInputFramePresent: true,
+    guardedExpansionInputFieldsPresent: true,
+    guardedExpansionInputFieldCount: 14,
+    guardedExpansionInputFieldCountPreserved: true,
+    guardedExpansionHelperInvoked: true,
+    guardedExpansionHelperEntered: true,
+    guardedExpansionCandidateInventoryAttempted: true,
+    guardedExpansionCandidateInventoryBuilt: true,
+    guardedExpansionSelectionSummaryAttempted: true,
+    guardedExpansionSelectionSummaryCompleted: true,
+    guardedExpansionCalibratedEvaluationAttempted: true,
+    guardedExpansionCalibratedEvaluationCompleted: true,
+    guardedExpansionAnchorlessEvaluationAttempted: true,
+    guardedExpansionAnchorlessEvaluationCompleted: true,
+    guardedExpansionClickAttempted: true,
+    guardedExpansionClickCompleted: true,
+    guardedExpansionUiValidationAttempted: true,
+    guardedExpansionUiValidationCompleted: true,
+    guardedExpansionFailureBeforeCandidateInventory: false,
+    guardedExpansionFailureDuringCandidateInventory: false,
+    guardedExpansionFailureDuringSelectionSummary: false,
+    guardedExpansionFailureBeforeCalibratedEvaluation: false,
+    guardedExpansionFailureDuringCalibratedEvaluation: false,
+    guardedExpansionFailureDuringClick: false,
+    guardedExpansionFailureDuringUiValidation: false,
+    ...overrides,
+  });
+
   const createPhysicalAddressBootstrapCaptureReceipt = (
     overrides: Partial<PhysicalOperatingAddressCaptureOnlyReceipt> = {},
   ): PhysicalOperatingAddressCaptureOnlyReceipt => {
@@ -10455,6 +10502,36 @@ test.describe('interactive validation safety', () => {
     postSignerFailureDuringFieldDiscovery: false,
     postSignerFailureAfterFieldDiscoveryBeforeToggleEvaluation: false,
     postSignerFailureReceiptPreserved: false,
+    guardedExpansionFailureSummaryPresent: false,
+    guardedExpansionFailureCategory: 'no-guarded-expansion-failure',
+    guardedExpansionFailureStage: 'none',
+    guardedExpansionFailureReason: null,
+    guardedExpansionFailureSummary: null,
+    guardedExpansionInputFramePresent: true,
+    guardedExpansionInputFieldsPresent: true,
+    guardedExpansionInputFieldCount: 14,
+    guardedExpansionInputFieldCountPreserved: true,
+    guardedExpansionHelperInvoked: true,
+    guardedExpansionHelperEntered: true,
+    guardedExpansionCandidateInventoryAttempted: true,
+    guardedExpansionCandidateInventoryBuilt: true,
+    guardedExpansionSelectionSummaryAttempted: true,
+    guardedExpansionSelectionSummaryCompleted: true,
+    guardedExpansionCalibratedEvaluationAttempted: true,
+    guardedExpansionCalibratedEvaluationCompleted: true,
+    guardedExpansionAnchorlessEvaluationAttempted: true,
+    guardedExpansionAnchorlessEvaluationCompleted: true,
+    guardedExpansionClickAttempted: true,
+    guardedExpansionClickCompleted: true,
+    guardedExpansionUiValidationAttempted: true,
+    guardedExpansionUiValidationCompleted: true,
+    guardedExpansionFailureBeforeCandidateInventory: false,
+    guardedExpansionFailureDuringCandidateInventory: false,
+    guardedExpansionFailureDuringSelectionSummary: false,
+    guardedExpansionFailureBeforeCalibratedEvaluation: false,
+    guardedExpansionFailureDuringCalibratedEvaluation: false,
+    guardedExpansionFailureDuringClick: false,
+    guardedExpansionFailureDuringUiValidation: false,
     toggleSelectionOutcomeCategory: 'calibrated-selected',
     toggleSelectionStage: 'calibrated-fallback',
     toggleSelectionMode: 'calibrated-fallback',
@@ -11940,6 +12017,332 @@ test.describe('interactive validation safety', () => {
     expect(receipt.initialFieldCountAvailable).toBe(true);
     expect(receipt.guardedExpansionSetupCompleted).toBe(true);
     expect(receipt.calibratedToggleEvaluationAttempted).toBe(false);
+  });
+
+  const createGuardedExpansionFailureReceipt = (
+    category: Parameters<typeof buildPhysicalOperatingAddressCaptureOnlyGuardedExpansionFailureInput>[0],
+    overrides: Record<string, unknown> = {},
+  ) => {
+    const postSignerCategory = category === 'guarded-expansion-calibrated-evaluation-failed'
+      ? 'calibrated-toggle-evaluation-failed'
+      : category === 'guarded-expansion-calibrated-evaluation-not-attempted'
+          || category === 'guarded-expansion-threw-before-calibrated-evaluation'
+        ? 'calibrated-toggle-evaluation-not-attempted'
+        : category === 'no-guarded-expansion-failure'
+          ? 'no-post-signer-failure'
+          : 'guarded-expansion-setup-failed';
+
+    return buildPhysicalOperatingAddressCaptureOnlyReceipt({
+      result: null,
+      childExitCode: postSignerCategory === 'no-post-signer-failure' ? 0 : 1,
+      signerSurfaceReached: true,
+      initialFieldCount: 14,
+      blockedReasonCategory: 'another bounded reason',
+      postSignerFailure: buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput(postSignerCategory, {
+        signerSurfaceReachedBeforeFailure: true,
+        fieldDiscoveryAttempted: true,
+        fieldDiscoveryStarted: true,
+        fieldDiscoveryCompleted: true,
+        initialFieldCountAvailable: true,
+        guardedExpansionSetupAttempted: true,
+        guardedExpansionSetupCompleted:
+          postSignerCategory === 'no-post-signer-failure'
+          || postSignerCategory === 'calibrated-toggle-evaluation-not-attempted'
+          || postSignerCategory === 'calibrated-toggle-evaluation-failed',
+        guardedExpansionSetupThrew: postSignerCategory === 'guarded-expansion-setup-failed',
+        calibratedToggleEvaluationAttempted:
+          postSignerCategory === 'calibrated-toggle-evaluation-not-attempted'
+            ? false
+            : category !== 'guarded-expansion-setup-failed',
+        calibratedToggleEvaluationStarted:
+          postSignerCategory === 'calibrated-toggle-evaluation-failed',
+        calibratedToggleEvaluationCompleted:
+          postSignerCategory === 'no-post-signer-failure',
+        postSignerFailureAfterFieldDiscoveryBeforeToggleEvaluation:
+          postSignerCategory !== 'no-post-signer-failure',
+      }),
+      guardedExpansionFailure: mockGuardedExpansionFailure(overrides, category),
+    });
+  };
+
+  test('physical address capture-only guarded expansion preserves initial field count after helper failure', () => {
+    const receipt = createGuardedExpansionFailureReceipt('guarded-expansion-candidate-inventory-failed', {
+      guardedExpansionCandidateInventoryBuilt: false,
+      guardedExpansionCalibratedEvaluationAttempted: false,
+      guardedExpansionCalibratedEvaluationCompleted: false,
+      guardedExpansionAnchorlessEvaluationAttempted: false,
+      guardedExpansionAnchorlessEvaluationCompleted: false,
+      guardedExpansionClickAttempted: false,
+      guardedExpansionClickCompleted: false,
+      guardedExpansionUiValidationAttempted: false,
+      guardedExpansionUiValidationCompleted: false,
+    });
+
+    expect(receipt.initialFieldCount).toBe(14);
+    expect(receipt.initialFieldCountAvailable).toBe(true);
+    expect(receipt.guardedExpansionInputFieldCount).toBe(14);
+    expect(receipt.guardedExpansionInputFieldCountPreserved).toBe(true);
+  });
+
+  test('physical address capture-only guarded expansion classifies missing frame boundedly', () => {
+    const receipt = createGuardedExpansionFailureReceipt('guarded-expansion-input-missing-frame', {
+      guardedExpansionInputFramePresent: false,
+      guardedExpansionHelperEntered: false,
+      guardedExpansionCandidateInventoryAttempted: false,
+      guardedExpansionCandidateInventoryBuilt: false,
+      guardedExpansionSelectionSummaryAttempted: false,
+      guardedExpansionSelectionSummaryCompleted: false,
+      guardedExpansionCalibratedEvaluationAttempted: false,
+      guardedExpansionCalibratedEvaluationCompleted: false,
+      guardedExpansionAnchorlessEvaluationAttempted: false,
+      guardedExpansionAnchorlessEvaluationCompleted: false,
+      guardedExpansionClickAttempted: false,
+      guardedExpansionClickCompleted: false,
+      guardedExpansionUiValidationAttempted: false,
+      guardedExpansionUiValidationCompleted: false,
+    });
+
+    expect(receipt.guardedExpansionFailureCategory).toBe('guarded-expansion-input-missing-frame');
+    expect(receipt.guardedExpansionFailureStage).toBe('input-validation');
+    expect(receipt.guardedExpansionInputFramePresent).toBe(false);
+    expect(receipt.guardedExpansionFailureSummaryPresent).toBe(true);
+  });
+
+  test('physical address capture-only guarded expansion classifies missing fields boundedly', () => {
+    const receipt = createGuardedExpansionFailureReceipt('guarded-expansion-input-missing-fields', {
+      guardedExpansionInputFieldsPresent: false,
+      guardedExpansionHelperEntered: false,
+      guardedExpansionCandidateInventoryAttempted: false,
+      guardedExpansionCandidateInventoryBuilt: false,
+      guardedExpansionSelectionSummaryAttempted: false,
+      guardedExpansionSelectionSummaryCompleted: false,
+      guardedExpansionCalibratedEvaluationAttempted: false,
+      guardedExpansionCalibratedEvaluationCompleted: false,
+      guardedExpansionAnchorlessEvaluationAttempted: false,
+      guardedExpansionAnchorlessEvaluationCompleted: false,
+      guardedExpansionClickAttempted: false,
+      guardedExpansionClickCompleted: false,
+      guardedExpansionUiValidationAttempted: false,
+      guardedExpansionUiValidationCompleted: false,
+    });
+
+    expect(receipt.guardedExpansionFailureCategory).toBe('guarded-expansion-input-missing-fields');
+    expect(receipt.guardedExpansionFailureStage).toBe('input-validation');
+    expect(receipt.guardedExpansionInputFieldsPresent).toBe(false);
+  });
+
+  test('physical address capture-only guarded expansion classifies helper not entered boundedly', () => {
+    const receipt = createGuardedExpansionFailureReceipt('guarded-expansion-helper-not-entered', {
+      guardedExpansionHelperEntered: false,
+      guardedExpansionCandidateInventoryAttempted: false,
+      guardedExpansionCandidateInventoryBuilt: false,
+      guardedExpansionSelectionSummaryAttempted: false,
+      guardedExpansionSelectionSummaryCompleted: false,
+      guardedExpansionCalibratedEvaluationAttempted: false,
+      guardedExpansionCalibratedEvaluationCompleted: false,
+      guardedExpansionAnchorlessEvaluationAttempted: false,
+      guardedExpansionAnchorlessEvaluationCompleted: false,
+      guardedExpansionClickAttempted: false,
+      guardedExpansionClickCompleted: false,
+      guardedExpansionUiValidationAttempted: false,
+      guardedExpansionUiValidationCompleted: false,
+    });
+
+    expect(receipt.guardedExpansionFailureCategory).toBe('guarded-expansion-helper-not-entered');
+    expect(receipt.guardedExpansionHelperInvoked).toBe(true);
+    expect(receipt.guardedExpansionHelperEntered).toBe(false);
+  });
+
+  test('physical address capture-only guarded expansion classifies candidate inventory failure boundedly', () => {
+    const receipt = createGuardedExpansionFailureReceipt('guarded-expansion-candidate-inventory-failed', {
+      guardedExpansionCandidateInventoryBuilt: false,
+      guardedExpansionSelectionSummaryAttempted: false,
+      guardedExpansionSelectionSummaryCompleted: false,
+      guardedExpansionCalibratedEvaluationAttempted: false,
+      guardedExpansionCalibratedEvaluationCompleted: false,
+      guardedExpansionAnchorlessEvaluationAttempted: false,
+      guardedExpansionAnchorlessEvaluationCompleted: false,
+      guardedExpansionClickAttempted: false,
+      guardedExpansionClickCompleted: false,
+      guardedExpansionUiValidationAttempted: false,
+      guardedExpansionUiValidationCompleted: false,
+      guardedExpansionFailureDuringCandidateInventory: true,
+    });
+
+    expect(receipt.guardedExpansionFailureCategory).toBe('guarded-expansion-candidate-inventory-failed');
+    expect(receipt.guardedExpansionCandidateInventoryAttempted).toBe(true);
+    expect(receipt.guardedExpansionCandidateInventoryBuilt).toBe(false);
+    expect(receipt.guardedExpansionFailureDuringCandidateInventory).toBe(true);
+  });
+
+  test('physical address capture-only guarded expansion classifies selection summary failure boundedly', () => {
+    const receipt = createGuardedExpansionFailureReceipt('guarded-expansion-selection-summary-failed', {
+      guardedExpansionSelectionSummaryCompleted: false,
+      guardedExpansionCalibratedEvaluationAttempted: false,
+      guardedExpansionCalibratedEvaluationCompleted: false,
+      guardedExpansionAnchorlessEvaluationAttempted: false,
+      guardedExpansionAnchorlessEvaluationCompleted: false,
+      guardedExpansionClickAttempted: false,
+      guardedExpansionClickCompleted: false,
+      guardedExpansionUiValidationAttempted: false,
+      guardedExpansionUiValidationCompleted: false,
+      guardedExpansionFailureDuringSelectionSummary: true,
+    });
+
+    expect(receipt.guardedExpansionFailureCategory).toBe('guarded-expansion-selection-summary-failed');
+    expect(receipt.guardedExpansionSelectionSummaryAttempted).toBe(true);
+    expect(receipt.guardedExpansionSelectionSummaryCompleted).toBe(false);
+    expect(receipt.guardedExpansionFailureDuringSelectionSummary).toBe(true);
+  });
+
+  test('physical address capture-only guarded expansion classifies calibrated evaluation not attempted boundedly', () => {
+    const receipt = createGuardedExpansionFailureReceipt('guarded-expansion-calibrated-evaluation-not-attempted', {
+      guardedExpansionCalibratedEvaluationAttempted: false,
+      guardedExpansionCalibratedEvaluationCompleted: false,
+      guardedExpansionFailureBeforeCalibratedEvaluation: true,
+      guardedExpansionClickAttempted: false,
+      guardedExpansionClickCompleted: false,
+      guardedExpansionUiValidationAttempted: false,
+      guardedExpansionUiValidationCompleted: false,
+    });
+
+    expect(receipt.guardedExpansionFailureCategory).toBe('guarded-expansion-calibrated-evaluation-not-attempted');
+    expect(receipt.guardedExpansionFailureStage).toBe('calibrated-evaluation');
+    expect(receipt.guardedExpansionSelectionSummaryCompleted).toBe(true);
+    expect(receipt.guardedExpansionCalibratedEvaluationAttempted).toBe(false);
+    expect(receipt.guardedExpansionFailureBeforeCalibratedEvaluation).toBe(true);
+  });
+
+  test('physical address capture-only guarded expansion classifies calibrated evaluation failure boundedly', () => {
+    const receipt = createGuardedExpansionFailureReceipt('guarded-expansion-calibrated-evaluation-failed', {
+      guardedExpansionCalibratedEvaluationAttempted: true,
+      guardedExpansionCalibratedEvaluationCompleted: false,
+      guardedExpansionAnchorlessEvaluationAttempted: true,
+      guardedExpansionAnchorlessEvaluationCompleted: false,
+      guardedExpansionClickAttempted: false,
+      guardedExpansionClickCompleted: false,
+      guardedExpansionUiValidationAttempted: false,
+      guardedExpansionUiValidationCompleted: false,
+      guardedExpansionFailureDuringCalibratedEvaluation: true,
+    });
+
+    expect(receipt.guardedExpansionFailureCategory).toBe('guarded-expansion-calibrated-evaluation-failed');
+    expect(receipt.guardedExpansionCalibratedEvaluationAttempted).toBe(true);
+    expect(receipt.guardedExpansionCalibratedEvaluationCompleted).toBe(false);
+    expect(receipt.guardedExpansionFailureDuringCalibratedEvaluation).toBe(true);
+  });
+
+  test('physical address capture-only guarded expansion click failure preserves safe outcomes boundedly', () => {
+    const receipt = createGuardedExpansionFailureReceipt('guarded-expansion-click-failed', {
+      guardedExpansionCalibratedEvaluationCompleted: false,
+      guardedExpansionAnchorlessEvaluationCompleted: false,
+      guardedExpansionClickAttempted: true,
+      guardedExpansionClickCompleted: false,
+      guardedExpansionUiValidationAttempted: false,
+      guardedExpansionUiValidationCompleted: false,
+      guardedExpansionFailureDuringClick: true,
+    });
+
+    expect(receipt.guardedExpansionFailureCategory).toBe('guarded-expansion-click-failed');
+    expect(receipt.postClickUiEffectValidationRequired).toBe(false);
+    expect(receipt.postClickUiEffectValidationOutcome).toBe('not-required');
+    expect(receipt.blockedReasonCategory).toBe('another bounded reason');
+  });
+
+  test('physical address capture-only guarded expansion ui validation failure preserves safe outcomes boundedly', () => {
+    const receipt = createGuardedExpansionFailureReceipt('guarded-expansion-ui-validation-failed', {
+      guardedExpansionCalibratedEvaluationCompleted: false,
+      guardedExpansionAnchorlessEvaluationCompleted: false,
+      guardedExpansionUiValidationAttempted: true,
+      guardedExpansionUiValidationCompleted: false,
+      guardedExpansionFailureDuringUiValidation: true,
+    });
+
+    expect(receipt.guardedExpansionFailureCategory).toBe('guarded-expansion-ui-validation-failed');
+    expect(receipt.postClickUiEffectValidationRequired).toBe(false);
+    expect(receipt.postClickUiEffectValidationOutcome).toBe('not-required');
+    expect(receipt.blockedReasonCategory).toBe('another bounded reason');
+  });
+
+  test('physical address capture-only guarded expansion records no guarded expansion failure after helper success', () => {
+    const receipt = createGuardedExpansionFailureReceipt('no-guarded-expansion-failure');
+
+    expect(receipt.guardedExpansionFailureCategory).toBe('no-guarded-expansion-failure');
+    expect(receipt.guardedExpansionFailureSummaryPresent).toBe(false);
+    expect(receipt.guardedExpansionHelperEntered).toBe(true);
+    expect(receipt.guardedExpansionUiValidationCompleted).toBe(true);
+  });
+
+  test('physical address bootstrap capture guarded expansion preserves child telemetry fields', async () => {
+    const outDir = createPhysicalAddressCaptureOnlyTempDir();
+    const logs: string[] = [];
+    const childReceipt = buildPhysicalOperatingAddressCaptureOnlyReceipt({
+      result: null,
+      childExitCode: 1,
+      signerSurfaceReached: true,
+      initialFieldCount: 14,
+      blockedReasonCategory: 'another bounded reason',
+      preSignerFailure: buildPhysicalOperatingAddressCaptureOnlyPreSignerFailureInput('no-pre-signer-failure'),
+      postSignerFailure: buildPhysicalOperatingAddressCaptureOnlyPostSignerFailureInput('guarded-expansion-setup-failed'),
+      guardedExpansionFailure: mockGuardedExpansionFailure({
+        guardedExpansionCandidateInventoryBuilt: false,
+        guardedExpansionSelectionSummaryAttempted: false,
+        guardedExpansionSelectionSummaryCompleted: false,
+        guardedExpansionCalibratedEvaluationAttempted: false,
+        guardedExpansionCalibratedEvaluationCompleted: false,
+        guardedExpansionAnchorlessEvaluationAttempted: false,
+        guardedExpansionAnchorlessEvaluationCompleted: false,
+        guardedExpansionClickAttempted: false,
+        guardedExpansionClickCompleted: false,
+        guardedExpansionUiValidationAttempted: false,
+        guardedExpansionUiValidationCompleted: false,
+        guardedExpansionFailureDuringCandidateInventory: true,
+      }, 'guarded-expansion-candidate-inventory-failed'),
+    });
+
+    const result = await runPhysicalOperatingAddressBootstrapCapture(
+      createPhysicalAddressBootstrapCaptureDependencies(
+        outDir,
+        createPhysicalAddressBootstrapCaptureSpawn({
+          exitCode: 1,
+          stdoutLines: [formatPhysicalOperatingAddressCaptureOnlyReceiptSentinel(childReceipt)],
+        }),
+        logs,
+      ),
+    );
+
+    const receipt = readPhysicalOperatingAddressCaptureOnlyReceipt(
+      buildPhysicalOperatingAddressCaptureOnlyReceiptPath(outDir),
+    );
+
+    expect(result.code).toBe(1);
+    expect(receipt?.guardedExpansionFailureCategory).toBe('guarded-expansion-candidate-inventory-failed');
+    expect(receipt?.guardedExpansionCandidateInventoryBuilt).toBe(false);
+    expect(receipt?.guardedExpansionFailureDuringCandidateInventory).toBe(true);
+    expect(receipt?.guardedExpansionInputFieldCount).toBe(14);
+  });
+
+  test('physical address capture-only guarded expansion receipt stays bounded and redacted', () => {
+    const receipt = createGuardedExpansionFailureReceipt('guarded-expansion-candidate-inventory-failed', {
+      guardedExpansionCandidateInventoryBuilt: false,
+      guardedExpansionSelectionSummaryAttempted: false,
+      guardedExpansionSelectionSummaryCompleted: false,
+      guardedExpansionCalibratedEvaluationAttempted: false,
+      guardedExpansionCalibratedEvaluationCompleted: false,
+      guardedExpansionAnchorlessEvaluationAttempted: false,
+      guardedExpansionAnchorlessEvaluationCompleted: false,
+      guardedExpansionClickAttempted: false,
+      guardedExpansionClickCompleted: false,
+      guardedExpansionUiValidationAttempted: false,
+      guardedExpansionUiValidationCompleted: false,
+    });
+    const serialized = JSON.stringify(receipt);
+
+    expect(serialized).toContain('guarded-expansion-candidate-inventory-failed');
+    expect(serialized).not.toContain('https://demo.docusign.net/Signing/EmailStart.aspx?t=SECRET');
+    expect(serialized).not.toContain('unsafe@example.test');
+    expect(serialized).not.toContain('<html>');
+    expect(serialized).not.toContain('tab-form-element-secret-proxy');
   });
 
   test('physical address capture-only post-signer records no post-signer failure after initial fields are available', () => {

@@ -43,10 +43,362 @@ export interface GuardedPhysicalOperatingAddressDiscoveryResult {
   uiEffectSummary: PhysicalOperatingAddressUiEffectSummary;
   expansionAttempted: boolean;
   expansionSkippedReason: PhysicalOperatingAddressExpansionSkippedReason;
+  guardedExpansionTelemetry?: GuardedPhysicalOperatingAddressExpansionFailureTelemetry;
 }
 
 export interface GuardedPhysicalOperatingAddressDiscoveryOptions {
   stopAfterCaptureAttempt?: boolean;
+}
+
+export type GuardedPhysicalOperatingAddressExpansionFailureCategory =
+  | 'no-guarded-expansion-failure'
+  | 'guarded-expansion-input-missing-frame'
+  | 'guarded-expansion-input-missing-fields'
+  | 'guarded-expansion-input-field-count-missing'
+  | 'guarded-expansion-helper-not-entered'
+  | 'guarded-expansion-candidate-inventory-failed'
+  | 'guarded-expansion-selection-summary-failed'
+  | 'guarded-expansion-calibrated-evaluation-not-attempted'
+  | 'guarded-expansion-calibrated-evaluation-failed'
+  | 'guarded-expansion-click-failed'
+  | 'guarded-expansion-ui-validation-failed'
+  | 'guarded-expansion-threw-before-candidate-inventory'
+  | 'guarded-expansion-threw-before-calibrated-evaluation'
+  | 'another-bounded-guarded-expansion-failure';
+
+export type GuardedPhysicalOperatingAddressExpansionFailureStage =
+  | 'none'
+  | 'input-validation'
+  | 'helper-entry'
+  | 'candidate-inventory'
+  | 'selection-summary'
+  | 'calibrated-evaluation'
+  | 'click'
+  | 'ui-validation'
+  | 'another-bounded-guarded-expansion-stage';
+
+export interface GuardedPhysicalOperatingAddressExpansionFailureTelemetry {
+  guardedExpansionFailureCategory: GuardedPhysicalOperatingAddressExpansionFailureCategory;
+  guardedExpansionFailureStage: GuardedPhysicalOperatingAddressExpansionFailureStage;
+  guardedExpansionFailureReason: string | null;
+  guardedExpansionFailureSummary: string | null;
+  guardedExpansionInputFramePresent: boolean;
+  guardedExpansionInputFieldsPresent: boolean;
+  guardedExpansionInputFieldCount: number | null;
+  guardedExpansionInputFieldCountPreserved: boolean;
+  guardedExpansionHelperInvoked: boolean;
+  guardedExpansionHelperEntered: boolean;
+  guardedExpansionCandidateInventoryAttempted: boolean;
+  guardedExpansionCandidateInventoryBuilt: boolean;
+  guardedExpansionSelectionSummaryAttempted: boolean;
+  guardedExpansionSelectionSummaryCompleted: boolean;
+  guardedExpansionCalibratedEvaluationAttempted: boolean;
+  guardedExpansionCalibratedEvaluationCompleted: boolean;
+  guardedExpansionAnchorlessEvaluationAttempted: boolean;
+  guardedExpansionAnchorlessEvaluationCompleted: boolean;
+  guardedExpansionClickAttempted: boolean;
+  guardedExpansionClickCompleted: boolean;
+  guardedExpansionUiValidationAttempted: boolean;
+  guardedExpansionUiValidationCompleted: boolean;
+  guardedExpansionFailureBeforeCandidateInventory: boolean;
+  guardedExpansionFailureDuringCandidateInventory: boolean;
+  guardedExpansionFailureDuringSelectionSummary: boolean;
+  guardedExpansionFailureBeforeCalibratedEvaluation: boolean;
+  guardedExpansionFailureDuringCalibratedEvaluation: boolean;
+  guardedExpansionFailureDuringClick: boolean;
+  guardedExpansionFailureDuringUiValidation: boolean;
+}
+
+function buildGuardedPhysicalOperatingAddressExpansionFailureDetail(
+  category: GuardedPhysicalOperatingAddressExpansionFailureCategory,
+): {
+  stage: GuardedPhysicalOperatingAddressExpansionFailureStage;
+  reason: string | null;
+  summary: string | null;
+} {
+  switch (category) {
+    case 'no-guarded-expansion-failure':
+      return {
+        stage: 'none',
+        reason: null,
+        summary: null,
+      };
+    case 'guarded-expansion-input-missing-frame':
+      return {
+        stage: 'input-validation',
+        reason: 'guarded expansion input frame was missing',
+        summary: 'guarded expansion could not begin because the signer frame input was unavailable',
+      };
+    case 'guarded-expansion-input-missing-fields':
+      return {
+        stage: 'input-validation',
+        reason: 'guarded expansion input fields were missing',
+        summary: 'guarded expansion could not begin because field discovery output was unavailable',
+      };
+    case 'guarded-expansion-input-field-count-missing':
+      return {
+        stage: 'input-validation',
+        reason: 'guarded expansion input field count was unavailable',
+        summary: 'guarded expansion received field discovery output but the numeric field count was not preserved',
+      };
+    case 'guarded-expansion-helper-not-entered':
+      return {
+        stage: 'helper-entry',
+        reason: 'guarded expansion helper was invoked but did not enter bounded helper execution',
+        summary: 'guarded expansion was requested but the helper did not enter bounded execution before failing',
+      };
+    case 'guarded-expansion-candidate-inventory-failed':
+      return {
+        stage: 'candidate-inventory',
+        reason: 'guarded expansion failed while building candidate inventory',
+        summary: 'guarded expansion entered helper execution but failed before bounded candidate inventory completed',
+      };
+    case 'guarded-expansion-selection-summary-failed':
+      return {
+        stage: 'selection-summary',
+        reason: 'guarded expansion failed while building the selection summary',
+        summary: 'guarded expansion built candidate inventory but failed before a bounded selection summary was produced',
+      };
+    case 'guarded-expansion-calibrated-evaluation-not-attempted':
+      return {
+        stage: 'calibrated-evaluation',
+        reason: 'guarded expansion never attempted calibrated evaluation after selection summary completed',
+        summary: 'guarded expansion completed bounded selection setup but calibrated evaluation did not begin',
+      };
+    case 'guarded-expansion-calibrated-evaluation-failed':
+      return {
+        stage: 'calibrated-evaluation',
+        reason: 'guarded expansion failed during calibrated evaluation',
+        summary: 'guarded expansion reached calibrated evaluation but failed before a bounded selection result was produced',
+      };
+    case 'guarded-expansion-click-failed':
+      return {
+        stage: 'click',
+        reason: 'guarded expansion failed while applying the safe toggle action',
+        summary: 'guarded expansion selected a bounded toggle candidate but failed during the safe click/check step',
+      };
+    case 'guarded-expansion-ui-validation-failed':
+      return {
+        stage: 'ui-validation',
+        reason: 'guarded expansion failed while capturing bounded post-toggle UI state',
+        summary: 'guarded expansion completed toggle setup but failed while gathering bounded post-toggle UI validation state',
+      };
+    case 'guarded-expansion-threw-before-candidate-inventory':
+      return {
+        stage: 'helper-entry',
+        reason: 'guarded expansion threw before candidate inventory began',
+        summary: 'guarded expansion entered helper execution but failed before candidate inventory began',
+      };
+    case 'guarded-expansion-threw-before-calibrated-evaluation':
+      return {
+        stage: 'calibrated-evaluation',
+        reason: 'guarded expansion threw before calibrated evaluation began',
+        summary: 'guarded expansion completed bounded selection summary work but failed before calibrated evaluation began',
+      };
+    case 'another-bounded-guarded-expansion-failure':
+      return {
+        stage: 'another-bounded-guarded-expansion-stage',
+        reason: 'another bounded guarded expansion failure blocked capture',
+        summary: 'guarded expansion failed for another bounded reason before a safe receipt could record a more specific phase',
+      };
+  }
+}
+
+export function buildGuardedPhysicalOperatingAddressExpansionFailureTelemetry(
+  category: GuardedPhysicalOperatingAddressExpansionFailureCategory = 'no-guarded-expansion-failure',
+  overrides: Partial<GuardedPhysicalOperatingAddressExpansionFailureTelemetry> = {},
+): GuardedPhysicalOperatingAddressExpansionFailureTelemetry {
+  const detail = buildGuardedPhysicalOperatingAddressExpansionFailureDetail(category);
+  const base: GuardedPhysicalOperatingAddressExpansionFailureTelemetry = {
+    guardedExpansionFailureCategory: category,
+    guardedExpansionFailureStage: detail.stage,
+    guardedExpansionFailureReason: detail.reason,
+    guardedExpansionFailureSummary: detail.summary,
+    guardedExpansionInputFramePresent: false,
+    guardedExpansionInputFieldsPresent: false,
+    guardedExpansionInputFieldCount: null,
+    guardedExpansionInputFieldCountPreserved: false,
+    guardedExpansionHelperInvoked: false,
+    guardedExpansionHelperEntered: false,
+    guardedExpansionCandidateInventoryAttempted: false,
+    guardedExpansionCandidateInventoryBuilt: false,
+    guardedExpansionSelectionSummaryAttempted: false,
+    guardedExpansionSelectionSummaryCompleted: false,
+    guardedExpansionCalibratedEvaluationAttempted: false,
+    guardedExpansionCalibratedEvaluationCompleted: false,
+    guardedExpansionAnchorlessEvaluationAttempted: false,
+    guardedExpansionAnchorlessEvaluationCompleted: false,
+    guardedExpansionClickAttempted: false,
+    guardedExpansionClickCompleted: false,
+    guardedExpansionUiValidationAttempted: false,
+    guardedExpansionUiValidationCompleted: false,
+    guardedExpansionFailureBeforeCandidateInventory: false,
+    guardedExpansionFailureDuringCandidateInventory: false,
+    guardedExpansionFailureDuringSelectionSummary: false,
+    guardedExpansionFailureBeforeCalibratedEvaluation: false,
+    guardedExpansionFailureDuringCalibratedEvaluation: false,
+    guardedExpansionFailureDuringClick: false,
+    guardedExpansionFailureDuringUiValidation: false,
+  };
+
+  switch (category) {
+    case 'no-guarded-expansion-failure':
+      Object.assign(base, {
+        guardedExpansionHelperInvoked: true,
+        guardedExpansionHelperEntered: true,
+      });
+      break;
+    case 'guarded-expansion-input-missing-frame':
+      Object.assign(base, {
+        guardedExpansionHelperInvoked: true,
+      });
+      break;
+    case 'guarded-expansion-input-missing-fields':
+      Object.assign(base, {
+        guardedExpansionHelperInvoked: true,
+        guardedExpansionInputFramePresent: true,
+      });
+      break;
+    case 'guarded-expansion-input-field-count-missing':
+      Object.assign(base, {
+        guardedExpansionHelperInvoked: true,
+        guardedExpansionHelperEntered: true,
+        guardedExpansionInputFramePresent: true,
+        guardedExpansionInputFieldsPresent: true,
+        guardedExpansionInputFieldCountPreserved: false,
+      });
+      break;
+    case 'guarded-expansion-helper-not-entered':
+      Object.assign(base, {
+        guardedExpansionHelperInvoked: true,
+      });
+      break;
+    case 'guarded-expansion-candidate-inventory-failed':
+      Object.assign(base, {
+        guardedExpansionHelperInvoked: true,
+        guardedExpansionHelperEntered: true,
+        guardedExpansionCandidateInventoryAttempted: true,
+        guardedExpansionFailureDuringCandidateInventory: true,
+      });
+      break;
+    case 'guarded-expansion-selection-summary-failed':
+      Object.assign(base, {
+        guardedExpansionHelperInvoked: true,
+        guardedExpansionHelperEntered: true,
+        guardedExpansionCandidateInventoryAttempted: true,
+        guardedExpansionCandidateInventoryBuilt: true,
+        guardedExpansionSelectionSummaryAttempted: true,
+        guardedExpansionFailureDuringSelectionSummary: true,
+      });
+      break;
+    case 'guarded-expansion-calibrated-evaluation-not-attempted':
+      Object.assign(base, {
+        guardedExpansionHelperInvoked: true,
+        guardedExpansionHelperEntered: true,
+        guardedExpansionCandidateInventoryAttempted: true,
+        guardedExpansionCandidateInventoryBuilt: true,
+        guardedExpansionSelectionSummaryAttempted: true,
+        guardedExpansionSelectionSummaryCompleted: true,
+        guardedExpansionFailureBeforeCalibratedEvaluation: true,
+      });
+      break;
+    case 'guarded-expansion-calibrated-evaluation-failed':
+      Object.assign(base, {
+        guardedExpansionHelperInvoked: true,
+        guardedExpansionHelperEntered: true,
+        guardedExpansionCandidateInventoryAttempted: true,
+        guardedExpansionCandidateInventoryBuilt: true,
+        guardedExpansionSelectionSummaryAttempted: true,
+        guardedExpansionSelectionSummaryCompleted: true,
+        guardedExpansionCalibratedEvaluationAttempted: true,
+        guardedExpansionFailureDuringCalibratedEvaluation: true,
+      });
+      break;
+    case 'guarded-expansion-click-failed':
+      Object.assign(base, {
+        guardedExpansionHelperInvoked: true,
+        guardedExpansionHelperEntered: true,
+        guardedExpansionCandidateInventoryAttempted: true,
+        guardedExpansionCandidateInventoryBuilt: true,
+        guardedExpansionSelectionSummaryAttempted: true,
+        guardedExpansionSelectionSummaryCompleted: true,
+        guardedExpansionClickAttempted: true,
+        guardedExpansionFailureDuringClick: true,
+      });
+      break;
+    case 'guarded-expansion-ui-validation-failed':
+      Object.assign(base, {
+        guardedExpansionHelperInvoked: true,
+        guardedExpansionHelperEntered: true,
+        guardedExpansionCandidateInventoryAttempted: true,
+        guardedExpansionCandidateInventoryBuilt: true,
+        guardedExpansionSelectionSummaryAttempted: true,
+        guardedExpansionSelectionSummaryCompleted: true,
+        guardedExpansionUiValidationAttempted: true,
+        guardedExpansionFailureDuringUiValidation: true,
+      });
+      break;
+    case 'guarded-expansion-threw-before-candidate-inventory':
+      Object.assign(base, {
+        guardedExpansionHelperInvoked: true,
+        guardedExpansionHelperEntered: true,
+        guardedExpansionFailureBeforeCandidateInventory: true,
+      });
+      break;
+    case 'guarded-expansion-threw-before-calibrated-evaluation':
+      Object.assign(base, {
+        guardedExpansionHelperInvoked: true,
+        guardedExpansionHelperEntered: true,
+        guardedExpansionCandidateInventoryAttempted: true,
+        guardedExpansionCandidateInventoryBuilt: true,
+        guardedExpansionSelectionSummaryAttempted: true,
+        guardedExpansionSelectionSummaryCompleted: true,
+        guardedExpansionFailureBeforeCalibratedEvaluation: true,
+      });
+      break;
+    case 'another-bounded-guarded-expansion-failure':
+      Object.assign(base, {
+        guardedExpansionHelperInvoked: true,
+        guardedExpansionHelperEntered: true,
+      });
+      break;
+  }
+
+  return {
+    ...base,
+    ...overrides,
+    guardedExpansionFailureCategory: overrides.guardedExpansionFailureCategory ?? category,
+    guardedExpansionFailureStage: overrides.guardedExpansionFailureStage ?? detail.stage,
+    guardedExpansionFailureReason: overrides.guardedExpansionFailureReason ?? detail.reason,
+    guardedExpansionFailureSummary: overrides.guardedExpansionFailureSummary ?? detail.summary,
+  };
+}
+
+export class GuardedPhysicalOperatingAddressExpansionError extends Error {
+  readonly telemetry: GuardedPhysicalOperatingAddressExpansionFailureTelemetry;
+
+  constructor(telemetry: GuardedPhysicalOperatingAddressExpansionFailureTelemetry) {
+    super(telemetry.guardedExpansionFailureSummary
+      ?? telemetry.guardedExpansionFailureReason
+      ?? 'bounded guarded expansion failure');
+    this.name = 'GuardedPhysicalOperatingAddressExpansionError';
+    this.telemetry = telemetry;
+  }
+}
+
+export function createGuardedPhysicalOperatingAddressExpansionError(
+  category: GuardedPhysicalOperatingAddressExpansionFailureCategory,
+  overrides: Partial<GuardedPhysicalOperatingAddressExpansionFailureTelemetry> = {},
+): GuardedPhysicalOperatingAddressExpansionError {
+  return new GuardedPhysicalOperatingAddressExpansionError(
+    buildGuardedPhysicalOperatingAddressExpansionFailureTelemetry(category, overrides),
+  );
+}
+
+export function isGuardedPhysicalOperatingAddressExpansionError(
+  error: unknown,
+): error is GuardedPhysicalOperatingAddressExpansionError {
+  return error instanceof GuardedPhysicalOperatingAddressExpansionError;
 }
 
 type PhysicalOperatingAddressToggleSelectionOptions = {
@@ -3507,9 +3859,14 @@ function buildCalibratedPhysicalOperatingAddressFallbackDiagnostics(
   primaryInventory: PhysicalOperatingAddressToggleInventory,
   fallbackInventory: PhysicalOperatingAddressToggleFallbackInventory,
   options: PhysicalOperatingAddressToggleSelectionOptions = {},
+  telemetry?: GuardedPhysicalOperatingAddressExpansionFailureTelemetry,
 ): PhysicalOperatingAddressToggleCalibratedFallbackDiagnostics {
   const entries = fallbackInventory.entries;
   const allowCalibratedAnchorlessFallback = options.allowCalibratedAnchorlessFallback === true;
+  if (telemetry) {
+    telemetry.guardedExpansionCalibratedEvaluationAttempted = true;
+    telemetry.guardedExpansionAnchorlessEvaluationAttempted = allowCalibratedAnchorlessFallback;
+  }
   const addressOptionsAnchorMatched = primaryInventory.entries.length > 0
     && primaryInventory.entries.every((entry) => entry.matches.addressOptionPattern);
   const addressOptionsClusterGuardPassed = addressOptionsAnchorMatched
@@ -3573,6 +3930,13 @@ function buildCalibratedPhysicalOperatingAddressFallbackDiagnostics(
   }
   if (!candidateOrderStable) rejectedReasons.push('candidate-order-unstable');
   if (conflictingCueDetected) rejectedReasons.push('conflicting-safe-cue-surfaced');
+
+  if (telemetry) {
+    telemetry.guardedExpansionCalibratedEvaluationCompleted = true;
+    if (telemetry.guardedExpansionAnchorlessEvaluationAttempted) {
+      telemetry.guardedExpansionAnchorlessEvaluationCompleted = true;
+    }
+  }
 
   return {
     candidateCount: fallbackInventory.visibleRadioLikeCandidateCount,
@@ -4749,10 +5113,17 @@ export function guardedPhysicalOperatingAddressDiscoveryEnabled(env: NodeJS.Proc
 export function explainPhysicalOperatingAddressToggleSelection<T extends GuardedToggleField>(
   fields: T[],
   options: PhysicalOperatingAddressToggleSelectionOptions = {},
+  telemetry?: GuardedPhysicalOperatingAddressExpansionFailureTelemetry,
 ): PhysicalOperatingAddressToggleSelection<T> {
+  if (telemetry) {
+    telemetry.guardedExpansionCandidateInventoryAttempted = true;
+  }
   const primaryInventory = buildPhysicalOperatingAddressToggleInventory(fields);
   const primaryMatches = fields.filter((field) => buildPhysicalOperatingAddressToggleMatchAnalysis(field).selectedByMatcher);
   if (primaryMatches.length === 1) {
+    if (telemetry) {
+      telemetry.guardedExpansionCandidateInventoryBuilt = true;
+    }
     return {
       selectedField: primaryMatches[0],
       selectionMode: 'primary',
@@ -4764,6 +5135,9 @@ export function explainPhysicalOperatingAddressToggleSelection<T extends Guarded
 
   if (primaryInventory.eligibleCandidateCount === 0) {
     const fallbackInventory = buildPhysicalOperatingAddressToggleFallbackInventory(fields);
+    if (telemetry) {
+      telemetry.guardedExpansionCandidateInventoryBuilt = true;
+    }
     const fallbackMatches = fields.filter((field) => buildPhysicalOperatingAddressToggleFallbackAnalysis(field).selectedByFallback);
     if (fallbackMatches.length === 1) {
       return {
@@ -4780,6 +5154,7 @@ export function explainPhysicalOperatingAddressToggleSelection<T extends Guarded
       primaryInventory,
       fallbackInventory,
       options,
+      telemetry,
     );
     const fallbackInventoryWithCalibrated = {
       ...fallbackInventory,
@@ -4810,6 +5185,10 @@ export function explainPhysicalOperatingAddressToggleSelection<T extends Guarded
       primaryInventory,
       fallbackInventory: fallbackInventoryWithCalibrated,
     };
+  }
+
+  if (telemetry) {
+    telemetry.guardedExpansionCandidateInventoryBuilt = true;
   }
 
   return {
@@ -4862,6 +5241,31 @@ export async function maybeExpandPhysicalOperatingAddressSection(
   options?: GuardedPhysicalOperatingAddressDiscoveryOptions,
 ): Promise<GuardedPhysicalOperatingAddressDiscoveryResult> {
   const diagnostics: string[] = [];
+  const telemetry = buildGuardedPhysicalOperatingAddressExpansionFailureTelemetry(
+    'no-guarded-expansion-failure',
+    {
+      guardedExpansionInputFramePresent: Boolean(frame),
+      guardedExpansionInputFieldsPresent: Array.isArray(initialFields),
+      guardedExpansionInputFieldCount: Array.isArray(initialFields) ? initialFields.length : null,
+      guardedExpansionInputFieldCountPreserved:
+        Array.isArray(initialFields) && Number.isFinite(initialFields.length),
+      guardedExpansionHelperInvoked: true,
+      guardedExpansionHelperEntered: true,
+    },
+  );
+
+  if (!frame) {
+    throw createGuardedPhysicalOperatingAddressExpansionError('guarded-expansion-input-missing-frame', telemetry);
+  }
+
+  if (!Array.isArray(initialFields)) {
+    throw createGuardedPhysicalOperatingAddressExpansionError('guarded-expansion-input-missing-fields', telemetry);
+  }
+
+  if (telemetry.guardedExpansionInputFieldCount === null) {
+    throw createGuardedPhysicalOperatingAddressExpansionError('guarded-expansion-input-field-count-missing', telemetry);
+  }
+
   const beforeUiEffectSnapshot = await capturePhysicalOperatingAddressUiEffectSnapshot(frame)
     .catch(() => DEFAULT_PHYSICAL_OPERATING_ADDRESS_UI_EFFECT_SNAPSHOT);
 
@@ -4912,13 +5316,44 @@ export async function maybeExpandPhysicalOperatingAddressSection(
       }),
       expansionAttempted: false,
       expansionSkippedReason: 'no-selected-toggle',
+      guardedExpansionTelemetry: telemetry,
     };
   }
 
-  const toggleSelection = explainPhysicalOperatingAddressToggleSelection(initialFields, {
-    allowCalibratedAnchorlessFallback: shouldStopAfterPhysicalAddressCaptureAttempt(options),
-  });
-  const toggleSelectionSummary = buildPhysicalOperatingAddressToggleSelectionSummary(toggleSelection);
+  let toggleSelection: PhysicalOperatingAddressToggleSelection<DiscoveredField>;
+  try {
+    toggleSelection = explainPhysicalOperatingAddressToggleSelection(initialFields, {
+      allowCalibratedAnchorlessFallback: shouldStopAfterPhysicalAddressCaptureAttempt(options),
+    }, telemetry);
+  } catch (error) {
+    if (isGuardedPhysicalOperatingAddressExpansionError(error)) {
+      throw error;
+    }
+
+    throw createGuardedPhysicalOperatingAddressExpansionError(
+      telemetry.guardedExpansionCandidateInventoryAttempted
+      && !telemetry.guardedExpansionCandidateInventoryBuilt
+        ? 'guarded-expansion-candidate-inventory-failed'
+        : 'guarded-expansion-threw-before-candidate-inventory',
+      telemetry,
+    );
+  }
+
+  let toggleSelectionSummary: PhysicalOperatingAddressToggleSelectionSummary;
+  try {
+    telemetry.guardedExpansionSelectionSummaryAttempted = true;
+    toggleSelectionSummary = buildPhysicalOperatingAddressToggleSelectionSummary(toggleSelection);
+    telemetry.guardedExpansionSelectionSummaryCompleted = true;
+  } catch (error) {
+    if (isGuardedPhysicalOperatingAddressExpansionError(error)) {
+      throw error;
+    }
+
+    throw createGuardedPhysicalOperatingAddressExpansionError(
+      'guarded-expansion-selection-summary-failed',
+      telemetry,
+    );
+  }
   if (toggleSelection.fallbackInventory) {
     diagnostics.push(
       `physical-operating-address discovery toggle fallback inventory: ${JSON.stringify(toggleSelection.fallbackInventory)}`,
@@ -4955,6 +5390,7 @@ export async function maybeExpandPhysicalOperatingAddressSection(
       }),
       expansionAttempted: false,
       expansionSkippedReason: 'no-selected-toggle',
+      guardedExpansionTelemetry: telemetry,
     };
   }
 
@@ -4973,23 +5409,45 @@ export async function maybeExpandPhysicalOperatingAddressSection(
     : null;
 
   if (alreadyChecked !== true) {
-    await toggleField.locator.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
-    await toggleField.locator.check({ timeout: 3_000, force: true });
-    diagnostics.push('physical-operating-address discovery toggle action: selected isOperatingAddress radio');
-    await waitForSectionSettle(toggleField);
+    telemetry.guardedExpansionClickAttempted = true;
+    try {
+      await toggleField.locator.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
+      await toggleField.locator.check({ timeout: 3_000, force: true });
+      diagnostics.push('physical-operating-address discovery toggle action: selected isOperatingAddress radio');
+      await waitForSectionSettle(toggleField);
+      telemetry.guardedExpansionClickCompleted = true;
+    } catch (error) {
+      if (isGuardedPhysicalOperatingAddressExpansionError(error)) {
+        throw error;
+      }
+
+      throw createGuardedPhysicalOperatingAddressExpansionError('guarded-expansion-click-failed', telemetry);
+    }
   } else {
     diagnostics.push('physical-operating-address discovery toggle action: skipped (already selected)');
+    telemetry.guardedExpansionClickCompleted = true;
   }
 
   const afterProbeSnapshot = probeEnabled
     ? await capturePhysicalOperatingAddressDomProbeSnapshot(frame, 'after-toggle')
     : null;
-  const afterUiEffectSnapshot = await capturePhysicalOperatingAddressUiEffectSnapshot(frame)
-    .catch(() => beforeUiEffectSnapshot);
+  let afterUiEffectSnapshot: PhysicalOperatingAddressUiEffectSnapshot;
+  let captureReport: PhysicalOperatingAddressPostToggleCaptureReport | null;
+  try {
+    telemetry.guardedExpansionUiValidationAttempted = true;
+    afterUiEffectSnapshot = await capturePhysicalOperatingAddressUiEffectSnapshot(frame)
+      .catch(() => beforeUiEffectSnapshot);
+    captureReport = captureEnabled
+      ? await capturePhysicalOperatingAddressPostToggleStructure(frame)
+      : null;
+    telemetry.guardedExpansionUiValidationCompleted = true;
+  } catch (error) {
+    if (isGuardedPhysicalOperatingAddressExpansionError(error)) {
+      throw error;
+    }
 
-  const captureReport = captureEnabled
-    ? await capturePhysicalOperatingAddressPostToggleStructure(frame)
-    : null;
+    throw createGuardedPhysicalOperatingAddressExpansionError('guarded-expansion-ui-validation-failed', telemetry);
+  }
 
   if (shouldStopAfterPhysicalAddressCaptureAttempt(options)) {
     diagnostics.push('physical-operating-address discovery fields: skipped post-toggle rediscovery in capture-only mode');
@@ -5014,6 +5472,7 @@ export async function maybeExpandPhysicalOperatingAddressSection(
       }),
       expansionAttempted: true,
       expansionSkippedReason: null,
+      guardedExpansionTelemetry: telemetry,
     };
   }
 
@@ -5059,5 +5518,6 @@ export async function maybeExpandPhysicalOperatingAddressSection(
     }),
     expansionAttempted: true,
     expansionSkippedReason: null,
+    guardedExpansionTelemetry: telemetry,
   };
 }
