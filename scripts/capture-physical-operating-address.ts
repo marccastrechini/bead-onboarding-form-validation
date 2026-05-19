@@ -21,6 +21,9 @@ import {
   type PhysicalOperatingAddressAddressOptionsOwnershipAnchorRejectedReason,
   type PhysicalOperatingAddressAddressOptionsOwnershipAnchorSourceChecked,
   type PhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket,
+  type PhysicalOperatingAddressCandidateSignatureSourceOutcomeCategory,
+  type PhysicalOperatingAddressCandidateSignatureSourceRejectedReason,
+  type PhysicalOperatingAddressCandidateSignatureSourceSummary,
   type PhysicalOperatingAddressOwnershipSourceHarvestOutcomeCategory,
   type PhysicalOperatingAddressOwnershipSourceHarvestRejectedReason,
   type PhysicalOperatingAddressOwnershipSourceHarvestSummary,
@@ -145,6 +148,29 @@ export interface PhysicalOperatingAddressCaptureOnlyCalibratedFallbackGuardSumma
   radioGroupReferenceTargetExists: boolean | null;
   radioGroupReferenceTargetVisible: boolean | null;
   radioGroupCommonOwnerCategory: PhysicalOperatingAddressAddressOptionsOwnershipAnchorCommonOwnerCategory | null;
+  candidateSignatureSourceSummaryPresent: boolean | null;
+  candidateSignatureSourceOutcomeCategory: PhysicalOperatingAddressCandidateSignatureSourceOutcomeCategory | null;
+  candidateSignatureSourceRejectedReasons: PhysicalOperatingAddressCandidateSignatureSourceRejectedReason[];
+  candidateSignatureSourceSummary: PhysicalOperatingAddressCandidateSignatureSourceSummary | null;
+  candidateSignatureSourceCandidateCount: number | null;
+  candidateSignatureSourceCandidatesWithOriginalFieldCount: number | null;
+  candidateSignatureSourceCandidatesWithSafeFieldKeyCount: number | null;
+  candidateSignatureSourceCandidatesWithIdOrNameKeyCount: number | null;
+  candidateSignatureSourceCandidatesWithInputTypeCount: number | null;
+  candidateSignatureSourceCandidatesWithControlCategoryCount: number | null;
+  candidateSignatureSourceCandidatesWithProxyReferenceSignatureCount: number | null;
+  candidateSignatureSourceCandidatesWithDomAttributeSignatureCount: number | null;
+  candidateSignatureSourceCandidatesWithRadioGraphicSignatureCount: number | null;
+  candidateSignatureSourceCandidatesWithNonTextLayoutSignatureCount: number | null;
+  candidateSignatureSourceCandidatesWithContainerContextLabelsCount: number | null;
+  candidateSignatureSourceCandidatesWithLayoutProximityEvidenceCount: number | null;
+  candidateSignatureSourceCandidatesWithGroupNameCount: number | null;
+  candidateSignatureSourceCandidatesWithResolvedLabelCount: number | null;
+  candidateSignatureSourceCandidatesWithAnyLabelBucketCount: number | null;
+  candidateSignatureSourceCandidatesWithAnyDiagnosticSurfaceCount: number | null;
+  candidateSignatureSourceAllCandidatesReducedShape: boolean | null;
+  candidateSignatureSourceAllCandidatesSurfaceEmpty: boolean | null;
+  candidateSignatureSourcePotentialPropagationGapDetected: boolean | null;
   ownershipSourceInputSummaryPresent: boolean | null;
   ownershipSourceInputOutcomeCategory: PhysicalOperatingAddressOwnershipSourceInputOutcomeCategory | null;
   ownershipSourceInputRejectedReasons: PhysicalOperatingAddressOwnershipSourceInputRejectedReason[];
@@ -255,6 +281,29 @@ export interface PhysicalOperatingAddressCaptureOnlyReceipt {
   radioGroupReferenceTargetExists: boolean | null;
   radioGroupReferenceTargetVisible: boolean | null;
   radioGroupCommonOwnerCategory: PhysicalOperatingAddressAddressOptionsOwnershipAnchorCommonOwnerCategory | null;
+  candidateSignatureSourceSummaryPresent: boolean | null;
+  candidateSignatureSourceOutcomeCategory: PhysicalOperatingAddressCandidateSignatureSourceOutcomeCategory | null;
+  candidateSignatureSourceRejectedReasons: PhysicalOperatingAddressCandidateSignatureSourceRejectedReason[];
+  candidateSignatureSourceSummary: PhysicalOperatingAddressCandidateSignatureSourceSummary | null;
+  candidateSignatureSourceCandidateCount: number | null;
+  candidateSignatureSourceCandidatesWithOriginalFieldCount: number | null;
+  candidateSignatureSourceCandidatesWithSafeFieldKeyCount: number | null;
+  candidateSignatureSourceCandidatesWithIdOrNameKeyCount: number | null;
+  candidateSignatureSourceCandidatesWithInputTypeCount: number | null;
+  candidateSignatureSourceCandidatesWithControlCategoryCount: number | null;
+  candidateSignatureSourceCandidatesWithProxyReferenceSignatureCount: number | null;
+  candidateSignatureSourceCandidatesWithDomAttributeSignatureCount: number | null;
+  candidateSignatureSourceCandidatesWithRadioGraphicSignatureCount: number | null;
+  candidateSignatureSourceCandidatesWithNonTextLayoutSignatureCount: number | null;
+  candidateSignatureSourceCandidatesWithContainerContextLabelsCount: number | null;
+  candidateSignatureSourceCandidatesWithLayoutProximityEvidenceCount: number | null;
+  candidateSignatureSourceCandidatesWithGroupNameCount: number | null;
+  candidateSignatureSourceCandidatesWithResolvedLabelCount: number | null;
+  candidateSignatureSourceCandidatesWithAnyLabelBucketCount: number | null;
+  candidateSignatureSourceCandidatesWithAnyDiagnosticSurfaceCount: number | null;
+  candidateSignatureSourceAllCandidatesReducedShape: boolean | null;
+  candidateSignatureSourceAllCandidatesSurfaceEmpty: boolean | null;
+  candidateSignatureSourcePotentialPropagationGapDetected: boolean | null;
   ownershipSourceInputSummaryPresent: boolean | null;
   ownershipSourceInputOutcomeCategory: PhysicalOperatingAddressOwnershipSourceInputOutcomeCategory | null;
   ownershipSourceInputRejectedReasons: PhysicalOperatingAddressOwnershipSourceInputRejectedReason[];
@@ -331,6 +380,32 @@ type PhysicalOperatingAddressCaptureOnlyDependencies = {
   readArtifactFreshnessSnapshot: typeof readPhysicalOperatingAddressCaptureOnlyArtifactFreshnessSnapshot;
 };
 
+type CandidateSignatureSourceFieldCarrier = {
+  candidateSignatureSourceSummaryPresent: boolean | null;
+  candidateSignatureSourceOutcomeCategory: PhysicalOperatingAddressCandidateSignatureSourceOutcomeCategory | null;
+  candidateSignatureSourceRejectedReasons: PhysicalOperatingAddressCandidateSignatureSourceRejectedReason[];
+  candidateSignatureSourceSummary: PhysicalOperatingAddressCandidateSignatureSourceSummary | null;
+  candidateSignatureSourceCandidateCount: number | null;
+  candidateSignatureSourceCandidatesWithOriginalFieldCount: number | null;
+  candidateSignatureSourceCandidatesWithSafeFieldKeyCount: number | null;
+  candidateSignatureSourceCandidatesWithIdOrNameKeyCount: number | null;
+  candidateSignatureSourceCandidatesWithInputTypeCount: number | null;
+  candidateSignatureSourceCandidatesWithControlCategoryCount: number | null;
+  candidateSignatureSourceCandidatesWithProxyReferenceSignatureCount: number | null;
+  candidateSignatureSourceCandidatesWithDomAttributeSignatureCount: number | null;
+  candidateSignatureSourceCandidatesWithRadioGraphicSignatureCount: number | null;
+  candidateSignatureSourceCandidatesWithNonTextLayoutSignatureCount: number | null;
+  candidateSignatureSourceCandidatesWithContainerContextLabelsCount: number | null;
+  candidateSignatureSourceCandidatesWithLayoutProximityEvidenceCount: number | null;
+  candidateSignatureSourceCandidatesWithGroupNameCount: number | null;
+  candidateSignatureSourceCandidatesWithResolvedLabelCount: number | null;
+  candidateSignatureSourceCandidatesWithAnyLabelBucketCount: number | null;
+  candidateSignatureSourceCandidatesWithAnyDiagnosticSurfaceCount: number | null;
+  candidateSignatureSourceAllCandidatesReducedShape: boolean | null;
+  candidateSignatureSourceAllCandidatesSurfaceEmpty: boolean | null;
+  candidateSignatureSourcePotentialPropagationGapDetected: boolean | null;
+};
+
 export interface PhysicalOperatingAddressCaptureOnlyResult {
   diagnostics: string[];
   fieldsBefore: number;
@@ -393,6 +468,29 @@ export interface PhysicalOperatingAddressCaptureOnlyResult {
   radioGroupReferenceTargetExists: boolean;
   radioGroupReferenceTargetVisible: boolean;
   radioGroupCommonOwnerCategory: PhysicalOperatingAddressAddressOptionsOwnershipAnchorCommonOwnerCategory;
+  candidateSignatureSourceSummaryPresent: boolean;
+  candidateSignatureSourceOutcomeCategory: PhysicalOperatingAddressCandidateSignatureSourceOutcomeCategory;
+  candidateSignatureSourceRejectedReasons: PhysicalOperatingAddressCandidateSignatureSourceRejectedReason[];
+  candidateSignatureSourceSummary: PhysicalOperatingAddressCandidateSignatureSourceSummary;
+  candidateSignatureSourceCandidateCount: number;
+  candidateSignatureSourceCandidatesWithOriginalFieldCount: number;
+  candidateSignatureSourceCandidatesWithSafeFieldKeyCount: number;
+  candidateSignatureSourceCandidatesWithIdOrNameKeyCount: number;
+  candidateSignatureSourceCandidatesWithInputTypeCount: number;
+  candidateSignatureSourceCandidatesWithControlCategoryCount: number;
+  candidateSignatureSourceCandidatesWithProxyReferenceSignatureCount: number;
+  candidateSignatureSourceCandidatesWithDomAttributeSignatureCount: number;
+  candidateSignatureSourceCandidatesWithRadioGraphicSignatureCount: number;
+  candidateSignatureSourceCandidatesWithNonTextLayoutSignatureCount: number;
+  candidateSignatureSourceCandidatesWithContainerContextLabelsCount: number;
+  candidateSignatureSourceCandidatesWithLayoutProximityEvidenceCount: number;
+  candidateSignatureSourceCandidatesWithGroupNameCount: number;
+  candidateSignatureSourceCandidatesWithResolvedLabelCount: number;
+  candidateSignatureSourceCandidatesWithAnyLabelBucketCount: number;
+  candidateSignatureSourceCandidatesWithAnyDiagnosticSurfaceCount: number;
+  candidateSignatureSourceAllCandidatesReducedShape: boolean;
+  candidateSignatureSourceAllCandidatesSurfaceEmpty: boolean;
+  candidateSignatureSourcePotentialPropagationGapDetected: boolean;
   ownershipSourceInputSummaryPresent: boolean;
   ownershipSourceInputOutcomeCategory: PhysicalOperatingAddressOwnershipSourceInputOutcomeCategory;
   ownershipSourceInputRejectedReasons: PhysicalOperatingAddressOwnershipSourceInputRejectedReason[];
@@ -439,6 +537,52 @@ const PHYSICAL_ADDRESS_CAPTURE_ONLY_DEPENDENCIES: PhysicalOperatingAddressCaptur
   writePhysicalOperatingAddressPostToggleArtifacts,
   readArtifactFreshnessSnapshot: readPhysicalOperatingAddressCaptureOnlyArtifactFreshnessSnapshot,
 };
+
+function buildCandidateSignatureSourceFieldProjection<T extends CandidateSignatureSourceFieldCarrier>(
+  source: T,
+): CandidateSignatureSourceFieldCarrier {
+  return {
+    candidateSignatureSourceSummaryPresent: source.candidateSignatureSourceSummaryPresent,
+    candidateSignatureSourceOutcomeCategory: source.candidateSignatureSourceOutcomeCategory,
+    candidateSignatureSourceRejectedReasons: source.candidateSignatureSourceRejectedReasons,
+    candidateSignatureSourceSummary: source.candidateSignatureSourceSummary,
+    candidateSignatureSourceCandidateCount: source.candidateSignatureSourceCandidateCount,
+    candidateSignatureSourceCandidatesWithOriginalFieldCount:
+      source.candidateSignatureSourceCandidatesWithOriginalFieldCount,
+    candidateSignatureSourceCandidatesWithSafeFieldKeyCount:
+      source.candidateSignatureSourceCandidatesWithSafeFieldKeyCount,
+    candidateSignatureSourceCandidatesWithIdOrNameKeyCount:
+      source.candidateSignatureSourceCandidatesWithIdOrNameKeyCount,
+    candidateSignatureSourceCandidatesWithInputTypeCount:
+      source.candidateSignatureSourceCandidatesWithInputTypeCount,
+    candidateSignatureSourceCandidatesWithControlCategoryCount:
+      source.candidateSignatureSourceCandidatesWithControlCategoryCount,
+    candidateSignatureSourceCandidatesWithProxyReferenceSignatureCount:
+      source.candidateSignatureSourceCandidatesWithProxyReferenceSignatureCount,
+    candidateSignatureSourceCandidatesWithDomAttributeSignatureCount:
+      source.candidateSignatureSourceCandidatesWithDomAttributeSignatureCount,
+    candidateSignatureSourceCandidatesWithRadioGraphicSignatureCount:
+      source.candidateSignatureSourceCandidatesWithRadioGraphicSignatureCount,
+    candidateSignatureSourceCandidatesWithNonTextLayoutSignatureCount:
+      source.candidateSignatureSourceCandidatesWithNonTextLayoutSignatureCount,
+    candidateSignatureSourceCandidatesWithContainerContextLabelsCount:
+      source.candidateSignatureSourceCandidatesWithContainerContextLabelsCount,
+    candidateSignatureSourceCandidatesWithLayoutProximityEvidenceCount:
+      source.candidateSignatureSourceCandidatesWithLayoutProximityEvidenceCount,
+    candidateSignatureSourceCandidatesWithGroupNameCount:
+      source.candidateSignatureSourceCandidatesWithGroupNameCount,
+    candidateSignatureSourceCandidatesWithResolvedLabelCount:
+      source.candidateSignatureSourceCandidatesWithResolvedLabelCount,
+    candidateSignatureSourceCandidatesWithAnyLabelBucketCount:
+      source.candidateSignatureSourceCandidatesWithAnyLabelBucketCount,
+    candidateSignatureSourceCandidatesWithAnyDiagnosticSurfaceCount:
+      source.candidateSignatureSourceCandidatesWithAnyDiagnosticSurfaceCount,
+    candidateSignatureSourceAllCandidatesReducedShape: source.candidateSignatureSourceAllCandidatesReducedShape,
+    candidateSignatureSourceAllCandidatesSurfaceEmpty: source.candidateSignatureSourceAllCandidatesSurfaceEmpty,
+    candidateSignatureSourcePotentialPropagationGapDetected:
+      source.candidateSignatureSourcePotentialPropagationGapDetected,
+  };
+}
 
 function normalizeDiagnosticText(value: string | null | undefined): string | null {
   const normalized = (value ?? '').replace(/\s+/g, ' ').trim();
@@ -487,6 +631,29 @@ function buildPhysicalOperatingAddressCaptureOnlyFallbackGuardSummary(): Physica
     radioGroupReferenceTargetExists: null,
     radioGroupReferenceTargetVisible: null,
     radioGroupCommonOwnerCategory: null,
+    candidateSignatureSourceSummaryPresent: null,
+    candidateSignatureSourceOutcomeCategory: null,
+    candidateSignatureSourceRejectedReasons: [],
+    candidateSignatureSourceSummary: null,
+    candidateSignatureSourceCandidateCount: null,
+    candidateSignatureSourceCandidatesWithOriginalFieldCount: null,
+    candidateSignatureSourceCandidatesWithSafeFieldKeyCount: null,
+    candidateSignatureSourceCandidatesWithIdOrNameKeyCount: null,
+    candidateSignatureSourceCandidatesWithInputTypeCount: null,
+    candidateSignatureSourceCandidatesWithControlCategoryCount: null,
+    candidateSignatureSourceCandidatesWithProxyReferenceSignatureCount: null,
+    candidateSignatureSourceCandidatesWithDomAttributeSignatureCount: null,
+    candidateSignatureSourceCandidatesWithRadioGraphicSignatureCount: null,
+    candidateSignatureSourceCandidatesWithNonTextLayoutSignatureCount: null,
+    candidateSignatureSourceCandidatesWithContainerContextLabelsCount: null,
+    candidateSignatureSourceCandidatesWithLayoutProximityEvidenceCount: null,
+    candidateSignatureSourceCandidatesWithGroupNameCount: null,
+    candidateSignatureSourceCandidatesWithResolvedLabelCount: null,
+    candidateSignatureSourceCandidatesWithAnyLabelBucketCount: null,
+    candidateSignatureSourceCandidatesWithAnyDiagnosticSurfaceCount: null,
+    candidateSignatureSourceAllCandidatesReducedShape: null,
+    candidateSignatureSourceAllCandidatesSurfaceEmpty: null,
+    candidateSignatureSourcePotentialPropagationGapDetected: null,
     ownershipSourceInputSummaryPresent: null,
     ownershipSourceInputOutcomeCategory: null,
     ownershipSourceInputRejectedReasons: [],
@@ -625,6 +792,29 @@ function buildFallbackPhysicalOperatingAddressCaptureOnlyResultFields(input: {
     radioGroupReferenceTargetExists: false,
     radioGroupReferenceTargetVisible: false,
     radioGroupCommonOwnerCategory: null,
+    candidateSignatureSourceSummaryPresent: null,
+    candidateSignatureSourceOutcomeCategory: null,
+    candidateSignatureSourceRejectedReasons: [],
+    candidateSignatureSourceSummary: null,
+    candidateSignatureSourceCandidateCount: null,
+    candidateSignatureSourceCandidatesWithOriginalFieldCount: null,
+    candidateSignatureSourceCandidatesWithSafeFieldKeyCount: null,
+    candidateSignatureSourceCandidatesWithIdOrNameKeyCount: null,
+    candidateSignatureSourceCandidatesWithInputTypeCount: null,
+    candidateSignatureSourceCandidatesWithControlCategoryCount: null,
+    candidateSignatureSourceCandidatesWithProxyReferenceSignatureCount: null,
+    candidateSignatureSourceCandidatesWithDomAttributeSignatureCount: null,
+    candidateSignatureSourceCandidatesWithRadioGraphicSignatureCount: null,
+    candidateSignatureSourceCandidatesWithNonTextLayoutSignatureCount: null,
+    candidateSignatureSourceCandidatesWithContainerContextLabelsCount: null,
+    candidateSignatureSourceCandidatesWithLayoutProximityEvidenceCount: null,
+    candidateSignatureSourceCandidatesWithGroupNameCount: null,
+    candidateSignatureSourceCandidatesWithResolvedLabelCount: null,
+    candidateSignatureSourceCandidatesWithAnyLabelBucketCount: null,
+    candidateSignatureSourceCandidatesWithAnyDiagnosticSurfaceCount: null,
+    candidateSignatureSourceAllCandidatesReducedShape: null,
+    candidateSignatureSourceAllCandidatesSurfaceEmpty: null,
+    candidateSignatureSourcePotentialPropagationGapDetected: null,
     ownershipSourceInputSummaryPresent: null,
     ownershipSourceInputOutcomeCategory: null,
     ownershipSourceInputRejectedReasons: [],
@@ -1032,6 +1222,93 @@ function isPhysicalOperatingAddressOwnershipSourceInputSummary(
     || value === 'ownership source input check found safe ownership/reference source buckets before harvest';
 }
 
+function isPhysicalOperatingAddressCandidateSignatureSourceOutcomeCategory(
+  value: unknown,
+): value is PhysicalOperatingAddressCandidateSignatureSourceOutcomeCategory {
+  return value === 'candidate-signature-source-not-checked'
+    || value === 'candidate-signature-source-all-surfaces-empty'
+    || value === 'candidate-signature-source-reduced-candidate-shape'
+    || value === 'candidate-signature-source-original-fields-have-surfaces'
+    || value === 'candidate-signature-source-fallback-candidates-lost-surfaces'
+    || value === 'candidate-signature-source-surfaces-present-but-not-owned'
+    || value === 'candidate-signature-source-prior-guard-failed';
+}
+
+function isPhysicalOperatingAddressCandidateSignatureSourceRejectedReason(
+  value: unknown,
+): value is PhysicalOperatingAddressCandidateSignatureSourceRejectedReason {
+  return value === 'prior-guard-failed'
+    || value === 'all-surfaces-empty'
+    || value === 'reduced-candidate-shape'
+    || value === 'original-fields-have-surfaces-but-fallback-lost-them'
+    || value === 'surfaces-present-but-not-owned'
+    || value === 'no-safe-field-key'
+    || value === 'no-safe-signature-surface'
+    || value === 'another-bounded-reason';
+}
+
+function isPhysicalOperatingAddressCandidateSignatureSourceSummary(
+  value: unknown,
+): value is PhysicalOperatingAddressCandidateSignatureSourceSummary {
+  return value === 'candidate signature source check was not performed'
+    || value === 'candidate signature source check skipped because the exact-three-radio guard failed'
+    || value === 'candidate signature source check found all candidate diagnostic surfaces empty'
+    || value === 'candidate signature source check found only reduced fallback candidate shape before ownership input diagnostics'
+    || value === 'candidate signature source check found original field surfaces that fallback candidates did not preserve'
+    || value === 'candidate signature source check found original fields preserving diagnostic surfaces before ownership input diagnostics'
+    || value === 'candidate signature source check found safe candidate surfaces that ownership-input diagnostics do not use';
+}
+
+function isCandidateSignatureSourceFieldCarrier(candidate: Record<string, unknown>): boolean {
+  return (typeof candidate.candidateSignatureSourceSummaryPresent === 'boolean'
+      || candidate.candidateSignatureSourceSummaryPresent === null)
+    && (candidate.candidateSignatureSourceOutcomeCategory === null
+      || isPhysicalOperatingAddressCandidateSignatureSourceOutcomeCategory(candidate.candidateSignatureSourceOutcomeCategory))
+    && Array.isArray(candidate.candidateSignatureSourceRejectedReasons)
+    && candidate.candidateSignatureSourceRejectedReasons
+      .every(isPhysicalOperatingAddressCandidateSignatureSourceRejectedReason)
+    && (candidate.candidateSignatureSourceSummary === null
+      || isPhysicalOperatingAddressCandidateSignatureSourceSummary(candidate.candidateSignatureSourceSummary))
+    && (typeof candidate.candidateSignatureSourceCandidateCount === 'number'
+      || candidate.candidateSignatureSourceCandidateCount === null)
+    && (typeof candidate.candidateSignatureSourceCandidatesWithOriginalFieldCount === 'number'
+      || candidate.candidateSignatureSourceCandidatesWithOriginalFieldCount === null)
+    && (typeof candidate.candidateSignatureSourceCandidatesWithSafeFieldKeyCount === 'number'
+      || candidate.candidateSignatureSourceCandidatesWithSafeFieldKeyCount === null)
+    && (typeof candidate.candidateSignatureSourceCandidatesWithIdOrNameKeyCount === 'number'
+      || candidate.candidateSignatureSourceCandidatesWithIdOrNameKeyCount === null)
+    && (typeof candidate.candidateSignatureSourceCandidatesWithInputTypeCount === 'number'
+      || candidate.candidateSignatureSourceCandidatesWithInputTypeCount === null)
+    && (typeof candidate.candidateSignatureSourceCandidatesWithControlCategoryCount === 'number'
+      || candidate.candidateSignatureSourceCandidatesWithControlCategoryCount === null)
+    && (typeof candidate.candidateSignatureSourceCandidatesWithProxyReferenceSignatureCount === 'number'
+      || candidate.candidateSignatureSourceCandidatesWithProxyReferenceSignatureCount === null)
+    && (typeof candidate.candidateSignatureSourceCandidatesWithDomAttributeSignatureCount === 'number'
+      || candidate.candidateSignatureSourceCandidatesWithDomAttributeSignatureCount === null)
+    && (typeof candidate.candidateSignatureSourceCandidatesWithRadioGraphicSignatureCount === 'number'
+      || candidate.candidateSignatureSourceCandidatesWithRadioGraphicSignatureCount === null)
+    && (typeof candidate.candidateSignatureSourceCandidatesWithNonTextLayoutSignatureCount === 'number'
+      || candidate.candidateSignatureSourceCandidatesWithNonTextLayoutSignatureCount === null)
+    && (typeof candidate.candidateSignatureSourceCandidatesWithContainerContextLabelsCount === 'number'
+      || candidate.candidateSignatureSourceCandidatesWithContainerContextLabelsCount === null)
+    && (typeof candidate.candidateSignatureSourceCandidatesWithLayoutProximityEvidenceCount === 'number'
+      || candidate.candidateSignatureSourceCandidatesWithLayoutProximityEvidenceCount === null)
+    && (typeof candidate.candidateSignatureSourceCandidatesWithGroupNameCount === 'number'
+      || candidate.candidateSignatureSourceCandidatesWithGroupNameCount === null)
+    && (typeof candidate.candidateSignatureSourceCandidatesWithResolvedLabelCount === 'number'
+      || candidate.candidateSignatureSourceCandidatesWithResolvedLabelCount === null)
+    && (typeof candidate.candidateSignatureSourceCandidatesWithAnyLabelBucketCount === 'number'
+      || candidate.candidateSignatureSourceCandidatesWithAnyLabelBucketCount === null)
+    && (typeof candidate.candidateSignatureSourceCandidatesWithAnyDiagnosticSurfaceCount === 'number'
+      || candidate.candidateSignatureSourceCandidatesWithAnyDiagnosticSurfaceCount === null)
+    && (typeof candidate.candidateSignatureSourceAllCandidatesReducedShape === 'boolean'
+      || candidate.candidateSignatureSourceAllCandidatesReducedShape === null)
+    && (typeof candidate.candidateSignatureSourceAllCandidatesSurfaceEmpty === 'boolean'
+      || candidate.candidateSignatureSourceAllCandidatesSurfaceEmpty === null)
+    && (typeof candidate.candidateSignatureSourcePotentialPropagationGapDetected === 'boolean'
+      || candidate.candidateSignatureSourcePotentialPropagationGapDetected === null);
+}
+
 function isPhysicalOperatingAddressUiEffectOutcomeCategory(
   value: unknown,
 ): value is PhysicalOperatingAddressUiEffectOutcomeCategory {
@@ -1145,6 +1422,7 @@ export function buildPhysicalOperatingAddressCaptureOnlyReceipt(input: {
         result.calibratedFallbackGuardSummary.radioGroupReferenceTargetVisible,
       radioGroupCommonOwnerCategory:
         result.calibratedFallbackGuardSummary.radioGroupCommonOwnerCategory,
+      ...buildCandidateSignatureSourceFieldProjection(result.calibratedFallbackGuardSummary),
       ownershipSourceInputSummaryPresent:
         result.calibratedFallbackGuardSummary.ownershipSourceInputSummaryPresent,
       ownershipSourceInputOutcomeCategory:
@@ -1263,6 +1541,7 @@ export function buildPhysicalOperatingAddressCaptureOnlyReceipt(input: {
     radioGroupReferenceTargetExists: result.radioGroupReferenceTargetExists,
     radioGroupReferenceTargetVisible: result.radioGroupReferenceTargetVisible,
     radioGroupCommonOwnerCategory: result.radioGroupCommonOwnerCategory,
+    ...buildCandidateSignatureSourceFieldProjection(result),
     ownershipSourceInputSummaryPresent: result.ownershipSourceInputSummaryPresent,
     ownershipSourceInputOutcomeCategory: result.ownershipSourceInputOutcomeCategory,
     ownershipSourceInputRejectedReasons: result.ownershipSourceInputRejectedReasons,
@@ -1480,6 +1759,7 @@ export function isPhysicalOperatingAddressCaptureOnlyReceipt(
       || isPhysicalOperatingAddressAddressOptionsOwnershipAnchorCommonOwnerCategory(
         (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).radioGroupCommonOwnerCategory,
       ))
+    && isCandidateSignatureSourceFieldCarrier(candidate.calibratedFallbackGuardSummary as Record<string, unknown>)
     && (typeof (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ownershipSourceInputSummaryPresent === 'boolean'
       || (candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ownershipSourceInputSummaryPresent === null)
     && ((((candidate.calibratedFallbackGuardSummary as Record<string, unknown>).ownershipSourceInputOutcomeCategory) === null)
@@ -1633,6 +1913,7 @@ export function isPhysicalOperatingAddressCaptureOnlyReceipt(
     && (typeof candidate.radioGroupReferenceTargetVisible === 'boolean' || candidate.radioGroupReferenceTargetVisible === null)
     && (candidate.radioGroupCommonOwnerCategory === null
       || isPhysicalOperatingAddressAddressOptionsOwnershipAnchorCommonOwnerCategory(candidate.radioGroupCommonOwnerCategory))
+    && isCandidateSignatureSourceFieldCarrier(candidate as Record<string, unknown>)
     && (typeof candidate.ownershipSourceInputSummaryPresent === 'boolean' || candidate.ownershipSourceInputSummaryPresent === null)
     && (candidate.ownershipSourceInputOutcomeCategory === null
       || isPhysicalOperatingAddressOwnershipSourceInputOutcomeCategory(candidate.ownershipSourceInputOutcomeCategory))
@@ -2006,6 +2287,7 @@ export async function runPhysicalOperatingAddressCaptureOnly(
       radioGroupReferenceTargetExists: expansion.toggleSelectionSummary.radioGroupReferenceTargetExists,
       radioGroupReferenceTargetVisible: expansion.toggleSelectionSummary.radioGroupReferenceTargetVisible,
       radioGroupCommonOwnerCategory: expansion.toggleSelectionSummary.radioGroupCommonOwnerCategory,
+      ...buildCandidateSignatureSourceFieldProjection(expansion.toggleSelectionSummary),
       ownershipSourceInputSummaryPresent: expansion.toggleSelectionSummary.ownershipSourceInputSummaryPresent,
       ownershipSourceInputOutcomeCategory: expansion.toggleSelectionSummary.ownershipSourceInputOutcomeCategory,
       ownershipSourceInputRejectedReasons: expansion.toggleSelectionSummary.ownershipSourceInputRejectedReasons,
@@ -2179,6 +2461,7 @@ export async function runPhysicalOperatingAddressCaptureOnly(
       radioGroupReferenceTargetExists: expansion.toggleSelectionSummary.radioGroupReferenceTargetExists,
       radioGroupReferenceTargetVisible: expansion.toggleSelectionSummary.radioGroupReferenceTargetVisible,
       radioGroupCommonOwnerCategory: expansion.toggleSelectionSummary.radioGroupCommonOwnerCategory,
+      ...buildCandidateSignatureSourceFieldProjection(expansion.toggleSelectionSummary),
       ownershipSourceInputSummaryPresent: expansion.toggleSelectionSummary.ownershipSourceInputSummaryPresent,
       ownershipSourceInputOutcomeCategory: expansion.toggleSelectionSummary.ownershipSourceInputOutcomeCategory,
       ownershipSourceInputRejectedReasons: expansion.toggleSelectionSummary.ownershipSourceInputRejectedReasons,
@@ -2334,6 +2617,7 @@ export async function runPhysicalOperatingAddressCaptureOnly(
       radioGroupReferenceTargetExists: expansion.toggleSelectionSummary.radioGroupReferenceTargetExists,
       radioGroupReferenceTargetVisible: expansion.toggleSelectionSummary.radioGroupReferenceTargetVisible,
       radioGroupCommonOwnerCategory: expansion.toggleSelectionSummary.radioGroupCommonOwnerCategory,
+      ...buildCandidateSignatureSourceFieldProjection(expansion.toggleSelectionSummary),
       ownershipSourceInputSummaryPresent: expansion.toggleSelectionSummary.ownershipSourceInputSummaryPresent,
       ownershipSourceInputOutcomeCategory: expansion.toggleSelectionSummary.ownershipSourceInputOutcomeCategory,
       ownershipSourceInputRejectedReasons: expansion.toggleSelectionSummary.ownershipSourceInputRejectedReasons,
@@ -2481,6 +2765,7 @@ export async function runPhysicalOperatingAddressCaptureOnly(
     radioGroupReferenceTargetExists: expansion.toggleSelectionSummary.radioGroupReferenceTargetExists,
     radioGroupReferenceTargetVisible: expansion.toggleSelectionSummary.radioGroupReferenceTargetVisible,
     radioGroupCommonOwnerCategory: expansion.toggleSelectionSummary.radioGroupCommonOwnerCategory,
+    ...buildCandidateSignatureSourceFieldProjection(expansion.toggleSelectionSummary),
     ownershipSourceInputSummaryPresent: expansion.toggleSelectionSummary.ownershipSourceInputSummaryPresent,
     ownershipSourceInputOutcomeCategory: expansion.toggleSelectionSummary.ownershipSourceInputOutcomeCategory,
     ownershipSourceInputRejectedReasons: expansion.toggleSelectionSummary.ownershipSourceInputRejectedReasons,

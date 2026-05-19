@@ -268,6 +268,34 @@ export type PhysicalOperatingAddressOwnershipSourceInputSummary =
   | 'ownership source input check found only generic ownership/reference source buckets before harvest'
   | 'ownership source input check found safe ownership/reference source buckets before harvest';
 
+export type PhysicalOperatingAddressCandidateSignatureSourceOutcomeCategory =
+  | 'candidate-signature-source-not-checked'
+  | 'candidate-signature-source-all-surfaces-empty'
+  | 'candidate-signature-source-reduced-candidate-shape'
+  | 'candidate-signature-source-original-fields-have-surfaces'
+  | 'candidate-signature-source-fallback-candidates-lost-surfaces'
+  | 'candidate-signature-source-surfaces-present-but-not-owned'
+  | 'candidate-signature-source-prior-guard-failed';
+
+export type PhysicalOperatingAddressCandidateSignatureSourceRejectedReason =
+  | 'prior-guard-failed'
+  | 'all-surfaces-empty'
+  | 'reduced-candidate-shape'
+  | 'original-fields-have-surfaces-but-fallback-lost-them'
+  | 'surfaces-present-but-not-owned'
+  | 'no-safe-field-key'
+  | 'no-safe-signature-surface'
+  | 'another-bounded-reason';
+
+export type PhysicalOperatingAddressCandidateSignatureSourceSummary =
+  | 'candidate signature source check was not performed'
+  | 'candidate signature source check skipped because the exact-three-radio guard failed'
+  | 'candidate signature source check found all candidate diagnostic surfaces empty'
+  | 'candidate signature source check found only reduced fallback candidate shape before ownership input diagnostics'
+  | 'candidate signature source check found original field surfaces that fallback candidates did not preserve'
+  | 'candidate signature source check found original fields preserving diagnostic surfaces before ownership input diagnostics'
+  | 'candidate signature source check found safe candidate surfaces that ownership-input diagnostics do not use';
+
 export type PhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket =
   | 'business-primary-location'
   | 'registered-legal-address'
@@ -324,6 +352,29 @@ export interface PhysicalOperatingAddressCalibratedFallbackGuardSummary {
   radioGroupReferenceTargetExists: boolean;
   radioGroupReferenceTargetVisible: boolean;
   radioGroupCommonOwnerCategory: PhysicalOperatingAddressAddressOptionsOwnershipAnchorCommonOwnerCategory;
+  candidateSignatureSourceSummaryPresent: boolean;
+  candidateSignatureSourceOutcomeCategory: PhysicalOperatingAddressCandidateSignatureSourceOutcomeCategory;
+  candidateSignatureSourceRejectedReasons: PhysicalOperatingAddressCandidateSignatureSourceRejectedReason[];
+  candidateSignatureSourceSummary: PhysicalOperatingAddressCandidateSignatureSourceSummary;
+  candidateSignatureSourceCandidateCount: number;
+  candidateSignatureSourceCandidatesWithOriginalFieldCount: number;
+  candidateSignatureSourceCandidatesWithSafeFieldKeyCount: number;
+  candidateSignatureSourceCandidatesWithIdOrNameKeyCount: number;
+  candidateSignatureSourceCandidatesWithInputTypeCount: number;
+  candidateSignatureSourceCandidatesWithControlCategoryCount: number;
+  candidateSignatureSourceCandidatesWithProxyReferenceSignatureCount: number;
+  candidateSignatureSourceCandidatesWithDomAttributeSignatureCount: number;
+  candidateSignatureSourceCandidatesWithRadioGraphicSignatureCount: number;
+  candidateSignatureSourceCandidatesWithNonTextLayoutSignatureCount: number;
+  candidateSignatureSourceCandidatesWithContainerContextLabelsCount: number;
+  candidateSignatureSourceCandidatesWithLayoutProximityEvidenceCount: number;
+  candidateSignatureSourceCandidatesWithGroupNameCount: number;
+  candidateSignatureSourceCandidatesWithResolvedLabelCount: number;
+  candidateSignatureSourceCandidatesWithAnyLabelBucketCount: number;
+  candidateSignatureSourceCandidatesWithAnyDiagnosticSurfaceCount: number;
+  candidateSignatureSourceAllCandidatesReducedShape: boolean;
+  candidateSignatureSourceAllCandidatesSurfaceEmpty: boolean;
+  candidateSignatureSourcePotentialPropagationGapDetected: boolean;
   ownershipSourceInputSummaryPresent: boolean;
   ownershipSourceInputOutcomeCategory: PhysicalOperatingAddressOwnershipSourceInputOutcomeCategory;
   ownershipSourceInputRejectedReasons: PhysicalOperatingAddressOwnershipSourceInputRejectedReason[];
@@ -418,6 +469,29 @@ export interface PhysicalOperatingAddressToggleSelectionSummary {
   radioGroupReferenceTargetExists: boolean;
   radioGroupReferenceTargetVisible: boolean;
   radioGroupCommonOwnerCategory: PhysicalOperatingAddressAddressOptionsOwnershipAnchorCommonOwnerCategory;
+  candidateSignatureSourceSummaryPresent: boolean;
+  candidateSignatureSourceOutcomeCategory: PhysicalOperatingAddressCandidateSignatureSourceOutcomeCategory;
+  candidateSignatureSourceRejectedReasons: PhysicalOperatingAddressCandidateSignatureSourceRejectedReason[];
+  candidateSignatureSourceSummary: PhysicalOperatingAddressCandidateSignatureSourceSummary;
+  candidateSignatureSourceCandidateCount: number;
+  candidateSignatureSourceCandidatesWithOriginalFieldCount: number;
+  candidateSignatureSourceCandidatesWithSafeFieldKeyCount: number;
+  candidateSignatureSourceCandidatesWithIdOrNameKeyCount: number;
+  candidateSignatureSourceCandidatesWithInputTypeCount: number;
+  candidateSignatureSourceCandidatesWithControlCategoryCount: number;
+  candidateSignatureSourceCandidatesWithProxyReferenceSignatureCount: number;
+  candidateSignatureSourceCandidatesWithDomAttributeSignatureCount: number;
+  candidateSignatureSourceCandidatesWithRadioGraphicSignatureCount: number;
+  candidateSignatureSourceCandidatesWithNonTextLayoutSignatureCount: number;
+  candidateSignatureSourceCandidatesWithContainerContextLabelsCount: number;
+  candidateSignatureSourceCandidatesWithLayoutProximityEvidenceCount: number;
+  candidateSignatureSourceCandidatesWithGroupNameCount: number;
+  candidateSignatureSourceCandidatesWithResolvedLabelCount: number;
+  candidateSignatureSourceCandidatesWithAnyLabelBucketCount: number;
+  candidateSignatureSourceCandidatesWithAnyDiagnosticSurfaceCount: number;
+  candidateSignatureSourceAllCandidatesReducedShape: boolean;
+  candidateSignatureSourceAllCandidatesSurfaceEmpty: boolean;
+  candidateSignatureSourcePotentialPropagationGapDetected: boolean;
   ownershipSourceInputSummaryPresent: boolean;
   ownershipSourceInputOutcomeCategory: PhysicalOperatingAddressOwnershipSourceInputOutcomeCategory;
   ownershipSourceInputRejectedReasons: PhysicalOperatingAddressOwnershipSourceInputRejectedReason[];
@@ -747,6 +821,32 @@ type PhysicalOperatingAddressToggleFallbackInventoryEntry = {
   excludedReasons: string[];
 };
 
+type PhysicalOperatingAddressCandidateSignatureSourceDiagnostics = {
+  candidateSignatureSourceSummaryPresent: boolean;
+  candidateSignatureSourceOutcomeCategory: PhysicalOperatingAddressCandidateSignatureSourceOutcomeCategory;
+  candidateSignatureSourceRejectedReasons: PhysicalOperatingAddressCandidateSignatureSourceRejectedReason[];
+  candidateSignatureSourceSummary: PhysicalOperatingAddressCandidateSignatureSourceSummary;
+  candidateSignatureSourceCandidateCount: number;
+  candidateSignatureSourceCandidatesWithOriginalFieldCount: number;
+  candidateSignatureSourceCandidatesWithSafeFieldKeyCount: number;
+  candidateSignatureSourceCandidatesWithIdOrNameKeyCount: number;
+  candidateSignatureSourceCandidatesWithInputTypeCount: number;
+  candidateSignatureSourceCandidatesWithControlCategoryCount: number;
+  candidateSignatureSourceCandidatesWithProxyReferenceSignatureCount: number;
+  candidateSignatureSourceCandidatesWithDomAttributeSignatureCount: number;
+  candidateSignatureSourceCandidatesWithRadioGraphicSignatureCount: number;
+  candidateSignatureSourceCandidatesWithNonTextLayoutSignatureCount: number;
+  candidateSignatureSourceCandidatesWithContainerContextLabelsCount: number;
+  candidateSignatureSourceCandidatesWithLayoutProximityEvidenceCount: number;
+  candidateSignatureSourceCandidatesWithGroupNameCount: number;
+  candidateSignatureSourceCandidatesWithResolvedLabelCount: number;
+  candidateSignatureSourceCandidatesWithAnyLabelBucketCount: number;
+  candidateSignatureSourceCandidatesWithAnyDiagnosticSurfaceCount: number;
+  candidateSignatureSourceAllCandidatesReducedShape: boolean;
+  candidateSignatureSourceAllCandidatesSurfaceEmpty: boolean;
+  candidateSignatureSourcePotentialPropagationGapDetected: boolean;
+};
+
 type PhysicalOperatingAddressToggleFallbackCueEntry = {
   slot: number;
   fieldIndex: number | null;
@@ -799,6 +899,29 @@ type PhysicalOperatingAddressToggleCalibratedFallbackDiagnostics = {
   radioGroupReferenceTargetExists: boolean;
   radioGroupReferenceTargetVisible: boolean;
   radioGroupCommonOwnerCategory: PhysicalOperatingAddressAddressOptionsOwnershipAnchorCommonOwnerCategory;
+  candidateSignatureSourceSummaryPresent: boolean;
+  candidateSignatureSourceOutcomeCategory: PhysicalOperatingAddressCandidateSignatureSourceOutcomeCategory;
+  candidateSignatureSourceRejectedReasons: PhysicalOperatingAddressCandidateSignatureSourceRejectedReason[];
+  candidateSignatureSourceSummary: PhysicalOperatingAddressCandidateSignatureSourceSummary;
+  candidateSignatureSourceCandidateCount: number;
+  candidateSignatureSourceCandidatesWithOriginalFieldCount: number;
+  candidateSignatureSourceCandidatesWithSafeFieldKeyCount: number;
+  candidateSignatureSourceCandidatesWithIdOrNameKeyCount: number;
+  candidateSignatureSourceCandidatesWithInputTypeCount: number;
+  candidateSignatureSourceCandidatesWithControlCategoryCount: number;
+  candidateSignatureSourceCandidatesWithProxyReferenceSignatureCount: number;
+  candidateSignatureSourceCandidatesWithDomAttributeSignatureCount: number;
+  candidateSignatureSourceCandidatesWithRadioGraphicSignatureCount: number;
+  candidateSignatureSourceCandidatesWithNonTextLayoutSignatureCount: number;
+  candidateSignatureSourceCandidatesWithContainerContextLabelsCount: number;
+  candidateSignatureSourceCandidatesWithLayoutProximityEvidenceCount: number;
+  candidateSignatureSourceCandidatesWithGroupNameCount: number;
+  candidateSignatureSourceCandidatesWithResolvedLabelCount: number;
+  candidateSignatureSourceCandidatesWithAnyLabelBucketCount: number;
+  candidateSignatureSourceCandidatesWithAnyDiagnosticSurfaceCount: number;
+  candidateSignatureSourceAllCandidatesReducedShape: boolean;
+  candidateSignatureSourceAllCandidatesSurfaceEmpty: boolean;
+  candidateSignatureSourcePotentialPropagationGapDetected: boolean;
   ownershipSourceHarvestAttempted: boolean;
   ownershipSourceHarvestOutcomeCategory: PhysicalOperatingAddressOwnershipSourceHarvestOutcomeCategory;
   ownershipSourceHarvestRejectedReasons: PhysicalOperatingAddressOwnershipSourceHarvestRejectedReason[];
@@ -1526,6 +1649,228 @@ function hasAnyOwnershipSourceInputReferenceLikeAttributePresence(field: Guarded
   );
 }
 
+function hasAnyCandidateSignatureSourceLabelBucket(
+  entry: PhysicalOperatingAddressToggleFallbackInventoryEntry,
+): boolean {
+  return entry.resolvedLabelFragments.length > 0
+    || entry.groupLabelFragments.length > 0
+    || entry.ancestorTextFragments.length > 0
+    || entry.siblingTextFragments.length > 0
+    || entry.containerParentTextFragments.length > 0
+    || entry.containerGrandparentTextFragments.length > 0
+    || entry.containerSectionTextFragments.length > 0
+    || entry.containerPrecedingTextFragments.length > 0
+    || entry.containerFollowingTextFragments.length > 0
+    || entry.layoutProximityTextFragments.length > 0
+    || entry.nearbyLabelFragments.length > 0
+    || entry.nearbyTextFragments.length > 0;
+}
+
+function hasAnyCandidateSignatureSourcePreservedSurface(
+  entry: PhysicalOperatingAddressToggleFallbackInventoryEntry,
+): boolean {
+  return Boolean(
+    normalizeText(entry.fieldKey)
+    || entry.proxyReferenceSignature
+    || entry.domAttributeSignature
+    || entry.radioGraphicSignature
+    || entry.nonTextLayoutSignature
+    || hasAnyCandidateSignatureSourceLabelBucket(entry)
+  );
+}
+
+function hasAnyCandidateSignatureSourceRichSurface(
+  field: GuardedToggleField,
+  entry: PhysicalOperatingAddressToggleFallbackInventoryEntry | null,
+): boolean {
+  return Boolean(
+    normalizeText(entry?.fieldKey ?? null)
+    || normalizeText(field.idOrNameKey)
+    || field.proxyReferenceSignature
+    || field.domAttributeSignature
+    || field.radioGraphicSignature
+    || field.nonTextLayoutSignature
+    || (field.containerContextLabels?.length ?? 0) > 0
+    || (field.layoutProximityLabels?.length ?? 0) > 0
+    || normalizeText(field.groupName)
+    || normalizeText(field.resolvedLabel)
+    || (entry && hasAnyCandidateSignatureSourceLabelBucket(entry))
+  );
+}
+
+function buildPhysicalOperatingAddressCandidateSignatureSourceDiagnostics(input: {
+  fields: GuardedToggleField[];
+  fallbackInventory: PhysicalOperatingAddressToggleFallbackInventory;
+  exactThreeRadioGuardPassed: boolean;
+}): PhysicalOperatingAddressCandidateSignatureSourceDiagnostics {
+  const originalVisibleRadioLikeFields = input.fields
+    .map((field) => ({ field, analysis: buildPhysicalOperatingAddressToggleFallbackAnalysis(field) }))
+    .filter(({ analysis }) => analysis.visibleRadioLike)
+    .map(({ field }) => field);
+  const pairedCandidates = input.fallbackInventory.entries.map((entry) => ({
+    entry,
+    field: originalVisibleRadioLikeFields.find((candidate) => candidate.index === entry.fieldIndex) ?? null,
+  }));
+  const candidateSignatureSourceCandidateCount = input.fallbackInventory.entries.length;
+  const candidateSignatureSourceCandidatesWithOriginalFieldCount = pairedCandidates.filter(({ field }) => Boolean(field)).length;
+  const candidateSignatureSourceCandidatesWithSafeFieldKeyCount = input.fallbackInventory.entries.filter(
+    (entry) => Boolean(normalizeText(entry.fieldKey)),
+  ).length;
+  const candidateSignatureSourceCandidatesWithIdOrNameKeyCount = pairedCandidates.filter(
+    ({ field }) => Boolean(field && normalizeText(field.idOrNameKey)),
+  ).length;
+  const candidateSignatureSourceCandidatesWithInputTypeCount = input.fallbackInventory.entries.filter(
+    (entry) => Boolean(normalizeText(entry.inputType)),
+  ).length;
+  const candidateSignatureSourceCandidatesWithControlCategoryCount = input.fallbackInventory.entries.filter(
+    (entry) => Boolean(normalizeText(entry.controlCategory)),
+  ).length;
+  const candidateSignatureSourceCandidatesWithProxyReferenceSignatureCount = pairedCandidates.filter(
+    ({ field }) => Boolean(field?.proxyReferenceSignature),
+  ).length;
+  const candidateSignatureSourceCandidatesWithDomAttributeSignatureCount = pairedCandidates.filter(
+    ({ field }) => Boolean(field?.domAttributeSignature),
+  ).length;
+  const candidateSignatureSourceCandidatesWithRadioGraphicSignatureCount = pairedCandidates.filter(
+    ({ field }) => Boolean(field?.radioGraphicSignature),
+  ).length;
+  const candidateSignatureSourceCandidatesWithNonTextLayoutSignatureCount = pairedCandidates.filter(
+    ({ field }) => Boolean(field?.nonTextLayoutSignature),
+  ).length;
+  const candidateSignatureSourceCandidatesWithContainerContextLabelsCount = pairedCandidates.filter(
+    ({ field }) => Boolean(field && (field.containerContextLabels?.length ?? 0) > 0),
+  ).length;
+  const candidateSignatureSourceCandidatesWithLayoutProximityEvidenceCount = pairedCandidates.filter(
+    ({ field }) => Boolean(field && (field.layoutProximityLabels?.length ?? 0) > 0),
+  ).length;
+  const candidateSignatureSourceCandidatesWithGroupNameCount = pairedCandidates.filter(
+    ({ field }) => Boolean(field && normalizeText(field.groupName)),
+  ).length;
+  const candidateSignatureSourceCandidatesWithResolvedLabelCount = pairedCandidates.filter(
+    ({ field }) => Boolean(field && normalizeText(field.resolvedLabel)),
+  ).length;
+  const candidateSignatureSourceCandidatesWithAnyLabelBucketCount = input.fallbackInventory.entries.filter(
+    hasAnyCandidateSignatureSourceLabelBucket,
+  ).length;
+  const candidateSignatureSourceCandidatesWithAnyDiagnosticSurfaceCount = pairedCandidates.filter(
+    ({ field, entry }) => Boolean(field && hasAnyCandidateSignatureSourceRichSurface(field, entry)),
+  ).length;
+  const candidateSignatureSourceAllCandidatesSurfaceEmpty = candidateSignatureSourceCandidateCount > 0
+    && candidateSignatureSourceCandidatesWithSafeFieldKeyCount === 0
+    && candidateSignatureSourceCandidatesWithIdOrNameKeyCount === 0
+    && candidateSignatureSourceCandidatesWithProxyReferenceSignatureCount === 0
+    && candidateSignatureSourceCandidatesWithDomAttributeSignatureCount === 0
+    && candidateSignatureSourceCandidatesWithRadioGraphicSignatureCount === 0
+    && candidateSignatureSourceCandidatesWithNonTextLayoutSignatureCount === 0
+    && candidateSignatureSourceCandidatesWithContainerContextLabelsCount === 0
+    && candidateSignatureSourceCandidatesWithLayoutProximityEvidenceCount === 0
+    && candidateSignatureSourceCandidatesWithGroupNameCount === 0
+    && candidateSignatureSourceCandidatesWithResolvedLabelCount === 0
+    && candidateSignatureSourceCandidatesWithAnyLabelBucketCount === 0;
+  const candidateSignatureSourceAllCandidatesReducedShape = candidateSignatureSourceAllCandidatesSurfaceEmpty
+    && candidateSignatureSourceCandidateCount > 0
+    && candidateSignatureSourceCandidatesWithOriginalFieldCount === candidateSignatureSourceCandidateCount
+    && candidateSignatureSourceCandidatesWithInputTypeCount === candidateSignatureSourceCandidateCount
+    && candidateSignatureSourceCandidatesWithControlCategoryCount === candidateSignatureSourceCandidateCount;
+  const candidateSignatureSourcePotentialPropagationGapDetected = pairedCandidates.some(({ field, entry }) => Boolean(
+    field
+    && (
+      normalizeText(field.idOrNameKey)
+      || field.proxyReferenceSignature
+      || field.domAttributeSignature
+      || field.radioGraphicSignature
+      || field.nonTextLayoutSignature
+      || (field.containerContextLabels?.length ?? 0) > 0
+      || (field.layoutProximityLabels?.length ?? 0) > 0
+      || normalizeText(field.groupName)
+      || normalizeText(field.resolvedLabel)
+    )
+    && entry
+    && !hasAnyCandidateSignatureSourcePreservedSurface(entry)
+  ));
+  const candidateSignatureSourceSummaryPresent = input.exactThreeRadioGuardPassed
+    && candidateSignatureSourceCandidateCount > 0;
+
+  let candidateSignatureSourceOutcomeCategory: PhysicalOperatingAddressCandidateSignatureSourceOutcomeCategory =
+    'candidate-signature-source-prior-guard-failed';
+  if (!input.exactThreeRadioGuardPassed) {
+    candidateSignatureSourceOutcomeCategory = 'candidate-signature-source-prior-guard-failed';
+  } else if (!candidateSignatureSourceSummaryPresent) {
+    candidateSignatureSourceOutcomeCategory = 'candidate-signature-source-not-checked';
+  } else if (candidateSignatureSourcePotentialPropagationGapDetected) {
+    candidateSignatureSourceOutcomeCategory = 'candidate-signature-source-fallback-candidates-lost-surfaces';
+  } else if (candidateSignatureSourceAllCandidatesReducedShape) {
+    candidateSignatureSourceOutcomeCategory = 'candidate-signature-source-reduced-candidate-shape';
+  } else if (candidateSignatureSourceAllCandidatesSurfaceEmpty) {
+    candidateSignatureSourceOutcomeCategory = 'candidate-signature-source-all-surfaces-empty';
+  } else if (candidateSignatureSourceCandidatesWithAnyDiagnosticSurfaceCount > 0
+    && candidateSignatureSourceCandidatesWithProxyReferenceSignatureCount === 0
+    && candidateSignatureSourceCandidatesWithDomAttributeSignatureCount === 0
+    && candidateSignatureSourceCandidatesWithRadioGraphicSignatureCount === 0
+    && candidateSignatureSourceCandidatesWithNonTextLayoutSignatureCount === 0) {
+    candidateSignatureSourceOutcomeCategory = 'candidate-signature-source-surfaces-present-but-not-owned';
+  } else {
+    candidateSignatureSourceOutcomeCategory = 'candidate-signature-source-original-fields-have-surfaces';
+  }
+
+  const candidateSignatureSourceRejectedReasons: PhysicalOperatingAddressCandidateSignatureSourceRejectedReason[] = [];
+  switch (candidateSignatureSourceOutcomeCategory) {
+    case 'candidate-signature-source-not-checked':
+      candidateSignatureSourceRejectedReasons.push('another-bounded-reason');
+      break;
+    case 'candidate-signature-source-all-surfaces-empty':
+      candidateSignatureSourceRejectedReasons.push('all-surfaces-empty', 'no-safe-signature-surface');
+      break;
+    case 'candidate-signature-source-reduced-candidate-shape':
+      candidateSignatureSourceRejectedReasons.push('reduced-candidate-shape', 'no-safe-signature-surface');
+      if (candidateSignatureSourceCandidatesWithSafeFieldKeyCount === 0) {
+        candidateSignatureSourceRejectedReasons.push('no-safe-field-key');
+      }
+      break;
+    case 'candidate-signature-source-fallback-candidates-lost-surfaces':
+      candidateSignatureSourceRejectedReasons.push('original-fields-have-surfaces-but-fallback-lost-them');
+      break;
+    case 'candidate-signature-source-surfaces-present-but-not-owned':
+      candidateSignatureSourceRejectedReasons.push('surfaces-present-but-not-owned', 'no-safe-signature-surface');
+      if (candidateSignatureSourceCandidatesWithSafeFieldKeyCount === 0) {
+        candidateSignatureSourceRejectedReasons.push('no-safe-field-key');
+      }
+      break;
+    case 'candidate-signature-source-prior-guard-failed':
+      candidateSignatureSourceRejectedReasons.push('prior-guard-failed');
+      break;
+    case 'candidate-signature-source-original-fields-have-surfaces':
+    default:
+      break;
+  }
+
+  return {
+    candidateSignatureSourceSummaryPresent,
+    candidateSignatureSourceOutcomeCategory,
+    candidateSignatureSourceRejectedReasons,
+    candidateSignatureSourceSummary: buildCandidateSignatureSourceSummary(candidateSignatureSourceOutcomeCategory),
+    candidateSignatureSourceCandidateCount,
+    candidateSignatureSourceCandidatesWithOriginalFieldCount,
+    candidateSignatureSourceCandidatesWithSafeFieldKeyCount,
+    candidateSignatureSourceCandidatesWithIdOrNameKeyCount,
+    candidateSignatureSourceCandidatesWithInputTypeCount,
+    candidateSignatureSourceCandidatesWithControlCategoryCount,
+    candidateSignatureSourceCandidatesWithProxyReferenceSignatureCount,
+    candidateSignatureSourceCandidatesWithDomAttributeSignatureCount,
+    candidateSignatureSourceCandidatesWithRadioGraphicSignatureCount,
+    candidateSignatureSourceCandidatesWithNonTextLayoutSignatureCount,
+    candidateSignatureSourceCandidatesWithContainerContextLabelsCount,
+    candidateSignatureSourceCandidatesWithLayoutProximityEvidenceCount,
+    candidateSignatureSourceCandidatesWithGroupNameCount,
+    candidateSignatureSourceCandidatesWithResolvedLabelCount,
+    candidateSignatureSourceCandidatesWithAnyLabelBucketCount,
+    candidateSignatureSourceCandidatesWithAnyDiagnosticSurfaceCount,
+    candidateSignatureSourceAllCandidatesReducedShape,
+    candidateSignatureSourceAllCandidatesSurfaceEmpty,
+    candidateSignatureSourcePotentialPropagationGapDetected,
+  };
+}
+
 function collectOwnershipSourceInputCandidateBuckets(
   field: GuardedToggleField,
 ): PhysicalOperatingAddressAddressOptionsOwnershipAnchorTokenBucket[] {
@@ -1561,6 +1906,28 @@ function buildOwnershipSourceInputSummary(
     case 'ownership-input-prior-guard-failed':
     default:
       return 'ownership source input check skipped because the exact-three-radio guard failed';
+  }
+}
+
+function buildCandidateSignatureSourceSummary(
+  category: PhysicalOperatingAddressCandidateSignatureSourceOutcomeCategory,
+): PhysicalOperatingAddressCandidateSignatureSourceSummary {
+  switch (category) {
+    case 'candidate-signature-source-all-surfaces-empty':
+      return 'candidate signature source check found all candidate diagnostic surfaces empty';
+    case 'candidate-signature-source-reduced-candidate-shape':
+      return 'candidate signature source check found only reduced fallback candidate shape before ownership input diagnostics';
+    case 'candidate-signature-source-fallback-candidates-lost-surfaces':
+      return 'candidate signature source check found original field surfaces that fallback candidates did not preserve';
+    case 'candidate-signature-source-original-fields-have-surfaces':
+      return 'candidate signature source check found original fields preserving diagnostic surfaces before ownership input diagnostics';
+    case 'candidate-signature-source-surfaces-present-but-not-owned':
+      return 'candidate signature source check found safe candidate surfaces that ownership-input diagnostics do not use';
+    case 'candidate-signature-source-prior-guard-failed':
+      return 'candidate signature source check skipped because the exact-three-radio guard failed';
+    case 'candidate-signature-source-not-checked':
+    default:
+      return 'candidate signature source check was not performed';
   }
 }
 
@@ -1705,6 +2072,29 @@ function buildDefaultPhysicalOperatingAddressCalibratedFallbackGuardSummary(): P
     radioGroupReferenceTargetExists: false,
     radioGroupReferenceTargetVisible: false,
     radioGroupCommonOwnerCategory: 'not-checked',
+    candidateSignatureSourceSummaryPresent: false,
+    candidateSignatureSourceOutcomeCategory: 'candidate-signature-source-prior-guard-failed',
+    candidateSignatureSourceRejectedReasons: ['prior-guard-failed'],
+    candidateSignatureSourceSummary: 'candidate signature source check skipped because the exact-three-radio guard failed',
+    candidateSignatureSourceCandidateCount: 0,
+    candidateSignatureSourceCandidatesWithOriginalFieldCount: 0,
+    candidateSignatureSourceCandidatesWithSafeFieldKeyCount: 0,
+    candidateSignatureSourceCandidatesWithIdOrNameKeyCount: 0,
+    candidateSignatureSourceCandidatesWithInputTypeCount: 0,
+    candidateSignatureSourceCandidatesWithControlCategoryCount: 0,
+    candidateSignatureSourceCandidatesWithProxyReferenceSignatureCount: 0,
+    candidateSignatureSourceCandidatesWithDomAttributeSignatureCount: 0,
+    candidateSignatureSourceCandidatesWithRadioGraphicSignatureCount: 0,
+    candidateSignatureSourceCandidatesWithNonTextLayoutSignatureCount: 0,
+    candidateSignatureSourceCandidatesWithContainerContextLabelsCount: 0,
+    candidateSignatureSourceCandidatesWithLayoutProximityEvidenceCount: 0,
+    candidateSignatureSourceCandidatesWithGroupNameCount: 0,
+    candidateSignatureSourceCandidatesWithResolvedLabelCount: 0,
+    candidateSignatureSourceCandidatesWithAnyLabelBucketCount: 0,
+    candidateSignatureSourceCandidatesWithAnyDiagnosticSurfaceCount: 0,
+    candidateSignatureSourceAllCandidatesReducedShape: false,
+    candidateSignatureSourceAllCandidatesSurfaceEmpty: false,
+    candidateSignatureSourcePotentialPropagationGapDetected: false,
     ownershipSourceInputSummaryPresent: false,
     ownershipSourceInputOutcomeCategory: 'ownership-input-prior-guard-failed',
     ownershipSourceInputRejectedReasons: ['prior-guard-failed'],
@@ -2666,6 +3056,11 @@ function buildCalibratedPhysicalOperatingAddressFallbackDiagnostics(
     fields,
     exactThreeRadioGuardPassed,
   });
+  const candidateSignatureSourceDiagnostics = buildPhysicalOperatingAddressCandidateSignatureSourceDiagnostics({
+    fields,
+    fallbackInventory,
+    exactThreeRadioGuardPassed,
+  });
   const ownershipAnchorEvidence = buildPhysicalOperatingAddressAddressOptionsOwnershipAnchorEvidence({
     fields,
     exactThreeRadioGuardPassed,
@@ -2730,6 +3125,47 @@ function buildCalibratedPhysicalOperatingAddressFallbackDiagnostics(
     radioGroupReferenceTargetExists: ownershipAnchorEvidence.radioGroupReferenceTargetExists,
     radioGroupReferenceTargetVisible: ownershipAnchorEvidence.radioGroupReferenceTargetVisible,
     radioGroupCommonOwnerCategory: ownershipAnchorEvidence.radioGroupCommonOwnerCategory,
+    candidateSignatureSourceSummaryPresent: candidateSignatureSourceDiagnostics.candidateSignatureSourceSummaryPresent,
+    candidateSignatureSourceOutcomeCategory: candidateSignatureSourceDiagnostics.candidateSignatureSourceOutcomeCategory,
+    candidateSignatureSourceRejectedReasons: candidateSignatureSourceDiagnostics.candidateSignatureSourceRejectedReasons,
+    candidateSignatureSourceSummary: candidateSignatureSourceDiagnostics.candidateSignatureSourceSummary,
+    candidateSignatureSourceCandidateCount: candidateSignatureSourceDiagnostics.candidateSignatureSourceCandidateCount,
+    candidateSignatureSourceCandidatesWithOriginalFieldCount:
+      candidateSignatureSourceDiagnostics.candidateSignatureSourceCandidatesWithOriginalFieldCount,
+    candidateSignatureSourceCandidatesWithSafeFieldKeyCount:
+      candidateSignatureSourceDiagnostics.candidateSignatureSourceCandidatesWithSafeFieldKeyCount,
+    candidateSignatureSourceCandidatesWithIdOrNameKeyCount:
+      candidateSignatureSourceDiagnostics.candidateSignatureSourceCandidatesWithIdOrNameKeyCount,
+    candidateSignatureSourceCandidatesWithInputTypeCount:
+      candidateSignatureSourceDiagnostics.candidateSignatureSourceCandidatesWithInputTypeCount,
+    candidateSignatureSourceCandidatesWithControlCategoryCount:
+      candidateSignatureSourceDiagnostics.candidateSignatureSourceCandidatesWithControlCategoryCount,
+    candidateSignatureSourceCandidatesWithProxyReferenceSignatureCount:
+      candidateSignatureSourceDiagnostics.candidateSignatureSourceCandidatesWithProxyReferenceSignatureCount,
+    candidateSignatureSourceCandidatesWithDomAttributeSignatureCount:
+      candidateSignatureSourceDiagnostics.candidateSignatureSourceCandidatesWithDomAttributeSignatureCount,
+    candidateSignatureSourceCandidatesWithRadioGraphicSignatureCount:
+      candidateSignatureSourceDiagnostics.candidateSignatureSourceCandidatesWithRadioGraphicSignatureCount,
+    candidateSignatureSourceCandidatesWithNonTextLayoutSignatureCount:
+      candidateSignatureSourceDiagnostics.candidateSignatureSourceCandidatesWithNonTextLayoutSignatureCount,
+    candidateSignatureSourceCandidatesWithContainerContextLabelsCount:
+      candidateSignatureSourceDiagnostics.candidateSignatureSourceCandidatesWithContainerContextLabelsCount,
+    candidateSignatureSourceCandidatesWithLayoutProximityEvidenceCount:
+      candidateSignatureSourceDiagnostics.candidateSignatureSourceCandidatesWithLayoutProximityEvidenceCount,
+    candidateSignatureSourceCandidatesWithGroupNameCount:
+      candidateSignatureSourceDiagnostics.candidateSignatureSourceCandidatesWithGroupNameCount,
+    candidateSignatureSourceCandidatesWithResolvedLabelCount:
+      candidateSignatureSourceDiagnostics.candidateSignatureSourceCandidatesWithResolvedLabelCount,
+    candidateSignatureSourceCandidatesWithAnyLabelBucketCount:
+      candidateSignatureSourceDiagnostics.candidateSignatureSourceCandidatesWithAnyLabelBucketCount,
+    candidateSignatureSourceCandidatesWithAnyDiagnosticSurfaceCount:
+      candidateSignatureSourceDiagnostics.candidateSignatureSourceCandidatesWithAnyDiagnosticSurfaceCount,
+    candidateSignatureSourceAllCandidatesReducedShape:
+      candidateSignatureSourceDiagnostics.candidateSignatureSourceAllCandidatesReducedShape,
+    candidateSignatureSourceAllCandidatesSurfaceEmpty:
+      candidateSignatureSourceDiagnostics.candidateSignatureSourceAllCandidatesSurfaceEmpty,
+    candidateSignatureSourcePotentialPropagationGapDetected:
+      candidateSignatureSourceDiagnostics.candidateSignatureSourcePotentialPropagationGapDetected,
     ownershipSourceInputSummaryPresent: ownershipAnchorEvidence.ownershipSourceInputSummaryPresent,
     ownershipSourceInputOutcomeCategory: ownershipAnchorEvidence.ownershipSourceInputOutcomeCategory,
     ownershipSourceInputRejectedReasons: ownershipAnchorEvidence.ownershipSourceInputRejectedReasons,
@@ -2871,6 +3307,47 @@ export function buildPhysicalOperatingAddressToggleSelectionSummary<T extends Gu
       radioGroupReferenceTargetExists: calibratedFallback.radioGroupReferenceTargetExists,
       radioGroupReferenceTargetVisible: calibratedFallback.radioGroupReferenceTargetVisible,
       radioGroupCommonOwnerCategory: calibratedFallback.radioGroupCommonOwnerCategory,
+      candidateSignatureSourceSummaryPresent: calibratedFallback.candidateSignatureSourceSummaryPresent,
+      candidateSignatureSourceOutcomeCategory: calibratedFallback.candidateSignatureSourceOutcomeCategory,
+      candidateSignatureSourceRejectedReasons: calibratedFallback.candidateSignatureSourceRejectedReasons,
+      candidateSignatureSourceSummary: calibratedFallback.candidateSignatureSourceSummary,
+      candidateSignatureSourceCandidateCount: calibratedFallback.candidateSignatureSourceCandidateCount,
+      candidateSignatureSourceCandidatesWithOriginalFieldCount:
+        calibratedFallback.candidateSignatureSourceCandidatesWithOriginalFieldCount,
+      candidateSignatureSourceCandidatesWithSafeFieldKeyCount:
+        calibratedFallback.candidateSignatureSourceCandidatesWithSafeFieldKeyCount,
+      candidateSignatureSourceCandidatesWithIdOrNameKeyCount:
+        calibratedFallback.candidateSignatureSourceCandidatesWithIdOrNameKeyCount,
+      candidateSignatureSourceCandidatesWithInputTypeCount:
+        calibratedFallback.candidateSignatureSourceCandidatesWithInputTypeCount,
+      candidateSignatureSourceCandidatesWithControlCategoryCount:
+        calibratedFallback.candidateSignatureSourceCandidatesWithControlCategoryCount,
+      candidateSignatureSourceCandidatesWithProxyReferenceSignatureCount:
+        calibratedFallback.candidateSignatureSourceCandidatesWithProxyReferenceSignatureCount,
+      candidateSignatureSourceCandidatesWithDomAttributeSignatureCount:
+        calibratedFallback.candidateSignatureSourceCandidatesWithDomAttributeSignatureCount,
+      candidateSignatureSourceCandidatesWithRadioGraphicSignatureCount:
+        calibratedFallback.candidateSignatureSourceCandidatesWithRadioGraphicSignatureCount,
+      candidateSignatureSourceCandidatesWithNonTextLayoutSignatureCount:
+        calibratedFallback.candidateSignatureSourceCandidatesWithNonTextLayoutSignatureCount,
+      candidateSignatureSourceCandidatesWithContainerContextLabelsCount:
+        calibratedFallback.candidateSignatureSourceCandidatesWithContainerContextLabelsCount,
+      candidateSignatureSourceCandidatesWithLayoutProximityEvidenceCount:
+        calibratedFallback.candidateSignatureSourceCandidatesWithLayoutProximityEvidenceCount,
+      candidateSignatureSourceCandidatesWithGroupNameCount:
+        calibratedFallback.candidateSignatureSourceCandidatesWithGroupNameCount,
+      candidateSignatureSourceCandidatesWithResolvedLabelCount:
+        calibratedFallback.candidateSignatureSourceCandidatesWithResolvedLabelCount,
+      candidateSignatureSourceCandidatesWithAnyLabelBucketCount:
+        calibratedFallback.candidateSignatureSourceCandidatesWithAnyLabelBucketCount,
+      candidateSignatureSourceCandidatesWithAnyDiagnosticSurfaceCount:
+        calibratedFallback.candidateSignatureSourceCandidatesWithAnyDiagnosticSurfaceCount,
+      candidateSignatureSourceAllCandidatesReducedShape:
+        calibratedFallback.candidateSignatureSourceAllCandidatesReducedShape,
+      candidateSignatureSourceAllCandidatesSurfaceEmpty:
+        calibratedFallback.candidateSignatureSourceAllCandidatesSurfaceEmpty,
+      candidateSignatureSourcePotentialPropagationGapDetected:
+        calibratedFallback.candidateSignatureSourcePotentialPropagationGapDetected,
       ownershipSourceInputSummaryPresent: calibratedFallback.ownershipSourceInputSummaryPresent,
       ownershipSourceInputOutcomeCategory: calibratedFallback.ownershipSourceInputOutcomeCategory,
       ownershipSourceInputRejectedReasons: calibratedFallback.ownershipSourceInputRejectedReasons,
@@ -3019,6 +3496,47 @@ export function buildPhysicalOperatingAddressToggleSelectionSummary<T extends Gu
     radioGroupReferenceTargetExists: calibratedFallbackGuardSummary.radioGroupReferenceTargetExists,
     radioGroupReferenceTargetVisible: calibratedFallbackGuardSummary.radioGroupReferenceTargetVisible,
     radioGroupCommonOwnerCategory: calibratedFallbackGuardSummary.radioGroupCommonOwnerCategory,
+    candidateSignatureSourceSummaryPresent: calibratedFallbackGuardSummary.candidateSignatureSourceSummaryPresent,
+    candidateSignatureSourceOutcomeCategory: calibratedFallbackGuardSummary.candidateSignatureSourceOutcomeCategory,
+    candidateSignatureSourceRejectedReasons: calibratedFallbackGuardSummary.candidateSignatureSourceRejectedReasons,
+    candidateSignatureSourceSummary: calibratedFallbackGuardSummary.candidateSignatureSourceSummary,
+    candidateSignatureSourceCandidateCount: calibratedFallbackGuardSummary.candidateSignatureSourceCandidateCount,
+    candidateSignatureSourceCandidatesWithOriginalFieldCount:
+      calibratedFallbackGuardSummary.candidateSignatureSourceCandidatesWithOriginalFieldCount,
+    candidateSignatureSourceCandidatesWithSafeFieldKeyCount:
+      calibratedFallbackGuardSummary.candidateSignatureSourceCandidatesWithSafeFieldKeyCount,
+    candidateSignatureSourceCandidatesWithIdOrNameKeyCount:
+      calibratedFallbackGuardSummary.candidateSignatureSourceCandidatesWithIdOrNameKeyCount,
+    candidateSignatureSourceCandidatesWithInputTypeCount:
+      calibratedFallbackGuardSummary.candidateSignatureSourceCandidatesWithInputTypeCount,
+    candidateSignatureSourceCandidatesWithControlCategoryCount:
+      calibratedFallbackGuardSummary.candidateSignatureSourceCandidatesWithControlCategoryCount,
+    candidateSignatureSourceCandidatesWithProxyReferenceSignatureCount:
+      calibratedFallbackGuardSummary.candidateSignatureSourceCandidatesWithProxyReferenceSignatureCount,
+    candidateSignatureSourceCandidatesWithDomAttributeSignatureCount:
+      calibratedFallbackGuardSummary.candidateSignatureSourceCandidatesWithDomAttributeSignatureCount,
+    candidateSignatureSourceCandidatesWithRadioGraphicSignatureCount:
+      calibratedFallbackGuardSummary.candidateSignatureSourceCandidatesWithRadioGraphicSignatureCount,
+    candidateSignatureSourceCandidatesWithNonTextLayoutSignatureCount:
+      calibratedFallbackGuardSummary.candidateSignatureSourceCandidatesWithNonTextLayoutSignatureCount,
+    candidateSignatureSourceCandidatesWithContainerContextLabelsCount:
+      calibratedFallbackGuardSummary.candidateSignatureSourceCandidatesWithContainerContextLabelsCount,
+    candidateSignatureSourceCandidatesWithLayoutProximityEvidenceCount:
+      calibratedFallbackGuardSummary.candidateSignatureSourceCandidatesWithLayoutProximityEvidenceCount,
+    candidateSignatureSourceCandidatesWithGroupNameCount:
+      calibratedFallbackGuardSummary.candidateSignatureSourceCandidatesWithGroupNameCount,
+    candidateSignatureSourceCandidatesWithResolvedLabelCount:
+      calibratedFallbackGuardSummary.candidateSignatureSourceCandidatesWithResolvedLabelCount,
+    candidateSignatureSourceCandidatesWithAnyLabelBucketCount:
+      calibratedFallbackGuardSummary.candidateSignatureSourceCandidatesWithAnyLabelBucketCount,
+    candidateSignatureSourceCandidatesWithAnyDiagnosticSurfaceCount:
+      calibratedFallbackGuardSummary.candidateSignatureSourceCandidatesWithAnyDiagnosticSurfaceCount,
+    candidateSignatureSourceAllCandidatesReducedShape:
+      calibratedFallbackGuardSummary.candidateSignatureSourceAllCandidatesReducedShape,
+    candidateSignatureSourceAllCandidatesSurfaceEmpty:
+      calibratedFallbackGuardSummary.candidateSignatureSourceAllCandidatesSurfaceEmpty,
+    candidateSignatureSourcePotentialPropagationGapDetected:
+      calibratedFallbackGuardSummary.candidateSignatureSourcePotentialPropagationGapDetected,
     ownershipSourceInputSummaryPresent: calibratedFallbackGuardSummary.ownershipSourceInputSummaryPresent,
     ownershipSourceInputOutcomeCategory: calibratedFallbackGuardSummary.ownershipSourceInputOutcomeCategory,
     ownershipSourceInputRejectedReasons: calibratedFallbackGuardSummary.ownershipSourceInputRejectedReasons,

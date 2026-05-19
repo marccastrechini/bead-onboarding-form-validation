@@ -5936,6 +5936,33 @@ test.describe('interactive validation safety', () => {
     ownershipSourceInputHarvestGapDetected: false,
   });
 
+  const candidateSignatureSourceDebugDefaults = () => ({
+    candidateSignatureSourceSummaryPresent: true,
+    candidateSignatureSourceOutcomeCategory: 'candidate-signature-source-original-fields-have-surfaces',
+    candidateSignatureSourceRejectedReasons: [],
+    candidateSignatureSourceSummary:
+      'candidate signature source check found original fields preserving diagnostic surfaces before ownership input diagnostics',
+    candidateSignatureSourceCandidateCount: 3,
+    candidateSignatureSourceCandidatesWithOriginalFieldCount: 3,
+    candidateSignatureSourceCandidatesWithSafeFieldKeyCount: 0,
+    candidateSignatureSourceCandidatesWithIdOrNameKeyCount: 0,
+    candidateSignatureSourceCandidatesWithInputTypeCount: 3,
+    candidateSignatureSourceCandidatesWithControlCategoryCount: 3,
+    candidateSignatureSourceCandidatesWithProxyReferenceSignatureCount: 3,
+    candidateSignatureSourceCandidatesWithDomAttributeSignatureCount: 0,
+    candidateSignatureSourceCandidatesWithRadioGraphicSignatureCount: 0,
+    candidateSignatureSourceCandidatesWithNonTextLayoutSignatureCount: 0,
+    candidateSignatureSourceCandidatesWithContainerContextLabelsCount: 0,
+    candidateSignatureSourceCandidatesWithLayoutProximityEvidenceCount: 0,
+    candidateSignatureSourceCandidatesWithGroupNameCount: 3,
+    candidateSignatureSourceCandidatesWithResolvedLabelCount: 0,
+    candidateSignatureSourceCandidatesWithAnyLabelBucketCount: 0,
+    candidateSignatureSourceCandidatesWithAnyDiagnosticSurfaceCount: 3,
+    candidateSignatureSourceAllCandidatesReducedShape: false,
+    candidateSignatureSourceAllCandidatesSurfaceEmpty: false,
+    candidateSignatureSourcePotentialPropagationGapDetected: false,
+  });
+
   const radioGraphicSignature = (
     overrides: Record<string, unknown> = {},
   ) => ({
@@ -8048,6 +8075,21 @@ test.describe('interactive validation safety', () => {
       expect.arrayContaining(['ownership-anchor-missing', 'safe-evidence-empty']),
     );
     expect(summary.ownershipSourceHarvestAttempted).toBe(true);
+    expect(summary.candidateSignatureSourceSummaryPresent).toBe(true);
+    expect(summary.candidateSignatureSourceOutcomeCategory).toBe('candidate-signature-source-reduced-candidate-shape');
+    expect(summary.candidateSignatureSourceRejectedReasons).toEqual(
+      expect.arrayContaining(['reduced-candidate-shape', 'no-safe-signature-surface', 'no-safe-field-key']),
+    );
+    expect(summary.candidateSignatureSourceCandidateCount).toBe(3);
+    expect(summary.candidateSignatureSourceCandidatesWithOriginalFieldCount).toBe(3);
+    expect(summary.candidateSignatureSourceCandidatesWithSafeFieldKeyCount).toBe(0);
+    expect(summary.candidateSignatureSourceCandidatesWithIdOrNameKeyCount).toBe(0);
+    expect(summary.candidateSignatureSourceCandidatesWithInputTypeCount).toBe(3);
+    expect(summary.candidateSignatureSourceCandidatesWithControlCategoryCount).toBe(3);
+    expect(summary.candidateSignatureSourceCandidatesWithAnyDiagnosticSurfaceCount).toBe(0);
+    expect(summary.candidateSignatureSourceAllCandidatesReducedShape).toBe(true);
+    expect(summary.candidateSignatureSourceAllCandidatesSurfaceEmpty).toBe(true);
+    expect(summary.candidateSignatureSourcePotentialPropagationGapDetected).toBe(false);
     expect(summary.ownershipSourceInputSummaryPresent).toBe(true);
     expect(summary.ownershipSourceInputOutcomeCategory).toBe('ownership-input-all-candidates-empty');
     expect(summary.ownershipSourceInputRejectedReasons).toEqual(expect.arrayContaining(['all-candidates-empty', 'no-signatures-present']));
@@ -8219,6 +8261,122 @@ test.describe('interactive validation safety', () => {
     expect(summary.ownershipSourceInputAnyCandidateHadUsableSource).toBe(false);
     expect(summary.ownershipSourceHarvestOutcomeCategory).toBe('ownership-source-empty');
     expect(summary.toggleSelectionOutcomeCategory).toBe('calibrated-rejected-anchor-missing');
+  });
+
+  test('guarded physical address discovery selection summary preserves all-surfaces-empty candidate signature source diagnostics', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      calibratedBusinessPrimaryLocationRadioField(202, {
+        groupName: null,
+      }),
+      calibratedBusinessPrimaryLocationRadioField(203, {
+        groupName: null,
+      }),
+      calibratedBusinessPrimaryLocationRadioField(204, {
+        groupName: null,
+      }),
+    ] as any);
+
+    const calibratedFallback = selection.fallbackInventory?.calibratedFallback;
+    expect(calibratedFallback).toBeTruthy();
+
+    Object.assign(calibratedFallback!, {
+      candidateSignatureSourceSummaryPresent: true,
+      candidateSignatureSourceOutcomeCategory: 'candidate-signature-source-all-surfaces-empty',
+      candidateSignatureSourceRejectedReasons: ['all-surfaces-empty', 'no-safe-signature-surface'],
+      candidateSignatureSourceSummary: 'candidate signature source check found all candidate diagnostic surfaces empty',
+      candidateSignatureSourceCandidateCount: 3,
+      candidateSignatureSourceCandidatesWithOriginalFieldCount: 3,
+      candidateSignatureSourceCandidatesWithSafeFieldKeyCount: 0,
+      candidateSignatureSourceCandidatesWithIdOrNameKeyCount: 0,
+      candidateSignatureSourceCandidatesWithInputTypeCount: 0,
+      candidateSignatureSourceCandidatesWithControlCategoryCount: 3,
+      candidateSignatureSourceCandidatesWithProxyReferenceSignatureCount: 0,
+      candidateSignatureSourceCandidatesWithDomAttributeSignatureCount: 0,
+      candidateSignatureSourceCandidatesWithRadioGraphicSignatureCount: 0,
+      candidateSignatureSourceCandidatesWithNonTextLayoutSignatureCount: 0,
+      candidateSignatureSourceCandidatesWithContainerContextLabelsCount: 0,
+      candidateSignatureSourceCandidatesWithLayoutProximityEvidenceCount: 0,
+      candidateSignatureSourceCandidatesWithGroupNameCount: 0,
+      candidateSignatureSourceCandidatesWithResolvedLabelCount: 0,
+      candidateSignatureSourceCandidatesWithAnyLabelBucketCount: 0,
+      candidateSignatureSourceCandidatesWithAnyDiagnosticSurfaceCount: 0,
+      candidateSignatureSourceAllCandidatesReducedShape: false,
+      candidateSignatureSourceAllCandidatesSurfaceEmpty: true,
+      candidateSignatureSourcePotentialPropagationGapDetected: false,
+    });
+
+    const summary = buildPhysicalOperatingAddressToggleSelectionSummary(selection);
+
+    expect(summary.candidateSignatureSourceOutcomeCategory).toBe('candidate-signature-source-all-surfaces-empty');
+    expect(summary.candidateSignatureSourceRejectedReasons).toEqual(
+      expect.arrayContaining(['all-surfaces-empty', 'no-safe-signature-surface']),
+    );
+    expect(summary.candidateSignatureSourceCandidateCount).toBe(3);
+    expect(summary.candidateSignatureSourceCandidatesWithInputTypeCount).toBe(0);
+    expect(summary.candidateSignatureSourceCandidatesWithControlCategoryCount).toBe(3);
+    expect(summary.candidateSignatureSourceAllCandidatesReducedShape).toBe(false);
+    expect(summary.candidateSignatureSourceAllCandidatesSurfaceEmpty).toBe(true);
+  });
+
+  test('guarded physical address discovery selection summary preserves fallback candidate surface-loss diagnostics', () => {
+    const selection = explainPhysicalOperatingAddressToggleSelection([
+      calibratedBusinessPrimaryLocationRadioField(205, {
+        idOrNameKey: 'physical-operating-address-toggle',
+        groupName: null,
+        proxyReferenceSignature: proxyReferenceSignature(),
+      }),
+      calibratedBusinessPrimaryLocationRadioField(206, {
+        idOrNameKey: 'physical-operating-address-toggle',
+        groupName: null,
+        proxyReferenceSignature: proxyReferenceSignature(),
+      }),
+      calibratedBusinessPrimaryLocationRadioField(207, {
+        idOrNameKey: 'physical-operating-address-toggle',
+        groupName: null,
+        proxyReferenceSignature: proxyReferenceSignature(),
+      }),
+    ] as any);
+
+    const calibratedFallback = selection.fallbackInventory?.calibratedFallback;
+    expect(calibratedFallback).toBeTruthy();
+
+    Object.assign(calibratedFallback!, {
+      candidateSignatureSourceSummaryPresent: true,
+      candidateSignatureSourceOutcomeCategory: 'candidate-signature-source-fallback-candidates-lost-surfaces',
+      candidateSignatureSourceRejectedReasons: ['original-fields-have-surfaces-but-fallback-lost-them'],
+      candidateSignatureSourceSummary:
+        'candidate signature source check found original field surfaces that fallback candidates did not preserve',
+      candidateSignatureSourceCandidateCount: 3,
+      candidateSignatureSourceCandidatesWithOriginalFieldCount: 3,
+      candidateSignatureSourceCandidatesWithSafeFieldKeyCount: 0,
+      candidateSignatureSourceCandidatesWithIdOrNameKeyCount: 3,
+      candidateSignatureSourceCandidatesWithInputTypeCount: 3,
+      candidateSignatureSourceCandidatesWithControlCategoryCount: 3,
+      candidateSignatureSourceCandidatesWithProxyReferenceSignatureCount: 3,
+      candidateSignatureSourceCandidatesWithDomAttributeSignatureCount: 0,
+      candidateSignatureSourceCandidatesWithRadioGraphicSignatureCount: 0,
+      candidateSignatureSourceCandidatesWithNonTextLayoutSignatureCount: 0,
+      candidateSignatureSourceCandidatesWithContainerContextLabelsCount: 0,
+      candidateSignatureSourceCandidatesWithLayoutProximityEvidenceCount: 0,
+      candidateSignatureSourceCandidatesWithGroupNameCount: 0,
+      candidateSignatureSourceCandidatesWithResolvedLabelCount: 0,
+      candidateSignatureSourceCandidatesWithAnyLabelBucketCount: 0,
+      candidateSignatureSourceCandidatesWithAnyDiagnosticSurfaceCount: 3,
+      candidateSignatureSourceAllCandidatesReducedShape: false,
+      candidateSignatureSourceAllCandidatesSurfaceEmpty: false,
+      candidateSignatureSourcePotentialPropagationGapDetected: true,
+    });
+
+    const summary = buildPhysicalOperatingAddressToggleSelectionSummary(selection);
+
+    expect(summary.candidateSignatureSourceOutcomeCategory)
+      .toBe('candidate-signature-source-fallback-candidates-lost-surfaces');
+    expect(summary.candidateSignatureSourceRejectedReasons)
+      .toEqual(['original-fields-have-surfaces-but-fallback-lost-them']);
+    expect(summary.candidateSignatureSourceCandidatesWithIdOrNameKeyCount).toBe(3);
+    expect(summary.candidateSignatureSourceCandidatesWithProxyReferenceSignatureCount).toBe(3);
+    expect(summary.candidateSignatureSourceCandidatesWithSafeFieldKeyCount).toBe(0);
+    expect(summary.candidateSignatureSourcePotentialPropagationGapDetected).toBe(true);
   });
 
   test('guarded physical address discovery calibrated fallback ownership input diagnostics detect ownership surfaces that did not feed harvest', () => {
@@ -8829,6 +8987,11 @@ test.describe('interactive validation safety', () => {
     expect(selection.fallbackInventory?.calibratedFallback?.addressOptionsOwnershipAnchorOutcomeCategory).toBe('ownership-anchor-not-checked');
     expect(selection.fallbackInventory?.calibratedFallback?.addressOptionsOwnershipAnchorRejectedReasons).toEqual(['not-checked-prior-guard-failed']);
     expect(selection.fallbackInventory?.calibratedFallback?.radioGroupCommonOwnerCategory).toBe('not-checked');
+    expect(selection.fallbackInventory?.calibratedFallback?.candidateSignatureSourceSummaryPresent).toBe(false);
+    expect(selection.fallbackInventory?.calibratedFallback?.candidateSignatureSourceOutcomeCategory)
+      .toBe('candidate-signature-source-prior-guard-failed');
+    expect(selection.fallbackInventory?.calibratedFallback?.candidateSignatureSourceRejectedReasons)
+      .toEqual(['prior-guard-failed']);
     expect(selection.fallbackInventory?.calibratedFallback?.ownershipSourceInputSummaryPresent).toBe(false);
     expect(selection.fallbackInventory?.calibratedFallback?.ownershipSourceInputOutcomeCategory)
       .toBe('ownership-input-prior-guard-failed');
@@ -9729,7 +9892,15 @@ test.describe('interactive validation safety', () => {
     ...overrides,
   });
 
-  const mockToggleSelectionSummary = (overrides: Record<string, unknown> = {}) => ({
+  const mockToggleSelectionSummary = (overrides: Record<string, unknown> = {}) => {
+    const {
+      calibratedFallbackGuardSummary: calibratedFallbackGuardSummaryOverrides,
+      ...remainingOverrides
+    } = overrides as {
+      calibratedFallbackGuardSummary?: Record<string, unknown>;
+    };
+
+    return {
     toggleSelectionOutcomeCategory: 'calibrated-selected',
     toggleSelectionStage: 'calibrated-fallback',
     toggleSelectionMode: 'calibrated-fallback',
@@ -9775,11 +9946,13 @@ test.describe('interactive validation safety', () => {
       radioGroupReferenceTargetExists: true,
       radioGroupReferenceTargetVisible: true,
       radioGroupCommonOwnerCategory: 'shared-owner',
+      ...candidateSignatureSourceDebugDefaults(),
       ...ownershipSourceInputDebugDefaults(),
       ...ownershipSourceDebugDefaults(),
       exactThreeRadioGuardPassed: true,
       candidateOrderStable: true,
       conflictingCueDetected: false,
+      ...calibratedFallbackGuardSummaryOverrides,
     },
     primarySelectionCandidateCount: 0,
     cueBasedFallbackCandidateCount: 0,
@@ -9819,12 +9992,14 @@ test.describe('interactive validation safety', () => {
     radioGroupReferenceTargetExists: true,
     radioGroupReferenceTargetVisible: true,
     radioGroupCommonOwnerCategory: 'shared-owner',
+    ...candidateSignatureSourceDebugDefaults(),
     ...ownershipSourceInputDebugDefaults(),
     ...ownershipSourceDebugDefaults(),
     candidateOrderStable: true,
     conflictingCueDetected: false,
-    ...overrides,
-  });
+    ...remainingOverrides,
+  };
+  };
 
   const mockUiEffectSummary = (overrides: Record<string, unknown> = {}) => ({
     proofOfAddressUploadVisibleBefore: false,
@@ -9854,7 +10029,15 @@ test.describe('interactive validation safety', () => {
 
   const createPhysicalAddressBootstrapCaptureReceipt = (
     overrides: Partial<PhysicalOperatingAddressCaptureOnlyReceipt> = {},
-  ): PhysicalOperatingAddressCaptureOnlyReceipt => ({
+  ): PhysicalOperatingAddressCaptureOnlyReceipt => {
+    const {
+      calibratedFallbackGuardSummary: calibratedFallbackGuardSummaryOverrides,
+      ...remainingOverrides
+    } = overrides as Partial<PhysicalOperatingAddressCaptureOnlyReceipt> & {
+      calibratedFallbackGuardSummary?: Record<string, unknown>;
+    };
+
+    return {
     runKind: PHYSICAL_ADDRESS_CAPTURE_ONLY_RUN_KIND,
     childCommand: `npm run ${PHYSICAL_ADDRESS_CAPTURE_ONLY_COMMAND}`,
     childExitCode: 0,
@@ -9906,11 +10089,13 @@ test.describe('interactive validation safety', () => {
       radioGroupReferenceTargetExists: true,
       radioGroupReferenceTargetVisible: true,
       radioGroupCommonOwnerCategory: 'shared-owner',
+      ...candidateSignatureSourceDebugDefaults(),
       ...ownershipSourceInputDebugDefaults(),
       ...ownershipSourceDebugDefaults(),
       exactThreeRadioGuardPassed: true,
       candidateOrderStable: true,
       conflictingCueDetected: false,
+      ...calibratedFallbackGuardSummaryOverrides,
     },
     primarySelectionCandidateCount: 0,
     cueBasedFallbackCandidateCount: 0,
@@ -9950,6 +10135,7 @@ test.describe('interactive validation safety', () => {
     radioGroupReferenceTargetExists: true,
     radioGroupReferenceTargetVisible: true,
     radioGroupCommonOwnerCategory: 'shared-owner',
+    ...candidateSignatureSourceDebugDefaults(),
     ...ownershipSourceInputDebugDefaults(),
     ...ownershipSourceDebugDefaults(),
     candidateOrderStable: true,
@@ -9999,8 +10185,9 @@ test.describe('interactive validation safety', () => {
       },
     ],
     redactionApplied: true,
-    ...overrides,
-  });
+    ...remainingOverrides,
+  };
+  };
 
   const createPhysicalAddressBootstrapCaptureSpawn = (options: {
     exitCode: number;
@@ -10321,6 +10508,10 @@ test.describe('interactive validation safety', () => {
     expect(receipt.fallbackReason).toBe(calibratedFallbackReason);
     expect(receipt.addressOptionsAnchorOutcomeCategory).toBe('anchor-matched-label');
     expect(receipt.addressOptionsAnchorEvidenceSummary).toBe('matched via label address-options bucket');
+    expect(receipt.candidateSignatureSourceOutcomeCategory)
+      .toBe('candidate-signature-source-original-fields-have-surfaces');
+    expect(receipt.calibratedFallbackGuardSummary.candidateSignatureSourceOutcomeCategory)
+      .toBe('candidate-signature-source-original-fields-have-surfaces');
     expect(receipt.uiEffectOutcomeCategory).toBe('proof-address-visible-physical-fields-visible');
     expect(receipt.selectionMode).toBe('calibrated-fallback');
     expect(receipt.calibratedFallbackSelectedSlot).toBe(2);
@@ -10667,7 +10858,20 @@ test.describe('interactive validation safety', () => {
   test('physical address bootstrap capture receipt preserves fresh child success and exit code', async () => {
     const outDir = createPhysicalAddressCaptureOnlyTempDir();
     const logs: string[] = [];
-    const childReceipt = createPhysicalAddressBootstrapCaptureReceipt();
+    const childReceipt = createPhysicalAddressBootstrapCaptureReceipt({
+      candidateSignatureSourceOutcomeCategory: 'candidate-signature-source-fallback-candidates-lost-surfaces',
+      candidateSignatureSourceRejectedReasons: ['original-fields-have-surfaces-but-fallback-lost-them'],
+      candidateSignatureSourceSummary:
+        'candidate signature source check found original field surfaces that fallback candidates did not preserve',
+      candidateSignatureSourcePotentialPropagationGapDetected: true,
+      calibratedFallbackGuardSummary: {
+        candidateSignatureSourceOutcomeCategory: 'candidate-signature-source-fallback-candidates-lost-surfaces',
+        candidateSignatureSourceRejectedReasons: ['original-fields-have-surfaces-but-fallback-lost-them'],
+        candidateSignatureSourceSummary:
+          'candidate signature source check found original field surfaces that fallback candidates did not preserve',
+        candidateSignatureSourcePotentialPropagationGapDetected: true,
+      },
+    });
     const result = await runPhysicalOperatingAddressBootstrapCapture(
       createPhysicalAddressBootstrapCaptureDependencies(
         outDir,
@@ -10692,6 +10896,13 @@ test.describe('interactive validation safety', () => {
     expect(receipt?.addressOptionsOwnershipAnchorOutcomeCategory).toBe('ownership-anchor-matched-shared-owner');
     expect(receipt?.calibratedFallbackGuardSummary.addressOptionsOwnershipAnchorOutcomeCategory)
       .toBe('ownership-anchor-matched-shared-owner');
+    expect(receipt?.candidateSignatureSourceOutcomeCategory)
+      .toBe('candidate-signature-source-fallback-candidates-lost-surfaces');
+    expect(receipt?.calibratedFallbackGuardSummary.candidateSignatureSourceOutcomeCategory)
+      .toBe('candidate-signature-source-fallback-candidates-lost-surfaces');
+    expect(receipt?.candidateSignatureSourcePotentialPropagationGapDetected).toBe(true);
+    expect(receipt?.calibratedFallbackGuardSummary.candidateSignatureSourcePotentialPropagationGapDetected)
+      .toBe(true);
     expect(receipt?.ownershipSourceInputOutcomeCategory).toBe('ownership-input-safe-source-present');
     expect(receipt?.calibratedFallbackGuardSummary.ownershipSourceInputOutcomeCategory)
       .toBe('ownership-input-safe-source-present');
