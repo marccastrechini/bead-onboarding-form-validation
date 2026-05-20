@@ -69,6 +69,7 @@ This is a planning-only denominator adjustment so broader work can continue with
 
 - Goal: recover a meaningful target-availability story for `registered_state` without reopening the Physical Operating Address lane.
 - Why first: it is already called out as a resolver-required concept, and it is independent of the deferred Physical Operating Address blocker.
+- Detailed RUN64 analysis: see `artifacts/ai-handoff/registered-state-target-availability.md`.
 
 ### Second Priority: Amount Fields
 

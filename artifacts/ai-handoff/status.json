@@ -1,23 +1,21 @@
 {
   "status": "ready_for_review",
-  "run_id": "DOCUSIGNCOVERAGEDEFERPHYSICALADDRESS-20260520-RUN63",
+  "run_id": "REGISTEREDSTATETARGETAVAILABILITY-20260520-RUN64",
   "model_used": "GitHub Copilot (GPT-5.4)",
   "branch": "main",
   "commit": null,
-  "commit_message": "AI-HANDOFF: DOCUSIGNCOVERAGEDEFERPHYSICALADDRESS-20260520-RUN63 ready for ChatGPT review",
+  "commit_message": "AI-HANDOFF: REGISTEREDSTATETARGETAVAILABILITY-20260520-RUN64 ready for ChatGPT review",
   "push_status": "pending_at_write_time",
-  "started_at": "2026-05-20T08:30:41-04:00",
-  "completed_at": "2026-05-20T08:30:41-04:00",
-  "git_commit_before": "7c924430c326ad82497cb6d78a9dc2bf725a452f",
+  "started_at": "2026-05-20T08:49:07-04:00",
+  "completed_at": "2026-05-20T08:49:07-04:00",
+  "git_commit_before": "0107cf4aef20196c461f384d4b2de25da6ad8809",
   "git_commit_after": null,
   "summary_file": "artifacts/ai-handoff/latest-copilot-result.md",
   "needs_chatgpt_review": true,
-  "command_run_exactly_once": "RUN63 ran exactly one safe npm run test:units command and did not run any live capture, interactive, destructive, upload, or finalize commands.",
+  "command_run_exactly_once": "RUN64 ran exactly one safe npm run test:units command and did not run any live capture, interactive, destructive, upload, or finalize commands.",
   "files_changed": [
+    "artifacts/ai-handoff/registered-state-target-availability.md",
     "artifacts/ai-handoff/docusign-coverage-next-plan.md",
-    "artifacts/ai-handoff/docusign-coverage-baseline.md",
-    "artifacts/ai-handoff/docusign-coverage-baseline.csv",
-    "docs/validation-coverage-ledger.md",
     "artifacts/ai-handoff/latest-copilot-result.md",
     "artifacts/ai-handoff/status.json"
   ],
@@ -25,7 +23,7 @@
     "npm run test:units"
   ],
   "tests_run": [
-    "test:units -> passed; 417 passed, 0 failed, 0 skipped; approximately 15.5 seconds"
+    "test:units -> passed; 417 passed, 0 failed, 0 skipped; approximately 15.7 seconds"
   ],
   "validation_summary": {
     "live_capture_run_count": 0,
@@ -41,63 +39,36 @@
     "safe_unit_tests_passed": 417,
     "safe_unit_tests_failed": 0,
     "safe_unit_tests_skipped": 0,
-    "safe_unit_duration_seconds_approx": 15.5,
-    "physical_operating_address_known_deferred": true,
-    "physical_operating_address_deferred_reason": "planning/reporting deferral so broader coverage can continue without repeatedly treating the stale Physical Operating Address lane as the next required blocker",
-    "known_deferred_business_mailing_concepts": [
-      "business_mailing_address_line_1",
-      "business_mailing_city",
-      "business_mailing_state",
-      "business_mailing_postal_code"
+    "safe_unit_duration_seconds_approx": 15.7,
+    "registered_state_inspected": true,
+    "registered_state_current_classification": "resolver-required",
+    "registered_state_primary_blocker_type": "no distinct field target",
+    "registered_state_contributing_blocker_type": "stale/latest-run-scoped evidence",
+    "registered_state_not_primary_blockers": [
+      "ambiguous target",
+      "section/context ambiguity",
+      "select/dropdown handling",
+      "state value normalization"
     ],
-    "tracked_concept_coverage_percent_including_deferred": 46,
-    "tracked_concept_coverage_numerator": 27,
-    "tracked_concept_coverage_denominator_including_deferred": 59,
-    "tracked_concept_coverage_percent_excluding_known_deferred": 49,
-    "tracked_concept_coverage_denominator_excluding_known_deferred": 55,
-    "live_flow_coverage_percent_estimated_including_deferred": 63,
-    "live_flow_excluding_known_deferred_recomputed": false,
-    "direct_stale_or_missing_artifact_dependency_percent_including_deferred": 19,
-    "direct_stale_or_missing_artifact_dependency_numerator_including_deferred": 11,
-    "direct_stale_or_missing_artifact_dependency_denominator_including_deferred": 59,
-    "direct_stale_or_missing_artifact_dependency_percent_excluding_known_deferred": 13,
-    "direct_stale_or_missing_artifact_dependency_numerator_excluding_known_deferred": 7,
-    "direct_stale_or_missing_artifact_dependency_denominator_excluding_known_deferred": 55,
-    "unresolved_backlog_count_including_deferred": 32,
-    "unresolved_backlog_count_excluding_known_deferred": 28,
-    "next_focus_registered_state": true,
-    "next_focus_amount_fields": [
-      "annual_revenue",
-      "highest_monthly_volume",
-      "average_ticket",
-      "max_ticket"
-    ],
-    "next_focus_missing_field_local_proof": [
-      "stakeholder_first_name",
-      "stakeholder_last_name",
-      "bank_address_line_1",
-      "bank_city",
-      "bank_state",
-      "bank_postal_code",
-      "bank_country"
-    ],
-    "stale_artifacts_relied_on": false,
-    "business_mailing_concepts_promoted_to_covered": false,
-    "business_mailing_concepts_promoted_to_calibration_ready": false,
-    "baseline_updated": true,
-    "next_plan_created": true,
-    "coverage_ledger_updated": true
+    "registered_state_mapping_calibration_decision": "leave_unresolved",
+    "registered_state_calibration_reason": "no_unclaimed_neighbor_with_expected_shape",
+    "registered_state_mapping_decision_reason": "rejected_insufficient_label_proof",
+    "registered_state_target_availability_summary": "offline anchor trust and section-specific list-target handling exist, but the intended Registered Legal Address State list control does not currently surface as a visible editable merchant-input target in the saved/latest scoped evidence",
+    "source_logic_changed": false,
+    "tests_changed": false,
+    "planning_artifact_created": true,
+    "physical_operating_address_deferred_and_unchanged": true,
+    "physical_operating_address_artifacts_relied_on": false
   },
-  "key_outcome": "RUN63 turns Physical Operating Address into an explicit known deferred blocker in the planning layer, adds an excluding-deferred planning view, and redirects the next workstream toward registered_state, amount fields, and missing-proof concepts without claiming the deferred business_mailing concepts are covered.",
+  "key_outcome": "RUN64 bounded registered_state as a target-availability resolver problem: the intended Registered Legal Address State list control is not currently surfacing as an available merchant-input target in current evidence, even though the list-target handling and stale-slot fixes already exist.",
   "blockers": [
-    "The Physical Operating Address lane remains blocked/deferred and still has no fresh post-toggle field-local proof.",
-    "registered_state still needs target-availability resolution before guarded validation work can be meaningful.",
-    "The four amount fields still need proof that separate editable controls exist in this saved flow.",
-    "Seven concepts still lack stronger field-local proof, and five generic fallback address concepts remain conservatively unclassified."
+    "registered_state still does not have a currently proven visible editable merchant-input target in the saved/latest scoped evidence.",
+    "The latest generated findings remain latest-run scoped rather than cumulative, which contributes to stale blocker wording.",
+    "Physical Operating Address remains deferred and unchanged, so that lane is intentionally out of scope for resolving registered_state in this run."
   ],
   "uncertainty": [
-    "The excluding-deferred coverage view is intentionally planning-only and should not be interpreted as a validation win.",
-    "The latest generated scorecard and findings remain latest-run scoped, so cumulative coverage still depends on the ledger and baseline artifacts rather than the latest generated reports alone."
+    "The current evidence does not prove whether the Registered Legal Address State control is absent, hidden, or simply not surfaced by the current safe-mode/latest-run-scoped evidence path.",
+    "A future safe reporting-classifier refinement may be warranted so target-availability blockers are not described as generic human-proof-needed states."
   ],
-  "next_recommendation": "Move next to REGISTEREDSTATETARGETAVAILABILITY-20260520-RUN64 as a source/test-only resolver-planning pass for registered_state while keeping the known-deferred Physical Operating Address treatment intact."
+  "next_recommendation": "Redirect to REGISTEREDSTATETARGETAVAILABILITYCLASSIFIER-20260520-RUN65 for a source/test-only reporting-classifier pass that distinguishes offline anchor trust plus live target unavailability from generic human-proof-needed states, without reopening Physical Operating Address or running live validation."
 }
