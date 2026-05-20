@@ -188,3 +188,31 @@ No broken baseline/reporting script was found. The main uncertainty is already n
 1. Baseline accepted: archive this report and pause, using 46% tracked-concept coverage and about 63% live-flow coverage as the current repo baseline.
 2. Targeted fix: resume with a single non-live Physical Operating Address resolver so the stale May 1 post-toggle bundle is replaced by fresh, field-local proof for the four `business_mailing_*` concepts.
 3. Full E2E validation: only do this after the Physical Operating Address post-toggle artifacts are fresh, `reports:refresh` is meaningful again, `registered_state` target availability is resolved, and the unresolved missing-proof concepts have stronger field-local evidence.
+
+## 10. RUN63 Planning Update
+
+RUN63 intentionally changes planning treatment without changing validation status.
+
+- Physical Operating Address is now treated as a known deferred blocker for near-term planning.
+- The four `business_mailing_*` concepts remain blocked/deferred, remain uncovered, and remain not calibration-ready.
+- The stale May 1 post-toggle structure and DOM artifacts still do not count as current proof.
+
+### Coverage View Including The Known Deferred Blocker
+
+- Tracked concept coverage remains `27 / 59 = 45.8%`.
+- Direct stale/missing-artifact dependence remains `11 / 59 = 18.6%`.
+- The inclusive live-flow estimate remains `63%`.
+
+### Coverage View Excluding The Known Deferred Blocker
+
+- Planning-only tracked concept coverage becomes `27 / 55 = 49.1%`.
+- Planning-only direct stale/missing-artifact dependence becomes `7 / 55 = 12.7%`.
+- This excluding-deferred view is only a prioritization aid. It is not validation success and does not change the blocked status of the four deferred concepts.
+
+### RUN63 Next Focus Instead Of Physical Operating Address
+
+1. `registered_state` resolver / target availability
+2. Amount fields: `annual_revenue`, `highest_monthly_volume`, `average_ticket`, `max_ticket`
+3. Missing field-local proof concepts: `stakeholder_first_name`, `stakeholder_last_name`, `bank_address_line_1`, `bank_city`, `bank_state`, `bank_postal_code`, `bank_country`
+
+See `artifacts/ai-handoff/docusign-coverage-next-plan.md` for the explicit defer-plan artifact.

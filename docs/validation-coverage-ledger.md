@@ -4,6 +4,7 @@ Generated for the COVERAGESPRINT workstream on 2026-05-08.
 Updated during ADDRESSLEDGER on 2026-05-08.
 Updated during PROOFOFADDRESSLEDGER on 2026-05-12.
 Updated during BANKNAMELEDGER on 2026-05-13.
+Updated during DOCUSIGNCOVERAGEDEFERPHYSICALADDRESS on 2026-05-20.
 
 ## Scope And Safety
 
@@ -201,3 +202,32 @@ After code changes, run the relevant non-live capture/report refresh commands on
 
 Update docs/validation-coverage-ledger.md only if the non-live evidence changes the blocker classification, then update artifacts/ai-handoff/status.json and artifacts/ai-handoff/latest-copilot-result.md. Commit and push only eligible docs/code changes plus the two allowed handoff files with a message starting AI-HANDOFF: PHYSICALOPERATINGADDRESSRESOLVER ready for ChatGPT review.
 ```
+
+## DOCUSIGNCOVERAGEDEFERPHYSICALADDRESS Planning Override
+
+RUN63 changes planning treatment, not validation status.
+
+- Physical Operating Address is now treated as a known deferred blocker for near-term coverage planning.
+- The four `business_mailing_*` concepts remain blocked/deferred, remain uncovered, and remain not calibration-ready.
+- The stale May 1 post-toggle structure and DOM artifacts still do not count as current proof.
+- This override supersedes the earlier recommendation to treat Physical Operating Address as the default next required blocker.
+
+### Planning Coverage View
+
+- Inclusive tracked-concept coverage remains `27 / 59 = 45.8%`.
+- Excluding the four known-deferred `business_mailing_*` concepts from the near-term planning denominator gives a planning-only view of `27 / 55 = 49.1%`.
+- Inclusive direct stale/missing-artifact dependence remains `11 / 59 = 18.6%`.
+- Excluding the four known-deferred `business_mailing_*` concepts from the near-term planning denominator gives a planning-only blocker view of `7 / 55 = 12.7%`.
+- This excluding-deferred view is only a prioritization aid. It is not a validation success and does not change the blocked status of the deferred concepts.
+
+### Immediate Next Focus After The Deferral
+
+- `registered_state` resolver / target availability.
+- Amount fields: `annual_revenue`, `highest_monthly_volume`, `average_ticket`, `max_ticket`.
+- Missing field-local proof concepts: `stakeholder_first_name`, `stakeholder_last_name`, `bank_address_line_1`, `bank_city`, `bank_state`, `bank_postal_code`, `bank_country`.
+
+### Why This Override Exists
+
+- The Physical Operating Address lane is already bounded well enough for reporting.
+- Repeatedly treating it as the next mandatory blocker is slowing broader coverage planning.
+- Broader coverage can continue without pretending the deferred lane is solved.
