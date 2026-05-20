@@ -1,120 +1,189 @@
 ## ChatGPT Review Summary
-- What changed: RUN59 executed exactly one authorized live `npm run bootstrap:capture:physical-address` run, inspected the fresh bounded receipt, confirmed the new post-signer fields are now populated in live flow, and updated only the AI handoff files.
+- What changed: RUN61 executed exactly one authorized live `npm run bootstrap:capture:physical-address` run, inspected the fresh bounded receipt and stale artifact timestamps, skipped downstream refresh/findings commands, and updated only the AI handoff files. No source or test files were edited in RUN61.
 - Whether exactly one live capture was run: yes. One live `bootstrap:capture:physical-address` run was executed and not retried.
-- Whether receipt was produced/preserved: yes. `artifacts/latest-physical-operating-address-capture-receipt.json` exists, was regenerated during RUN59, and the final receipt preserved a child post-signer failure with `postSignerFailureReceiptPreserved=true`.
+- Whether receipt was produced/preserved: yes. `artifacts/latest-physical-operating-address-capture-receipt.json` exists, was regenerated during RUN61, and the bootstrap receipt preserved child post-signer failure state with `postSignerFailureReceiptPreserved=true`.
 - `childExitCode` / `bootstrapExitCode`: `1 / 1`.
 - `signerSurfaceReached`: `true`.
-- `preSignerFailureCategory`: `no-pre-signer-failure`.
-- `postSignerFailureCategory`: `guarded-expansion-setup-failed`.
-- `postSignerFailureStage`: `child-guarded-expansion-setup`.
-- `postSignerFailureSummary`: the child runner reached the signer surface and completed field discovery, but guarded expansion setup failed before calibrated toggle evaluation could proceed.
-## ChatGPT Review Summary
-- What changed: RUN60 stayed source/test-only, added a bounded guarded-expansion telemetry/error channel in `fixtures/conditional-discovery.ts`, added a new `guardedExpansionFailure*` receipt cluster in `scripts/capture-physical-operating-address.ts`, preserved numeric `initialFieldCount` through guarded-expansion failure receipts, extended unit coverage, and updated the AI handoff files.
-- Whether any live capture was run: no. RUN60 executed no live capture commands.
-- Whether guarded expansion failure classification was added: yes. The receipt now records bounded category/stage/reason/summary plus input/helper/phase booleans for candidate inventory, selection summary, calibrated evaluation, anchorless evaluation, click, and UI validation.
-- Whether `initialFieldCount` preservation was fixed: yes. Failure-path receipts now preserve `initialFieldCount` and `guardedExpansionInputFieldCount`, and unit coverage verifies `guardedExpansionInputFieldCountPreserved=true` when field discovery completed before helper failure.
-- Which receipt fields were added: `guardedExpansionFailureSummaryPresent`, `guardedExpansionFailureCategory`, `guardedExpansionFailureStage`, `guardedExpansionFailureReason`, `guardedExpansionFailureSummary`, the `guardedExpansionInput*` fields, the `guardedExpansionHelper*` fields, the `guardedExpansionCandidateInventory*` fields, the `guardedExpansionSelectionSummary*` fields, the `guardedExpansionCalibratedEvaluation*` fields, the `guardedExpansionAnchorlessEvaluation*` fields, the `guardedExpansionClick*` fields, the `guardedExpansionUiValidation*` fields, and the bounded `guardedExpansionFailureBefore*` / `guardedExpansionFailureDuring*` booleans.
-- Whether bootstrap preserves guarded expansion fields: yes. Unit coverage now verifies bootstrap preserves child `guardedExpansionFailure*` fields.
-- Whether calibrated slot-2 behavior changed: no. The calibrated slot-2 path and matcher behavior were left unchanged; RUN60 only added bounded telemetry/receipt plumbing and tests around it.
+- `postSignerFailureCategory` / `postSignerFailureStage` / `postSignerFailureSummary`: `guarded-expansion-setup-failed` / `child-guarded-expansion-setup` / the child runner reached the signer surface and completed field discovery, but guarded expansion setup failed before calibrated toggle evaluation could proceed.
+- `fieldDiscoveryAttempted` / `fieldDiscoveryCompleted`: `true / true`.
+- `initialFieldCountAvailable` / `initialFieldCount`: `true / 126`.
+- `guardedExpansionFailureCategory` / `guardedExpansionFailureStage` / `guardedExpansionFailureSummary`: `no-guarded-expansion-failure` / `none` / `null`.
+- `guardedExpansionInputFramePresent` / `guardedExpansionInputFieldsPresent` / `guardedExpansionInputFieldCount`: `true / true / 126`.
+- `guardedExpansionHelperEntered`: `true`.
+- `guardedExpansionCandidateInventoryAttempted` / `guardedExpansionCandidateInventoryBuilt`: `true / true`.
+- `guardedExpansionSelectionSummaryAttempted` / `guardedExpansionSelectionSummaryCompleted`: `true / true`.
+- `guardedExpansionCalibratedEvaluationAttempted` / `guardedExpansionCalibratedEvaluationCompleted`: `true / true`.
+- `guardedExpansionAnchorlessEvaluationAttempted` / `guardedExpansionAnchorlessEvaluationCompleted`: `true / true`.
+- `guardedExpansionClickAttempted` / `guardedExpansionClickCompleted`: `true / true`.
+- `guardedExpansionUiValidationAttempted` / `guardedExpansionUiValidationCompleted`: `true / false`.
+- `selectedToggleSlot` / `postClickUiEffectValidationOutcome` / `proofOfAddressUploadVisibleAfter` / `physicalOperatingAddressFieldsVisibleAfter`: `null / not-required / null / null`.
+- `artifactsFresh` / `artifactsRemainStale`: `false / true`.
+- Whether `reports:refresh` and `findings:open` ran or were skipped: both skipped.
+- Whether fresh artifacts were produced: no. The post-toggle structure and DOM files remained the stale May 1 bundle.
+- Classification for each `business_mailing_*` concept:
+  - `business_mailing_address_line_1=still capture-blocked`
+  - `business_mailing_city=still capture-blocked`
+  - `business_mailing_state=still capture-blocked`
+  - `business_mailing_postal_code=still capture-blocked`
 - Tests/commands run and pass/fail:
-  - `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "guarded expansion"` -> 14 passed
-  - `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "post-signer"` -> 10 passed
-  - `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "physical address capture-only"` -> 43 passed
-  - `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "physical address bootstrap capture receipt"` -> 7 passed
-  - `npm run test:units` -> 417 passed
-- Remaining blocker / uncertainty: the new guarded-expansion receipt cluster is source/test validated, but no authorized live receipt has exercised it yet, so the exact bounded category that will surface on the production signer DOM remains unknown until the next live run.
-- Whether screenshot was ignored or not needed: no screenshot work was needed in RUN60.
-- Whether to continue, stop, or redirect: continue only if live authorization is granted.
-- The next best Copilot prompt: for `PHYSICALADDRESSCALIBRATEDPIVOT-20260519-RUN61`, execute exactly one authorized live `npm run bootstrap:capture:physical-address` run to inspect the new `guardedExpansionFailure*` receipt fields and, only if guarded expansion reaches calibrated selection, validate the existing slot-2 path. Do not retry the command.
+  - `npm run bootstrap:capture:physical-address` -> executed exactly once; exited `1`; fail-closed receipt generated
+  - `reports:refresh` -> skipped
+  - `findings:open` -> skipped
+- Remaining blocker / uncertainty: RUN61 exposed a new mismatch. The outer receipt says `postSignerFailureCategory=guarded-expansion-setup-failed`, but the inner guarded-expansion receipt cluster stayed at `no-guarded-expansion-failure` even though `guardedExpansionUiValidationAttempted=true`, `guardedExpansionUiValidationCompleted=false`, all selection fields remained null, and no fresh artifacts were produced.
+- Whether screenshot was ignored or not needed: no screenshot was needed for RUN61; any prior screenshot context remained irrelevant.
+- Whether to continue, stop, or redirect: redirect.
+- The next best Copilot prompt: for `PHYSICALADDRESSCALIBRATEDPIVOT-20260519-RUN62`, stay source/test-only and inspect why the guarded-expansion fallback classifier preserves the seeded `no-guarded-expansion-failure` category when the live receipt shows `postSignerFailureCategory=guarded-expansion-setup-failed`, `guardedExpansionUiValidationAttempted=true`, `guardedExpansionUiValidationCompleted=false`, and all selection/output fields are still null.
 
 # Copilot Handoff Result
 
-CHAT ID: PHYSICALADDRESSCALIBRATEDPIVOT-20260519-RUN60
+CHAT ID: PHYSICALADDRESSCALIBRATEDPIVOT-20260519-RUN61
 
 ## Status
 Ready for ChatGPT review
 
 ## Objective
-Stay source/test-only. Instrument the guarded expansion setup boundary so the next authorized live receipt can distinguish why `maybeExpandPhysicalOperatingAddressSection` failed before calibrated toggle evaluation, while preserving numeric `initialFieldCount` when field discovery already completed.
+Execute exactly one authorized live `npm run bootstrap:capture:physical-address` run to inspect the new `guardedExpansionFailure*` receipt fields and, only if guarded expansion reached calibrated selection, validate the existing slot-2 path.
 
 ## What Changed
-- Added a bounded guarded-expansion telemetry/error channel in `fixtures/conditional-discovery.ts`.
-- Added helper-phase tracking for:
-  - input presence and field-count preservation
-  - helper entry
-  - candidate inventory attempt/build
-  - selection summary attempt/completion
-  - calibrated evaluation attempt/completion
-  - anchorless evaluation attempt/completion
-  - click attempt/completion
-  - UI validation attempt/completion
-- Added guarded-expansion receipt fields and builders in `scripts/capture-physical-operating-address.ts`.
-- Preserved `initialFieldCount` in failure receipts by threading the discovered count through guarded-expansion failure handling.
-- Refined the main wrapper so bounded guarded-expansion telemetry feeds both the new guarded-expansion receipt cluster and the existing post-signer status.
-- Added focused unit coverage for guarded-expansion categories, preserved field counts, safe outcome preservation, bootstrap preservation, and redaction.
-- Updated the AI handoff files.
+- Executed exactly one live `npm run bootstrap:capture:physical-address` run and did not retry it.
+- Inspected the fresh bounded receipt generated during RUN61.
+- Compared post-toggle structure/DOM artifact timestamps against the pre-run May 1 baseline and confirmed they remained stale.
+- Skipped `reports:refresh` and `findings:open` because the run stayed fail-closed and produced no fresh artifacts.
+- Updated only `artifacts/ai-handoff/latest-copilot-result.md` and `artifacts/ai-handoff/status.json`.
 
 ## Files Changed
-- `fixtures/conditional-discovery.ts`
-- `scripts/capture-physical-operating-address.ts`
-- `tests/bootstrap-units.spec.ts`
 - `artifacts/ai-handoff/latest-copilot-result.md`
 - `artifacts/ai-handoff/status.json`
 
-## Guarded Expansion Receipt Additions
-- Failure identity: `guardedExpansionFailureSummaryPresent`, `guardedExpansionFailureCategory`, `guardedExpansionFailureStage`, `guardedExpansionFailureReason`, `guardedExpansionFailureSummary`
-- Inputs: `guardedExpansionInputFramePresent`, `guardedExpansionInputFieldsPresent`, `guardedExpansionInputFieldCount`, `guardedExpansionInputFieldCountPreserved`
-- Helper lifecycle: `guardedExpansionHelperInvoked`, `guardedExpansionHelperEntered`
-- Candidate setup: `guardedExpansionCandidateInventoryAttempted`, `guardedExpansionCandidateInventoryBuilt`, `guardedExpansionSelectionSummaryAttempted`, `guardedExpansionSelectionSummaryCompleted`
-- Calibrated path: `guardedExpansionCalibratedEvaluationAttempted`, `guardedExpansionCalibratedEvaluationCompleted`, `guardedExpansionAnchorlessEvaluationAttempted`, `guardedExpansionAnchorlessEvaluationCompleted`
-- Downstream action/validation: `guardedExpansionClickAttempted`, `guardedExpansionClickCompleted`, `guardedExpansionUiValidationAttempted`, `guardedExpansionUiValidationCompleted`
-- Bounded failure seam booleans: `guardedExpansionFailureBeforeCandidateInventory`, `guardedExpansionFailureDuringCandidateInventory`, `guardedExpansionFailureDuringSelectionSummary`, `guardedExpansionFailureBeforeCalibratedEvaluation`, `guardedExpansionFailureDuringCalibratedEvaluation`, `guardedExpansionFailureDuringClick`, `guardedExpansionFailureDuringUiValidation`
+## Receipt Preservation
+- Receipt file exists: yes.
+- Receipt generated during RUN61: yes. `artifacts/latest-physical-operating-address-capture-receipt.json` had a new May 20 local timestamp, newer than the RUN59 baseline receipt timestamp.
+- Bootstrap preserved child post-signer failure state: yes. `postSignerFailureReceiptPreserved=true`.
 
-## Behavioral Notes
-- Calibrated slot-2 selection logic was not widened or retuned.
-- Existing matcher behavior was not broadened.
-- The new helper error channel emits bounded categories only; no raw stacks, raw DOM, raw identifiers, or raw URLs are recorded.
-- Legacy helper tests that intentionally exercised inventory-only fail-closed behavior now use a dummy frame object so the new missing-frame guard can remain active without weakening the helper.
+## Receipt Snapshot
+- `childExitCode=1`
+- `bootstrapExitCode=1`
+- `signerSurfaceReached=true`
+- `preSignerFailureCategory=no-pre-signer-failure`
+- `postSignerFailureCategory=guarded-expansion-setup-failed`
+- `postSignerFailureStage=child-guarded-expansion-setup`
+- `postSignerFailureSummary=the child runner reached the signer surface and completed field discovery, but guarded expansion setup failed before calibrated toggle evaluation could proceed`
+- `fieldDiscoveryAttempted=true`
+- `fieldDiscoveryCompleted=true`
+- `initialFieldCountAvailable=true`
+- `initialFieldCount=126`
 
-## Validation
-- `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "guarded expansion"` -> 14 passed
-- `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "post-signer"` -> 10 passed
-- `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "physical address capture-only"` -> 43 passed
-- `npx playwright test tests/bootstrap-units.spec.ts --project=chromium -g "physical address bootstrap capture receipt"` -> 7 passed
-- `npm run test:units` -> 417 passed
+## Guarded Expansion Snapshot
+- `guardedExpansionFailureSummaryPresent=false`
+- `guardedExpansionFailureCategory=no-guarded-expansion-failure`
+- `guardedExpansionFailureStage=none`
+- `guardedExpansionFailureReason=null`
+- `guardedExpansionFailureSummary=null`
+- `guardedExpansionInputFramePresent=true`
+- `guardedExpansionInputFieldsPresent=true`
+- `guardedExpansionInputFieldCount=126`
+- `guardedExpansionInputFieldCountPreserved=true`
+- `guardedExpansionHelperInvoked=true`
+- `guardedExpansionHelperEntered=true`
+- `guardedExpansionCandidateInventoryAttempted=true`
+- `guardedExpansionCandidateInventoryBuilt=true`
+- `guardedExpansionSelectionSummaryAttempted=true`
+- `guardedExpansionSelectionSummaryCompleted=true`
+- `guardedExpansionCalibratedEvaluationAttempted=true`
+- `guardedExpansionCalibratedEvaluationCompleted=true`
+- `guardedExpansionAnchorlessEvaluationAttempted=true`
+- `guardedExpansionAnchorlessEvaluationCompleted=true`
+- `guardedExpansionClickAttempted=true`
+- `guardedExpansionClickCompleted=true`
+- `guardedExpansionUiValidationAttempted=true`
+- `guardedExpansionUiValidationCompleted=false`
+- `guardedExpansionFailureBeforeCandidateInventory=false`
+- `guardedExpansionFailureDuringCandidateInventory=false`
+- `guardedExpansionFailureDuringSelectionSummary=false`
+- `guardedExpansionFailureBeforeCalibratedEvaluation=false`
+- `guardedExpansionFailureDuringCalibratedEvaluation=false`
+- `guardedExpansionFailureDuringClick=false`
+- `guardedExpansionFailureDuringUiValidation=false`
 
-## Result
-- Forward progress: yes.
-- RUN60 closed the known receipt gap from RUN59: guarded-expansion failures now carry bounded helper-phase telemetry, and the numeric discovered field count is preserved in the failure receipt path.
-- Bootstrap preservation of child guarded-expansion fields is covered and passing.
+## Calibrated / Artifact Snapshot
+- `exactThreeRadioGuardPassed=null`
+- `eligibleRadioCandidateCount=null`
+- `calibratedFallbackCandidateCount=null`
+- `candidateOrderStable=null`
+- `conflictingCueDetected=null`
+- `calibratedAnchorlessFallbackEnabled=false`
+- `calibratedAnchorlessFallbackGuardPassed=false`
+- `calibratedAnchorlessFallbackTargetSlot=null`
+- `selectionMode=null`
+- `selectedToggleSlot=null`
+- `fallbackReason=null`
+- `toggleSelectionOutcomeCategory=null`
+- `postClickUiEffectValidationRequired=false`
+- `postClickUiEffectValidationPassed=null`
+- `postClickUiEffectValidationOutcome=not-required`
+- `proofOfAddressUploadVisibleAfter=null`
+- `physicalOperatingAddressFieldsVisibleAfter=null`
+- `expansionAttempted=null`
+- `expansionExpanded=false`
+- `captureReportPresent=false`
+- `captureReportWritable=false`
+- `writerCalled=false`
+- `writerCompleted=false`
+- `artifactsFresh=false`
+- `artifactsRemainStale=true`
+- Fresh artifacts produced: no.
+- `artifacts/latest-physical-operating-address-post-toggle-structure.json` stayed on the stale May 1 timestamp.
+- `artifacts/latest-physical-operating-address-post-toggle-dom.html` stayed on the stale May 1 timestamp.
 
-## Remaining Blocker / Uncertainty
-- No authorized live run has yet exercised the new `guardedExpansionFailure*` cluster, so the exact bounded category that will appear on the live signer DOM remains unverified.
-- Because RUN60 was source/test-only, there is still no fresh post-toggle artifact or live receipt demonstrating whether the next failure lands before candidate inventory, during selection summary, during calibrated evaluation, or during click/UI validation.
+## Interpretation
+- RUN61 improved one live fact immediately: the failure receipt now preserves `initialFieldCount=126` instead of dropping the numeric count.
+- The run still failed before any calibrated selection or post-click artifact freshness could be proven. `selectedToggleSlot`, `selectionMode`, `toggleSelectionOutcomeCategory`, and all visible-after fields remained null, and the post-toggle files remained stale.
+- The new blocker is receipt inconsistency rather than total ambiguity. The outer receipt classifies `guarded-expansion-setup-failed`, but the inner `guardedExpansionFailure*` cluster still reports `no-guarded-expansion-failure` while `guardedExpansionUiValidationAttempted=true` and `guardedExpansionUiValidationCompleted=false`.
+- That mismatch suggests the fallback guarded-expansion classifier is retaining its seeded success category instead of deriving a bounded failure category from the live failure booleans when a non-guarded helper error escapes after helper entry.
+
+## business_mailing Classification
+- `business_mailing_address_line_1`: still capture-blocked
+- `business_mailing_city`: still capture-blocked
+- `business_mailing_state`: still capture-blocked
+- `business_mailing_postal_code`: still capture-blocked
 
 ## Guardrails Preserved
-- No live capture command was run.
+- Exactly one live capture command was run.
 - `bootstrap:interactive` was not run.
 - `interactive:watchdog` was not run.
 - Full signer discovery was not run.
 - `DESTRUCTIVE_VALIDATION` was not enabled.
 - `.env` was not mutated.
 - No uploads were performed.
-- No raw signer URL, raw email/link content, raw DOM/HTML, screenshot payload, raw IDs/classes/aria/name/owner/data/DocuSign metadata, raw stacks, or PII was emitted.
+- No finalization controls were invoked.
+- No raw signer URL, raw Gmail/email link, raw email text, token, credential, raw stdout/stderr dump, raw DOM/HTML, screenshot payload, raw IDs/classes/aria/name/owner/data/DocuSign values, or PII was emitted.
+- Screenshots were not needed and were ignored.
+
+## Tests / Commands Run
+- `npm run bootstrap:capture:physical-address` -> executed exactly once; exited `1`; fail-closed receipt generated
+- `reports:refresh` -> skipped
+- `findings:open` -> skipped
+
+## Result
+- Forward progress: yes.
+- RUN61 proved the new live receipt now preserves `initialFieldCount=126`, but it also exposed a new guarded-expansion classification gap that leaves the inner guarded-expansion category inconsistent with the outer post-signer failure state.
+
+## Remaining Blocker / Uncertainty
+- The receipt does not yet record a bounded guarded-expansion failure category even though helper entry, candidate inventory, selection summary, calibrated evaluation, anchorless evaluation, and click all appear complete while UI validation does not.
+- Because the category stayed `no-guarded-expansion-failure`, the live run still does not tell whether the real failure is inside bounded UI validation or in a generic error path that escapes after those booleans are set.
+- No fresh post-toggle artifacts were produced, so there is still no live field-local proof for any `business_mailing_*` concept.
 
 ## Recommendation
-Continue only with explicit live authorization.
+Redirect.
 
-Recommended next run ID: `PHYSICALADDRESSCALIBRATEDPIVOT-20260519-RUN61`.
-
-If authorized, RUN61 should execute exactly one live `npm run bootstrap:capture:physical-address` command, inspect the new `guardedExpansionFailure*` receipt fields, and stop without retrying.
+The smallest next move is a source/test-only RUN62 that inspects the guarded-expansion fallback classifier and generic catch path so the next live receipt cannot keep `guardedExpansionFailureCategory=no-guarded-expansion-failure` once `guardedExpansionUiValidationCompleted=false` and all selection/output fields are still null.
 
 ## Recommended Next Copilot Prompt
-For `PHYSICALADDRESSCALIBRATEDPIVOT-20260519-RUN61`, execute exactly one authorized live `npm run bootstrap:capture:physical-address` run to inspect the new `guardedExpansionFailure*` receipt fields and confirm whether the failure now lands before candidate inventory, during selection summary, during calibrated evaluation, or during click/UI validation; only if guarded expansion reaches calibrated selection should you validate the existing slot-2 path, and do not retry the command.
+For `PHYSICALADDRESSCALIBRATEDPIVOT-20260519-RUN62`, stay source/test-only and inspect `classifyPhysicalOperatingAddressCaptureOnlyGuardedExpansionFailure` and the guarded-expansion catch path in `scripts/capture-physical-operating-address.ts` so a live receipt that currently shows `postSignerFailureCategory=guarded-expansion-setup-failed`, `guardedExpansionFailureCategory=no-guarded-expansion-failure`, `guardedExpansionUiValidationAttempted=true`, `guardedExpansionUiValidationCompleted=false`, and null selection/output fields is reclassified into the smallest bounded guarded-expansion category; add a focused unit test for that live-shaped state and do not run another live capture.
 
 ## Branch / Commit Status
 - Branch: `main`
-- Current HEAD before the RUN60 handoff commit: `a3b9adb6dc6a3f6aa8800d483ea804213b6fd685`
-- RUN60 handoff commit: pending at write time
+- Current HEAD before the RUN61 handoff commit: `f171d5c5ffd4f8b9ae0838b7d2640aabcad517ed`
+- RUN61 handoff commit: pending at write time
 
-CHAT ID: PHYSICALADDRESSCALIBRATEDPIVOT-20260519-RUN60
+CHAT ID: PHYSICALADDRESSCALIBRATEDPIVOT-20260519-RUN61
